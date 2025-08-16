@@ -166,7 +166,8 @@ def main():
     # Obtenir la décision hybride finale
     final_decision, final_score = get_hybrid_decision(classic_pred, classic_conf, text_llm_decision, visual_llm_decision)
 
-    logger.info("\n=== DÉCISION FINALE HYBRIDE (3-MODÈLES) ===")
+    analysis_date = latest_data.index[0].date()
+    logger.info(f"\n=== DÉCISION FINALE HYBRIDE POUR {analysis_date} ===")
     logger.info(f"Prédiction Classique  : {'BUY' if classic_pred == 1 else 'SELL/HOLD'} (Confiance: {classic_conf:.2f})")
     logger.info(f"Décision LLM (Texte)  : {text_llm_decision.get('signal')} (Confiance: {text_llm_decision.get('confidence', 0.0):.2f})")
     logger.info(f"Décision LLM (Visuel) : {visual_llm_decision.get('signal')} (Confiance: {visual_llm_decision.get('confidence', 0.0):.2f})")

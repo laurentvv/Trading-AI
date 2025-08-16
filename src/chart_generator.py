@@ -19,8 +19,10 @@ def generate_chart_image(data_with_indicators: pd.DataFrame, output_path: Path, 
         bool: True if the chart was generated successfully, False otherwise.
     """
     try:
-        # Select last 6 months of data
-        six_months_data = data_with_indicators.last('6M')
+        # Select last 6 months of data using modern pandas slicing
+        end_date = data_with_indicators.index[-1]
+        start_date = end_date - pd.DateOffset(months=6)
+        six_months_data = data_with_indicators.loc[start_date:]
 
         if len(six_months_data) < 2:
             logger.warning("Not enough data to plot a chart (less than 2 data points in the last 6 months).")

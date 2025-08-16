@@ -8,8 +8,8 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
-TEXT_LLM_MODEL = "qwen:latest"
-VISUAL_LLM_MODEL = "llava:latest" # Default visual model
+TEXT_LLM_MODEL = "qwen3:14b"
+VISUAL_LLM_MODEL = "gemma3:12b"
 
 def construct_llm_prompt(latest_data: pd.DataFrame) -> str:
     """
@@ -119,6 +119,9 @@ def _query_ollama(payload: dict) -> dict:
         return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Erreur de communication avec l'API Ollama: {e}"}
     except (json.JSONDecodeError, ValueError) as e:
         logger.error(f"Erreur de décodage ou validation de la réponse JSON du LLM ({model_name}): {e}")
+        # Log the raw response text for debugging
+        if 'response' in locals() and hasattr(response, 'text'):
+            logger.error(f"Raw response from LLM: {response.text}")
         return {"signal": "HOLD", "confidence": 0.0, "analysis": f"La réponse du LLM n'était pas un JSON valide ou était mal formée: {e}"}
     except Exception as e:
         logger.error(f"Erreur inattendue lors de l'interrogation du LLM ({model_name}): {e}")
