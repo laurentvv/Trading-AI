@@ -12,12 +12,13 @@
     - **pyarrow (Parquet)**: For efficiently storing cached kline data.
 - **Visualization**:
     - **Matplotlib & Seaborn**: For generating plots of backtesting results.
+    - **mplfinance**: For generating professional financial chart images for the visual AI.
 
 ## 2. Development Environment
 - The project is managed using standard Python tooling.
 - Dependencies are listed in `requirements.txt` and should be installed into a virtual environment.
 
 ## 3. Technical Constraints & Assumptions
-- **Ollama Service**: The system assumes that an Ollama service is running locally and is accessible at `http://localhost:11434`. It also assumes a suitable model (e.g., Qwen) is available through this service.
+- **Ollama Service**: The system assumes that an Ollama service is running locally and is accessible at `http://localhost:11434`. It must provide both a text model (e.g., `qwen`) and a multi-modal visual model (e.g., `llava`).
 - **Internet Connection**: An internet connection is required for the initial data download (or when the cache is empty/stale).
 - **No GUI**: This is a command-line application. All output is text-based or saved as image files.

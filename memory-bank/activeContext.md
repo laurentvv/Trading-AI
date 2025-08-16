@@ -1,20 +1,21 @@
 # Active Context
 
 ## 1. Current Work Focus
-The project is now in the final step: **Step 11: Final Review and Submission**.
-The immediate focus is on performing a full code review, ensuring all components work together, and then submitting the project.
+The project is in **Phase 3: Finalization and Documentation**.
+The immediate focus is on **Step 5: Update the Memory Bank** and **Step 6: Update the `README.md`**.
 
 ## 2. Recent Changes
-- **Professional `README.md` Created**: The root `README.md` file has been written, containing comprehensive information about the project.
-- **Enhanced Backtesting Framework**: The backtester is feature-complete.
-- **Hybrid Decision Engine Implemented**: The system can combine classic and LLM model outputs.
-- **Ollama LLM Client Implemented**: The LLM client is feature-complete.
+- **3-Model Hybrid Engine Integrated**: `src/main.py` has been successfully updated to orchestrate the classic model, the text LLM, and the new visual LLM, combining their outputs into a final decision.
+- **LLM Client Upgraded**: The `src/llm_client.py` module supports both text and visual models.
+- **Chart Generator Created**: The `src/chart_generator.py` module is complete.
 
 ## 3. Next Steps
-1.  Perform a final review of all code and documentation.
-2.  Run the full pipeline to ensure there are no integration errors.
-3.  Submit the project for final approval.
+1.  Update all Memory Bank files to reflect the final, 3-model architecture.
+2.  Update the main `README.md` to include instructions and information about the new visual AI feature.
+3.  Perform a final end-to-end test of the complete system.
+4.  Submit the final project.
 
 ## 4. Active Decisions & Considerations
-- The modular structure will be: `src/data.py`, `src/features.py`, `src/classic_model.py`, `src/llm_client.py`, `src/backtest.py`, and `src/main.py`. This is a slight refinement of the plan to better name `classic_model.py`.
-- The LLM will be prompted to return a JSON object containing a `signal` and an `analysis` field to facilitate easy parsing.
+- Charts will be generated internally using `mplfinance` for reliability.
+- The chart will show 6 months of daily data with candlesticks, 50/200 MAs, Volume, RSI, and MACD.
+- The new visual signal will be a third, equal vote in the hybrid engine.
