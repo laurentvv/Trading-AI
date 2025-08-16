@@ -38,11 +38,15 @@ def construct_llm_prompt(latest_data: pd.DataFrame) -> str:
 
     **Format de sortie:**
     Répondez UNIQUEMENT avec un objet JSON valide.
+
+    **Exemple de réponse:**
+    ```json
     {{
-      "signal": "BUY|SELL|HOLD",
-      "confidence": <float>,
-      "analysis": "<votre analyse ici>"
+      "signal": "BUY",
+      "confidence": 0.75,
+      "analysis": "La tendance à court terme est haussière et le MACD a récemment croisé son signal, ce qui indique une dynamique positive. Le RSI n'est pas en zone de surachat, ce qui laisse une marge de progression."
     }}
+    ```
     """
     return prompt.strip()
 
