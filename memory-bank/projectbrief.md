@@ -8,7 +8,7 @@ The system must perform the following key functions:
 - **Data Ingestion & Caching**: Fetch historical market data (klines) and cache it locally to avoid redundant downloads.
 - **Hybrid AI Decision Engine**: Generate trading signals (`BUY`/`SELL`/`HOLD`) using a hybrid approach that combines:
     1. A traditional quantitative model (e.g., `scikit-learn` classifier) trained on technical indicators.
-    2. A Large Language Model (LLM) like Qwen (via Ollama) that provides both a direct signal and a qualitative market analysis.
+    2. A Large Language Model (LLM) like Gemma 3 (via Ollama) that provides both a direct signal and a qualitative market analysis.
 - **Backtesting**: Provide a robust backtesting framework to evaluate the performance of the trading strategy, including metrics like Sharpe ratio, max drawdown, and win rate, and accounting for transaction costs.
 - **Modularity and Maintainability**: The codebase must be well-structured, modular, and easy to extend.
 

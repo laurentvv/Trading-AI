@@ -8,84 +8,69 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
-TEXT_LLM_MODEL = "qwen3:14b"
-VISUAL_LLM_MODEL = "gemma3:12b"
+TEXT_LLM_MODEL = "gemma3:27b"
+VISUAL_LLM_MODEL = "gemma3:27b"
 
 def construct_llm_prompt(latest_data: pd.DataFrame) -> str:
     """
-    Construit un prompt détaillé pour le LLM à partir des dernières données de marché.
+    Constructs a detailed prompt for the LLM from the latest market data.
     """
     data = latest_data.iloc[0]
     prompt = f"""
-    Vous êtes un analyste financier expert spécialisé dans les ETF du NASDAQ.
-    Votre tâche est d'analyser les données de marché suivantes pour l'ETF et de fournir une décision de trading.
+    Analyze the following market data and provide a trading decision in JSON format.
 
-    **Données de marché actuelles:**
-    - Prix de clôture: {data['Close']:.2f}
+    **Current Market Data:**
+    - Close Price: {data['Close']:.2f}
     - RSI (14): {data['RSI']:.2f}
     - MACD: {data['MACD']:.4f}
-    - Signal MACD: {data['MACD_Signal']:.4f}
-    - Histogramme MACD: {data['MACD_Histogram']:.4f}
-    - Position des Bandes de Bollinger (0-1): {data['BB_Position']:.2f}
-    - Tendance à court terme (MA5 vs MA20): {'Haussière' if data['Trend_Short'] == 1 else 'Baissière' if data['Trend_Short'] == -1 else 'Neutre'}
-    - Tendance à long terme (MA20 vs MA50): {'Haussière' if data['Trend_Long'] == 1 else 'Baissière' if data['Trend_Long'] == -1 else 'Neutre'}
+    - MACD Signal: {data['MACD_Signal']:.4f}
+    - MACD Histogram: {data['MACD_Histogram']:.4f}
+    - Bollinger Bands Position (0-1): {data['BB_Position']:.2f}
+    - Short-term Trend (MA5 vs MA20): {'Bullish' if data['Trend_Short'] == 1 else 'Bearish' if data['Trend_Short'] == -1 else 'Neutral'}
+    - Long-term Trend (MA20 vs MA50): {'Bullish' if data['Trend_Long'] == 1 else 'Bearish' if data['Trend_Long'] == -1 else 'Neutral'}
 
     **Instructions:**
-    1.  Analysez ces indicateurs pour déterminer la dynamique actuelle du marché (momentum, tendance, surachat/survente).
-    2.  Fournissez une recommandation de trading claire: "BUY", "SELL", ou "HOLD".
-    3.  Rédigez une brève analyse (2-3 phrases) pour justifier votre recommandation.
-    4.  Fournissez un score de confiance pour votre décision, de 0.0 (incertain) à 1.0 (très certain).
-
-    **Format de sortie:**
-    Répondez UNIQUEMENT avec un objet JSON valide.
-
-    **Exemple de réponse:**
-    ```json
-    {{
-      "signal": "BUY",
-      "confidence": 0.75,
-      "analysis": "La tendance à court terme est haussière et le MACD a récemment croisé son signal, ce qui indique une dynamique positive. Le RSI n'est pas en zone de surachat, ce qui laisse une marge de progression."
-    }}
-    ```
+    Respond with a single, valid JSON object with three keys: "signal" (string: "BUY", "SELL", or "HOLD"), "confidence" (float: 0.0 to 1.0), and "analysis" (string: a brief 2-3 sentence justification).
     """
     return prompt.strip()
 
 def get_llm_decision(latest_data: pd.DataFrame) -> dict:
     """
-    Interroge le LLM textuel via Ollama pour obtenir une décision de trading.
+    Queries the textual LLM via Ollama to get a trading decision.
     """
-    logger.info("Interrogation du LLM textuel pour une décision de trading...")
+    logger.info("Querying textual LLM for a trading decision...")
     prompt = construct_llm_prompt(latest_data)
     payload = {
         "model": TEXT_LLM_MODEL,
         "prompt": prompt,
         "stream": False,
-        "format": "json"
+        "format": "json",
+        "system": "You are an expert financial analyst specializing in NASDAQ ETFs. Your task is to analyze market data and provide a trading decision in a valid JSON format."
     }
     return _query_ollama(payload)
 
 def get_visual_llm_decision(image_path: Path) -> dict:
     """
-    Interroge le LLM visuel via Ollama avec une image de graphique.
+    Queries the visual LLM via Ollama with a chart image.
     """
-    logger.info(f"Interrogation du LLM visuel avec l'image {image_path}...")
+    logger.info(f"Querying visual LLM with image {image_path}...")
 
     try:
         with open(image_path, "rb") as image_file:
             image_base64 = base64.b64encode(image_file.read()).decode("utf-8")
     except Exception as e:
-        logger.error(f"Impossible de lire ou d'encoder l'image {image_path}: {e}")
-        return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Erreur de lecture de l'image: {e}"}
+        logger.error(f"Could not read or encode image {image_path}: {e}")
+        return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Error reading image: {e}"}
 
     prompt = """
-    Vous êtes un expert en analyse technique et un chartiste. Analysez le graphique financier fourni.
-    Identifiez les tendances clés, les figures chartistes (patterns), et la dynamique des indicateurs (MAs, RSI, MACD, Volume).
+    You are a technical analysis expert and a chartist. Analyze the provided financial chart.
+    Identify key trends, chart patterns, and indicator dynamics (MAs, RSI, MACD, Volume).
 
-    Fournissez votre analyse dans un objet JSON valide avec la structure suivante:
+    Provide your analysis in a valid JSON object with the following structure:
     {
       "signal": "BUY|SELL|HOLD",
       "confidence": <float between 0.0 and 1.0>,
-      "analysis": "<votre analyse de 2-3 phrases sur les patterns visuels que vous avez identifiés>"
+      "analysis": "<your 2-3 sentence analysis of the visual patterns you identified>"
     }
     """
 
@@ -100,11 +85,11 @@ def get_visual_llm_decision(image_path: Path) -> dict:
 
 def _query_ollama(payload: dict) -> dict:
     """
-    Fonction helper pour envoyer une requête à l'API Ollama et gérer la réponse.
+    Helper function to send a request to the Ollama API and handle the response.
     """
     model_name = payload.get("model", "unknown")
     try:
-        response = requests.post(OLLAMA_API_URL, json=payload, timeout=120) # Timeout plus long pour les modèles visuels
+        response = requests.post(OLLAMA_API_URL, json=payload, timeout=120) # Longer timeout for visual models
         response.raise_for_status()
 
         response_data = response.json()
@@ -112,21 +97,21 @@ def _query_ollama(payload: dict) -> dict:
 
         required_keys = ["signal", "confidence", "analysis"]
         if not all(key in llm_output for key in required_keys):
-            logger.error(f"La réponse du LLM ({model_name}) est mal formée: {llm_output}")
-            raise ValueError("Réponse du LLM invalide ou mal formée.")
+            logger.error(f"The response from the LLM ({model_name}) is malformed: {llm_output}")
+            raise ValueError("Invalid or malformed LLM response.")
 
-        logger.info(f"Décision du LLM ({model_name}) reçue et validée.")
+        logger.info(f"LLM decision ({model_name}) received and validated.")
         return llm_output
 
     except requests.exceptions.RequestException as e:
-        logger.error(f"Erreur de communication avec l'API Ollama ({model_name}): {e}")
-        return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Erreur de communication avec l'API Ollama: {e}"}
+        logger.error(f"Error communicating with the Ollama API ({model_name}): {e}")
+        return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Error communicating with the Ollama API: {e}"}
     except (json.JSONDecodeError, ValueError) as e:
-        logger.error(f"Erreur de décodage ou validation de la réponse JSON du LLM ({model_name}): {e}")
+        logger.error(f"Error decoding or validating the JSON response from the LLM ({model_name}): {e}")
         # Log the raw response text for debugging
         if 'response' in locals() and hasattr(response, 'text'):
             logger.error(f"Raw response from LLM: {response.text}")
-        return {"signal": "HOLD", "confidence": 0.0, "analysis": f"La réponse du LLM n'était pas un JSON valide ou était mal formée: {e}"}
+        return {"signal": "HOLD", "confidence": 0.0, "analysis": f"The LLM response was not valid JSON or was malformed: {e}"}
     except Exception as e:
-        logger.error(f"Erreur inattendue lors de l'interrogation du LLM ({model_name}): {e}")
-        return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Erreur inattendue: {e}"}
+        logger.error(f"Unexpected error when querying the LLM ({model_name}): {e}")
+        return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Unexpected error: {e}"}

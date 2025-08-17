@@ -2,20 +2,20 @@ import pandas as pd
 import numpy as np
 
 def _calculate_performance_metrics(df: pd.DataFrame) -> dict:
-    """Calcul des métriques de performance avancées"""
+    """Calculates advanced performance metrics."""
     strategy_returns = df['Strategy_Returns'].dropna()
     benchmark_returns = df['Returns']
 
-    # Rendements annualisés
+    # Annualized returns
     strategy_annual = strategy_returns.mean() * 252
     benchmark_annual = benchmark_returns.mean() * 252
 
-    # Volatilités annualisées
+    # Annualized volatilities
     strategy_vol = strategy_returns.std() * np.sqrt(252)
     benchmark_vol = benchmark_returns.std() * np.sqrt(252)
 
-    # Ratios de Sharpe
-    risk_free_rate = 0.02  # 2% taux sans risque
+    # Sharpe ratios
+    risk_free_rate = 0.02  # 2% risk-free rate
     strategy_sharpe = (strategy_annual - risk_free_rate) / strategy_vol if strategy_vol > 0 else 0
     benchmark_sharpe = (benchmark_annual - risk_free_rate) / benchmark_vol if benchmark_vol > 0 else 0
 
@@ -47,32 +47,32 @@ def _calculate_performance_metrics(df: pd.DataFrame) -> dict:
 
 def run_backtest(data: pd.DataFrame, signals: pd.Series, transaction_cost_pct: float = 0.001) -> tuple[pd.DataFrame, dict]:
     """
-    Exécute un backtest basé sur une série de signaux, en incluant les coûts de transaction.
-    signals: une série avec 1 pour long, 0 pour neutre.
-    transaction_cost_pct: le coût d'un aller-retour en pourcentage (ex: 0.001 pour 0.1%).
+    Runs a backtest based on a series of signals, including transaction costs.
+    signals: a series with 1 for long, 0 for neutral.
+    transaction_cost_pct: the cost of a round trip as a percentage (e.g., 0.001 for 0.1%).
     """
     df = data.copy()
 
-    # La série 'signals' représente la position désirée (1 ou 0)
-    df['Position'] = signals.shift(1).fillna(0) # On entre à la bougie suivante
+    # The 'signals' series represents the desired position (1 or 0)
+    df['Position'] = signals.shift(1).fillna(0) # We enter on the next candle
 
-    # Identifier les jours de trade (changement de position)
+    # Identify trade days (change in position)
     df['Trades'] = df['Position'].diff().abs()
 
-    # Calculer les coûts de transaction
+    # Calculate transaction costs
     df['Transaction_Costs'] = df['Trades'] * transaction_cost_pct
 
-    # Calculer les rendements de la stratégie en déduisant les coûts
+    # Calculate strategy returns minus costs
     df['Strategy_Returns'] = (df['Returns'] * df['Position']) - df['Transaction_Costs']
 
-    # Calculer les rendements cumulés
+    # Calculate cumulative returns
     df['Cumulative_Returns'] = (1 + df['Returns']).cumprod()
     df['Cumulative_Strategy'] = (1 + df['Strategy_Returns']).cumprod()
 
-    # Métriques de performance
+    # Performance metrics
     performance_metrics = _calculate_performance_metrics(df)
 
-    # Ajouter le coût total au rapport
+    # Add total cost to the report
     performance_metrics['total_transaction_costs'] = df['Transaction_Costs'].sum()
 
     return df, performance_metrics

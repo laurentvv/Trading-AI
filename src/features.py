@@ -5,7 +5,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 def _calculate_atr(df: pd.DataFrame, window: int = 14) -> pd.Series:
-    """Calcul de l'Average True Range"""
+    """Calculates the Average True Range."""
     high_low = df['High'] - df['Low']
     high_close = np.abs(df['High'] - df['Close'].shift())
     low_close = np.abs(df['Low'] - df['Close'].shift())
@@ -16,24 +16,24 @@ def _calculate_atr(df: pd.DataFrame, window: int = 14) -> pd.Series:
 
 def create_technical_indicators(data: pd.DataFrame) -> pd.DataFrame:
     """
-    Création d'indicateurs techniques avancés
+    Creates advanced technical indicators.
     """
     df = data.copy()
 
-    # Rendements
+    # Returns
     df['Returns'] = df['Close'].pct_change()
     df['Log_Returns'] = np.log(df['Close'] / df['Close'].shift(1))
 
-    # Moyennes mobiles multiples
+    # Multiple moving averages
     for window in [5, 10, 20, 50, 100, 200]:
         df[f'MA_{window}'] = df['Close'].rolling(window=window).mean()
         df[f'MA_{window}_slope'] = df[f'MA_{window}'].diff()
 
-    # Moyennes mobiles exponentielles
+    # Exponential moving averages
     for span in [12, 26, 50]:
         df[f'EMA_{span}'] = df['Close'].ewm(span=span).mean()
 
-    # RSI amélioré
+    # Improved RSI
     delta = df['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
@@ -41,12 +41,12 @@ def create_technical_indicators(data: pd.DataFrame) -> pd.DataFrame:
     df['RSI'] = 100 - (100 / (1 + rs))
     df['RSI_MA'] = df['RSI'].rolling(window=5).mean()
 
-    # MACD complet
+    # Full MACD
     df['MACD'] = df['EMA_12'] - df['EMA_26']
     df['MACD_Signal'] = df['MACD'].ewm(span=9).mean()
     df['MACD_Histogram'] = df['MACD'] - df['MACD_Signal']
 
-    # Bandes de Bollinger
+    # Bollinger Bands
     df['BB_Middle'] = df['Close'].rolling(window=20).mean()
     bb_std = df['Close'].rolling(window=20).std()
     df['BB_Upper'] = df['BB_Middle'] + (2 * bb_std)
@@ -54,7 +54,7 @@ def create_technical_indicators(data: pd.DataFrame) -> pd.DataFrame:
     df['BB_Width'] = df['BB_Upper'] - df['BB_Lower']
     df['BB_Position'] = (df['Close'] - df['BB_Lower']) / (df['BB_Upper'] - df['BB_Lower'])
 
-    # Stochastique
+    # Stochastic
     low_14 = df['Low'].rolling(window=14).min()
     high_14 = df['High'].rolling(window=14).max()
     df['Stoch_K'] = 100 * ((df['Close'] - low_14) / (high_14 - low_14))
@@ -64,11 +64,11 @@ def create_technical_indicators(data: pd.DataFrame) -> pd.DataFrame:
     df['Volume_MA'] = df['Volume'].rolling(window=20).mean()
     df['Volume_Ratio'] = df['Volume'] / df['Volume_MA']
 
-    # Volatilité
+    # Volatility
     df['Volatility'] = df['Returns'].rolling(window=20).std()
     df['ATR'] = _calculate_atr(df, window=14)
 
-    # Support et résistance
+    # Support and resistance
     df['Support'] = df['Low'].rolling(window=20).min()
     df['Resistance'] = df['High'].rolling(window=20).max()
 
@@ -76,55 +76,55 @@ def create_technical_indicators(data: pd.DataFrame) -> pd.DataFrame:
 
 def create_features(data: pd.DataFrame) -> pd.DataFrame:
     """
-    Création de features avancées pour le ML
+    Creates advanced features for ML.
     """
     df = data.copy()
 
-    # Signaux de croisement
+    # Crossover signals
     df['MA_Cross_5_20'] = (df['MA_5'] > df['MA_20']).astype(int)
     df['MA_Cross_20_50'] = (df['MA_20'] > df['MA_50']).astype(int)
     df['EMA_Cross_12_26'] = (df['EMA_12'] > df['EMA_26']).astype(int)
 
-    # Signaux RSI
+    # RSI signals
     df['RSI_Oversold'] = (df['RSI'] < 30).astype(int)
     df['RSI_Overbought'] = (df['RSI'] > 70).astype(int)
     df['RSI_Neutral'] = ((df['RSI'] >= 30) & (df['RSI'] <= 70)).astype(int)
 
-    # Signaux MACD
+    # MACD signals
     df['MACD_Bull'] = (df['MACD'] > df['MACD_Signal']).astype(int)
     df['MACD_Cross'] = ((df['MACD'] > df['MACD_Signal']) &
                        (df['MACD'].shift(1) <= df['MACD_Signal'].shift(1))).astype(int)
 
-    # Signaux Bollinger Bands
+    # Bollinger Bands signals
     df['BB_Squeeze'] = (df['BB_Width'] < df['BB_Width'].rolling(20).mean()).astype(int)
     df['BB_Lower_Touch'] = (df['Close'] <= df['BB_Lower']).astype(int)
     df['BB_Upper_Touch'] = (df['Close'] >= df['BB_Upper']).astype(int)
 
-    # Signaux de momentum
+    # Momentum signals
     df['Price_Above_MA20'] = (df['Close'] > df['MA_20']).astype(int)
     df['Price_Above_MA50'] = (df['Close'] > df['MA_50']).astype(int)
     df['Volume_Spike'] = (df['Volume_Ratio'] > 1.5).astype(int)
 
-    # Features de tendance
+    # Trend features
     df['Trend_Short'] = np.where(df['MA_5'] > df['MA_20'], 1,
                                np.where(df['MA_5'] < df['MA_20'], -1, 0))
     df['Trend_Long'] = np.where(df['MA_20'] > df['MA_50'], 1,
                               np.where(df['MA_20'] < df['MA_50'], -1, 0))
 
-    # Target variable améliorée (rendement futur sur plusieurs horizons)
+    # Improved target variable (future return over multiple horizons)
     df['Target_1d'] = np.where(df['Returns'].shift(-1) > 0, 1, 0)
     df['Target_3d'] = np.where(df['Close'].shift(-3) > df['Close'], 1, 0)
     df['Target_5d'] = np.where(df['Close'].shift(-5) > df['Close'], 1, 0)
 
-    # Target principale basée sur un seuil de rendement
-    threshold = df['Returns'].std() * 0.5  # 50% de la volatilité
+    # Main target based on a return threshold
+    threshold = df['Returns'].std() * 0.5  # 50% of volatility
     df['Target'] = np.where(df['Returns'].shift(-1) > threshold, 1, 0)
 
     return df.dropna()
 
 def select_features(data: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, list]:
     """
-    Sélection intelligente des features pour le modèle
+    Intelligently selects features for the model.
     """
     feature_columns = [
         'Returns', 'Log_Returns',
@@ -148,6 +148,6 @@ def select_features(data: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, list]:
     X = data[available_features]
     y = data['Target']
 
-    logger.info(f"Features sélectionnées: {len(available_features)}")
+    logger.info(f"Features selected: {len(available_features)}")
 
     return X, y, available_features

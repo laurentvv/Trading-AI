@@ -10,19 +10,19 @@ logger = logging.getLogger(__name__)
 
 def train_ensemble_model(X: pd.DataFrame, y: pd.Series) -> tuple:
     """
-    Entraînement d'un modèle ensemble avec validation croisée
+    Trains an ensemble model with cross-validation.
     """
-    # Division des données
+    # Data splitting
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, shuffle=False
     )
 
-    # Normalisation
+    # Scaling
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
 
-    # Test de plusieurs modèles
+    # Model testing
     models = {
         'RandomForest': RandomForestClassifier(
             n_estimators=200,
@@ -45,7 +45,7 @@ def train_ensemble_model(X: pd.DataFrame, y: pd.Series) -> tuple:
         )
     }
 
-    # Validation croisée et sélection du meilleur modèle
+    # Cross-validation and best model selection
     best_score = 0
     best_model = None
     best_name = ""
@@ -54,18 +54,18 @@ def train_ensemble_model(X: pd.DataFrame, y: pd.Series) -> tuple:
         cv_scores = cross_val_score(model, X_train_scaled, y_train, cv=5, scoring='f1')
         mean_score = cv_scores.mean()
 
-        logger.info(f"{name} - Score CV: {mean_score:.4f} (+/- {cv_scores.std() * 2:.4f})")
+        logger.info(f"{name} - CV Score: {mean_score:.4f} (+/- {cv_scores.std() * 2:.4f})")
 
         if mean_score > best_score:
             best_score = mean_score
             best_model = model
             best_name = name
 
-    # Entraînement du meilleur modèle
-    logger.info(f"Meilleur modèle sélectionné: {best_name}")
+    # Best model training
+    logger.info(f"Best model selected: {best_name}")
     best_model.fit(X_train_scaled, y_train)
 
-    # Évaluation
+    # Evaluation
     y_pred = best_model.predict(X_test_scaled)
 
     metrics = {
@@ -75,7 +75,7 @@ def train_ensemble_model(X: pd.DataFrame, y: pd.Series) -> tuple:
         'f1': f1_score(y_test, y_pred)
     }
 
-    logger.info(f"\n=== RÉSULTATS DU MODÈLE {best_name.upper()} ===")
+    logger.info(f"\n=== {best_name.upper()} MODEL RESULTS ===")
     for metric, value in metrics.items():
         logger.info(f"{metric.capitalize()}: {value:.4f}")
 
@@ -91,7 +91,7 @@ def train_ensemble_model(X: pd.DataFrame, y: pd.Series) -> tuple:
 
 def get_classic_prediction(model, scaler, latest_features: pd.DataFrame) -> tuple[int, float]:
     """
-    Génère une prédiction à partir du modèle classique entraîné.
+    Generates a prediction from the trained classic model.
     """
     latest_features_scaled = scaler.transform(latest_features)
 
@@ -100,3 +100,4 @@ def get_classic_prediction(model, scaler, latest_features: pd.DataFrame) -> tupl
     confidence = max(probabilities)
 
     return prediction, confidence
+

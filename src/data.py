@@ -10,67 +10,67 @@ CACHE_DIR = Path("data_cache")
 
 def get_etf_data(ticker: str, period: str = '5y', force_refresh: bool = False) -> tuple[pd.DataFrame, dict]:
     """
-    Récupération des données de l'ETF, avec un système de cache local.
+    Retrieves ETF data, with a local caching system.
 
     Args:
-        ticker (str): Le ticker de l'ETF.
-        period (str): La période de données à récupérer (ex: '5y').
-        force_refresh (bool): Si True, force le téléchargement même si un cache existe.
+        ticker (str): The ETF ticker.
+        period (str): The data period to retrieve (e.g., '5y').
+        force_refresh (bool): If True, forces download even if a cache exists.
 
     Returns:
-        tuple[pd.DataFrame, dict]: Un tuple contenant le DataFrame des données historiques
-                                   et un dictionnaire d'informations sur l'ETF.
+        tuple[pd.DataFrame, dict]: A tuple containing the DataFrame of historical data
+                                   and a dictionary of ETF information.
     """
-    # Créer le nom du fichier de cache
+    # Create cache filename
     cache_filename = f"{ticker.replace('.', '_')}_{period}.parquet"
     cache_filepath = CACHE_DIR / cache_filename
 
-    # Vérifier si le cache existe et n'est pas forcé à être rafraîchi
+    # Check if cache exists and is not forced to be refreshed
     if not force_refresh and cache_filepath.exists():
         try:
-            logger.info(f"Chargement des données depuis le cache: {cache_filepath}")
+            logger.info(f"Loading data from cache: {cache_filepath}")
             hist_data = pd.read_parquet(cache_filepath)
 
-            # Récupérer les informations de l'ETF (ce n'est pas mis en cache)
+            # Retrieve ETF information (not cached)
             etf = yf.Ticker(ticker)
             try:
                 info = etf.info
             except Exception:
                 info = {"longName": "ETF NASDAQ France (from cache)", "currency": "EUR"}
 
-            logger.info(f"Données chargées depuis le cache: {len(hist_data)} jours.")
+            logger.info(f"Data loaded from cache: {len(hist_data)} days.")
             return hist_data, info
         except Exception as e:
-            logger.warning(f"Impossible de lire le fichier de cache {cache_filepath}: {e}. Téléchargement des données.")
+            logger.warning(f"Could not read cache file {cache_filepath}: {e}. Downloading data.")
 
-    # Si le cache n'existe pas ou si le rafraîchissement est forcé
-    logger.info(f"Téléchargement des données pour {ticker}...")
+    # If cache does not exist or refresh is forced
+    logger.info(f"Downloading data for {ticker}...")
     try:
         etf = yf.Ticker(ticker)
         hist_data = etf.history(period=period, auto_adjust=True, prepost=True)
 
         if hist_data.empty:
-            raise ValueError(f"Aucune donnée trouvée pour le ticker {ticker}")
+            raise ValueError(f"No data found for ticker {ticker}")
 
-        # Nettoyage des données
+        # Data cleaning
         hist_data = hist_data.dropna()
 
-        # Informations sur l'ETF
+        # ETF information
         try:
             info = etf.info
         except Exception:
             info = {"longName": "ETF NASDAQ France", "currency": "EUR"}
 
-        # Sauvegarder les données dans le cache
-        logger.info(f"Sauvegarde des données dans le cache: {cache_filepath}")
+        # Save data to cache
+        logger.info(f"Saving data to cache: {cache_filepath}")
         os.makedirs(CACHE_DIR, exist_ok=True)
         hist_data.to_parquet(cache_filepath)
 
-        logger.info(f"Données récupérées: {len(hist_data)} jours de cotation")
-        logger.info(f"Période: {hist_data.index[0].date()} à {hist_data.index[-1].date()}")
+        logger.info(f"Data retrieved: {len(hist_data)} trading days")
+        logger.info(f"Period: {hist_data.index[0].date()} to {hist_data.index[-1].date()}")
 
         return hist_data, info
 
     except Exception as e:
-        logger.error(f"Erreur lors de la récupération des données: {e}")
+        logger.error(f"Error retrieving data: {e}")
         raise

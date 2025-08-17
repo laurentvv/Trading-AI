@@ -19,7 +19,7 @@ This project is a sophisticated trading decision support system that uses a tri-
 - **Python 3.10+**
 - **Pandas & NumPy**: For data manipulation.
 - **Scikit-learn**: For the classic ML model.
-- **Ollama**: To serve the local LLM (tested with `qwen:latest`).
+- **Ollama**: To serve the local LLM (tested with `gemma3:27b`).
 - **yfinance**: For fetching market data.
 - **Matplotlib & Seaborn**: For plotting.
 - **PyArrow**: For Parquet file handling.
@@ -31,8 +31,7 @@ This project is a sophisticated trading decision support system that uses a tri-
 Before you begin, ensure you have the following installed:
 - Python 3.10 or higher.
 - [Ollama](https://ollama.com/) running locally.
-- A downloaded text-based LLM (e.g., Qwen): `ollama pull qwen`
-- A downloaded multi-modal LLM (e.g., LLaVA): `ollama pull llava`
+- A downloaded LLM (e.g., Gemma 3): `ollama pull gemma3:27b`
 
 ## Installation
 
