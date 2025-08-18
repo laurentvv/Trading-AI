@@ -213,7 +213,7 @@ def main():
 
     analysis_date = latest_data.index[0].date()
 
-    # --- Rich-based Output ---
+    # --- Rich-based Output (French) ---
     from rich.console import Console
     from rich.table import Table
     from rich.panel import Panel
@@ -221,11 +221,27 @@ def main():
 
     console = Console()
 
+    # --- Traductions ---
+    signal_translations = {
+        "BUY": "ACHAT",
+        "SELL": "VENTE",
+        "HOLD": "NEUTRE",
+        "SELL/HOLD": "VENTE/NEUTRE",
+        "STRONG BUY": "ACHAT FORT",
+        "STRONG SELL": "VENTE FORTE"
+    }
+    reliability_translations = {
+        "Very High": "Très Élevée",
+        "High": "Élevée",
+        "Moderate": "Modérée",
+        "Low": "Faible"
+    }
+
     # 1. Create a table for the model breakdown
     table = Table(show_header=True, header_style="bold magenta", title_justify="center")
-    table.add_column("Model", style="dim", width=25)
+    table.add_column("Modèle", style="dim", width=25)
     table.add_column("Signal", justify="center")
-    table.add_column("Confidence", justify="right")
+    table.add_column("Confiance", justify="right")
 
     def get_signal_style(signal):
         if signal is None: return "bold yellow"
@@ -233,46 +249,56 @@ def main():
         if "SELL" in signal: return "bold red"
         return "bold yellow"
 
+    # Helper to translate signals
+    def translate_signal(signal_en):
+        return signal_translations.get(signal_en, signal_en)
+
+    classic_signal_en = 'BUY' if classic_pred == 1 else 'SELL/HOLD'
     table.add_row(
-        "Classic Quantitative",
-        Text('BUY' if classic_pred == 1 else 'SELL/HOLD', style=get_signal_style('BUY' if classic_pred == 1 else 'SELL')),
+        "Quantitatif Classique",
+        Text(translate_signal(classic_signal_en), style=get_signal_style(classic_signal_en)),
         f"{classic_conf:.2%}"
     )
+    text_llm_signal_en = text_llm_decision.get('signal', 'HOLD')
     table.add_row(
-        "LLM (Textual Analysis)",
-        Text(text_llm_decision.get('signal', 'HOLD'), style=get_signal_style(text_llm_decision.get('signal'))),
+        "LLM (Analyse Textuelle)",
+        Text(translate_signal(text_llm_signal_en), style=get_signal_style(text_llm_signal_en)),
         f"{text_llm_decision.get('confidence', 0.0):.2%}"
     )
+    visual_llm_signal_en = visual_llm_decision.get('signal', 'HOLD')
     table.add_row(
-        "LLM (Visual Analysis)",
-        Text(visual_llm_decision.get('signal', 'HOLD'), style=get_signal_style(visual_llm_decision.get('signal'))),
+        "LLM (Analyse Visuelle)",
+        Text(translate_signal(visual_llm_signal_en), style=get_signal_style(visual_llm_signal_en)),
         f"{visual_llm_decision.get('confidence', 0.0):.2%}"
     )
+    sentiment_signal_en = sentiment_decision.get('signal', 'HOLD')
     table.add_row(
-        "LLM (Sentiment Analysis)",
-        Text(sentiment_decision.get('signal', 'HOLD'), style=get_signal_style(sentiment_decision.get('signal'))),
+        "LLM (Analyse de Sentiment)",
+        Text(translate_signal(sentiment_signal_en), style=get_signal_style(sentiment_signal_en)),
         f"{sentiment_decision.get('confidence', 0.0):.2%}"
     )
 
     # 2. Determine reliability
     abs_score = abs(final_score)
     if abs_score > 0.6:
-        reliability = "Very High"
+        reliability_en = "Very High"
         reliability_style = "bold green"
     elif abs_score > 0.4:
-        reliability = "High"
+        reliability_en = "High"
         reliability_style = "green"
     elif abs_score > 0.2:
-        reliability = "Moderate"
+        reliability_en = "Moderate"
         reliability_style = "yellow"
     else:
-        reliability = "Low"
+        reliability_en = "Low"
         reliability_style = "red"
+    
+    reliability_fr = reliability_translations.get(reliability_en, reliability_en)
 
     # 3. Create the final decision panel
-    decision_text = Text(final_decision, justify="center", style=get_signal_style(final_decision))
+    decision_text = Text(translate_signal(final_decision), justify="center", style=get_signal_style(final_decision))
     score_text = Text(f"Score: {final_score:.4f}", justify="center")
-    reliability_text = Text(f"Reliability: {reliability}", justify="center", style=reliability_style)
+    reliability_text = Text(f"Fiabilité: {reliability_fr}", justify="center", style=reliability_style)
 
     output_text = Text.assemble(
         decision_text, "\n",
@@ -283,20 +309,20 @@ def main():
     # 4. Visual Analysis Panel
     visual_analysis_panel = Panel(
         Text(visual_llm_decision.get('analysis', 'N/A'), style="italic"),
-        title="[bold]Visual LLM Analysis[/bold]",
+        title="[bold]Analyse LLM Visuelle[/bold]",
         border_style="dim"
     )
 
     console.print("")
     console.print(Panel(
         table,
-        title=f"[bold]Hybrid Decision Analysis for {TICKER} on {analysis_date}[/bold]",
+        title=f"[bold]Analyse de la Décision Hybride pour {TICKER} le {analysis_date}[/bold]",
         border_style="blue"
     ))
     console.print(visual_analysis_panel)
     console.print(Panel(
         output_text,
-        title="[bold]Final Decision[/bold]",
+        title="[bold]Décision Finale[/bold]",
         border_style="bold"
     ))
     console.print("")
