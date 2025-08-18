@@ -67,6 +67,8 @@ def create_technical_indicators(data: pd.DataFrame) -> pd.DataFrame:
     # Volatility
     df['Volatility'] = df['Returns'].rolling(window=20).std()
     df['ATR'] = _calculate_atr(df, window=14)
+    if 'VIX' in df.columns:
+        df['VIX_MA_20'] = df['VIX'].rolling(window=20).mean()
 
     # Support and resistance
     df['Support'] = df['Low'].rolling(window=20).min()
@@ -134,7 +136,7 @@ def select_features(data: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, list]:
         'MACD', 'MACD_Signal', 'MACD_Histogram',
         'BB_Position', 'BB_Width',
         'Stoch_K', 'Stoch_D',
-        'Volume_Ratio', 'Volatility', 'ATR',
+        'Volume_Ratio', 'Volatility', 'ATR', 'VIX', 'VIX_MA_20',
         'MA_Cross_5_20', 'MA_Cross_20_50', 'EMA_Cross_12_26',
         'RSI_Oversold', 'RSI_Overbought', 'RSI_Neutral',
         'MACD_Bull', 'MACD_Cross',
