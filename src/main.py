@@ -212,16 +212,94 @@ def main():
     final_decision, final_score = get_hybrid_decision(classic_pred, classic_conf, text_llm_decision, visual_llm_decision, sentiment_decision)
 
     analysis_date = latest_data.index[0].date()
-    logger.info(f"\n=== FINAL HYBRID DECISION FOR {analysis_date} ===")
-    logger.info(f"Classic Prediction  : {'BUY' if classic_pred == 1 else 'SELL/HOLD'} (Confidence: {classic_conf:.2f})")
-    logger.info(f"LLM Decision (Text)  : {text_llm_decision.get('signal')} (Confidence: {text_llm_decision.get('confidence', 0.0):.2f})")
-    logger.info(f"LLM Decision (Visual) : {visual_llm_decision.get('signal')} (Confidence: {visual_llm_decision.get('confidence', 0.0):.2f})")
-    logger.info(f"LLM Decision (Sentiment) : {sentiment_decision.get('signal')} (Confidence: {sentiment_decision.get('confidence', 0.0):.2f})")
-    logger.info(f"Visual Analysis      : {visual_llm_decision.get('analysis')}")
-    logger.info("-" * 40)
-    logger.info(f"Final Hybrid Score   : {final_score:.4f}")
-    logger.info(f"FINAL DECISION       : {final_decision}")
-    logger.info("=" * 40)
+
+    # --- Rich-based Output ---
+    from rich.console import Console
+    from rich.table import Table
+    from rich.panel import Panel
+    from rich.text import Text
+
+    console = Console()
+
+    # 1. Create a table for the model breakdown
+    table = Table(show_header=True, header_style="bold magenta", title_justify="center")
+    table.add_column("Model", style="dim", width=25)
+    table.add_column("Signal", justify="center")
+    table.add_column("Confidence", justify="right")
+
+    def get_signal_style(signal):
+        if signal is None: return "bold yellow"
+        if "BUY" in signal: return "bold green"
+        if "SELL" in signal: return "bold red"
+        return "bold yellow"
+
+    table.add_row(
+        "Classic Quantitative",
+        Text('BUY' if classic_pred == 1 else 'SELL/HOLD', style=get_signal_style('BUY' if classic_pred == 1 else 'SELL')),
+        f"{classic_conf:.2%}"
+    )
+    table.add_row(
+        "LLM (Textual Analysis)",
+        Text(text_llm_decision.get('signal', 'HOLD'), style=get_signal_style(text_llm_decision.get('signal'))),
+        f"{text_llm_decision.get('confidence', 0.0):.2%}"
+    )
+    table.add_row(
+        "LLM (Visual Analysis)",
+        Text(visual_llm_decision.get('signal', 'HOLD'), style=get_signal_style(visual_llm_decision.get('signal'))),
+        f"{visual_llm_decision.get('confidence', 0.0):.2%}"
+    )
+    table.add_row(
+        "LLM (Sentiment Analysis)",
+        Text(sentiment_decision.get('signal', 'HOLD'), style=get_signal_style(sentiment_decision.get('signal'))),
+        f"{sentiment_decision.get('confidence', 0.0):.2%}"
+    )
+
+    # 2. Determine reliability
+    abs_score = abs(final_score)
+    if abs_score > 0.6:
+        reliability = "Very High"
+        reliability_style = "bold green"
+    elif abs_score > 0.4:
+        reliability = "High"
+        reliability_style = "green"
+    elif abs_score > 0.2:
+        reliability = "Moderate"
+        reliability_style = "yellow"
+    else:
+        reliability = "Low"
+        reliability_style = "red"
+
+    # 3. Create the final decision panel
+    decision_text = Text(final_decision, justify="center", style=get_signal_style(final_decision))
+    score_text = Text(f"Score: {final_score:.4f}", justify="center")
+    reliability_text = Text(f"Reliability: {reliability}", justify="center", style=reliability_style)
+
+    output_text = Text.assemble(
+        decision_text, "\n",
+        score_text, "\n",
+        reliability_text
+    )
+
+    # 4. Visual Analysis Panel
+    visual_analysis_panel = Panel(
+        Text(visual_llm_decision.get('analysis', 'N/A'), style="italic"),
+        title="[bold]Visual LLM Analysis[/bold]",
+        border_style="dim"
+    )
+
+    console.print("")
+    console.print(Panel(
+        table,
+        title=f"[bold]Hybrid Decision Analysis for {TICKER} on {analysis_date}[/bold]",
+        border_style="blue"
+    ))
+    console.print(visual_analysis_panel)
+    console.print(Panel(
+        output_text,
+        title="[bold]Final Decision[/bold]",
+        border_style="bold"
+    ))
+    console.print("")
 
     if backtest_data is not None:
         logger.info("\nStep 4: Generating backtest analysis charts...")
