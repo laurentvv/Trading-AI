@@ -34,10 +34,10 @@ if not ALPHA_VANTAGE_API_KEY:
     sys.exit(1)
 
 # --- Constants for the hybrid decision engine ---
-W_CLASSIC = 1/4
-W_LLM_TEXT = 1/4
-W_LLM_VISUAL = 1/4
-W_SENTIMENT = 1/4
+W_CLASSIC = 0.4
+W_LLM_TEXT = 0.25
+W_LLM_VISUAL = 0.25
+W_SENTIMENT = 0.1
 
 def get_hybrid_decision(classic_pred: int, classic_conf: float, text_llm_decision: dict, visual_llm_decision: dict, sentiment_decision: dict) -> tuple[str, float]:
     """
