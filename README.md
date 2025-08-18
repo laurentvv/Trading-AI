@@ -52,6 +52,12 @@ Before you begin, ensure you have the following installed:
     pip install -r requirements.txt
     ```
 
+4.  **Set up your API Key:**
+    Create a file named `.env` in the root directory of the project and add your Alpha Vantage API key to it like this:
+    ```
+    ALPHA_VANTAGE_API_KEY="YOUR_API_KEY_HERE"
+    ```
+
 ## Usage
 
 To run the trading system, execute the main script from the root directory:

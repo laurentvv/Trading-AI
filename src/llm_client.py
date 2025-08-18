@@ -4,6 +4,7 @@ import json
 import pandas as pd
 import base64
 from pathlib import Path
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -83,35 +84,45 @@ def get_visual_llm_decision(image_path: Path) -> dict:
     }
     return _query_ollama(payload)
 
-def _query_ollama(payload: dict) -> dict:
+def _query_ollama(payload: dict, max_retries: int = 3) -> dict:
     """
-    Helper function to send a request to the Ollama API and handle the response.
+    Helper function to send a request to the Ollama API and handle the response, with retries.
     """
     model_name = payload.get("model", "unknown")
-    try:
-        response = requests.post(OLLAMA_API_URL, json=payload, timeout=120) # Longer timeout for visual models
-        response.raise_for_status()
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(OLLAMA_API_URL, json=payload, timeout=120) # Longer timeout for visual models
+            response.raise_for_status()
 
-        response_data = response.json()
-        llm_output = json.loads(response_data.get('response', '{}'))
+            response_data = response.json()
+            llm_output_str = response_data.get('response', '{}')
+            
+            # Handle cases where the response is a string that needs to be parsed
+            if isinstance(llm_output_str, str):
+                llm_output = json.loads(llm_output_str)
+            else:
+                llm_output = llm_output_str
 
-        required_keys = ["signal", "confidence", "analysis"]
-        if not all(key in llm_output for key in required_keys):
-            logger.error(f"The response from the LLM ({model_name}) is malformed: {llm_output}")
-            raise ValueError("Invalid or malformed LLM response.")
+            required_keys = ["signal", "confidence", "analysis"]
+            if not all(key in llm_output for key in required_keys):
+                logger.warning(f"Attempt {attempt + 1}/{max_retries}: Response from LLM ({model_name}) is malformed: {llm_output}")
+                raise ValueError("Invalid or malformed LLM response.")
 
-        logger.info(f"LLM decision ({model_name}) received and validated.")
-        return llm_output
+            logger.info(f"LLM decision ({model_name}) received and validated.")
+            return llm_output
 
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error communicating with the Ollama API ({model_name}): {e}")
-        return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Error communicating with the Ollama API: {e}"}
-    except (json.JSONDecodeError, ValueError) as e:
-        logger.error(f"Error decoding or validating the JSON response from the LLM ({model_name}): {e}")
-        # Log the raw response text for debugging
-        if 'response' in locals() and hasattr(response, 'text'):
-            logger.error(f"Raw response from LLM: {response.text}")
-        return {"signal": "HOLD", "confidence": 0.0, "analysis": f"The LLM response was not valid JSON or was malformed: {e}"}
-    except Exception as e:
-        logger.error(f"Unexpected error when querying the LLM ({model_name}): {e}")
-        return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Unexpected error: {e}"}
+        except (requests.exceptions.RequestException, json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"Attempt {attempt + 1}/{max_retries} failed for LLM ({model_name}): {e}")
+            if attempt < max_retries - 1:
+                time.sleep(2 * (attempt + 1)) # Exponential backoff
+            else:
+                logger.error(f"All {max_retries} attempts failed for LLM ({model_name}).")
+                if 'response' in locals() and hasattr(response, 'text'):
+                    logger.error(f"Final raw response from LLM: {response.text}")
+                return {"signal": "HOLD", "confidence": 0.0, "analysis": f"LLM ({model_name}) failed after {max_retries} attempts: {e}"}
+        except Exception as e:
+            logger.error(f"Unexpected error when querying the LLM ({model_name}): {e}")
+            return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Unexpected error: {e}"}
+    
+    # This part should be unreachable, but as a fallback
+    return {"signal": "HOLD", "confidence": 0.0, "analysis": "Fell through retry loop unexpectedly."}

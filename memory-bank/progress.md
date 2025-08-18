@@ -15,3 +15,6 @@
 
 ## 4. Known Issues
 - No new known issues. The system is feature-complete pending final testing.
+
+## 5. Recent Fixes
+- **2025-08-18**: Fixed a critical bug where the application would crash if the `ALPHA_VANTAGE_API_KEY` was not set as a system environment variable. The code was updated to load the key from a `.env` file, and a startup check was added to ensure the key is present.

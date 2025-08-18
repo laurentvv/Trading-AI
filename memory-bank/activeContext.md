@@ -8,6 +8,7 @@ The immediate focus is on **Step 5: Update the Memory Bank** and **Step 6: Updat
 - **3-Model Hybrid Engine Integrated**: `src/main.py` has been successfully updated to orchestrate the classic model, the text LLM, and the new visual LLM, combining their outputs into a final decision.
 - **LLM Client Upgraded**: The `src/llm_client.py` module supports both text and visual models.
 - **Chart Generator Created**: The `src/chart_generator.py` module is complete.
+- **Bug Fix (2025-08-18)**: Fixed a crash caused by a missing `ALPHA_VANTAGE_API_KEY`. The system now loads the key from a `.env` file.
 
 ## 3. Next Steps
 1.  Update all Memory Bank files to reflect the final, 3-model architecture.
