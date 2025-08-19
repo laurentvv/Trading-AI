@@ -5,12 +5,12 @@ This project is a sophisticated trading decision support system that uses a tri-
 ## Key Features
 
 - **Tri-Modal Hybrid AI Engine**: Combines three different AI models for a consensus-based decision:
-    1.  A `scikit-learn` classifier trained on quantitative technical indicators.
+    1.  A `scikit-learn` classifier trained on quantitative technical indicators and **macroeconomic data** (e.g., interest rates, inflation).
     2.  An LLM that performs analysis on the raw numerical data.
     3.  A multi-modal LLM that performs visual analysis on a generated chart image.
 - **Robust Backtesting**: Utilizes a **walk-forward validation** methodology to prevent lookahead bias and provide a realistic assessment of the strategy's historical performance.
 - **Transaction Cost Simulation**: The backtester accounts for transaction costs to provide more realistic return calculations.
-- **Local Data Caching**: Fetched market data is cached locally in Parquet files to speed up subsequent runs.
+- **Local Data Caching**: Fetched market data is cached locally in Parquet files to speed up subsequent runs. Macroeconomic data is also cached.
 - **Modular Codebase**: The code is organized into a clean, modular structure for easy maintenance and extension.
 - **Comprehensive Documentation**: The project's evolution, architecture, and context are meticulously documented in the `memory-bank/` directory, following a structured documentation-driven development process.
 

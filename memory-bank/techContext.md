@@ -3,13 +3,14 @@
 ## 1. Core Technologies
 - **Language**: Python 3.10+
 - **AI / Machine Learning**:
-    - **Scikit-learn**: For building the traditional quantitative trading model (e.g., RandomForest, GradientBoosting).
+    - **Scikit-learn**: For building the traditional quantitative trading model (e.g., RandomForest, GradientBoosting), now enhanced with macroeconomic features.
     - **Pandas & NumPy**: For data manipulation and numerical operations.
     - **Ollama**: For serving the local Large Language Model (LLM). The system will interact with Ollama via its REST API.
 - **Data Fetching**:
     - **yfinance**: To download historical market data from Yahoo Finance.
+    - **pandas-datareader**: To fetch macroeconomic data from FRED.
 - **Data Storage**:
-    - **pyarrow (Parquet)**: For efficiently storing cached kline data.
+    - **pyarrow (Parquet)**: For efficiently storing cached kline data and cached macroeconomic data.
 - **Visualization**:
     - **Matplotlib & Seaborn**: For generating plots of backtesting results.
     - **mplfinance**: For generating professional financial chart images for the visual AI.

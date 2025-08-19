@@ -8,12 +8,15 @@ import json
 import sys
 import os
 from dotenv import load_dotenv
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
 
 # Load environment variables from .env file
 load_dotenv()
 
 # Import refactored modules
-from data import get_etf_data
+# Corrected import order and ensured all necessary modules are imported
+from data import get_etf_data, fetch_macro_data_for_date
 from features import create_technical_indicators, create_features, select_features
 from classic_model import train_ensemble_model, get_classic_prediction
 from llm_client import get_llm_decision, get_visual_llm_decision
@@ -38,6 +41,9 @@ W_CLASSIC = 0.4
 W_LLM_TEXT = 0.25
 W_LLM_VISUAL = 0.25
 W_SENTIMENT = 0.1
+
+# Placeholder for future macro weight
+W_MACRO = 0.0 # Currently not directly used in final decision, but fetched for context/LMM
 
 def get_hybrid_decision(classic_pred: int, classic_conf: float, text_llm_decision: dict, visual_llm_decision: dict, sentiment_decision: dict) -> tuple[str, float]:
     """
@@ -91,9 +97,11 @@ def plot_analysis(data, backtest_data):
     logger.info("Analysis chart saved as 'backtest_analysis.png'")
     plt.close()
 
-def run_walk_forward_backtest(data_with_features: pd.DataFrame, train_period_days: int, test_period_days: int):
+def run_walk_forward_backtest(data_with_features: pd.DataFrame, train_period_days: int, test_period_days: int, macro_context: dict = None):
     """
     Runs a backtest using walk-forward validation and simulates the 3 models.
+    Note: For a full backtest with historical macro data, a more complex alignment is needed.
+    This version uses a static macro context for simplicity.
     """
     all_signals = []
     num_iterations = (len(data_with_features) - train_period_days) // test_period_days
@@ -156,10 +164,22 @@ def main():
     logger.info("Step 1: Retrieving and preparing data...")
     hist_data, info = get_etf_data(ticker=TICKER)
     data_with_indicators = create_technical_indicators(hist_data)
-    data_with_features = create_features(data_with_indicators)
+    # Initialize macro_context to an empty dict for backtest compatibility
+    macro_context = {}
+    # Pass macro context to create_features
+    data_with_features = create_features(data_with_indicators, macro_context)
+    
+    # --- NEW: Fetch macroeconomic data for context ---
+    analysis_date = data_with_features.index[-1]
+    macro_context = fetch_macro_data_for_date(analysis_date)
+    logger.info(f"Macro Context for {analysis_date.date()}: {macro_context}")
+    # Re-run feature creation with the actual macro context for the final prediction
+    data_with_features_final = create_features(data_with_indicators, macro_context)
 
     logger.info("\nStep 2: Running backtest with walk-forward validation...")
-    backtest_data, performance = run_walk_forward_backtest(data_with_features, 252, 63)
+    # For backtest, we currently pass a None or empty macro_context as full historical alignment is complex.
+    # The features.py is designed to handle missing macro columns gracefully.
+    backtest_data, performance = run_walk_forward_backtest(data_with_features, 252, 63, macro_context={})
 
     if performance:
         logger.info("\n=== WALK-FORWARD BACKTEST RESULTS ===")
@@ -168,20 +188,75 @@ def main():
 
     logger.info("\nStep 3: Generating final decision for today...")
     logger.info("Training final model on all available data...")
-    X, y, _ = select_features(data_with_features)
-    final_classic_model, final_scaler, _, _ = train_ensemble_model(X, y)
+    # Use the data with macro features for the final model
+    X, y, _ = select_features(data_with_features_final)
+    logger.info(f"Final model training data - X shape: {X.shape}, y shape: {y.shape}")
+    logger.info(f"Final model training data - y value counts:\n{y.value_counts()}")
+    
+    # Check if we have enough data and at least 2 classes
+    if len(y) == 0:
+        logger.error("No training data available for the final model. Cannot proceed.")
+        return # Or handle this case appropriately
+    elif len(y.unique()) < 2:
+        logger.warning("Target variable has only one class in the training set. Cannot train the final model properly. Skipping final model training and prediction.")
+        # We can't proceed with training/prediction. Let's set default values.
+        final_classic_model = None
+        final_scaler = None
+        classic_pred = 0  # Default to 'SELL/HOLD'
+        classic_conf = 0.5 # Default confidence
+    else:
+        # Check for NaNs in raw features before scaling
+        if X.isna().any().any():
+            logger.warning("Feature matrix X contains NaNs before scaling. Filling with 0.")
+            X = X.fillna(0)
+            
+        # Train on all data for the final model, no train/test split
+        final_scaler = StandardScaler()
+        X_scaled = final_scaler.fit_transform(X)
+        
+        # Check for NaNs in scaled data (should not happen after StandardScaler with filled NaNs, but good to be sure)
+        if pd.isna(X_scaled).any():
+             logger.error("Scaled feature matrix X_scaled contains NaNs. Cannot train the model.")
+             final_classic_model = None
+             final_scaler = None
+             classic_pred = 0
+             classic_conf = 0.5
+        else:
+            # Re-initialize and train the best model type (LogisticRegression) on all data
+            # This mimics the logic in train_ensemble_model but without splitting
+            final_classic_model = LogisticRegression(
+                random_state=42,
+                class_weight='balanced',
+                max_iter=1000
+            )
+            final_classic_model.fit(X_scaled, y)
 
-    latest_data = data_with_features.tail(1)
-    feature_cols = [col for col in X.columns if col in final_scaler.feature_names_in_]
-    latest_features_subset = latest_data[feature_cols]
+    # For the final prediction, we use the features from the last row of the full dataset (including macro)
+    # The target 'y' for this last row is not used in prediction, only its features (X) are.
+    latest_data_with_macro = data_with_features_final.tail(1)
+    feature_cols = [col for col in X.columns if col in getattr(final_scaler, 'feature_names_in_', X.columns)]
+    latest_features_subset = latest_data_with_macro[feature_cols]
+    
+    # Check for NaNs in the latest features subset before prediction
+    if latest_features_subset.isna().any().any():
+        logger.warning("Latest feature subset for prediction contains NaNs. Filling with 0.")
+        latest_features_subset = latest_features_subset.fillna(0)
+        
+    # Also prepare data without macro features for LLMs if needed
+    # (Currently, LLMs might not use them, but good to have consistency)
+    latest_data_without_macro = data_with_features.tail(1)
 
     # Generate chart for visual analysis
     logger.info(f"Generating analysis chart for {TICKER}...")
     chart_generated = generate_chart_image(data_with_features, CHART_OUTPUT_PATH, title=f"{TICKER} - 6 Month Chart")
 
     # Get predictions from the four models
-    classic_pred, classic_conf = get_classic_prediction(final_classic_model, final_scaler, latest_features_subset)
-    text_llm_decision = get_llm_decision(latest_data)
+    if final_classic_model is not None:
+        classic_pred, classic_conf = get_classic_prediction(final_classic_model, final_scaler, latest_features_subset)
+    else:
+        # Use default values if model couldn't be trained
+        classic_pred, classic_conf = 0, 0.5 
+    text_llm_decision = get_llm_decision(latest_data_without_macro) # Use data without macro for LLMs to keep context consistent
     visual_llm_decision = get_visual_llm_decision(CHART_OUTPUT_PATH) if chart_generated else {"signal": "HOLD", "confidence": 0.0, "analysis": "Chart generation failed."}
     
     # Fetch news and sentiment using the news_fetcher.py script
@@ -210,8 +285,6 @@ def main():
 
     # Get final hybrid decision
     final_decision, final_score = get_hybrid_decision(classic_pred, classic_conf, text_llm_decision, visual_llm_decision, sentiment_decision)
-
-    analysis_date = latest_data.index[0].date()
 
     # --- Rich-based Output (French) ---
     from rich.console import Console
@@ -316,7 +389,7 @@ def main():
     console.print("")
     console.print(Panel(
         table,
-        title=f"[bold]Analyse de la Décision Hybride pour {TICKER} le {analysis_date}[/bold]",
+        title=f"[bold]Analyse de la Décision Hybride pour {TICKER} le {analysis_date.date()}[/bold]",
         border_style="blue"
     ))
     console.print(visual_analysis_panel)

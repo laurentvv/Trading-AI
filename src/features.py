@@ -76,11 +76,49 @@ def create_technical_indicators(data: pd.DataFrame) -> pd.DataFrame:
 
     return df.dropna()
 
-def create_features(data: pd.DataFrame) -> pd.DataFrame:
+def _align_macro_data(market_data: pd.DataFrame, macro_data_dict: dict) -> pd.DataFrame:
+    """
+    Aligns macroeconomic data with market data based on date.
+    This is a simple version that uses forward-fill for monthly data.
+    """
+    # Create a DataFrame for macro data
+    # For simplicity, we assume the keys in macro_data_dict are the column names
+    # and we have a single date context (from main.py). 
+    # In a full implementation, macro_data_dict would be a time series.
+    # Here, we just add the latest values as static features.
+    # A more robust approach would involve resampling and merging time series.
+    
+    # For this step, we'll add the macro data as static features to the last row
+    # and then forward-fill or interpolate if needed. However, for a single prediction,
+    # static features are sufficient.
+    
+    # Let's create a DataFrame with a single row for the last date of market data
+    last_date = market_data.index[-1]
+    macro_df = pd.DataFrame([macro_data_dict], index=[last_date])
+    
+    # Join with market data
+    # This will add NaN for all other dates, which is fine for feature creation
+    # as select_features will only use the last row for the final prediction.
+    # For walk-forward backtest, this approach needs refinement.
+    combined_df = market_data.join(macro_df, how='left')
+    
+    # Forward-fill macro data to propagate the latest known values
+    for col in macro_data_dict.keys():
+        if col in combined_df.columns:
+            combined_df[col] = combined_df[col].ffill() # Updated from deprecated fillna(method='ffill')
+            
+    return combined_df
+
+def create_features(data: pd.DataFrame, macro_context: dict = None) -> pd.DataFrame:
     """
     Creates advanced features for ML.
     """
     df = data.copy()
+    
+    # If macro context is provided, align and add it
+    if macro_context:
+        df = _align_macro_data(df, macro_context)
+        logger.info(f"Added macroeconomic context to features. New columns: {list(macro_context.keys())}")
 
     # Crossover signals
     df['MA_Cross_5_20'] = (df['MA_5'] > df['MA_20']).astype(int)
@@ -121,8 +159,18 @@ def create_features(data: pd.DataFrame) -> pd.DataFrame:
     # Main target based on a return threshold
     threshold = df['Returns'].std() * 0.5  # 50% of volatility
     df['Target'] = np.where(df['Returns'].shift(-1) > threshold, 1, 0)
-
-    return df.dropna()
+    
+    # The target for the very last row will be NaN due to shift(-1).
+    # This is expected as we don't know the future return for the last data point.
+    # For training the model on historical data, we should exclude this last row 
+    # to avoid issues with NaN targets. The select_features function and the 
+    # training logic in classic_model.py already handle dropping NaNs in 'y'.
+    # For making a prediction on the last row, we will use the features from this row,
+    # but its 'Target' value is irrelevant and will be ignored.
+    
+    # Ensure the dataframe is sorted by index (date) to maintain order
+    df.sort_index(inplace=True)
+    return df
 
 def select_features(data: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, list]:
     """
@@ -137,6 +185,11 @@ def select_features(data: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, list]:
         'BB_Position', 'BB_Width',
         'Stoch_K', 'Stoch_D',
         'Volume_Ratio', 'Volatility', 'ATR', 'VIX', 'VIX_MA_20',
+        # --- New Macro Features ---
+        # These will only be included if present in the data
+        'treasury_yield_10year', 'treasury_yield_2year',
+        'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp',
+        # --------------------------
         'MA_Cross_5_20', 'MA_Cross_20_50', 'EMA_Cross_12_26',
         'RSI_Oversold', 'RSI_Overbought', 'RSI_Neutral',
         'MACD_Bull', 'MACD_Cross',
