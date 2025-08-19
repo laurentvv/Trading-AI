@@ -1,0 +1,13 @@
+pandas
+numpy
+yfinance
+scikit-learn
+matplotlib
+seaborn
+pyarrow
+requests
+tqdm
+mplfinance
+beautifulsoup4
+python-dotenv
+rich
