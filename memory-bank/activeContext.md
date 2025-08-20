@@ -1,23 +1,25 @@
-# Active Context
+# Contexte Actif
 
-## 1. Current Work Focus
-The project is in **Phase 3: Finalization and Documentation**.
-The immediate focus is on **Updating all project documentation to reflect the latest enhancements, including macroeconomic data integration and the 3-model hybrid engine**.
+## 1. Focus Actuel du Travail
+Le projet est en **Phase 3 : Finalisation et Documentation**.
+Le focus immédiat est sur **la Mise à jour de toute la documentation du projet pour refléter les dernières améliorations, y compris l'intégration des données macroéconomiques et le moteur hybride à 3 modèles**.
 
-## 2. Recent Changes
-- **3-Model Hybrid Engine Integrated**: `src/main.py` has been successfully updated to orchestrate the classic model, the text LLM, and the new visual LLM, combining their outputs into a final decision.
-- **LLM Client Upgraded**: The `src/llm_client.py` module supports both text and visual models.
-- **Chart Generator Created**: The `src/chart_generator.py` module is complete.
-- **Bug Fix (2025-08-18)**: Fixed a crash caused by a missing `ALPHA_VANTAGE_API_KEY`. The system now loads the key from a `.env` file.
-- **Macroeconomic Data Integration (2025-08-19)**: Successfully implemented robust data fetching from FRED via `pandas-datareader` with local caching. This data is now integrated as features into the classic quantitative model.
+## 2. Changements Récents
+- **Moteur Hybride à 3 Modèles Intégré** : `src/main.py` a été mis à jour avec succès pour orchestrer le modèle classique, le LLM textuel et le nouveau LLM visuel, combinant leurs sorties en une décision finale.
+- **Client LLM Mis à Jour** : Le module `src/llm_client.py` supporte les modèles textuels et visuels.
+- **Générateur de Graphiques Créé** : Le module `src/chart_generator.py` est terminé.
+- **Correction de Bug (2025-08-18)** : Correction d'un crash causé par une `ALPHA_VANTAGE_API_KEY` manquante. Le système charge désormais la clé depuis un fichier `.env`.
+- **Intégration des Données Macroeconomiques (2025-08-19)** : Implémentation réussie de la récupération robuste des données depuis FRED via `pandas-datareader` avec mise en cache locale. Ces données sont désormais intégrées comme caractéristiques dans le modèle quantitatif classique.
+- **Données Historiques Étendues (2025-08-20)** : Le système récupère désormais l'historique complet des données disponibles pour QQQ, augmentant considérablement le jeu de données pour l'entraînement et le backtesting.
 
-## 3. Next Steps
-1.  Finalize documentation updates across `README.md`, `QWEN.md`, and all relevant `memory-bank` files.
-2.  Perform a final end-to-end test of the complete system to ensure all components work seamlessly together.
-3.  Submit the final project.
+## 3. Prochaines Étapes
+1.  Finaliser les mises à jour de la documentation dans `README.md`, `QWEN.md`, et tous les fichiers pertinents de `memory-bank`.
+2.  Effectuer un test de bout en bout final du système complet pour s'assurer que tous les composants fonctionnent de manière fluide.
+3.  Soumettre le projet final.
 
-## 4. Active Decisions & Considerations
-- Charts will be generated internally using `mplfinance` for reliability.
-- The chart will show 6 months of daily data with candlesticks, 50/200 MAs, Volume, RSI, and MACD.
-- The new visual signal is a third, equal vote in the hybrid engine.
-- Macroeconomic data (interest rates, CPI, unemployment, GDP) is now a core part of the classic quantitative model's feature set.
+## 4. Décisions et Considérations Actives
+- Les graphiques seront générés en interne en utilisant `mplfinance` pour la fiabilité.
+- Le graphique affichera 6 mois de données quotidiennes avec des chandeliers, des MM 50/200, le Volume, le RSI et le MACD.
+- Le nouveau signal visuel constitue un troisième vote, égal aux autres, dans le moteur hybride.
+- Les données macroéconomiques (taux d'intérêt, IPC, chômage, PIB) font désormais partie intégrante du jeu de caractéristiques du modèle quantitatif classique.
+- Le système exploite un vaste jeu de données historiques (de 1999 à aujourd'hui) pour un entraînement et un backtesting robustes.

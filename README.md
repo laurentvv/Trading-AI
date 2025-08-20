@@ -1,95 +1,95 @@
-# Tri-Modal Hybrid AI Trading System for NASDAQ ETFs
+# Système de Trading IA Hybride Tri-Modal pour les ETF du NASDAQ
 
-This project is a sophisticated trading decision support system that uses a tri-modal hybrid AI approach to generate trading signals for NASDAQ ETFs. It combines a traditional quantitative model, a text-based Large Language Model (LLM), and a visual (multi-modal) LLM for a uniquely robust and nuanced analysis.
+Ce projet est un système sophistiqué de support à la décision de trading qui utilise une approche IA hybride tri-modale pour générer des signaux de trading pour les ETF du NASDAQ. Il combine un modèle quantitatif traditionnel, un Grand Modèle de Langage (LLM) basé sur du texte et un LLM visuel (multi-modal) pour une analyse robuste et nuancée.
 
-## Key Features
+## Fonctionnalités Clés
 
-- **Tri-Modal Hybrid AI Engine**: Combines three different AI models for a consensus-based decision:
-    1.  A `scikit-learn` classifier trained on quantitative technical indicators and **macroeconomic data** (e.g., interest rates, inflation).
-    2.  An LLM that performs analysis on the raw numerical data.
-    3.  A multi-modal LLM that performs visual analysis on a generated chart image.
-- **Robust Backtesting**: Utilizes a **walk-forward validation** methodology to prevent lookahead bias and provide a realistic assessment of the strategy's historical performance.
-- **Transaction Cost Simulation**: The backtester accounts for transaction costs to provide more realistic return calculations.
-- **Local Data Caching**: Fetched market data is cached locally in Parquet files to speed up subsequent runs. Macroeconomic data is also cached.
-- **Modular Codebase**: The code is organized into a clean, modular structure for easy maintenance and extension.
-- **Comprehensive Documentation**: The project's evolution, architecture, and context are meticulously documented in the `memory-bank/` directory, following a structured documentation-driven development process.
+- **Moteur IA Hybride Tri-Modal** : Combine trois modèles d'IA différents pour une décision basée sur un consensus :
+    1.  Un classifieur `scikit-learn` entraîné sur des indicateurs techniques quantitatifs et des **données macroéconomiques** (par exemple, taux d'intérêt, inflation).
+    2.  Un LLM qui effectue une analyse sur les données numériques brutes.
+    3.  Un LLM multi-modal qui effectue une analyse visuelle sur une image de graphique générée.
+- **Backtesting Robuste** : Utilise une méthodologie de **validation par walk-forward** pour éviter le biais de prédiction et fournir une évaluation réaliste des performances historiques de la stratégie.
+- **Simulation des Coûts de Transaction** : Le backtester tient compte des coûts de transaction pour des calculs de rendement plus réalistes.
+- **Mise en Cache Locale des Données** : Les données de marché récupérées sont mises en cache localement dans des fichiers Parquet pour accélérer les exécutions suivantes. Les données macroéconomiques sont également mises en cache.
+- **Base de Code Modulaire** : Le code est organisé dans une structure propre et modulaire pour faciliter la maintenance et l'extension.
+- **Documentation Complète** : L'évolution, l'architecture et le contexte du projet sont documentés de manière méticuleuse dans le répertoire `memory-bank/`, suivant un processus de développement axé sur la documentation.
 
-## Tech Stack
+## Stack Technologique
 
 - **Python 3.10+**
-- **Pandas & NumPy**: For data manipulation.
-- **Scikit-learn**: For the classic ML model.
-- **Ollama**: To serve the local LLM (tested with `gemma3:27b`).
-- **yfinance**: For fetching market data.
-- **Matplotlib & Seaborn**: For plotting.
-- **PyArrow**: For Parquet file handling.
-- **Tqdm**: For progress bars.
-- **mplfinance**: For generating financial charts.
+- **Pandas & NumPy** : Pour la manipulation des données.
+- **Scikit-learn** : Pour le modèle ML classique.
+- **Ollama** : Pour servir le LLM local (testé avec `gemma3:27b`).
+- **yfinance** : Pour récupérer les données de marché.
+- **Matplotlib & Seaborn** : Pour les graphiques.
+- **PyArrow** : Pour la gestion des fichiers Parquet.
+- **Tqdm** : Pour les barres de progression.
+- **mplfinance** : Pour générer les graphiques financiers.
 
-## Prerequisites
+## Prérequis
 
-Before you begin, ensure you have the following installed:
-- Python 3.10 or higher.
-- [Ollama](https://ollama.com/) running locally.
-- A downloaded LLM (e.g., Gemma 3): `ollama pull gemma3:27b`
+Avant de commencer, assurez-vous d'avoir installé :
+- Python 3.10 ou supérieur.
+- [Ollama](https://ollama.com/) en cours d'exécution localement.
+- Un LLM téléchargé (par exemple, Gemma 3) : `ollama pull gemma3:27b`
 
 ## Installation
 
-1.  **Clone the repository:**
+1.  **Cloner le dépôt :**
     ```bash
     git clone <repository_url>
     cd <repository_directory>
     ```
 
-2.  **Create and activate a virtual environment (recommended):**
+2.  **Créer et activer un environnement virtuel (recommandé) :**
     ```bash
     python -m venv venv
-    source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
+    source venv/bin/activate  # Sous Windows, utilisez `venv\Scripts\activate`
     ```
 
-3.  **Install the dependencies:**
+3.  **Installer les dépendances :**
     ```bash
     pip install -r requirements.txt
     ```
 
-4.  **Set up your API Key:**
-    Create a file named `.env` in the root directory of the project and add your Alpha Vantage API key to it like this:
+4.  **Configurer votre Clé API :**
+    Créez un fichier nommé `.env` à la racine du projet et ajoutez-y votre clé API Alpha Vantage comme suit :
     ```
-    ALPHA_VANTAGE_API_KEY="YOUR_API_KEY_HERE"
+    ALPHA_VANTAGE_API_KEY="VOTRE_CLE_API_ICI"
     ```
 
-## Usage
+## Utilisation
 
-To run the trading system, execute the main script from the root directory:
+Pour exécuter le système de trading, lancez le script principal depuis le répertoire racine :
 
 ```bash
 python src/main.py
 ```
 
-The script will perform the following actions:
-1.  Fetch or load market data from the cache.
-2.  Run the walk-forward backtest and print the performance summary to the console.
-3.  Generate a chart of the recent market data.
-4.  Generate a final trading decision for the most recent data point by combining the outputs from the classic model, a text-based LLM, and a visual LLM's analysis of the chart.
-5.  Save a plot of the backtest analysis as `backtest_analysis.png`.
+Le script effectuera les actions suivantes :
+1.  Récupérer ou charger les données de marché depuis le cache.
+2.  Exécuter le backtest par walk-forward et afficher le résumé des performances dans la console.
+3.  Générer un graphique des données de marché récentes.
+4.  Générer une décision de trading finale pour le point de données le plus récent en combinant les sorties du modèle classique, d'un LLM basé sur le texte et de l'analyse visuelle d'un LLM sur le graphique.
+5.  Sauvegarder un graphique de l'analyse du backtest sous le nom `backtest_analysis.png`.
 
-## Project Structure
+## Structure du Projet
 
 ```
 .
-├── memory-bank/        # Project documentation (context, progress, decisions)
-├── src/                # Source code
-│   ├── main.py         # Main orchestrator script
-│   ├── data.py         # Data fetching and caching
-│   ├── features.py     # Feature engineering
-│   ├── classic_model.py # Scikit-learn model training
-│   ├── llm_client.py   # Client for text and visual LLMs
-│   ├── chart_generator.py # Creates chart images for visual AI
-│   └── backtest.py     # Backtesting logic
-├── requirements.txt    # Python dependencies
-└── README.md           # This file
+├── memory-bank/        # Documentation du projet (contexte, progression, décisions)
+├── src/                # Code source
+│   ├── main.py         # Script orchestrateur principal
+│   ├── data.py         # Récupération et mise en cache des données
+│   ├── features.py     # Ingénierie des caractéristiques
+│   ├── classic_model.py # Entraînement du modèle scikit-learn
+│   ├── llm_client.py   # Client pour les LLM textuels et visuels
+│   ├── chart_generator.py # Crée des images de graphiques pour l'IA visuelle
+│   └── backtest.py     # Logique de backtesting
+├── requirements.txt    # Dépendances Python
+└── README.md           # Ce fichier
 ```
 
-## The Memory Bank
+## La Banque de Mémoire (Memory Bank)
 
-This project follows a "Memory Bank" philosophy. The `memory-bank/` directory is the single source of truth for the project's context, architecture, and progress. It is designed to be a living documentation that allows any developer (or AI assistant) to quickly get up to speed with the project's state.
+Ce projet suit une philosophie de "Banque de Mémoire". Le répertoire `memory-bank/` est la source de vérité unique pour le contexte, l'architecture et la progression du projet. Il est conçu pour être une documentation vivante permettant à tout développeur (ou assistant IA) de rapidement comprendre l'état du projet.
