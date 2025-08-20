@@ -26,7 +26,7 @@ Ce fichier suit les idées et leur statut pour améliorer le système de trading
 
 4.  **Explication des Décisions (XAI)**
     *   **Description :** Utiliser SHAP pour expliquer les décisions du modèle classique.
-    *   **Statut :** En attente
+    *   **Statut :** **FAIT** - Implémentation de base réalisée. Un module `xai_explainer.py` a été créé pour générer des explications SHAP pour les modèles RandomForest, GradientBoosting et LogisticRegression. L'explication est générée pour la prédiction finale du modèle classique et un graphique waterfall est sauvegardé sous `shap_waterfall.png`. Des avertissements liés aux noms de caractéristiques ont été observés et pourraient être résolus en améliorant la manière dont le modèle est entraîné avec les noms de caractéristiques.
     *   **Priorité :** Moyenne
 
 5.  **Comparaison avec un Benchmark Sectoriel**

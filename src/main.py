@@ -23,6 +23,7 @@ from llm_client import get_llm_decision, get_visual_llm_decision
 from sentiment_analysis import get_sentiment_decision_from_score
 from chart_generator import generate_chart_image
 from backtest import run_backtest
+from xai_explainer import explain_model_prediction, plot_shap_waterfall
 
 # Logging configuration
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -253,6 +254,27 @@ def main():
     # Get predictions from the four models
     if final_classic_model is not None:
         classic_pred, classic_conf = get_classic_prediction(final_classic_model, final_scaler, latest_features_subset)
+        
+        # --- NEW: XAI Explanation ---
+        logger.info("Generating SHAP explanation for the classic model's prediction...")
+        try:
+            feature_names_for_model = list(latest_features_subset.columns)
+            explanation = explain_model_prediction(
+                final_classic_model, 
+                final_scaler, 
+                latest_features_subset, 
+                feature_names_for_model, 
+                instance_index=0 # We are explaining the single row in latest_features_subset
+            )
+            if explanation:
+                plot_shap_waterfall(explanation, save_path="shap_waterfall.png")
+                logger.info("SHAP waterfall plot saved as 'shap_waterfall.png'")
+            else:
+                logger.warning("Failed to generate SHAP explanation.")
+        except Exception as e:
+            logger.error(f"Error during XAI explanation generation or plotting: {e}")
+        # --- END NEW ---
+        
     else:
         # Use default values if model couldn't be trained
         classic_pred, classic_conf = 0, 0.5 
