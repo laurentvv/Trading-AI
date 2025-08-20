@@ -23,6 +23,9 @@ from llm_client import get_llm_decision, get_visual_llm_decision
 from sentiment_analysis import get_sentiment_decision_from_score
 from chart_generator import generate_chart_image
 from backtest import run_backtest
+from xai_explainer import explain_model_prediction, plot_shap_waterfall
+# --- NEW: Import database module ---
+from database import init_db, insert_transaction, insert_portfolio_state, insert_model_signal, get_latest_portfolio_state, get_latest_transaction
 
 # Logging configuration
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -97,7 +100,7 @@ def plot_analysis(data, backtest_data):
     logger.info("Analysis chart saved as 'backtest_analysis.png'")
     plt.close()
 
-def run_walk_forward_backtest(data_with_features: pd.DataFrame, train_period_days: int, test_period_days: int, macro_context: dict = None):
+def run_walk_forward_backtest(data_with_features: pd.DataFrame, train_period_days: int, test_period_days: int, macro_context: dict = None, ticker: str = 'QQQ'):
     """
     Runs a backtest using walk-forward validation and simulates the 3 models.
     Note: For a full backtest with historical macro data, a more complex alignment is needed.
@@ -152,12 +155,16 @@ def run_walk_forward_backtest(data_with_features: pd.DataFrame, train_period_day
     final_signals = pd.concat(all_signals)
     aligned_signals = pd.Series(index=data_with_features.index, dtype=int).fillna(0)
     aligned_signals.update(final_signals)
-    return run_backtest(data_with_features, aligned_signals)
+    # Pass ticker to run_backtest
+    return run_backtest(data_with_features, aligned_signals, ticker=ticker)
 
 def main():
     """
     Main function to orchestrate the trading system.
     """
+    # --- NEW: Initialize database ---
+    init_db()
+    
     TICKER = 'QQQ'
     CHART_OUTPUT_PATH = Path("trading_chart.png")
 
@@ -179,7 +186,7 @@ def main():
     logger.info("\nStep 2: Running backtest with walk-forward validation...")
     # For backtest, we currently pass a None or empty macro_context as full historical alignment is complex.
     # The features.py is designed to handle missing macro columns gracefully.
-    backtest_data, performance = run_walk_forward_backtest(data_with_features, 252, 63, macro_context={})
+    backtest_data, performance = run_walk_forward_backtest(data_with_features, 252, 63, macro_context={}, ticker=TICKER) # Pass ticker
 
     if performance:
         logger.info("\n=== WALK-FORWARD BACKTEST RESULTS ===")
@@ -202,7 +209,7 @@ def main():
         # We can't proceed with training/prediction. Let's set default values.
         final_classic_model = None
         final_scaler = None
-        classic_pred = 0  # Default to 'SELL/HOLD'
+        classic_pred = 0  # Default to 'SELL'
         classic_conf = 0.5 # Default confidence
     else:
         # Check for NaNs in raw features before scaling
@@ -253,6 +260,27 @@ def main():
     # Get predictions from the four models
     if final_classic_model is not None:
         classic_pred, classic_conf = get_classic_prediction(final_classic_model, final_scaler, latest_features_subset)
+        
+        # --- NEW: XAI Explanation ---
+        logger.info("Generating SHAP explanation for the classic model's prediction...")
+        try:
+            feature_names_for_model = list(latest_features_subset.columns)
+            explanation = explain_model_prediction(
+                final_classic_model, 
+                final_scaler, 
+                latest_features_subset, 
+                feature_names_for_model, 
+                instance_index=0 # We are explaining the single row in latest_features_subset
+            )
+            if explanation:
+                plot_shap_waterfall(explanation, save_path="shap_waterfall.png")
+                logger.info("SHAP waterfall plot saved as 'shap_waterfall.png'")
+            else:
+                logger.warning("Failed to generate SHAP explanation.")
+        except Exception as e:
+            logger.error(f"Error during XAI explanation generation or plotting: {e}")
+        # --- END NEW ---
+        
     else:
         # Use default values if model couldn't be trained
         classic_pred, classic_conf = 0, 0.5 
@@ -286,6 +314,27 @@ def main():
     # Get final hybrid decision
     final_decision, final_score = get_hybrid_decision(classic_pred, classic_conf, text_llm_decision, visual_llm_decision, sentiment_decision)
 
+    # --- NEW: Store decisions in database ---
+    # Store individual model signals
+    insert_model_signal(analysis_date.strftime('%Y-%m-%d'), TICKER, 'classic', 'BUY' if classic_pred == 1 else 'SELL', classic_conf)
+    insert_model_signal(analysis_date.strftime('%Y-%m-%d'), TICKER, 'llm_text', text_llm_decision.get('signal', 'HOLD'), text_llm_decision.get('confidence', 0.0))
+    insert_model_signal(analysis_date.strftime('%Y-%m-%d'), TICKER, 'llm_visual', visual_llm_decision.get('signal', 'HOLD'), visual_llm_decision.get('confidence', 0.0))
+    insert_model_signal(analysis_date.strftime('%Y-%m-%d'), TICKER, 'sentiment', sentiment_decision.get('signal', 'HOLD'), sentiment_decision.get('confidence', 0.0))
+
+    # Map extended signals to database-allowed signals
+    def map_signal_to_db(signal):
+        if 'BUY' in signal:
+            return 'BUY'
+        elif 'SELL' in signal:
+            return 'SELL'
+        else:
+            return 'HOLD'
+
+    # Store hybrid decision with mapped signal
+    hybrid_signal_for_db = map_signal_to_db(final_decision)
+    insert_model_signal(analysis_date.strftime('%Y-%m-%d'), TICKER, 'hybrid', hybrid_signal_for_db, abs(final_score))
+    # --- END NEW ---
+
     # --- Rich-based Output (French) ---
     from rich.console import Console
     from rich.table import Table
@@ -299,7 +348,6 @@ def main():
         "BUY": "ACHAT",
         "SELL": "VENTE",
         "HOLD": "NEUTRE",
-        "SELL/HOLD": "VENTE/NEUTRE",
         "STRONG BUY": "ACHAT FORT",
         "STRONG SELL": "VENTE FORTE"
     }
@@ -326,7 +374,7 @@ def main():
     def translate_signal(signal_en):
         return signal_translations.get(signal_en, signal_en)
 
-    classic_signal_en = 'BUY' if classic_pred == 1 else 'SELL/HOLD'
+    classic_signal_en = 'BUY' if classic_pred == 1 else 'SELL'
     table.add_row(
         "Quantitatif Classique",
         Text(translate_signal(classic_signal_en), style=get_signal_style(classic_signal_en)),
@@ -386,6 +434,44 @@ def main():
         border_style="dim"
     )
 
+    # --- NEW: Portfolio Information Panel ---
+    # Get latest portfolio state and transaction
+    latest_state = get_latest_portfolio_state(TICKER)
+    latest_trans = get_latest_transaction(TICKER)
+    
+    portfolio_info_table = Table(show_header=False, box=None)
+    portfolio_info_table.add_column("Info", style="dim")
+    portfolio_info_table.add_column("Value", justify="right")
+    
+    if latest_state:
+        pos, cash, total_val, bench_val = latest_state
+        portfolio_info_table.add_row("Position Actuelle", f"{pos:.2f}")
+        portfolio_info_table.add_row("Liquidités", f"${cash:.2f}")
+        portfolio_info_table.add_row("Valeur Totale Portefeuille", f"${total_val:.2f}")
+        portfolio_info_table.add_row("Valeur Benchmark (B&H)", f"${bench_val:.2f}")
+    else:
+        portfolio_info_table.add_row("Position Actuelle", "Inconnue (Aucune donnée)")
+        portfolio_info_table.add_row("Liquidités", "Inconnu (Aucune donnée)")
+        portfolio_info_table.add_row("Valeur Totale Portefeuille", "Inconnue (Aucune donnée)")
+        portfolio_info_table.add_row("Valeur Benchmark (B&H)", "Inconnue (Aucune donnée)")
+        
+    portfolio_info_table.add_row("", "") # Spacer
+    
+    if latest_trans:
+        trans_date, trans_type, trans_qty, trans_price, trans_cost = latest_trans
+        portfolio_info_table.add_row("Dernière Transaction", f"{trans_type} {trans_qty:.2f} @ ${trans_price:.2f}")
+        portfolio_info_table.add_row("Date", trans_date)
+        portfolio_info_table.add_row("Coût", f"${trans_cost:.4f}")
+    else:
+        portfolio_info_table.add_row("Dernière Transaction", "Aucune")
+        
+    portfolio_panel = Panel(
+        portfolio_info_table,
+        title="[bold]État du Portefeuille[/bold]",
+        border_style="green"
+    )
+    # --- END NEW ---
+
     console.print("")
     console.print(Panel(
         table,
@@ -393,6 +479,9 @@ def main():
         border_style="blue"
     ))
     console.print(visual_analysis_panel)
+    # --- NEW: Print portfolio panel ---
+    console.print(portfolio_panel)
+    # --- END NEW ---
     console.print(Panel(
         output_text,
         title="[bold]Décision Finale[/bold]",
