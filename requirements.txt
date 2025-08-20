@@ -11,3 +11,5 @@ mplfinance
 beautifulsoup4
 python-dotenv
 rich
+pandas_datareader
+setuptools
