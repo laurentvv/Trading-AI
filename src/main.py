@@ -7,6 +7,7 @@ import subprocess
 import json
 import sys
 import os
+import xgboost as xgb
 from dotenv import load_dotenv
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
@@ -17,7 +18,7 @@ load_dotenv()
 # Import refactored modules
 # Corrected import order and ensured all necessary modules are imported
 from data import get_etf_data, fetch_macro_data_for_date
-from features import create_technical_indicators, create_features, select_features
+from features import create_technical_indicators, create_features, select_features, get_macro_signal
 from classic_model import train_ensemble_model, get_classic_prediction
 from llm_client import get_llm_decision, get_visual_llm_decision
 from sentiment_analysis import get_sentiment_decision_from_score
@@ -40,29 +41,29 @@ if not ALPHA_VANTAGE_API_KEY:
     sys.exit(1)
 
 # --- Constants for the hybrid decision engine ---
-W_CLASSIC = 0.4
-W_LLM_TEXT = 0.25
-W_LLM_VISUAL = 0.25
-W_SENTIMENT = 0.1
+W_CLASSIC = 0.35
+W_LLM_TEXT = 0.20
+W_LLM_VISUAL = 0.20
+W_SENTIMENT = 0.10
+W_MACRO = 0.15
 
-# Placeholder for future macro weight
-W_MACRO = 0.0 # Currently not directly used in final decision, but fetched for context/LMM
-
-def get_hybrid_decision(classic_pred: int, classic_conf: float, text_llm_decision: dict, visual_llm_decision: dict, sentiment_decision: dict) -> tuple[str, float]:
+def get_hybrid_decision(classic_pred: int, classic_conf: float, text_llm_decision: dict, visual_llm_decision: dict, sentiment_decision: dict, macro_decision: dict) -> tuple[str, float]:
     """
-    Combines the decisions of the 4 models for a final decision.
+    Combines the decisions of the 5 models for a final decision.
     """
     signal_map = {"BUY": 1, "HOLD": 0, "SELL": -1}
 
     classic_score = (1 if classic_pred == 1 else -1) * classic_conf
-
     text_llm_score = signal_map.get(text_llm_decision.get('signal', 'HOLD').upper(), 0) * text_llm_decision.get('confidence', 0.0)
-
     visual_llm_score = signal_map.get(visual_llm_decision.get('signal', 'HOLD').upper(), 0) * visual_llm_decision.get('confidence', 0.0)
-
     sentiment_score = signal_map.get(sentiment_decision.get('signal', 'HOLD').upper(), 0) * sentiment_decision.get('confidence', 0.0)
+    macro_score = signal_map.get(macro_decision.get('signal', 'HOLD').upper(), 0) * macro_decision.get('confidence', 0.0)
 
-    final_score = (classic_score * W_CLASSIC) + (text_llm_score * W_LLM_TEXT) + (visual_llm_score * W_LLM_VISUAL) + (sentiment_score * W_SENTIMENT)
+    final_score = (classic_score * W_CLASSIC) + \
+                  (text_llm_score * W_LLM_TEXT) + \
+                  (visual_llm_score * W_LLM_VISUAL) + \
+                  (sentiment_score * W_SENTIMENT) + \
+                  (macro_score * W_MACRO)
 
     if final_score > 0.5:
         decision = "STRONG BUY"
@@ -139,8 +140,9 @@ def run_walk_forward_backtest(data_with_features: pd.DataFrame, train_period_day
                 text_llm_sim = {"signal": sim_signal, "confidence": sim_conf}
                 visual_llm_sim = {"signal": sim_signal, "confidence": sim_conf} # Simple simulation
                 sentiment_sim = {"signal": sim_signal, "confidence": sim_conf} # Simple simulation for sentiment
+                macro_sim = {"signal": "HOLD", "confidence": 0.0} # Neutral macro simulation for backtest
 
-                final_decision, _ = get_hybrid_decision(classic_pred, classic_conf, text_llm_sim, visual_llm_sim, sentiment_sim)
+                final_decision, _ = get_hybrid_decision(classic_pred, classic_conf, text_llm_sim, visual_llm_sim, sentiment_sim, macro_sim)
 
                 fold_signals.append(1 if "BUY" in final_decision else 0)
 
@@ -229,12 +231,13 @@ def main():
              classic_pred = 0
              classic_conf = 0.5
         else:
-            # Re-initialize and train the best model type (LogisticRegression) on all data
-            # This mimics the logic in train_ensemble_model but without splitting
-            final_classic_model = LogisticRegression(
-                random_state=42,
-                class_weight='balanced',
-                max_iter=1000
+            # Re-initialize and train the best model type (XGBoost) on all data
+            # This ensures the final model is consistent with the likely best model from backtesting
+            final_classic_model = xgb.XGBClassifier(
+                objective='binary:logistic',
+                eval_metric='logloss',
+                use_label_encoder=False,
+                random_state=42
             )
             final_classic_model.fit(X_scaled, y)
 
@@ -283,7 +286,8 @@ def main():
         
     else:
         # Use default values if model couldn't be trained
-        classic_pred, classic_conf = 0, 0.5 
+        classic_pred, classic_conf = 0, 0.5
+
     text_llm_decision = get_llm_decision(latest_data_without_macro) # Use data without macro for LLMs to keep context consistent
     visual_llm_decision = get_visual_llm_decision(CHART_OUTPUT_PATH) if chart_generated else {"signal": "HOLD", "confidence": 0.0, "analysis": "Chart generation failed."}
     
@@ -310,9 +314,13 @@ def main():
 
     sentiment_decision = get_sentiment_decision_from_score(sentiment_score)
 
+    # --- NEW: Get macro decision ---
+    macro_decision = get_macro_signal(macro_context)
+    logger.info(f"Macro analysis: {macro_decision.get('analysis', 'N/A')}")
+
 
     # Get final hybrid decision
-    final_decision, final_score = get_hybrid_decision(classic_pred, classic_conf, text_llm_decision, visual_llm_decision, sentiment_decision)
+    final_decision, final_score = get_hybrid_decision(classic_pred, classic_conf, text_llm_decision, visual_llm_decision, sentiment_decision, macro_decision)
 
     # --- NEW: Store decisions in database ---
     # Store individual model signals
@@ -320,6 +328,7 @@ def main():
     insert_model_signal(analysis_date.strftime('%Y-%m-%d'), TICKER, 'llm_text', text_llm_decision.get('signal', 'HOLD'), text_llm_decision.get('confidence', 0.0))
     insert_model_signal(analysis_date.strftime('%Y-%m-%d'), TICKER, 'llm_visual', visual_llm_decision.get('signal', 'HOLD'), visual_llm_decision.get('confidence', 0.0))
     insert_model_signal(analysis_date.strftime('%Y-%m-%d'), TICKER, 'sentiment', sentiment_decision.get('signal', 'HOLD'), sentiment_decision.get('confidence', 0.0))
+    insert_model_signal(analysis_date.strftime('%Y-%m-%d'), TICKER, 'macro', macro_decision.get('signal', 'HOLD'), macro_decision.get('confidence', 0.0))
 
     # Map extended signals to database-allowed signals
     def map_signal_to_db(signal):
@@ -397,6 +406,12 @@ def main():
         "LLM (Analyse de Sentiment)",
         Text(translate_signal(sentiment_signal_en), style=get_signal_style(sentiment_signal_en)),
         f"{sentiment_decision.get('confidence', 0.0):.2%}"
+    )
+    macro_signal_en = macro_decision.get('signal', 'HOLD')
+    table.add_row(
+        "Analyse Macroéconomique",
+        Text(translate_signal(macro_signal_en), style=get_signal_style(macro_signal_en)),
+        f"{macro_decision.get('confidence', 0.0):.2%}"
     )
 
     # 2. Determine reliability

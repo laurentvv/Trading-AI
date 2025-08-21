@@ -1,5 +1,6 @@
 import pandas as pd
 import logging
+import xgboost as xgb
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
@@ -38,10 +39,11 @@ def train_ensemble_model(X: pd.DataFrame, y: pd.Series) -> tuple:
             learning_rate=0.1,
             random_state=42
         ),
-        'LogisticRegression': LogisticRegression(
-            random_state=42,
-            class_weight='balanced',
-            max_iter=1000
+        'XGBoost': xgb.XGBClassifier(
+            objective='binary:logistic',
+            eval_metric='logloss',
+            use_label_encoder=False,
+            random_state=42
         )
     }
 

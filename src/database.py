@@ -50,7 +50,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             date TEXT NOT NULL,
             ticker TEXT NOT NULL,
-            model_type TEXT NOT NULL CHECK(model_type IN ('classic', 'llm_text', 'llm_visual', 'sentiment', 'hybrid')),
+            model_type TEXT NOT NULL CHECK(model_type IN ('classic', 'llm_text', 'llm_visual', 'sentiment', 'macro', 'hybrid')),
             signal TEXT NOT NULL CHECK(signal IN ('BUY', 'SELL', 'HOLD')),
             confidence REAL,
             details TEXT -- Can store JSON or other details

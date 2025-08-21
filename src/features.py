@@ -206,3 +206,61 @@ def select_features(data: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, list]:
     logger.info(f"Features selected: {len(available_features)}")
 
     return X, y, available_features
+
+def get_macro_signal(macro_context: dict) -> dict:
+    """
+    Analyzes the macroeconomic context and generates a trading signal.
+    Returns a dictionary with 'signal' ('BUY', 'HOLD', 'SELL') and 'confidence'.
+    """
+    if not macro_context:
+        return {"signal": "HOLD", "confidence": 0.0, "analysis": "No macro data available."}
+
+    scores = []
+    reasons = []
+
+    # Yield Curve Inversion (10-year vs 2-year)
+    yield_10y = macro_context.get('treasury_yield_10year', 0)
+    yield_2y = macro_context.get('treasury_yield_2year', 0)
+    if yield_10y > 0 and yield_2y > 0:  # Ensure data is available
+        if yield_10y < yield_2y:
+            scores.append(-1.0)  # Strong negative signal
+            reasons.append(f"Courbe des taux inversée ({yield_10y:.2f} < {yield_2y:.2f})")
+        else:
+            scores.append(0.5)  # Positive signal
+            reasons.append("Courbe des taux normale")
+
+    # Fed Funds Rate
+    fed_rate = macro_context.get('federal_funds_rate', 0)
+    if fed_rate > 4.5:
+        scores.append(-0.8)  # Restrictive policy is negative for stocks
+        reasons.append(f"Taux directeurs élevés ({fed_rate:.2f}%)")
+    elif fed_rate < 2.5:
+        scores.append(0.5)  # Accommodative policy is positive
+        reasons.append("Taux directeurs accommodants")
+
+    # Inflation (CPI)
+    cpi = macro_context.get('cpi', 0)
+    if cpi > 4.0:
+        scores.append(-0.7)  # High inflation is negative
+        reasons.append(f"Inflation élevée ({cpi:.2f}%)")
+    elif cpi < 2.5:
+        scores.append(0.5)  # Controlled inflation is positive
+        reasons.append("Inflation contrôlée")
+
+    if not scores:
+        return {"signal": "HOLD", "confidence": 0.0, "analysis": "Insufficient macro data for a signal."}
+
+    # Calculate final score and confidence
+    final_score = np.mean(scores)
+    confidence = np.abs(final_score)
+
+    if final_score > 0.3:
+        signal = "BUY"
+    elif final_score < -0.3:
+        signal = "SELL"
+    else:
+        signal = "HOLD"
+
+    analysis = "Signal macroéconomique basé sur : " + ", ".join(reasons) + f". Score final: {final_score:.2f}."
+
+    return {"signal": signal, "confidence": confidence, "analysis": analysis}

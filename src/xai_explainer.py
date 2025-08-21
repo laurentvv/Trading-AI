@@ -3,6 +3,7 @@ import numpy as np
 import logging
 import matplotlib.pyplot as plt
 import seaborn as sns
+import xgboost as xgb
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 import shap
@@ -40,8 +41,8 @@ def explain_model_prediction(model, scaler, X: pd.DataFrame, feature_names: list
             instance_probability = model.predict_proba(instance)[0]
 
         # Create a SHAP explainer
-        # For tree-based models like RandomForest or GradientBoosting
-        if isinstance(model, (RandomForestClassifier, GradientBoostingClassifier)):
+        # For tree-based models like RandomForest, GradientBoosting, or XGBoost
+        if isinstance(model, (RandomForestClassifier, GradientBoostingClassifier, xgb.XGBClassifier)):
             explainer = shap.TreeExplainer(model)
             shap_values = explainer.shap_values(instance)
             # For binary classification, shap_values is a list [class_0, class_1]. We take class 1.
