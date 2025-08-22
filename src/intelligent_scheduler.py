@@ -18,6 +18,7 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 import sys
 import os
+from dotenv import load_dotenv
 
 # Add src directory to path for imports
 sys.path.append(str(Path(__file__).parent))
@@ -66,8 +67,17 @@ class IntelligentScheduler:
     Intelligent scheduler that manages the entire Trading AI deployment timeline.
     """
     
-    def __init__(self, project_root: str = "c:/test/Trading-AI"):
-        self.project_root = Path(project_root)
+    def __init__(self, project_root: str = None):
+        if project_root is None:
+            # Use the parent directory of the src folder where this script is located
+            self.project_root = Path(__file__).parent.parent
+        else:
+            self.project_root = Path(project_root)
+        # Load environment variables from .env file
+        env_file = self.project_root / ".env"
+        if env_file.exists():
+            load_dotenv(env_file)
+        
         self.scheduler_db = self.project_root / "scheduler.db"
         self.config_file = self.project_root / "scheduler_config.json"
         self.log_file = self.project_root / "scheduler.log"
@@ -96,7 +106,7 @@ class IntelligentScheduler:
         self._load_configuration()
         self._setup_schedule()
         
-        self.logger.info("🚀 Intelligent Trading AI Scheduler initialized")
+        self.logger.info("[INIT] Intelligent Trading AI Scheduler initialized")
         self.logger.info(f"Project root: {self.project_root}")
         self.logger.info(f"Current phase: {self.current_phase.value}")
     
@@ -151,10 +161,10 @@ class IntelligentScheduler:
             
             conn.commit()
             conn.close()
-            self.logger.info("✅ Scheduler database initialized")
+            self.logger.info("[OK] Scheduler database initialized")
             
         except Exception as e:
-            self.logger.error(f"❌ Failed to initialize scheduler database: {e}")
+            self.logger.error(f"[ERROR] Failed to initialize scheduler database: {e}")
     
     def _load_configuration(self):
         """Load or create scheduler configuration."""
@@ -185,11 +195,11 @@ class IntelligentScheduler:
         if self.config_file.exists():
             with open(self.config_file, 'r') as f:
                 self.config = json.load(f)
-            self.logger.info("📋 Configuration loaded from file")
+            self.logger.info("[CONFIG] Configuration loaded from file")
         else:
             self.config = default_config
             self._save_configuration()
-            self.logger.info("📋 Default configuration created")
+            self.logger.info("[CONFIG] Default configuration created")
         
         # Set project start date
         self.project_start_date = datetime.fromisoformat(self.config["project_start_date"])
@@ -229,14 +239,14 @@ class IntelligentScheduler:
             self._system_maintenance
         ).tag("maintenance")
         
-        self.logger.info("📅 Schedule configured according to implementation plan")
+        self.logger.info("[SCHEDULE] Schedule configured according to implementation plan")
     
     def _execute_daily_analysis(self):
         """Execute daily trading analysis - Core of the system."""
         task_start = datetime.now()
         task_id = f"daily_analysis_{task_start.strftime('%Y%m%d')}"
         
-        self.logger.info("🔄 Starting daily trading analysis...")
+        self.logger.info("[ANALYSIS] Starting daily trading analysis...")
         
         try:
             # Run the enhanced trading system
@@ -257,10 +267,10 @@ class IntelligentScheduler:
             # Check for alerts
             self._check_performance_alerts(results)
             
-            self.logger.info("✅ Daily analysis completed successfully")
+            self.logger.info("[OK] Daily analysis completed successfully")
             
         except Exception as e:
-            self.logger.error(f"❌ Daily analysis failed: {e}")
+            self.logger.error(f"[ERROR] Daily analysis failed: {e}")
             self._record_task_execution(
                 task_id=task_id,
                 task_type=TaskType.DAILY_ANALYSIS,
@@ -299,10 +309,10 @@ class IntelligentScheduler:
                 results={"report": report, "analysis": weekly_analysis}
             )
             
-            self.logger.info("✅ Weekly report generated successfully")
+            self.logger.info("[OK] Weekly report generated successfully")
             
         except Exception as e:
-            self.logger.error(f"❌ Weekly report failed: {e}")
+            self.logger.error(f"[ERROR] Weekly report failed: {e}")
             self._record_task_execution(
                 task_id=task_id,
                 task_type=TaskType.WEEKLY_REPORT,
@@ -325,7 +335,7 @@ class IntelligentScheduler:
         task_start = datetime.now()
         task_id = f"monthly_report_{task_start.strftime('%Y_%m')}"
         
-        self.logger.info("📈 Generating monthly performance report...")
+        self.logger.info("[REPORT] Generating monthly performance report...")
         
         try:
             # Generate comprehensive report
@@ -353,12 +363,11 @@ class IntelligentScheduler:
                 }
             )
             
-            self.logger.info("✅ Monthly report generated successfully")
-            self.logger.info(f"📋 Recommendations: {recommendations}")
+            self.logger.info("[OK] Monthly report generated successfully")
             
         except Exception as e:
-            self.logger.error(f"❌ Monthly report failed: {e}")
-    
+            self.logger.error(f"[ERROR] Monthly report failed: {e}")
+
     def _evaluate_phase_progress(self):
         """Evaluate current phase progress and handle transitions."""
         current_progress = self._calculate_phase_progress()
@@ -370,13 +379,13 @@ class IntelligentScheduler:
             self._transition_to_next_phase(reason)
         
         # Log progress
-        self.logger.info(f"📊 Phase {self.current_phase.name} progress: {current_progress:.1f}%")
-    
+        self.logger.info(f"[PHASE] Phase {self.current_phase.name} progress: {current_progress:.1f}%")
+
     def _system_maintenance(self):
         """Perform system maintenance tasks."""
         task_start = datetime.now()
         
-        self.logger.info("🔧 Performing system maintenance...")
+        self.logger.info("[MAINTENANCE] Performing system maintenance...")
         
         try:
             maintenance_tasks = []
@@ -396,11 +405,11 @@ class IntelligentScheduler:
             self._optimize_databases()
             maintenance_tasks.append("Database optimization completed")
             
-            self.logger.info(f"✅ Maintenance completed: {maintenance_tasks}")
+            self.logger.info(f"[OK] Maintenance completed: {maintenance_tasks}")
             
         except Exception as e:
-            self.logger.error(f"❌ Maintenance failed: {e}")
-    
+            self.logger.error(f"[ERROR] Maintenance failed: {e}")
+
     def _update_performance_tracking(self, results, performance_report):
         """Update the CSV performance tracking file."""
         try:
@@ -530,8 +539,8 @@ class IntelligentScheduler:
             old_phase = self.current_phase
             self.current_phase = phase_transitions[self.current_phase]
             
-            self.logger.info(f"🚀 Phase transition: {old_phase.value} → {self.current_phase.value}")
-            self.logger.info(f"📋 Reason: {reason}")
+            self.logger.info(f"[TRANSITION] Phase transition: {old_phase.value} -> {self.current_phase.value}")
+            self.logger.info(f"[REASON] Reason: {reason}")
             
             # Update schedule for new phase
             self._setup_schedule()
@@ -626,9 +635,9 @@ class IntelligentScheduler:
     
     def run(self):
         """Main scheduler loop - runs continuously."""
-        self.logger.info("🚀 Starting Intelligent Trading AI Scheduler...")
-        self.logger.info(f"📅 Current phase: {self.current_phase.value}")
-        self.logger.info(f"⏰ Daily analysis scheduled at: {self.config['daily_execution_time']}")
+        self.logger.info("[INIT] Starting Intelligent Trading AI Scheduler...")
+        self.logger.info(f"[PHASE] Current phase: {self.current_phase.value}")
+        self.logger.info(f"[SCHEDULE] Daily analysis scheduled at: {self.config['daily_execution_time']}")
         
         try:
             while True:
@@ -636,9 +645,9 @@ class IntelligentScheduler:
                 time.sleep(60)  # Check every minute
                 
         except KeyboardInterrupt:
-            self.logger.info("🛑 Scheduler stopped by user")
+            self.logger.info("[STOP] Scheduler stopped by user")
         except Exception as e:
-            self.logger.error(f"❌ Scheduler error: {e}")
+            self.logger.error(f"[ERROR] Scheduler error: {e}")
             time.sleep(300)  # Wait 5 minutes before retrying
             self.run()  # Restart
 
@@ -667,7 +676,7 @@ def main():
     
     if args.status:
         status = scheduler.get_status()
-        print("📊 Trading AI Scheduler Status:")
+        print("[STATUS] Trading AI Scheduler Status:")
         for key, value in status.items():
             print(f"  {key}: {value}")
     else:

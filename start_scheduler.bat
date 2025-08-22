@@ -1,13 +1,14 @@
 @echo off
+chcp 65001 >nul
 REM =====================================================
-REM Script de Démarrage du Scheduler Intelligent Trading AI
-REM Démarre le système de supervision automatique
+REM Script de Demarrage du Scheduler Intelligent Trading AI
+REM Demarre le systeme de supervision automatique
 REM =====================================================
 
 echo.
 echo ======================================================
 echo Trading AI - Scheduler Intelligent
-echo Démarrage du système de supervision automatique
+echo Demarrage du systeme de supervision automatique
 echo ======================================================
 echo.
 

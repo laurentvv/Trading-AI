@@ -9,6 +9,9 @@ import json
 import pandas_datareader.data as web
 import datetime
 
+# Load environment variables from .env file
+load_dotenv()
+
 logger = logging.getLogger(__name__)
 
 CACHE_DIR = Path("data_cache")
