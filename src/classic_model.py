@@ -1,10 +1,12 @@
 import pandas as pd
+import numpy as np
 import logging
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
+from sklearn.impute import SimpleImputer
 
 logger = logging.getLogger(__name__)
 
@@ -12,15 +14,44 @@ def train_ensemble_model(X: pd.DataFrame, y: pd.Series) -> tuple:
     """
     Trains an ensemble model with cross-validation.
     """
+    # Clean data - handle NaN values
+    logger.info(f"Original data shape: {X.shape}")
+    logger.info(f"NaN values per column: {X.isnull().sum().sum()} total")
+    
+    # Remove rows where target is NaN
+    valid_indices = ~y.isnull()
+    X_clean = X[valid_indices].copy()
+    y_clean = y[valid_indices].copy()
+    
+    logger.info(f"After removing NaN targets: {X_clean.shape}")
+    
+    # Handle NaN values in features using imputation
+    imputer = SimpleImputer(strategy='median')  # Use median for robustness
+    X_imputed = pd.DataFrame(
+        imputer.fit_transform(X_clean),
+        columns=X_clean.columns,
+        index=X_clean.index
+    )
+    
+    # Remove any remaining infinite values
+    X_imputed = X_imputed.replace([np.inf, -np.inf], np.nan)
+    X_imputed = X_imputed.fillna(X_imputed.median())
+    
+    logger.info(f"Final clean data shape: {X_imputed.shape}")
+    logger.info(f"Remaining NaN values: {X_imputed.isnull().sum().sum()}")
+    
     # Data splitting
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, shuffle=False
+        X_imputed, y_clean, test_size=0.2, random_state=42, shuffle=False
     )
 
     # Scaling
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
+    
+    # Store imputer in scaler object for later use
+    scaler.imputer = imputer
 
     # Model testing
     models = {
@@ -93,7 +124,23 @@ def get_classic_prediction(model, scaler, latest_features: pd.DataFrame) -> tupl
     """
     Generates a prediction from the trained classic model.
     """
-    latest_features_scaled = scaler.transform(latest_features)
+    # Handle NaN values in the latest features using the same imputer
+    if hasattr(scaler, 'imputer'):
+        latest_features_imputed = pd.DataFrame(
+            scaler.imputer.transform(latest_features),
+            columns=latest_features.columns,
+            index=latest_features.index
+        )
+    else:
+        # Fallback if no imputer available
+        latest_features_imputed = latest_features.fillna(latest_features.median())
+    
+    # Remove any infinite values
+    latest_features_imputed = latest_features_imputed.replace([np.inf, -np.inf], np.nan)
+    latest_features_imputed = latest_features_imputed.fillna(0)  # Final fallback
+    
+    # Scale the features
+    latest_features_scaled = scaler.transform(latest_features_imputed)
 
     prediction = model.predict(latest_features_scaled)[0]
     probabilities = model.predict_proba(latest_features_scaled)[0]

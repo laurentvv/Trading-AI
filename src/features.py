@@ -198,11 +198,44 @@ def select_features(data: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, list]:
         'Trend_Short', 'Trend_Long'
     ]
 
+    # Filter to only available features
     available_features = [col for col in feature_columns if col in data.columns]
+    missing_features = [col for col in feature_columns if col not in data.columns]
+    
+    if missing_features:
+        logger.info(f"Missing features (will be skipped): {missing_features[:5]}...")  # Show first 5
 
-    X = data[available_features]
-    y = data['Target']
-
+    # Select features and target
+    X = data[available_features].copy()
+    y = data['Target'].copy()
+    
+    # Log initial data quality
+    logger.info(f"Initial features shape: {X.shape}")
+    logger.info(f"Initial target shape: {y.shape}")
     logger.info(f"Features selected: {len(available_features)}")
-
-    return X, y, available_features
+    
+    # Remove rows where target is NaN (these are typically the last few rows due to forward-looking targets)
+    valid_target_mask = ~y.isnull()
+    X_clean = X[valid_target_mask].copy()
+    y_clean = y[valid_target_mask].copy()
+    
+    logger.info(f"After removing NaN targets: X={X_clean.shape}, y={y_clean.shape}")
+    
+    # Check for infinite values and replace them
+    inf_mask = np.isinf(X_clean).any(axis=1)
+    if inf_mask.sum() > 0:
+        logger.warning(f"Found {inf_mask.sum()} rows with infinite values, removing them")
+        X_clean = X_clean[~inf_mask]
+        y_clean = y_clean[~inf_mask]
+    
+    # Log final data quality
+    nan_counts = X_clean.isnull().sum()
+    features_with_nans = nan_counts[nan_counts > 0]
+    if len(features_with_nans) > 0:
+        logger.info(f"Features with NaN values: {len(features_with_nans)} features")
+        logger.info(f"Top 5 features with most NaNs: {features_with_nans.head().to_dict()}")
+    
+    logger.info(f"Final clean data: X={X_clean.shape}, y={y_clean.shape}")
+    logger.info(f"Target value distribution: {y_clean.value_counts().to_dict()}")
+    
+    return X_clean, y_clean, available_features
