@@ -1,0 +1,10 @@
+2025-08-25 14:11:46,583 - INFO - Performance database initialized successfully
+2025-08-25 14:11:46,584 - INFO - Performance monitoring database initialized
+2025-08-25 14:11:46,585 - INFO - Système de trading amélioré initialisé pour QQQ
+2025-08-25 14:11:46,587 - INFO - Performance monitoring database initialized
+2025-08-25 14:11:46,605 - INFO - [OK] Scheduler database initialized
+2025-08-25 14:11:46,607 - INFO - [CONFIG] Default configuration created
+2025-08-25 14:11:46,607 - INFO - [SCHEDULE] Schedule configured according to implementation plan
+2025-08-25 14:11:46,608 - INFO - [INIT] Intelligent Trading AI Scheduler initialized
+2025-08-25 14:11:46,608 - INFO - Project root: D:\GIT\Trading-AI
+2025-08-25 14:11:46,608 - INFO - Current phase: Phase 1: Configuration & Test

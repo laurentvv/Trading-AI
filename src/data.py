@@ -29,6 +29,8 @@ def get_etf_data(ticker: str, period: str = '5y', force_refresh: bool = False) -
     Retrieves ETF and VIX data, with a local caching system.
     The cache now includes VIX data.
     """
+    import time
+    
     CACHE_DIR.mkdir(exist_ok=True)
     cache_filename = f"{ticker.replace('.', '_')}_max_with_vix.parquet"
     cache_filepath = CACHE_DIR / cache_filename
@@ -41,7 +43,11 @@ def get_etf_data(ticker: str, period: str = '5y', force_refresh: bool = False) -
             logger.info(f"Loading data from cache: {cache_filepath}")
             hist_data = pd.read_parquet(cache_filepath)
             etf = yf.Ticker(ticker)
-            info = etf.info
+            try:
+                info = etf.info
+            except Exception as e:
+                logger.warning(f"Could not fetch ticker info: {e}")
+                info = {}
             logger.info(f"Data loaded from cache: {len(hist_data)} days.")
         except Exception as e:
             logger.warning(f"Could not read cache file {cache_filepath}: {e}. Forcing refresh.")
@@ -49,42 +55,108 @@ def get_etf_data(ticker: str, period: str = '5y', force_refresh: bool = False) -
 
     if force_refresh or hist_data is None:
         logger.info(f"Downloading data for {ticker} and ^VIX...")
-        try:
-            all_data = yf.download([ticker, '^VIX'], period="max", auto_adjust=True)
-            if all_data.empty:
-                raise ValueError(f"No data found for tickers {ticker}, ^VIX")
+        
+        # Try multiple approaches to avoid database locking
+        max_retries = 3
+        retry_delay = 2
+        
+        for attempt in range(max_retries):
+            try:
+                # First, try downloading each ticker separately to avoid database conflicts
+                logger.info(f"Attempt {attempt + 1}/{max_retries} to download data...")
+                
+                # Download main ticker first
+                ticker_data = yf.download(ticker, period="max", auto_adjust=True, progress=False)
+                if ticker_data.empty:
+                    raise ValueError(f"No data found for ticker {ticker}")
+                
+                # Small delay to avoid database conflicts
+                time.sleep(1)
+                
+                # Download VIX separately
+                vix_data = yf.download('^VIX', period="max", auto_adjust=True, progress=False)
+                if vix_data.empty:
+                    logger.warning("VIX data not available, using dummy VIX values")
+                    # Create dummy VIX data aligned with ticker data
+                    vix_data = pd.DataFrame(index=ticker_data.index)
+                    vix_data['Close'] = 20.0  # Default VIX value
+                
+                # Combine the data
+                hist_data = pd.DataFrame(index=ticker_data.index)
+                hist_data['Open'] = ticker_data['Open']
+                hist_data['High'] = ticker_data['High']
+                hist_data['Low'] = ticker_data['Low']
+                hist_data['Close'] = ticker_data['Close']
+                hist_data['Volume'] = ticker_data['Volume']
+                
+                # Align VIX data with ticker data
+                vix_close = vix_data['Close'].reindex(hist_data.index)
+                hist_data['VIX'] = vix_close
 
-            # Restructure the multi-level column dataframe
-            close_prices = all_data['Close']
-            hist_data = pd.DataFrame(index=close_prices.index)
-            hist_data['Open'] = all_data['Open'][ticker]
-            hist_data['High'] = all_data['High'][ticker]
-            hist_data['Low'] = all_data['Low'][ticker]
-            hist_data['Close'] = close_prices[ticker]
-            hist_data['Volume'] = all_data['Volume'][ticker]
-            hist_data['VIX'] = close_prices['^VIX']
+                # Clean up data
+                hist_data = hist_data.dropna(how='all')
+                hist_data['VIX'] = hist_data['VIX'].ffill().bfill()
+                
+                # If VIX is still NaN, use default value
+                hist_data['VIX'] = hist_data['VIX'].fillna(20.0)
+                
+                hist_data = hist_data.dropna(subset=['Close'])  # Only drop if Close is NaN
+                
+                if hist_data.empty:
+                    raise ValueError("No valid data after cleaning")
 
-            # Clean up data
-            hist_data = hist_data.dropna(how='all')
-            hist_data['VIX'] = hist_data['VIX'].ffill().bfill()
-            hist_data = hist_data.dropna()
+                etf = yf.Ticker(ticker)
+                try:
+                    info = etf.info
+                except Exception as e:
+                    logger.warning(f"Could not fetch ticker info: {e}")
+                    info = {}
 
-            etf = yf.Ticker(ticker)
-            info = etf.info
-
-            hist_data.to_parquet(cache_filepath)
-            logger.info(f"Data for {ticker} and ^VIX saved to cache: {cache_filepath}")
-
-        except Exception as e:
-            logger.error(f"Error retrieving data: {e}")
-            raise
+                # Save to cache
+                try:
+                    hist_data.to_parquet(cache_filepath)
+                    logger.info(f"Data for {ticker} and ^VIX saved to cache: {cache_filepath}")
+                except Exception as e:
+                    logger.warning(f"Could not save to cache: {e}")
+                
+                break  # Success, exit retry loop
+                
+            except Exception as e:
+                logger.error(f"Attempt {attempt + 1} failed: {e}")
+                
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    # Last attempt failed, try to use any cached data
+                    if cache_filepath.exists():
+                        try:
+                            logger.warning("All download attempts failed, trying to use cached data...")
+                            hist_data = pd.read_parquet(cache_filepath)
+                            etf = yf.Ticker(ticker)
+                            try:
+                                info = etf.info
+                            except:
+                                info = {}
+                            logger.info(f"Using cached data: {len(hist_data)} days.")
+                            break
+                        except Exception as cache_e:
+                            logger.error(f"Could not read cache as fallback: {cache_e}")
+                    
+                    # If everything fails, raise the original error
+                    raise e
 
     # Final check for old cache format without VIX
-    if 'VIX' not in hist_data.columns:
-        logger.warning("VIX column not found in loaded data. Forcing a refresh.")
-        return get_etf_data(ticker, period, force_refresh=True)
+    if hist_data is not None and 'VIX' not in hist_data.columns:
+        logger.warning("VIX column not found in loaded data. Adding default VIX values.")
+        hist_data['VIX'] = 20.0  # Default VIX value
+    
+    # Final validation
+    if hist_data is None or hist_data.empty:
+        raise ValueError(f"Failed to retrieve any data for {ticker}")
 
-    logger.info(f"Final data period: {hist_data.index.min().date()} to {hist_data.index.max().date()}")
+    logger.info(f"Final data period: {hist_data.index.min()} to {hist_data.index.max()}")
     return hist_data, info
 
 def _get_macro_cache_filepath(function: str, symbol: str = None, interval: str = "monthly", source: str = "AV") -> Path:

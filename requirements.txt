@@ -14,3 +14,4 @@ rich
 pandas_datareader
 setuptools
 shap
+schedule

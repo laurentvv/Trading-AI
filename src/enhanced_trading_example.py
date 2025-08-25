@@ -59,18 +59,44 @@ class EnhancedTradingSystem:
         """Prépare les données et indicateurs techniques."""
         logger.info("Récupération et préparation des données...")
         
-        # Récupération des données (code existant)
-        hist_data, info = get_etf_data(ticker=self.ticker)
-        data_with_indicators = create_technical_indicators(hist_data)
-        
-        # Contexte macroéconomique
-        analysis_date = data_with_indicators.index[-1]
-        macro_context = fetch_macro_data_for_date(analysis_date)
-        
-        # Création des features avec contexte macro
-        data_with_features = create_features(data_with_indicators, macro_context)
-        
-        return data_with_features, hist_data, macro_context
+        try:
+            # Récupération des données (code existant)
+            hist_data, info = get_etf_data(ticker=self.ticker)
+            
+            # Validate data
+            if hist_data is None or hist_data.empty:
+                raise ValueError(f"No data retrieved for {self.ticker}")
+            
+            logger.info(f"Data retrieved: {len(hist_data)} rows from {hist_data.index.min()} to {hist_data.index.max()}")
+            
+            # Check minimum data requirements
+            if len(hist_data) < 50:
+                raise ValueError(f"Insufficient data for analysis: only {len(hist_data)} rows available")
+            
+            data_with_indicators = create_technical_indicators(hist_data)
+            
+            # Validate indicators
+            if data_with_indicators.empty:
+                raise ValueError("Technical indicators generation failed - empty result")
+            
+            # Contexte macroéconomique
+            analysis_date = data_with_indicators.index[-1]
+            macro_context = fetch_macro_data_for_date(analysis_date)
+            
+            # Création des features avec contexte macro
+            data_with_features = create_features(data_with_indicators, macro_context)
+            
+            # Final validation
+            if data_with_features.empty:
+                raise ValueError("Feature generation failed - empty result")
+            
+            logger.info(f"Final data with features: {len(data_with_features)} rows, {len(data_with_features.columns)} columns")
+            
+            return data_with_features, hist_data, macro_context
+            
+        except Exception as e:
+            logger.error(f"Error in data preparation: {e}")
+            raise
     
     def train_classic_model(self, data_with_features):
         """Entraîne le modèle classique."""
@@ -161,7 +187,15 @@ class EnhancedTradingSystem:
         """Effectue l'analyse améliorée avec tous les nouveaux composants."""
         logger.info("Analyse améliorée en cours...")
         
+        # Validate input data
+        if data_with_features.empty:
+            raise ValueError("Cannot perform analysis on empty data")
+        
         hist_data = data_with_features[['Close', 'Volume']].dropna()
+        
+        # Check if we have sufficient data for analysis
+        if hist_data.empty or len(hist_data) < 2:
+            raise ValueError(f"Insufficient price data for analysis: {len(hist_data)} rows")
         
         # 1. Évaluation des risques
         risk_metrics = self.risk_manager.calculate_comprehensive_risk(
@@ -173,7 +207,13 @@ class EnhancedTradingSystem:
         logger.info(f"Score de risque: {risk_metrics.overall_risk_score:.3f}")
         
         # 2. Calcul des poids adaptatifs
-        current_volatility = hist_data['Close'].pct_change().std() * np.sqrt(252)
+        returns = hist_data['Close'].pct_change().dropna()
+        if len(returns) < 2:
+            current_volatility = 0.15  # Default volatility
+            logger.warning("Insufficient data for volatility calculation, using default")
+        else:
+            current_volatility = returns.std() * np.sqrt(252)
+        
         weight_adjustment = self.weight_manager.calculate_adaptive_weights(
             market_data=hist_data['Close'],
             volatility=current_volatility

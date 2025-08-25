@@ -82,15 +82,32 @@ class IntelligentScheduler:
         self.config_file = self.project_root / "scheduler_config.json"
         self.log_file = self.project_root / "scheduler.log"
         
-        # Initialize logging
+        # Initialize logging with proper encoding for Windows
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s',
             handlers=[
-                logging.FileHandler(self.log_file),
+                logging.FileHandler(self.log_file, encoding='utf-8'),
                 logging.StreamHandler()
             ]
         )
+        
+        # Configure console handler with UTF-8 encoding for Windows
+        console_handler = None
+        for handler in logging.root.handlers:
+            if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
+                console_handler = handler
+                break
+        
+        if console_handler:
+            # Try to set encoding for Windows console
+            try:
+                import sys
+                if sys.platform == 'win32':
+                    console_handler.stream.reconfigure(encoding='utf-8')
+            except:
+                # Fallback: replace emoji characters in messages
+                pass
         self.logger = logging.getLogger(__name__)
         
         # Initialize components
@@ -284,7 +301,7 @@ class IntelligentScheduler:
         task_start = datetime.now()
         task_id = f"weekly_report_{task_start.strftime('%Y_W%U')}"
         
-        self.logger.info("📊 Generating weekly performance report...")
+        self.logger.info("[REPORT] Generating weekly performance report...")
         
         try:
             # Generate performance report
@@ -587,7 +604,222 @@ class IntelligentScheduler:
         
         return min(100.0, (days_in_phase / target_days) * 100)
     
-    def _check_performance_alerts(self, results):
+    def _update_phase_progress(self, analysis_data):
+        """Update phase progress based on analysis data."""
+        try:
+            conn = sqlite3.connect(self.scheduler_db)
+            cursor = conn.cursor()
+            
+            progress = self._calculate_phase_progress()
+            
+            # Calculate metrics achieved
+            metrics_achieved = {}
+            if 'achievements' in analysis_data:
+                for metric, achievement in analysis_data['achievements'].items():
+                    metrics_achieved[metric] = achievement.get('achieved', False)
+            
+            # Determine status
+            if progress >= 100:
+                status = 'completed'
+            elif progress > 0:
+                status = 'in_progress'
+            else:
+                status = 'not_started'
+            
+            # Update or insert phase progress
+            cursor.execute('''
+                INSERT OR REPLACE INTO phase_progress 
+                (phase, start_date, target_end_date, current_progress, metrics_achieved, status, last_updated)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                self.current_phase.name,
+                self.project_start_date.isoformat(),
+                (self.project_start_date + timedelta(days=self._get_phase_duration())).isoformat(),
+                progress,
+                json.dumps(metrics_achieved),
+                status,
+                datetime.now().isoformat()
+            ))
+            
+            conn.commit()
+            conn.close()
+            
+        except Exception as e:
+            self.logger.error(f"Failed to update phase progress: {e}")
+    
+    def _get_phase_duration(self):
+        """Get the duration for the current phase in days."""
+        phase_durations = self.config["phase_transitions"]
+        if self.current_phase == Phase.PHASE_1:
+            return phase_durations["phase_1_duration_days"]
+        elif self.current_phase == Phase.PHASE_2:
+            return phase_durations["phase_2_duration_days"]
+        elif self.current_phase == Phase.PHASE_3:
+            return phase_durations["phase_3_duration_days"]
+        elif self.current_phase == Phase.PHASE_4:
+            return phase_durations["phase_4_duration_days"]
+        return 30  # Default
+    
+    def _analyze_performance_trends(self):
+        """Analyze performance trends over time."""
+        try:
+            conn = sqlite3.connect(self.scheduler_db)
+            df = pd.read_sql_query(
+                "SELECT * FROM system_metrics ORDER BY date DESC LIMIT 30",
+                conn
+            )
+            conn.close()
+            
+            if df.empty:
+                return {"status": "no_data", "trends": {}}
+            
+            trends = {}
+            for metric in ['sharpe_ratio', 'max_drawdown', 'win_rate']:
+                if metric in df.columns:
+                    values = df[metric].dropna()
+                    if len(values) > 1:
+                        # Simple trend calculation
+                        trend = "improving" if values.iloc[0] > values.iloc[-1] else "declining"
+                        trends[metric] = {
+                            "trend": trend,
+                            "latest": values.iloc[0] if len(values) > 0 else 0,
+                            "average": values.mean()
+                        }
+            
+            return {"status": "success", "trends": trends}
+            
+        except Exception as e:
+            self.logger.error(f"Failed to analyze performance trends: {e}")
+            return {"status": "error", "message": str(e)}
+    
+    def _analyze_model_performance(self):
+        """Analyze individual model performance."""
+        try:
+            # Read from CSV tracking file if it exists
+            csv_file = self.project_root / "trading_performance_tracking.csv"
+            if not csv_file.exists():
+                return {"status": "no_data", "models": {}}
+            
+            df = pd.read_csv(csv_file)
+            if df.empty:
+                return {"status": "no_data", "models": {}}
+            
+            # Analyze last 30 entries
+            recent_data = df.tail(30)
+            
+            model_performance = {}
+            for model in ['Classic', 'LLM_Text', 'LLM_Visual', 'Sentiment']:
+                signal_col = f"{model}_Signal"
+                conf_col = f"{model}_Conf"
+                
+                if signal_col in recent_data.columns:
+                    signals = recent_data[signal_col]
+                    buy_signals = (signals == 'BUY').sum()
+                    sell_signals = (signals == 'SELL').sum()
+                    hold_signals = (signals == 'HOLD').sum()
+                    
+                    model_performance[model.lower()] = {
+                        "total_signals": len(signals),
+                        "buy_ratio": buy_signals / len(signals) if len(signals) > 0 else 0,
+                        "sell_ratio": sell_signals / len(signals) if len(signals) > 0 else 0,
+                        "hold_ratio": hold_signals / len(signals) if len(signals) > 0 else 0
+                    }
+            
+            return {"status": "success", "models": model_performance}
+            
+        except Exception as e:
+            self.logger.error(f"Failed to analyze model performance: {e}")
+            return {"status": "error", "message": str(e)}
+    
+    def _analyze_risk_metrics(self):
+        """Analyze risk metrics trends."""
+        try:
+            csv_file = self.project_root / "trading_performance_tracking.csv"
+            if not csv_file.exists():
+                return {"status": "no_data", "risk_analysis": {}}
+            
+            df = pd.read_csv(csv_file)
+            if df.empty:
+                return {"status": "no_data", "risk_analysis": {}}
+            
+            recent_data = df.tail(30)
+            
+            risk_analysis = {}
+            if 'Risk_Level' in recent_data.columns:
+                risk_levels = recent_data['Risk_Level'].value_counts()
+                risk_analysis['risk_distribution'] = risk_levels.to_dict()
+                risk_analysis['high_risk_frequency'] = (
+                    (recent_data['Risk_Level'].isin(['HIGH', 'VERY_HIGH'])).sum() / len(recent_data)
+                    if len(recent_data) > 0 else 0
+                )
+            
+            return {"status": "success", "risk_analysis": risk_analysis}
+            
+        except Exception as e:
+            self.logger.error(f"Failed to analyze risk metrics: {e}")
+            return {"status": "error", "message": str(e)}
+    
+    def _assess_phase_transition_readiness(self):
+        """Assess if the system is ready for phase transition."""
+        current_progress = self._calculate_phase_progress()
+        
+        # Get performance targets for current phase
+        targets = self.config["performance_targets"].get(f"phase_{self.current_phase.name[-1]}", {})
+        
+        readiness = {
+            "progress_complete": current_progress >= 100,
+            "time_based_ready": current_progress >= 80,  # 80% time completion
+            "performance_ready": False,
+            "overall_ready": False
+        }
+        
+        # Check performance readiness (simplified)
+        if targets:
+            # Would need actual performance data comparison
+            readiness["performance_ready"] = current_progress >= 90  # Simplified
+        
+        readiness["overall_ready"] = (
+            readiness["progress_complete"] or 
+            (readiness["time_based_ready"] and readiness["performance_ready"])
+        )
+        
+        return readiness
+    
+    def _generate_recommendations(self, monthly_analysis, phase_evaluation):
+        """Generate recommendations based on analysis."""
+        recommendations = []
+        
+        # Performance-based recommendations
+        if 'trends' in monthly_analysis.get('trend_analysis', {}):
+            trends = monthly_analysis['trend_analysis']['trends']
+            for metric, trend_data in trends.items():
+                if trend_data['trend'] == 'declining':
+                    recommendations.append(f"Address declining {metric} - consider model retraining")
+        
+        # Risk-based recommendations
+        risk_analysis = monthly_analysis.get('risk_analysis', {})
+        if risk_analysis.get('status') == 'success':
+            high_risk_freq = risk_analysis.get('risk_analysis', {}).get('high_risk_frequency', 0)
+            if high_risk_freq > 0.3:  # More than 30% high risk
+                recommendations.append("High risk frequency detected - review risk management parameters")
+        
+        # Phase transition recommendations
+        if phase_evaluation.get('overall_ready'):
+            recommendations.append(f"System ready for transition from {self.current_phase.value}")
+        
+        return recommendations
+    
+    def _evaluate_current_phase(self):
+        """Evaluate current phase status and readiness."""
+        progress = self._calculate_phase_progress()
+        readiness = self._assess_phase_transition_readiness()
+        
+        return {
+            "current_phase": self.current_phase.value,
+            "progress_percentage": progress,
+            "days_in_phase": (datetime.now() - self.project_start_date).days,
+            "readiness_assessment": readiness
+        }
         """Check for performance alerts and notifications."""
         if not self.config["alerts"]["performance_alerts"]:
             return
@@ -597,11 +829,11 @@ class IntelligentScheduler:
         
         # High risk alert
         if risk_metrics.risk_level.name in ['HIGH', 'VERY_HIGH']:
-            self.logger.warning(f"🚨 HIGH RISK ALERT: {risk_metrics.risk_level.name} - Score: {risk_metrics.overall_risk_score:.3f}")
+            self.logger.warning(f"[HIGH RISK ALERT] {risk_metrics.risk_level.name} - Score: {risk_metrics.overall_risk_score:.3f}")
         
         # Low consensus alert
         if enhanced_decision.consensus_score < 0.5:
-            self.logger.warning(f"⚠️ LOW CONSENSUS: {enhanced_decision.consensus_score:.2%} - Models disagree significantly")
+            self.logger.warning(f"[LOW CONSENSUS] {enhanced_decision.consensus_score:.2%} - Models disagree significantly")
     
     def _perform_health_check(self):
         """Perform system health check."""
