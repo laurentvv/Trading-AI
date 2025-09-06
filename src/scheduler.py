@@ -1,4 +1,3 @@
-
 import schedule
 import time
 import logging
@@ -154,7 +153,6 @@ class IntelligentScheduler:
             logger.info("Phase progress updated.")
         except sqlite3.Error as e:
             logger.error(f"[ERROR] Failed to update phase progress: {e}")
-
 
 if __name__ == "__main__":
     project_root = Path(__file__).parent.parent
