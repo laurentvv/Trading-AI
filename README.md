@@ -140,7 +140,5 @@ Distribué sous la licence MIT. Voir `LICENSE` pour plus d'informations.
 
 ## 📧 Contact
 
-Laurent - [@laurentvv](https://twitter.com/laurentvv) - laurent.van-vynckt@live.fr
-
 Lien du projet : [https://github.com/laurentvv/Trading-AI](https://github.com/laurentvv/Trading-AI)
 
