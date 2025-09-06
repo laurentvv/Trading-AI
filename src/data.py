@@ -27,7 +27,7 @@ def get_etf_data(ticker: str, period: str = '5y', force_refresh: bool = False) -
     The cache now includes VIX data.
     """
     CACHE_DIR.mkdir(exist_ok=True)
-    cache_filename = f"{ticker.replace('.', '_')}_{period}_with_vix.parquet"
+    cache_filename = f"{ticker.replace('.', '_')}_max_with_vix.parquet"
     cache_filepath = CACHE_DIR / cache_filename
 
     hist_data = None
@@ -47,7 +47,7 @@ def get_etf_data(ticker: str, period: str = '5y', force_refresh: bool = False) -
     if force_refresh or hist_data is None:
         logger.info(f"Downloading data for {ticker} and ^VIX...")
         try:
-            all_data = yf.download([ticker, '^VIX'], period=period, auto_adjust=True)
+            all_data = yf.download([ticker, '^VIX'], period="max", auto_adjust=True)
             if all_data.empty:
                 raise ValueError(f"No data found for tickers {ticker}, ^VIX")
 
