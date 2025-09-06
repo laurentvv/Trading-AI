@@ -35,7 +35,11 @@ The system is written in Python and leverages a variety of libraries for data an
 
 ### Running the System
 
-To run the trading system, execute the main script from the root directory:
+There are two ways to run the system:
+
+**1. Manual Analysis**
+
+To run a single, on-demand analysis, execute the main script from the root directory:
 
 ```bash
 python src/main.py
@@ -47,6 +51,18 @@ The script will:
 3.  Generate a chart for visual analysis.
 4.  Generate a final trading decision based on the three models.
 5.  Save a plot of the backtest analysis as `backtest_analysis.png`.
+
+**2. Automated Analysis with the Scheduler**
+
+The project includes a scheduler to run the analysis automatically every day.
+
+To run the scheduler, execute the following command from the root directory:
+
+```bash
+python src/scheduler.py
+```
+
+The scheduler will run in the background and perform the daily analysis at the configured time (default 18:00). All scheduler activities are logged in `scheduler.log`.
 
 ## Development Conventions
 

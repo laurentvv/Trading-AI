@@ -60,18 +60,30 @@ Before you begin, ensure you have the following installed:
 
 ## Usage
 
-To run the trading system, execute the main script from the root directory:
+### Manual Analysis
+
+To run a single, on-demand analysis, execute the main script from the root directory:
 
 ```bash
 python src/main.py
 ```
 
-The script will perform the following actions:
-1.  Fetch or load market data from the cache.
-2.  Run the walk-forward backtest and print the performance summary to the console.
-3.  Generate a chart of the recent market data.
-4.  Generate a final trading decision for the most recent data point by combining the outputs from the classic model, a text-based LLM, and a visual LLM's analysis of the chart.
-5.  Save a plot of the backtest analysis as `backtest_analysis.png`.
+This will perform a full analysis and output the final decision to the console.
+
+### Automated Analysis with the Scheduler
+
+The project includes a scheduler to run the analysis automatically every day.
+
+To run the scheduler, execute the following command from the root directory:
+
+```bash
+python src/scheduler.py
+```
+
+The scheduler will:
+- Run the daily trading analysis at the time specified in the configuration (default is 18:00).
+- Generate a weekly performance report.
+- Log all its activities in `scheduler.log`.
 
 ## Project Structure
 
