@@ -1,118 +1,146 @@
-# Système de Trading IA Hybride Tri-Modal pour les ETF du NASDAQ
 
-Ce projet est un système sophistiqué de support à la décision de trading qui utilise une approche IA hybride tri-modale pour générer des signaux de trading pour les ETF du NASDAQ. Il combine un modèle quantitatif traditionnel, un Grand Modèle de Langage (LLM) basé sur du texte et un LLM visuel (multi-modal) pour une analyse robuste et nuancée.
+<div align="center">
+  <br />
+  <h1>📈 Tri-Modal Hybrid AI Trading System 📈</h1>
+  <p>
+    Un système de trading IA sophistiqué pour les ETF du NASDAQ, combinant analyse quantitative, textuelle (LLM) et visuelle (V-LLM) pour des décisions de trading robustes.
+  </p>
+</div>
 
-## Fonctionnalités Clés
+<div align="center">
 
-- **Moteur IA Hybride Tri-Modal** : Combine trois modèles d'IA différents pour une décision basée sur un consensus :
-    1.  Un classifieur `scikit-learn` entraîné sur des indicateurs techniques quantitatifs et des **données macroéconomiques** (par exemple, taux d'intérêt, inflation).
-    2.  Un LLM qui effectue une analyse sur les données numériques brutes.
-    3.  Un LLM multi-modal qui effectue une analyse visuelle sur une image de graphique générée.
-- **Backtesting Robuste** : Utilise une méthodologie de **validation par walk-forward** pour éviter le biais de prédiction et fournir une évaluation réaliste des performances historiques de la stratégie.
-- **Simulation des Coûts de Transaction** : Le backtester tient compte des coûts de transaction pour des calculs de rendement plus réalistes.
-- **Mise en Cache Locale des Données** : Les données de marché récupérées sont mises en cache localement dans des fichiers Parquet pour accélérer les exécutions suivantes. Les données macroéconomiques sont également mises en cache.
-- **Base de Code Modulaire** : Le code est organisé dans une structure propre et modulaire pour faciliter la maintenance et l'extension.
-- **Documentation Complète** : L'évolution, l'architecture et le contexte du projet sont documentés de manière méticuleuse dans le répertoire `memory-bank/`, suivant un processus de développement axé sur la documentation.
+[![Statut du Projet](https://img.shields.io/badge/status-en--d%C3%A9veloppement-green.svg)](https://github.com/laurentvv/Trading-AI)
+[![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Licence](https://img.shields.io/badge/license-MIT-lightgrey.svg)](https://opensource.org/licenses/MIT)
 
-## Stack Technologique
+</div>
+
+---
+
+## 📚 Table des Matières
+
+- [À Propos du Projet](#-à-propos-du-projet)
+  - [Fonctionnalités Clés](#-fonctionnalités-clés)
+  - [Stack Technologique](#-stack-technologique)
+- [🚀 Getting Started](#-getting-started)
+  - [Prérequis](#-prérequis)
+  - [Installation](#-installation)
+- [🛠️ Utilisation](#️-utilisation)
+  - [Analyse Manuelle](#-analyse-manuelle)
+  - [Analyse Automatisée](#-analyse-automatisée)
+- [🤝 Contribuer](#-contribuer)
+- [📜 Licence](#-licence)
+- [📧 Contact](#-contact)
+
+---
+
+## 🌟 À Propos du Projet
+
+Ce projet est un système de support à la décision de trading qui utilise une approche IA hybride tri-modale pour générer des signaux de trading pour les ETF du NASDAQ. Il est conçu pour fournir une analyse complète et nuancée en combinant plusieurs perspectives d'IA.
+
+### ✨ Fonctionnalités Clés
+
+- **Moteur IA Hybride Tri-Modal** : Combine trois modèles d'IA pour une décision par consensus :
+  1. Un classifieur `scikit-learn` entraîné sur des indicateurs techniques et des données macroéconomiques.
+  2. Un LLM pour l'analyse de données numériques brutes.
+  3. Un LLM multi-modal pour l'analyse visuelle de graphiques financiers.
+- **Backtesting Robuste** : Utilise une validation *walk-forward* pour une évaluation réaliste des performances historiques.
+- **Simulation des Coûts de Transaction** : Intègre les coûts de transaction pour des calculs de rendement plus précis.
+- **Mise en Cache des Données** : Met en cache les données de marché et macroéconomiques pour accélérer les exécutions.
+- **Planificateur Automatisé** : Exécute les analyses quotidiennes et génère des rapports de manière autonome.
+
+### 💻 Stack Technologique
 
 - **Python 3.10+**
-- **Données & Calculs Numériques :** `pandas`, `numpy`, `yfinance` (récupération des données), `pyarrow` (mise en cache Parquet)
-- **Framework ML :** `scikit-learn`
-- **Interface IA/LLM :** `requests` (interaction avec Ollama), `ollama` (serveur LLM local, testé avec `gemma3:27b`)
-- **Visualisation :** `matplotlib`, `seaborn`, `mplfinance` (graphiques financiers)
-- **Utilitaires :** `tqdm` (barres de progression), `rich` (sortie console formatée), `python-dotenv` (variables d'environnement)
+- **Calculs & Données** : `pandas`, `numpy`, `yfinance`, `pyarrow`
+- **Machine Learning** : `scikit-learn`
+- **IA & LLM** : `requests`, `ollama`
+- **Visualisation** : `matplotlib`, `seaborn`, `mplfinance`
+- **Utilitaires** : `tqdm`, `rich`, `python-dotenv`, `schedule`
 
-## Prérequis
+---
 
-Avant de commencer, assurez-vous d'avoir installé :
-- Python 3.10 ou supérieur.
-- [Ollama](https://ollama.com/) en cours d'exécution localement.
-- Un LLM téléchargé (par exemple, Gemma 3) : `ollama pull gemma3:27b`
+## 🚀 Getting Started
 
-## Installation
+Suivez ces étapes pour mettre en place votre environnement de développement local.
 
-1.  **Cloner le dépôt :**
-    ```bash
-    git clone <repository_url>
-    cd <repository_directory>
+### ✅ Prérequis
+
+- Python 3.10 ou supérieur
+- [Ollama](https://ollama.com/) installé et en cours d'exécution
+- Un modèle LLM téléchargé (ex: `ollama pull gemma3:27b`)
+
+### ⚙️ Installation
+
+1.  **Clonez le dépôt :**
+    ```sh
+    git clone https://github.com/laurentvv/Trading-AI.git
+    cd Trading-AI
     ```
-
-2.  **Créer et activer un environnement virtuel (recommandé) :**
-    ```bash
-    python -m venv venv
-    source venv/bin/activate  # Sous Windows, utilisez `venv\Scripts\activate`
+2.  **Créez un environnement virtuel :**
+    ```sh
+    python -m venv .venv
+    source .venv/bin/activate  # Sur Windows: .venv\Scripts\activate
     ```
-
-3.  **Installer les dépendances :**
-    ```bash
+3.  **Installez les dépendances :**
+    ```sh
     pip install -r requirements.txt
     ```
-
-4.  **Configurer votre Clé API :**
-    Créez un fichier nommé `.env` à la racine du projet et ajoutez-y votre clé API Alpha Vantage comme suit :
+4.  **Configurez votre clé API :**
+    Créez un fichier `.env` à la racine et ajoutez votre clé API Alpha Vantage :
     ```
     ALPHA_VANTAGE_API_KEY="VOTRE_CLE_API_ICI"
     ```
 
-## Utilisation
+---
+
+## 🛠️ Utilisation
 
 ### Analyse Manuelle
 
-Pour exécuter une seule analyse à la demande, exécutez le script principal depuis le répertoire racine :
+Pour lancer une analyse unique et obtenir une décision immédiate :
 
-```bash
+```sh
 python src/main.py
 ```
 
-Cela effectuera une analyse complète et affichera la décision finale dans la console.
+Le script affichera une analyse détaillée dans la console, y compris la décision finale.
 
-### Analyse Automatisée avec le Planificateur
+### Analyse Automatisée
 
-Le projet inclut un planificateur pour exécuter l'analyse automatiquement chaque jour.
+Pour que le système fonctionne en continu et effectue des analyses quotidiennes :
 
-Pour exécuter le planificateur, exécutez la commande suivante depuis le répertoire racine :
-
-```bash
+```sh
 python src/scheduler.py
 ```
 
-Le planificateur va :
-- Exécuter l'analyse de trading quotidienne à l'heure spécifiée dans la configuration (par défaut 18:00).
-- Générer un rapport de performance hebdomadaire.
-- Enregistrer toutes ses activités dans `scheduler.log`.
+Le planificateur s'exécutera en arrière-plan, effectuera les analyses à l'heure configurée et enregistrera tout dans `scheduler.log`.
 
-## Structure du Projet
+---
 
-```
-.
-├── memory-bank/             # Documentation complète du projet (contexte, progression, décisions)
-├── src/                     # Code source
-│   ├── main.py              # Script orchestrateur principal
-│   ├── data.py              # Logique de récupération et de mise en cache des données
-│   ├── features.py          # Ingénierie des caractéristiques (indicateurs techniques)
-│   ├── classic_model.py     # Entraînement et prédiction du modèle Scikit-learn
-│   ├── llm_client.py        # Client pour interagir avec les LLM textuels et visuels via Ollama
-│   ├── chart_generator.py   # Génère des images de graphiques financiers pour l'analyse IA visuelle
-│   ├── backtest.py          # Moteur de backtesting par validation walk-forward avec coûts de transaction
-│   ├── sentiment_analysis.py # Analyse le sentiment à partir des titres d'actualités
-│   └── news_fetcher.py      # Récupère les titres d'actualités récents pour l'analyse de sentiment
-├── data_cache/              # Répertoire pour les données de marché mises en cache (fichiers Parquet)
-├── requirements.txt         # Dépendances Python
-├── .env                     # (Créé par l'utilisateur) Fichier pour stocker les clés API sensibles (ALPHA_VANTAGE_API_KEY)
-└── README.md                # Ce fichier
-```
+## 🤝 Contribuer
 
-## Conventions de Développement
+Les contributions sont ce qui fait de la communauté open source un endroit extraordinaire pour apprendre, inspirer et créer. Toutes les contributions que vous faites sont **grandement appréciées**.
 
-*   **Modularité :** Le code est organisé en modules distincts (`src/`) pour les données, les caractéristiques, les modèles, l'interaction LLM, les graphiques et le backtesting, favorisant la maintenabilité et la clarté.
-*   **Documentation :** Le projet utilise un système de "Banque de Mémoire" (`memory-bank/`) pour stocker le contexte évolutif, les décisions d'architecture et la progression. C'est la source de vérité principale pour comprendre la conception du projet.
-*   **Configuration :** Les clés API et autres secrets sont gérés via un fichier `.env`, et non codés en dur.
-*   **Mise en Cache des Données :** Les données de marché sont mises en cache sous forme de fichiers Parquet pour améliorer les performances et réduire les appels API redondants.
-*   **Backtesting Robuste :** Une approche de validation walk-forward est utilisée pour simuler des conditions de trading réalistes et éviter le biais de prédiction.
-*   **Journalisation :** Utilise le module `logging` de Python pour une sortie console informative.
-*   **Sortie Formatée :** Utilise `rich` pour fournir une sortie claire, structurée et colorisée pour la décision finale.
+Si vous avez une suggestion pour améliorer ce projet, veuillez forker le dépôt et créer une pull request. Vous pouvez aussi simplement ouvrir une issue avec le tag "enhancement".
 
-## La Banque de Mémoire (Memory Bank)
+1.  Forkez le Projet
+2.  Créez votre branche de fonctionnalité (`git checkout -b feature/AmazingFeature`)
+3.  Commitez vos changements (`git commit -m 'Add some AmazingFeature'`)
+4.  Poussez vers la branche (`git push origin feature/AmazingFeature`)
+5.  Ouvrez une Pull Request
 
-Ce projet suit une philosophie de "Banque de Mémoire". Le répertoire `memory-bank/` est la source de vérité unique pour le contexte, l'architecture et la progression du projet. Il est conçu pour être une documentation vivante permettant à tout développeur (ou assistant IA) de rapidement comprendre l'état du projet.
+---
+
+## 📜 Licence
+
+Distribué sous la licence MIT. Voir `LICENSE` pour plus d'informations.
+
+---
+
+## 📧 Contact
+
+Laurent - [@laurentvv](https://twitter.com/laurentvv) - laurent.van-vynckt@live.fr
+
+Lien du projet : [https://github.com/laurentvv/Trading-AI](https://github.com/laurentvv/Trading-AI)
+
