@@ -19,9 +19,14 @@ MACRO_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 # Alpha Vantage API setup
 ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
 if not ALPHA_VANTAGE_API_KEY:
-    logger.warning("ALPHA_VANTAGE_API_KEY not found in environment variables. Some features might be disabled.")
-    
-def get_etf_data(ticker: str, period: str = '5y', force_refresh: bool = False) -> tuple[pd.DataFrame, dict]:
+    logger.warning(
+        "ALPHA_VANTAGE_API_KEY not found in environment variables. Some features might be disabled."
+    )
+
+
+def get_etf_data(
+    ticker: str, period: str = "5y", force_refresh: bool = False
+) -> tuple[pd.DataFrame, dict]:
     """
     Retrieves ETF and VIX data, with a local caching system.
     The cache now includes VIX data.
@@ -41,29 +46,31 @@ def get_etf_data(ticker: str, period: str = '5y', force_refresh: bool = False) -
             info = etf.info
             logger.info(f"Data loaded from cache: {len(hist_data)} days.")
         except Exception as e:
-            logger.warning(f"Could not read cache file {cache_filepath}: {e}. Forcing refresh.")
+            logger.warning(
+                f"Could not read cache file {cache_filepath}: {e}. Forcing refresh."
+            )
             force_refresh = True
 
     if force_refresh or hist_data is None:
         logger.info(f"Downloading data for {ticker} and ^VIX...")
         try:
-            all_data = yf.download([ticker, '^VIX'], period="max", auto_adjust=True)
+            all_data = yf.download([ticker, "^VIX"], period="max", auto_adjust=True)
             if all_data.empty:
                 raise ValueError(f"No data found for tickers {ticker}, ^VIX")
 
             # Restructure the multi-level column dataframe
-            close_prices = all_data['Close']
+            close_prices = all_data["Close"]
             hist_data = pd.DataFrame(index=close_prices.index)
-            hist_data['Open'] = all_data['Open'][ticker]
-            hist_data['High'] = all_data['High'][ticker]
-            hist_data['Low'] = all_data['Low'][ticker]
-            hist_data['Close'] = close_prices[ticker]
-            hist_data['Volume'] = all_data['Volume'][ticker]
-            hist_data['VIX'] = close_prices['^VIX']
+            hist_data["Open"] = all_data["Open"][ticker]
+            hist_data["High"] = all_data["High"][ticker]
+            hist_data["Low"] = all_data["Low"][ticker]
+            hist_data["Close"] = close_prices[ticker]
+            hist_data["Volume"] = all_data["Volume"][ticker]
+            hist_data["VIX"] = close_prices["^VIX"]
 
             # Clean up data
-            hist_data = hist_data.dropna(how='all')
-            hist_data['VIX'] = hist_data['VIX'].ffill().bfill()
+            hist_data = hist_data.dropna(how="all")
+            hist_data["VIX"] = hist_data["VIX"].ffill().bfill()
             hist_data = hist_data.dropna()
 
             etf = yf.Ticker(ticker)
@@ -77,14 +84,19 @@ def get_etf_data(ticker: str, period: str = '5y', force_refresh: bool = False) -
             raise
 
     # Final check for old cache format without VIX
-    if 'VIX' not in hist_data.columns:
+    if "VIX" not in hist_data.columns:
         logger.warning("VIX column not found in loaded data. Forcing a refresh.")
         return get_etf_data(ticker, period, force_refresh=True)
 
-    logger.info(f"Final data period: {hist_data.index.min().date()} to {hist_data.index.max().date()}")
+    logger.info(
+        f"Final data period: {hist_data.index.min().date()} to {hist_data.index.max().date()}"
+    )
     return hist_data, info
 
-def _get_macro_cache_filepath(function: str, symbol: str = None, interval: str = "monthly", source: str = "AV") -> Path:
+
+def _get_macro_cache_filepath(
+    function: str, symbol: str = None, interval: str = "monthly", source: str = "AV"
+) -> Path:
     """
     Generates a cache file path for macroeconomic data.
     """
@@ -93,6 +105,7 @@ def _get_macro_cache_filepath(function: str, symbol: str = None, interval: str =
         filename += f"_{symbol}"
     filename += f"_{interval}.parquet"
     return MACRO_CACHE_DIR / filename
+
 
 def _load_macro_data_from_cache(cache_filepath: Path) -> pd.DataFrame:
     """
@@ -106,6 +119,7 @@ def _load_macro_data_from_cache(cache_filepath: Path) -> pd.DataFrame:
             logger.warning(f"Could not read macro cache file {cache_filepath}: {e}")
     return pd.DataFrame()
 
+
 def _save_macro_data_to_cache(data: pd.DataFrame, cache_filepath: Path):
     """
     Saves macroeconomic data to a Parquet cache file.
@@ -116,10 +130,16 @@ def _save_macro_data_to_cache(data: pd.DataFrame, cache_filepath: Path):
     except Exception as e:
         logger.error(f"Failed to save macro data to cache {cache_filepath}: {e}")
 
-def get_alpha_vantage_data(function: str, symbol: str = None, interval: str = "monthly", force_refresh: bool = False) -> pd.DataFrame:
+
+def get_alpha_vantage_data(
+    function: str,
+    symbol: str = None,
+    interval: str = "monthly",
+    force_refresh: bool = False,
+) -> pd.DataFrame:
     """
     Fetches data from Alpha Vantage API, with local caching.
-    
+
     Args:
         function (str): The AV function name (e.g., 'TREASURY_YIELD', 'CPI').
         symbol (str, optional): The data symbol (e.g., '10year' for Treasury Yield). Defaults to None.
@@ -134,7 +154,7 @@ def get_alpha_vantage_data(function: str, symbol: str = None, interval: str = "m
         return pd.DataFrame()
 
     cache_filepath = _get_macro_cache_filepath(function, symbol, interval, source="AV")
-    
+
     # 1. Try loading from cache if not forcing refresh
     if not force_refresh:
         cached_data = _load_macro_data_from_cache(cache_filepath)
@@ -144,15 +164,15 @@ def get_alpha_vantage_data(function: str, symbol: str = None, interval: str = "m
 
     # 2. If cache miss or force refresh, fetch from API
     logger.info(f"Fetching {function} ({symbol}) from Alpha Vantage API...")
-    url = 'https://www.alphavantage.co/query'
+    url = "https://www.alphavantage.co/query"
     params = {
-        'function': function,
-        'apikey': ALPHA_VANTAGE_API_KEY,
-        'datatype': 'json',
-        'interval': interval
+        "function": function,
+        "apikey": ALPHA_VANTAGE_API_KEY,
+        "datatype": "json",
+        "interval": interval,
     }
     if symbol:
-        params['symbol'] = symbol
+        params["symbol"] = symbol
 
     try:
         response = requests.get(url, params=params)
@@ -161,75 +181,94 @@ def get_alpha_vantage_data(function: str, symbol: str = None, interval: str = "m
 
         # Check for API errors
         if "Error Message" in data:
-            logger.error(f"Alpha Vantage API Error for {function}: {data['Error Message']}")
+            logger.error(
+                f"Alpha Vantage API Error for {function}: {data['Error Message']}"
+            )
             # If API error, try to return cached data as a fallback
             cached_data = _load_macro_data_from_cache(cache_filepath)
             if not cached_data.empty:
-                logger.info(f"Falling back to cached data for {function} ({symbol}) after API error.")
+                logger.info(
+                    f"Falling back to cached data for {function} ({symbol}) after API error."
+                )
                 return cached_data
             return pd.DataFrame()
-            
+
         if "Information" in data and "limit" in data["Information"]:
-             logger.warning(f"Alpha Vantage API call limit reached for {function}.")
-             # If rate limit hit, try to return cached data as a fallback
-             cached_data = _load_macro_data_from_cache(cache_filepath)
-             if not cached_data.empty:
-                 logger.info(f"Falling back to cached data for {function} ({symbol}) due to rate limit.")
-                 return cached_data
-             return pd.DataFrame()
+            logger.warning(f"Alpha Vantage API call limit reached for {function}.")
+            # If rate limit hit, try to return cached data as a fallback
+            cached_data = _load_macro_data_from_cache(cache_filepath)
+            if not cached_data.empty:
+                logger.info(
+                    f"Falling back to cached data for {function} ({symbol}) due to rate limit."
+                )
+                return cached_data
+            return pd.DataFrame()
 
         # Extract the data series (same logic as before)
         data_key = None
-        if 'data' in data:
-            data_key = 'data'
-        elif 'TreasureYield' in data: # Note: API spelling
-             data_key = 'TreasureYield'
+        if "data" in data:
+            data_key = "data"
+        elif "TreasureYield" in data:  # Note: API spelling
+            data_key = "TreasureYield"
         elif function in data:
-             data_key = function
+            data_key = function
         else:
-             # Try to find the first key that looks like a data series
-             for k in data.keys():
-                 if isinstance(data[k], list) and len(data[k]) > 0 and isinstance(data[k][0], dict):
-                     data_key = k
-                     break
+            # Try to find the first key that looks like a data series
+            for k in data.keys():
+                if (
+                    isinstance(data[k], list)
+                    and len(data[k]) > 0
+                    and isinstance(data[k][0], dict)
+                ):
+                    data_key = k
+                    break
 
         if not data_key or data_key not in data:
             logger.warning(f"Could not find data series for {function} in response.")
             # Fallback to cache
             cached_data = _load_macro_data_from_cache(cache_filepath)
             if not cached_data.empty:
-                logger.info(f"Falling back to cached data for {function} ({symbol}) after parsing error.")
+                logger.info(
+                    f"Falling back to cached data for {function} ({symbol}) after parsing error."
+                )
                 return cached_data
             return pd.DataFrame()
 
         df_list = []
         for item in data[data_key]:
             # AV API responses can have varying key names for the date
-            date_key = 'date' if 'date' in item else None
+            date_key = "date" if "date" in item else None
             if not date_key:
                 # Common alternatives
-                for k in ['timestamp', 'datetime']:
+                for k in ["timestamp", "datetime"]:
                     if k in item:
                         date_key = k
                         break
             if not date_key:
                 logger.warning(f"Could not find date key in data item for {function}.")
-                continue # Skip this item
+                continue  # Skip this item
 
             # Value key can also vary
             value_key = None
-            for k in ['value', 'yield', 'rate', 'cpi']:
+            for k in ["value", "yield", "rate", "cpi"]:
                 if k in item:
                     value_key = k
                     break
             if not value_key:
-                 logger.warning(f"Could not find value key in data item for {function}.")
-                 continue
+                logger.warning(f"Could not find value key in data item for {function}.")
+                continue
 
             try:
-                df_list.append({'date': pd.to_datetime(item[date_key]), 'value': float(item[value_key])})
+                df_list.append(
+                    {
+                        "date": pd.to_datetime(item[date_key]),
+                        "value": float(item[value_key]),
+                    }
+                )
             except (ValueError, TypeError) as e:
-                logger.warning(f"Error parsing data item for {function} on {item.get(date_key, 'unknown date')}: {e}")
+                logger.warning(
+                    f"Error parsing data item for {function} on {item.get(date_key, 'unknown date')}: {e}"
+                )
                 continue
 
         if not df_list:
@@ -237,16 +276,20 @@ def get_alpha_vantage_data(function: str, symbol: str = None, interval: str = "m
             # Fallback to cache
             cached_data = _load_macro_data_from_cache(cache_filepath)
             if not cached_data.empty:
-                logger.info(f"Falling back to cached data for {function} ({symbol}) as no new data was parsed.")
+                logger.info(
+                    f"Falling back to cached data for {function} ({symbol}) as no new data was parsed."
+                )
                 return cached_data
             return pd.DataFrame()
 
         df = pd.DataFrame(df_list)
-        df.sort_values('date', inplace=True)
+        df.sort_values("date", inplace=True)
         df.reset_index(drop=True, inplace=True)
-        df.rename(columns={'value': function.lower()}, inplace=True)
-        
-        logger.info(f"Successfully fetched {len(df)} data points for {function} ({symbol}).")
+        df.rename(columns={"value": function.lower()}, inplace=True)
+
+        logger.info(
+            f"Successfully fetched {len(df)} data points for {function} ({symbol})."
+        )
         # Save to cache
         _save_macro_data_to_cache(df, cache_filepath)
         return df
@@ -256,30 +299,37 @@ def get_alpha_vantage_data(function: str, symbol: str = None, interval: str = "m
         # Fallback to cache on network error
         cached_data = _load_macro_data_from_cache(cache_filepath)
         if not cached_data.empty:
-            logger.info(f"Falling back to cached data for {function} ({symbol}) after network error.")
+            logger.info(
+                f"Falling back to cached data for {function} ({symbol}) after network error."
+            )
             return cached_data
     except ValueError as e:
         logger.error(f"Error parsing JSON response for {function}: {e}")
         # Fallback to cache on parse error
         cached_data = _load_macro_data_from_cache(cache_filepath)
         if not cached_data.empty:
-            logger.info(f"Falling back to cached data for {function} ({symbol}) after JSON parse error.")
+            logger.info(
+                f"Falling back to cached data for {function} ({symbol}) after JSON parse error."
+            )
             return cached_data
     except Exception as e:
         logger.error(f"Unexpected error fetching data for {function}: {e}")
         # Fallback to cache on any other error
         cached_data = _load_macro_data_from_cache(cache_filepath)
         if not cached_data.empty:
-            logger.info(f"Falling back to cached data for {function} ({symbol}) after unexpected error.")
+            logger.info(
+                f"Falling back to cached data for {function} ({symbol}) after unexpected error."
+            )
             return cached_data
 
     return pd.DataFrame()
+
 
 def get_fred_data_via_pdr(series_id: str, force_refresh: bool = False) -> pd.DataFrame:
     """
     Fetches data from FRED using pandas-datareader, with local caching.
     This method does not require an API key and relies on pandas-datareader's FRED connector.
-    
+
     Args:
         series_id (str): The FRED series identifier (e.g., 'DGS10', 'GDP').
         force_refresh (bool, optional): If True, bypasses the cache and forces a new data fetch. Defaults to False.
@@ -288,12 +338,14 @@ def get_fred_data_via_pdr(series_id: str, force_refresh: bool = False) -> pd.Dat
         pd.DataFrame: A DataFrame with 'date' and 'value' columns.
     """
     cache_filepath = _get_macro_cache_filepath(series_id, source="FRED_PDR")
-    
+
     # 1. Try loading from cache if not forcing refresh
     if not force_refresh:
         cached_data = _load_macro_data_from_cache(cache_filepath)
         if not cached_data.empty:
-            logger.info(f"Using cached FRED data (via pandas-datareader) for {series_id}.")
+            logger.info(
+                f"Using cached FRED data (via pandas-datareader) for {series_id}."
+            )
             return cached_data
 
     # 2. If cache miss or force refresh, fetch from FRED via pandas-datareader
@@ -302,10 +354,12 @@ def get_fred_data_via_pdr(series_id: str, force_refresh: bool = False) -> pd.Dat
         # Fetch last 10 years of data
         end_date = datetime.datetime.now()
         start_date = end_date - datetime.timedelta(days=365 * 10)
-        
-        data = web.DataReader(series_id, 'fred', start_date, end_date)
+
+        data = web.DataReader(series_id, "fred", start_date, end_date)
         if data.empty:
-            logger.warning(f"pandas-datareader returned no data for FRED series {series_id}.")
+            logger.warning(
+                f"pandas-datareader returned no data for FRED series {series_id}."
+            )
             # Fallback to cache
             cached_data = _load_macro_data_from_cache(cache_filepath)
             if not cached_data.empty:
@@ -316,66 +370,79 @@ def get_fred_data_via_pdr(series_id: str, force_refresh: bool = False) -> pd.Dat
         # FRED data via pandas-datareader has the series name as the column name
         value_col = data.columns[0]
         df = data[[value_col]].reset_index()
-        df.rename(columns={'DATE': 'date', value_col: 'value'}, inplace=True)
-        df['date'] = pd.to_datetime(df['date'])
-        df.sort_values('date', inplace=True)
+        df.rename(columns={"DATE": "date", value_col: "value"}, inplace=True)
+        df["date"] = pd.to_datetime(df["date"])
+        df.sort_values("date", inplace=True)
         df.reset_index(drop=True, inplace=True)
-        
-        logger.info(f"Successfully fetched {len(df)} data points for FRED series {series_id} via pandas-datareader.")
+
+        logger.info(
+            f"Successfully fetched {len(df)} data points for FRED series {series_id} via pandas-datareader."
+        )
         # Save to cache
         _save_macro_data_to_cache(df, cache_filepath)
         return df
 
     except Exception as e:
-        logger.error(f"Error fetching data for FRED series {series_id} via pandas-datareader: {e}")
+        logger.error(
+            f"Error fetching data for FRED series {series_id} via pandas-datareader: {e}"
+        )
         # Fallback to cache on error
         cached_data = _load_macro_data_from_cache(cache_filepath)
         if not cached_data.empty:
-            logger.info(f"Falling back to cached data for FRED series {series_id} after error.")
+            logger.info(
+                f"Falling back to cached data for FRED series {series_id} after error."
+            )
             return cached_data
 
     return pd.DataFrame()
+
 
 def fetch_macro_data_for_date(date: pd.Timestamp, force_refresh: bool = False) -> dict:
     """
     Fetches key macroeconomic data points relevant for a given date.
     This function now uses caching and tries multiple sources.
-    
+
     Args:
         date (pd.Timestamp): The date for which to fetch macro data.
         force_refresh (bool, optional): If True, bypasses the cache for individual data series. Defaults to False.
-        
+
     Returns:
         dict: A dictionary of macroeconomic indicators.
     """
     logger.info(f"Fetching macroeconomic data for context around {date.date()}...")
-    
+
     # Define the mapping of our internal names to FRED series IDs
     fred_series_mapping = {
-        'treasury_yield_10year': 'DGS10',
-        'treasury_yield_2year': 'DGS2',
-        'federal_funds_rate': 'FEDFUNDS',
-        'cpi': 'CPIAUCSL',
-        'unemployment': 'UNRATE',
-        'real_gdp': 'GDPC1'
+        "treasury_yield_10year": "DGS10",
+        "treasury_yield_2year": "DGS2",
+        "federal_funds_rate": "FEDFUNDS",
+        "cpi": "CPIAUCSL",
+        "unemployment": "UNRATE",
+        "real_gdp": "GDPC1",
     }
-    
+
     macro_data = {}
-    
+
     for internal_name, fred_id in fred_series_mapping.items():
         data_df = get_fred_data_via_pdr(fred_id, force_refresh)
-        
+
         if not data_df.empty:
             # For simplicity, take the most recent data point before or on the given date
-            df_before_or_on_date = data_df[data_df['date'] <= date]
+            df_before_or_on_date = data_df[data_df["date"] <= date]
             if not df_before_or_on_date.empty:
-                latest_value = df_before_or_on_date.iloc[-1]['value']
+                latest_value = df_before_or_on_date.iloc[-1]["value"]
                 macro_data[internal_name] = latest_value
-                logger.debug(f"Fetched {internal_name} ({fred_id}): {latest_value} for date <= {date.date()}")
+                logger.debug(
+                    f"Fetched {internal_name} ({fred_id}): {latest_value} for date <= {date.date()}"
+                )
             else:
-                logger.warning(f"No historical data found for {internal_name} ({fred_id}) before or on {date.date()}.")
+                logger.warning(
+                    f"No historical data found for {internal_name} ({fred_id}) before or on {date.date()}."
+                )
         else:
-            logger.warning(f"Failed to fetch or load data for {internal_name} ({fred_id}) from FRED via pandas-datareader. Skipping.")
-            
+            logger.warning(
+                f"Failed to fetch or load data for {internal_name} ({fred_id}) from FRED via pandas-datareader. Skipping."
+            )
+
     logger.info(f"Macro data fetch complete. Retrieved {len(macro_data)} indicators.")
     return macro_data

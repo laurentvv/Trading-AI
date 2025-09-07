@@ -1,9 +1,9 @@
 
 <div align="center">
   <br />
-  <h1>📈 Tri-Modal Hybrid AI Trading System 📈</h1>
+  <h1>📈 Quad-Modal Hybrid AI Trading System 📈</h1>
   <p>
-    Un système de trading IA sophistiqué pour les ETF du NASDAQ, combinant analyse quantitative, textuelle (LLM) et visuelle (V-LLM) pour des décisions de trading robustes.
+    Un système de trading IA sophistiqué pour les ETF du NASDAQ, combinant analyse de séries temporelles (Kronos), quantitative, textuelle (LLM) et visuelle (V-LLM) pour des décisions de trading robustes.
   </p>
 </div>
 
@@ -40,10 +40,11 @@ Ce projet est un système de support à la décision de trading qui utilise une 
 
 ### ✨ Fonctionnalités Clés
 
-- **Moteur IA Hybride Tri-Modal** : Combine trois modèles d'IA pour une décision par consensus :
+- **Moteur IA Hybride Quad-Modal** : Combine quatre modèles d'IA pour une décision par consensus :
   1. Un classifieur `scikit-learn` entraîné sur des indicateurs techniques et des données macroéconomiques.
   2. Un LLM pour l'analyse de données numériques brutes.
   3. Un LLM multi-modal pour l'analyse visuelle de graphiques financiers.
+  4. Un modèle de fondation de séries temporelles (**Kronos**) pour la prévision de prix directionnelle.
 - **Backtesting Robuste** : Utilise une validation *walk-forward* pour une évaluation réaliste des performances historiques.
 - **Simulation des Coûts de Transaction** : Intègre les coûts de transaction pour des calculs de rendement plus précis.
 - **Mise en Cache des Données** : Met en cache les données de marché et macroéconomiques pour accélérer les exécutions.
@@ -54,7 +55,7 @@ Ce projet est un système de support à la décision de trading qui utilise une 
 - **Python 3.10+**
 - **Calculs & Données** : `pandas`, `numpy`, `yfinance`, `pyarrow`
 - **Machine Learning** : `scikit-learn`
-- **IA & LLM** : `requests`, `ollama`
+- **IA & LLM** : `requests`, `ollama`, `torch`, `transformers`
 - **Visualisation** : `matplotlib`, `seaborn`, `mplfinance`
 - **Utilitaires** : `tqdm`, `rich`, `python-dotenv`, `schedule`
 

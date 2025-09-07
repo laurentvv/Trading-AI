@@ -6,6 +6,8 @@
     - **Scikit-learn**: For building the traditional quantitative trading model (e.g., RandomForest, GradientBoosting), now enhanced with macroeconomic features.
     - **Pandas & NumPy**: For data manipulation and numerical operations.
     - **Ollama**: For serving the local Large Language Model (LLM). The system will interact with Ollama via its REST API.
+    - **Kronos (via Hugging Face)**: A pre-trained time-series foundation model used for directional price forecasting. It is integrated as a fourth decision module.
+    - **PyTorch & Transformers**: The underlying frameworks used to load and run the Kronos model.
 - **Data Fetching**:
     - **yfinance**: To download historical market data from Yahoo Finance.
     - **pandas-datareader**: To fetch macroeconomic data from FRED.

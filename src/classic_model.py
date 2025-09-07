@@ -8,6 +8,7 @@ from sklearn.linear_model import LogisticRegression
 
 logger = logging.getLogger(__name__)
 
+
 def train_ensemble_model(X: pd.DataFrame, y: pd.Series) -> tuple:
     """
     Trains an ensemble model with cross-validation.
@@ -24,25 +25,20 @@ def train_ensemble_model(X: pd.DataFrame, y: pd.Series) -> tuple:
 
     # Model testing
     models = {
-        'RandomForest': RandomForestClassifier(
+        "RandomForest": RandomForestClassifier(
             n_estimators=200,
             max_depth=15,
             min_samples_split=5,
             min_samples_leaf=2,
             random_state=42,
-            class_weight='balanced'
+            class_weight="balanced",
         ),
-        'GradientBoosting': GradientBoostingClassifier(
-            n_estimators=100,
-            max_depth=6,
-            learning_rate=0.1,
-            random_state=42
+        "GradientBoosting": GradientBoostingClassifier(
+            n_estimators=100, max_depth=6, learning_rate=0.1, random_state=42
         ),
-        'LogisticRegression': LogisticRegression(
-            random_state=42,
-            class_weight='balanced',
-            max_iter=1000
-        )
+        "LogisticRegression": LogisticRegression(
+            random_state=42, class_weight="balanced", max_iter=1000
+        ),
     }
 
     # Cross-validation and best model selection
@@ -51,10 +47,12 @@ def train_ensemble_model(X: pd.DataFrame, y: pd.Series) -> tuple:
     best_name = ""
 
     for name, model in models.items():
-        cv_scores = cross_val_score(model, X_train_scaled, y_train, cv=5, scoring='f1')
+        cv_scores = cross_val_score(model, X_train_scaled, y_train, cv=5, scoring="f1")
         mean_score = cv_scores.mean()
 
-        logger.info(f"{name} - CV Score: {mean_score:.4f} (+/- {cv_scores.std() * 2:.4f})")
+        logger.info(
+            f"{name} - CV Score: {mean_score:.4f} (+/- {cv_scores.std() * 2:.4f})"
+        )
 
         if mean_score > best_score:
             best_score = mean_score
@@ -69,10 +67,10 @@ def train_ensemble_model(X: pd.DataFrame, y: pd.Series) -> tuple:
     y_pred = best_model.predict(X_test_scaled)
 
     metrics = {
-        'accuracy': accuracy_score(y_test, y_pred),
-        'precision': precision_score(y_test, y_pred),
-        'recall': recall_score(y_test, y_pred),
-        'f1': f1_score(y_test, y_pred)
+        "accuracy": accuracy_score(y_test, y_pred),
+        "precision": precision_score(y_test, y_pred),
+        "recall": recall_score(y_test, y_pred),
+        "f1": f1_score(y_test, y_pred),
     }
 
     logger.info(f"\n=== {best_name.upper()} MODEL RESULTS ===")
@@ -81,15 +79,17 @@ def train_ensemble_model(X: pd.DataFrame, y: pd.Series) -> tuple:
 
     # Feature importance
     feature_importance = None
-    if hasattr(best_model, 'feature_importances_'):
-        feature_importance = pd.DataFrame({
-            'feature': X.columns,
-            'importance': best_model.feature_importances_
-        }).sort_values('importance', ascending=False)
+    if hasattr(best_model, "feature_importances_"):
+        feature_importance = pd.DataFrame(
+            {"feature": X.columns, "importance": best_model.feature_importances_}
+        ).sort_values("importance", ascending=False)
 
     return best_model, scaler, metrics, feature_importance
 
-def get_classic_prediction(model, scaler, latest_features: pd.DataFrame) -> tuple[int, float]:
+
+def get_classic_prediction(
+    model, scaler, latest_features: pd.DataFrame
+) -> tuple[int, float]:
     """
     Generates a prediction from the trained classic model.
     """
@@ -100,4 +100,3 @@ def get_classic_prediction(model, scaler, latest_features: pd.DataFrame) -> tupl
     confidence = max(probabilities)
 
     return prediction, confidence
-

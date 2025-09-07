@@ -4,15 +4,17 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 def _calculate_atr(df: pd.DataFrame, window: int = 14) -> pd.Series:
     """Calculates the Average True Range."""
-    high_low = df['High'] - df['Low']
-    high_close = np.abs(df['High'] - df['Close'].shift())
-    low_close = np.abs(df['Low'] - df['Close'].shift())
+    high_low = df["High"] - df["Low"]
+    high_close = np.abs(df["High"] - df["Close"].shift())
+    low_close = np.abs(df["Low"] - df["Close"].shift())
 
     ranges = pd.concat([high_low, high_close, low_close], axis=1)
     true_range = np.max(ranges, axis=1)
     return true_range.rolling(window).mean()
+
 
 def create_technical_indicators(data: pd.DataFrame) -> pd.DataFrame:
     """
@@ -21,60 +23,63 @@ def create_technical_indicators(data: pd.DataFrame) -> pd.DataFrame:
     df = data.copy()
 
     # Returns
-    df['Returns'] = df['Close'].pct_change()
-    df['Log_Returns'] = np.log(df['Close'] / df['Close'].shift(1))
+    df["Returns"] = df["Close"].pct_change()
+    df["Log_Returns"] = np.log(df["Close"] / df["Close"].shift(1))
 
     # Multiple moving averages
     for window in [5, 10, 20, 50, 100, 200]:
-        df[f'MA_{window}'] = df['Close'].rolling(window=window).mean()
-        df[f'MA_{window}_slope'] = df[f'MA_{window}'].diff()
+        df[f"MA_{window}"] = df["Close"].rolling(window=window).mean()
+        df[f"MA_{window}_slope"] = df[f"MA_{window}"].diff()
 
     # Exponential moving averages
     for span in [12, 26, 50]:
-        df[f'EMA_{span}'] = df['Close'].ewm(span=span).mean()
+        df[f"EMA_{span}"] = df["Close"].ewm(span=span).mean()
 
     # Improved RSI
-    delta = df['Close'].diff()
+    delta = df["Close"].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
-    df['RSI'] = 100 - (100 / (1 + rs))
-    df['RSI_MA'] = df['RSI'].rolling(window=5).mean()
+    df["RSI"] = 100 - (100 / (1 + rs))
+    df["RSI_MA"] = df["RSI"].rolling(window=5).mean()
 
     # Full MACD
-    df['MACD'] = df['EMA_12'] - df['EMA_26']
-    df['MACD_Signal'] = df['MACD'].ewm(span=9).mean()
-    df['MACD_Histogram'] = df['MACD'] - df['MACD_Signal']
+    df["MACD"] = df["EMA_12"] - df["EMA_26"]
+    df["MACD_Signal"] = df["MACD"].ewm(span=9).mean()
+    df["MACD_Histogram"] = df["MACD"] - df["MACD_Signal"]
 
     # Bollinger Bands
-    df['BB_Middle'] = df['Close'].rolling(window=20).mean()
-    bb_std = df['Close'].rolling(window=20).std()
-    df['BB_Upper'] = df['BB_Middle'] + (2 * bb_std)
-    df['BB_Lower'] = df['BB_Middle'] - (2 * bb_std)
-    df['BB_Width'] = df['BB_Upper'] - df['BB_Lower']
-    df['BB_Position'] = (df['Close'] - df['BB_Lower']) / (df['BB_Upper'] - df['BB_Lower'])
+    df["BB_Middle"] = df["Close"].rolling(window=20).mean()
+    bb_std = df["Close"].rolling(window=20).std()
+    df["BB_Upper"] = df["BB_Middle"] + (2 * bb_std)
+    df["BB_Lower"] = df["BB_Middle"] - (2 * bb_std)
+    df["BB_Width"] = df["BB_Upper"] - df["BB_Lower"]
+    df["BB_Position"] = (df["Close"] - df["BB_Lower"]) / (
+        df["BB_Upper"] - df["BB_Lower"]
+    )
 
     # Stochastic
-    low_14 = df['Low'].rolling(window=14).min()
-    high_14 = df['High'].rolling(window=14).max()
-    df['Stoch_K'] = 100 * ((df['Close'] - low_14) / (high_14 - low_14))
-    df['Stoch_D'] = df['Stoch_K'].rolling(window=3).mean()
+    low_14 = df["Low"].rolling(window=14).min()
+    high_14 = df["High"].rolling(window=14).max()
+    df["Stoch_K"] = 100 * ((df["Close"] - low_14) / (high_14 - low_14))
+    df["Stoch_D"] = df["Stoch_K"].rolling(window=3).mean()
 
     # Volume indicators
-    df['Volume_MA'] = df['Volume'].rolling(window=20).mean()
-    df['Volume_Ratio'] = df['Volume'] / df['Volume_MA']
+    df["Volume_MA"] = df["Volume"].rolling(window=20).mean()
+    df["Volume_Ratio"] = df["Volume"] / df["Volume_MA"]
 
     # Volatility
-    df['Volatility'] = df['Returns'].rolling(window=20).std()
-    df['ATR'] = _calculate_atr(df, window=14)
-    if 'VIX' in df.columns:
-        df['VIX_MA_20'] = df['VIX'].rolling(window=20).mean()
+    df["Volatility"] = df["Returns"].rolling(window=20).std()
+    df["ATR"] = _calculate_atr(df, window=14)
+    if "VIX" in df.columns:
+        df["VIX_MA_20"] = df["VIX"].rolling(window=20).mean()
 
     # Support and resistance
-    df['Support'] = df['Low'].rolling(window=20).min()
-    df['Resistance'] = df['High'].rolling(window=20).max()
+    df["Support"] = df["Low"].rolling(window=20).min()
+    df["Resistance"] = df["High"].rolling(window=20).max()
 
     return df.dropna()
+
 
 def _align_macro_data(market_data: pd.DataFrame, macro_data_dict: dict) -> pd.DataFrame:
     """
@@ -83,125 +88,164 @@ def _align_macro_data(market_data: pd.DataFrame, macro_data_dict: dict) -> pd.Da
     """
     # Create a DataFrame for macro data
     # For simplicity, we assume the keys in macro_data_dict are the column names
-    # and we have a single date context (from main.py). 
+    # and we have a single date context (from main.py).
     # In a full implementation, macro_data_dict would be a time series.
     # Here, we just add the latest values as static features.
     # A more robust approach would involve resampling and merging time series.
-    
+
     # For this step, we'll add the macro data as static features to the last row
     # and then forward-fill or interpolate if needed. However, for a single prediction,
     # static features are sufficient.
-    
+
     # Let's create a DataFrame with a single row for the last date of market data
     last_date = market_data.index[-1]
     macro_df = pd.DataFrame([macro_data_dict], index=[last_date])
-    
+
     # Join with market data
     # This will add NaN for all other dates, which is fine for feature creation
     # as select_features will only use the last row for the final prediction.
     # For walk-forward backtest, this approach needs refinement.
-    combined_df = market_data.join(macro_df, how='left')
-    
+    combined_df = market_data.join(macro_df, how="left")
+
     # Forward-fill macro data to propagate the latest known values
     for col in macro_data_dict.keys():
         if col in combined_df.columns:
-            combined_df[col] = combined_df[col].ffill() # Updated from deprecated fillna(method='ffill')
-            
+            combined_df[col] = combined_df[
+                col
+            ].ffill()  # Updated from deprecated fillna(method='ffill')
+
     return combined_df
+
 
 def create_features(data: pd.DataFrame, macro_context: dict = None) -> pd.DataFrame:
     """
     Creates advanced features for ML.
     """
     df = data.copy()
-    
+
     # If macro context is provided, align and add it
     if macro_context:
         df = _align_macro_data(df, macro_context)
-        logger.info(f"Added macroeconomic context to features. New columns: {list(macro_context.keys())}")
+        logger.info(
+            f"Added macroeconomic context to features. New columns: {list(macro_context.keys())}"
+        )
 
     # Crossover signals
-    df['MA_Cross_5_20'] = (df['MA_5'] > df['MA_20']).astype(int)
-    df['MA_Cross_20_50'] = (df['MA_20'] > df['MA_50']).astype(int)
-    df['EMA_Cross_12_26'] = (df['EMA_12'] > df['EMA_26']).astype(int)
+    df["MA_Cross_5_20"] = (df["MA_5"] > df["MA_20"]).astype(int)
+    df["MA_Cross_20_50"] = (df["MA_20"] > df["MA_50"]).astype(int)
+    df["EMA_Cross_12_26"] = (df["EMA_12"] > df["EMA_26"]).astype(int)
 
     # RSI signals
-    df['RSI_Oversold'] = (df['RSI'] < 30).astype(int)
-    df['RSI_Overbought'] = (df['RSI'] > 70).astype(int)
-    df['RSI_Neutral'] = ((df['RSI'] >= 30) & (df['RSI'] <= 70)).astype(int)
+    df["RSI_Oversold"] = (df["RSI"] < 30).astype(int)
+    df["RSI_Overbought"] = (df["RSI"] > 70).astype(int)
+    df["RSI_Neutral"] = ((df["RSI"] >= 30) & (df["RSI"] <= 70)).astype(int)
 
     # MACD signals
-    df['MACD_Bull'] = (df['MACD'] > df['MACD_Signal']).astype(int)
-    df['MACD_Cross'] = ((df['MACD'] > df['MACD_Signal']) &
-                       (df['MACD'].shift(1) <= df['MACD_Signal'].shift(1))).astype(int)
+    df["MACD_Bull"] = (df["MACD"] > df["MACD_Signal"]).astype(int)
+    df["MACD_Cross"] = (
+        (df["MACD"] > df["MACD_Signal"])
+        & (df["MACD"].shift(1) <= df["MACD_Signal"].shift(1))
+    ).astype(int)
 
     # Bollinger Bands signals
-    df['BB_Squeeze'] = (df['BB_Width'] < df['BB_Width'].rolling(20).mean()).astype(int)
-    df['BB_Lower_Touch'] = (df['Close'] <= df['BB_Lower']).astype(int)
-    df['BB_Upper_Touch'] = (df['Close'] >= df['BB_Upper']).astype(int)
+    df["BB_Squeeze"] = (df["BB_Width"] < df["BB_Width"].rolling(20).mean()).astype(int)
+    df["BB_Lower_Touch"] = (df["Close"] <= df["BB_Lower"]).astype(int)
+    df["BB_Upper_Touch"] = (df["Close"] >= df["BB_Upper"]).astype(int)
 
     # Momentum signals
-    df['Price_Above_MA20'] = (df['Close'] > df['MA_20']).astype(int)
-    df['Price_Above_MA50'] = (df['Close'] > df['MA_50']).astype(int)
-    df['Volume_Spike'] = (df['Volume_Ratio'] > 1.5).astype(int)
+    df["Price_Above_MA20"] = (df["Close"] > df["MA_20"]).astype(int)
+    df["Price_Above_MA50"] = (df["Close"] > df["MA_50"]).astype(int)
+    df["Volume_Spike"] = (df["Volume_Ratio"] > 1.5).astype(int)
 
     # Trend features
-    df['Trend_Short'] = np.where(df['MA_5'] > df['MA_20'], 1,
-                               np.where(df['MA_5'] < df['MA_20'], -1, 0))
-    df['Trend_Long'] = np.where(df['MA_20'] > df['MA_50'], 1,
-                              np.where(df['MA_20'] < df['MA_50'], -1, 0))
+    df["Trend_Short"] = np.where(
+        df["MA_5"] > df["MA_20"], 1, np.where(df["MA_5"] < df["MA_20"], -1, 0)
+    )
+    df["Trend_Long"] = np.where(
+        df["MA_20"] > df["MA_50"], 1, np.where(df["MA_20"] < df["MA_50"], -1, 0)
+    )
 
     # Improved target variable (future return over multiple horizons)
-    df['Target_1d'] = np.where(df['Returns'].shift(-1) > 0, 1, 0)
-    df['Target_3d'] = np.where(df['Close'].shift(-3) > df['Close'], 1, 0)
-    df['Target_5d'] = np.where(df['Close'].shift(-5) > df['Close'], 1, 0)
+    df["Target_1d"] = np.where(df["Returns"].shift(-1) > 0, 1, 0)
+    df["Target_3d"] = np.where(df["Close"].shift(-3) > df["Close"], 1, 0)
+    df["Target_5d"] = np.where(df["Close"].shift(-5) > df["Close"], 1, 0)
 
     # Main target based on a return threshold
-    threshold = df['Returns'].std() * 0.5  # 50% of volatility
-    df['Target'] = np.where(df['Returns'].shift(-1) > threshold, 1, 0)
-    
+    threshold = df["Returns"].std() * 0.5  # 50% of volatility
+    df["Target"] = np.where(df["Returns"].shift(-1) > threshold, 1, 0)
+
     # The target for the very last row will be NaN due to shift(-1).
     # This is expected as we don't know the future return for the last data point.
-    # For training the model on historical data, we should exclude this last row 
-    # to avoid issues with NaN targets. The select_features function and the 
+    # For training the model on historical data, we should exclude this last row
+    # to avoid issues with NaN targets. The select_features function and the
     # training logic in classic_model.py already handle dropping NaNs in 'y'.
     # For making a prediction on the last row, we will use the features from this row,
     # but its 'Target' value is irrelevant and will be ignored.
-    
+
     # Ensure the dataframe is sorted by index (date) to maintain order
     df.sort_index(inplace=True)
     return df
+
 
 def select_features(data: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, list]:
     """
     Intelligently selects features for the model.
     """
     feature_columns = [
-        'Returns', 'Log_Returns',
-        'MA_5', 'MA_20', 'MA_50', 'MA_5_slope', 'MA_20_slope',
-        'EMA_12', 'EMA_26',
-        'RSI', 'RSI_MA',
-        'MACD', 'MACD_Signal', 'MACD_Histogram',
-        'BB_Position', 'BB_Width',
-        'Stoch_K', 'Stoch_D',
-        'Volume_Ratio', 'Volatility', 'ATR', 'VIX', 'VIX_MA_20',
+        "Returns",
+        "Log_Returns",
+        "MA_5",
+        "MA_20",
+        "MA_50",
+        "MA_5_slope",
+        "MA_20_slope",
+        "EMA_12",
+        "EMA_26",
+        "RSI",
+        "RSI_MA",
+        "MACD",
+        "MACD_Signal",
+        "MACD_Histogram",
+        "BB_Position",
+        "BB_Width",
+        "Stoch_K",
+        "Stoch_D",
+        "Volume_Ratio",
+        "Volatility",
+        "ATR",
+        "VIX",
+        "VIX_MA_20",
         # --- New Macro Features ---
         # These will only be included if present in the data
-        'treasury_yield_10year', 'treasury_yield_2year',
-        'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp',
+        "treasury_yield_10year",
+        "treasury_yield_2year",
+        "federal_funds_rate",
+        "cpi",
+        "unemployment",
+        "real_gdp",
         # --------------------------
-        'MA_Cross_5_20', 'MA_Cross_20_50', 'EMA_Cross_12_26',
-        'RSI_Oversold', 'RSI_Overbought', 'RSI_Neutral',
-        'MACD_Bull', 'MACD_Cross',
-        'BB_Squeeze', 'BB_Lower_Touch', 'BB_Upper_Touch',
-        'Price_Above_MA20', 'Price_Above_MA50', 'Volume_Spike',
-        'Trend_Short', 'Trend_Long'
+        "MA_Cross_5_20",
+        "MA_Cross_20_50",
+        "EMA_Cross_12_26",
+        "RSI_Oversold",
+        "RSI_Overbought",
+        "RSI_Neutral",
+        "MACD_Bull",
+        "MACD_Cross",
+        "BB_Squeeze",
+        "BB_Lower_Touch",
+        "BB_Upper_Touch",
+        "Price_Above_MA20",
+        "Price_Above_MA50",
+        "Volume_Spike",
+        "Trend_Short",
+        "Trend_Long",
     ]
 
     available_features = [col for col in feature_columns if col in data.columns]
 
     X = data[available_features]
-    y = data['Target']
+    y = data["Target"]
 
     logger.info(f"Features selected: {len(available_features)}")
 

@@ -5,7 +5,12 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-def generate_chart_image(data_with_indicators: pd.DataFrame, output_path: Path, title: str = "Financial Chart") -> bool:
+
+def generate_chart_image(
+    data_with_indicators: pd.DataFrame,
+    output_path: Path,
+    title: str = "Financial Chart",
+) -> bool:
     """
     Generates and saves a financial chart image using pre-calculated indicators.
 
@@ -25,23 +30,42 @@ def generate_chart_image(data_with_indicators: pd.DataFrame, output_path: Path, 
         six_months_data = data_with_indicators.loc[start_date:]
 
         if len(six_months_data) < 2:
-            logger.warning("Not enough data to plot a chart (less than 2 data points in the last 6 months).")
+            logger.warning(
+                "Not enough data to plot a chart (less than 2 data points in the last 6 months)."
+            )
             return False
 
         # Define the additional plots using the pre-calculated indicator columns
         # Ensure the columns exist before trying to plot them
-        required_indicators = ['MA_50', 'MA_200', 'RSI', 'MACD_Histogram', 'MACD', 'MACD_Signal']
+        required_indicators = [
+            "MA_50",
+            "MA_200",
+            "RSI",
+            "MACD_Histogram",
+            "MACD",
+            "MACD_Signal",
+        ]
         if not all(col in six_months_data.columns for col in required_indicators):
-            logger.error(f"Data must contain the following indicator columns: {required_indicators}")
+            logger.error(
+                f"Data must contain the following indicator columns: {required_indicators}"
+            )
             return False
 
         addplots = [
-            mpf.make_addplot(six_months_data['MA_50'], color='blue', width=0.7),
-            mpf.make_addplot(six_months_data['MA_200'], color='orange', width=0.7),
-            mpf.make_addplot(six_months_data['RSI'], panel=2, color='purple', ylabel='RSI'),
-            mpf.make_addplot(six_months_data['MACD_Histogram'], type='bar', panel=3, color='gray', ylabel='MACD'),
-            mpf.make_addplot(six_months_data['MACD'], panel=3, color='fuchsia'),
-            mpf.make_addplot(six_months_data['MACD_Signal'], panel=3, color='cyan'),
+            mpf.make_addplot(six_months_data["MA_50"], color="blue", width=0.7),
+            mpf.make_addplot(six_months_data["MA_200"], color="orange", width=0.7),
+            mpf.make_addplot(
+                six_months_data["RSI"], panel=2, color="purple", ylabel="RSI"
+            ),
+            mpf.make_addplot(
+                six_months_data["MACD_Histogram"],
+                type="bar",
+                panel=3,
+                color="gray",
+                ylabel="MACD",
+            ),
+            mpf.make_addplot(six_months_data["MACD"], panel=3, color="fuchsia"),
+            mpf.make_addplot(six_months_data["MACD_Signal"], panel=3, color="cyan"),
         ]
 
         logger.info(f"Generating chart image and saving to {output_path}...")
@@ -49,15 +73,15 @@ def generate_chart_image(data_with_indicators: pd.DataFrame, output_path: Path, 
         # Generate and save the plot
         mpf.plot(
             six_months_data,
-            type='candle',
-            style='yahoo',
+            type="candle",
+            style="yahoo",
             title=title,
-            ylabel='Price ($)',
+            ylabel="Price ($)",
             volume=True,
             addplot=addplots,
-            panel_ratios=(6, 3, 3, 2), # Ratios for price, volume, rsi, macd
+            panel_ratios=(6, 3, 3, 2),  # Ratios for price, volume, rsi, macd
             figscale=1.5,
-            savefig=dict(fname=str(output_path), dpi=100, pad_inches=0.25)
+            savefig=dict(fname=str(output_path), dpi=100, pad_inches=0.25),
         )
 
         logger.info("Chart generated successfully.")

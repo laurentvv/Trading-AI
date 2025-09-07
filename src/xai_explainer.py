@@ -9,7 +9,10 @@ import shap
 
 logger = logging.getLogger(__name__)
 
-def explain_model_prediction(model, scaler, X: pd.DataFrame, feature_names: list, instance_index: int = -1) -> dict:
+
+def explain_model_prediction(
+    model, scaler, X: pd.DataFrame, feature_names: list, instance_index: int = -1
+) -> dict:
     """
     Explains a model's prediction for a specific instance using SHAP.
 
@@ -46,10 +49,12 @@ def explain_model_prediction(model, scaler, X: pd.DataFrame, feature_names: list
             shap_values = explainer.shap_values(instance)
             # For binary classification, shap_values is a list [class_0, class_1]. We take class 1.
             if isinstance(shap_values, list):
-                shap_values = shap_values[1] 
+                shap_values = shap_values[1]
             expected_value = explainer.expected_value
-            if isinstance(expected_value, list): # Handle list for binary classification
-                expected_value = expected_value[1] 
+            if isinstance(
+                expected_value, list
+            ):  # Handle list for binary classification
+                expected_value = expected_value[1]
         # For linear models like LogisticRegression, use LinearExplainer with a proper masker
         elif isinstance(model, LogisticRegression):
             # Use maskers.Independent for 'interventional' style perturbation.
@@ -59,7 +64,9 @@ def explain_model_prediction(model, scaler, X: pd.DataFrame, feature_names: list
             shap_values = explainer.shap_values(instance)
             expected_value = explainer.expected_value
         else:
-            logger.warning(f"SHAP explanation not implemented for model type: {type(model)}. Returning None.")
+            logger.warning(
+                f"SHAP explanation not implemented for model type: {type(model)}. Returning None."
+            )
             return None
 
         # Flatten shap_values if it's 2D (e.g., (1, n_features))
@@ -67,12 +74,12 @@ def explain_model_prediction(model, scaler, X: pd.DataFrame, feature_names: list
             shap_values = shap_values.flatten()
 
         explanation_result = {
-            'shap_values': shap_values,
-            'expected_value': expected_value,
-            'instance_prediction': instance_prediction,
-            'instance_probability': instance_probability,
-            'feature_names': feature_names,
-            'instance_data': instance.iloc[0].values # Get the row as a 1D array
+            "shap_values": shap_values,
+            "expected_value": expected_value,
+            "instance_prediction": instance_prediction,
+            "instance_probability": instance_probability,
+            "feature_names": feature_names,
+            "instance_data": instance.iloc[0].values,  # Get the row as a 1D array
         }
 
         logger.info("SHAP explanation generated successfully.")
@@ -82,7 +89,10 @@ def explain_model_prediction(model, scaler, X: pd.DataFrame, feature_names: list
         logger.error(f"Error generating SHAP explanation: {e}")
         return None
 
-def plot_shap_waterfall(explanation: dict, max_display: int = 10, save_path: str = None):
+
+def plot_shap_waterfall(
+    explanation: dict, max_display: int = 10, save_path: str = None
+):
     """
     Plots a waterfall chart of SHAP values for an explanation.
 
@@ -96,32 +106,34 @@ def plot_shap_waterfall(explanation: dict, max_display: int = 10, save_path: str
         return
 
     try:
-        shap_values = explanation['shap_values']
-        expected_value = explanation['expected_value']
-        feature_names = explanation['feature_names']
-        instance_data = explanation['instance_data']
-        instance_prediction = explanation['instance_prediction']
-        instance_probability = explanation['instance_probability']
+        shap_values = explanation["shap_values"]
+        expected_value = explanation["expected_value"]
+        feature_names = explanation["feature_names"]
+        instance_data = explanation["instance_data"]
+        instance_prediction = explanation["instance_prediction"]
+        instance_probability = explanation["instance_probability"]
 
         # Create a SHAP Explanation object for plotting
         # We need to reshape data for the Explanation object
         shap_values_reshaped = np.reshape(shap_values, (1, len(shap_values)))
         instance_data_reshaped = np.reshape(instance_data, (1, len(instance_data)))
-        
+
         shap_explanation = shap.Explanation(
             values=shap_values_reshaped,
             base_values=expected_value,
             data=instance_data_reshaped,
-            feature_names=feature_names
+            feature_names=feature_names,
         )
 
         # Plot waterfall
         plt.figure(figsize=(10, 8))
         shap.waterfall_plot(shap_explanation[0], max_display=max_display, show=False)
-        plt.title(f"SHAP Waterfall Plot for Prediction: {instance_prediction} (Prob: {instance_probability.max() if instance_probability is not None else 'N/A':.3f})")
-        
+        plt.title(
+            f"SHAP Waterfall Plot for Prediction: {instance_prediction} (Prob: {instance_probability.max() if instance_probability is not None else 'N/A':.3f})"
+        )
+
         if save_path:
-            plt.savefig(save_path, bbox_inches='tight')
+            plt.savefig(save_path, bbox_inches="tight")
             logger.info(f"SHAP waterfall plot saved to {save_path}")
         else:
             plt.show()
@@ -129,6 +141,7 @@ def plot_shap_waterfall(explanation: dict, max_display: int = 10, save_path: str
 
     except Exception as e:
         logger.error(f"Error plotting SHAP waterfall: {e}")
+
 
 def plot_shap_summary(explanations: list, max_display: int = 10, save_path: str = None):
     """
@@ -147,11 +160,11 @@ def plot_shap_summary(explanations: list, max_display: int = 10, save_path: str 
         # Aggregate data from all explanations
         all_shap_values = []
         all_instance_data = []
-        feature_names = explanations[0]['feature_names'] # Assume consistent features
+        feature_names = explanations[0]["feature_names"]  # Assume consistent features
 
         for exp in explanations:
-            all_shap_values.append(exp['shap_values'])
-            all_instance_data.append(exp['instance_data'])
+            all_shap_values.append(exp["shap_values"])
+            all_instance_data.append(exp["instance_data"])
 
         # Convert to numpy arrays
         all_shap_values = np.array(all_shap_values)
@@ -159,18 +172,22 @@ def plot_shap_summary(explanations: list, max_display: int = 10, save_path: str 
 
         # Create a SHAP Explanation object for summary plotting
         shap_explanation = shap.Explanation(
-            values=all_shap_values,
-            data=all_instance_data,
-            feature_names=feature_names
+            values=all_shap_values, data=all_instance_data, feature_names=feature_names
         )
 
         # Plot summary
         plt.figure(figsize=(10, 8))
-        shap.summary_plot(shap_explanation.values, shap_explanation.data, feature_names=shap_explanation.feature_names, max_display=max_display, show=False)
+        shap.summary_plot(
+            shap_explanation.values,
+            shap_explanation.data,
+            feature_names=shap_explanation.feature_names,
+            max_display=max_display,
+            show=False,
+        )
         plt.title("SHAP Summary Plot")
-        
+
         if save_path:
-            plt.savefig(save_path, bbox_inches='tight')
+            plt.savefig(save_path, bbox_inches="tight")
             logger.info(f"SHAP summary plot saved to {save_path}")
         else:
             plt.show()
