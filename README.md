@@ -1,9 +1,8 @@
-
 <div align="center">
   <br />
   <h1>📈 Système de Trading IA Hybride 📈</h1>
   <p>
-    Un système expert d'aide à la décision pour le trading d'ETF sur le NASDAQ, exploitant une intelligence artificielle hybride tri-modale pour des signaux de trading robustes et nuancés.
+    Un système expert d'aide à la décision pour le trading d'ETFs sur le NASDAQ, exploitant une intelligence artificielle hybride tri-modale pour des signaux de trading robustes et nuancés.
   </p>
 </div>
 
@@ -26,6 +25,7 @@
 - [🌟 À Propos du Projet](#-à-propos-du-projet)
   - [✨ Fonctionnalités Clés](#-fonctionnalités-clés)
   - [💻 Stack Technologique](#-stack-technologique)
+- [📂 Structure du Projet](#-structure-du-projet)
 - [🚀 Démarrage Rapide](#-démarrage-rapide)
   - [✅ Prérequis](#-prérequis)
   - [⚙️ Installation](#️-installation)
@@ -40,14 +40,14 @@
 
 ## 🌟 À Propos du Projet
 
-Ce projet est un système de support à la décision de trading qui utilise une approche IA hybride tri-modale pour générer des signaux de trading pour les ETF du NASDAQ. Il est conçu pour fournir une analyse complète et nuancée en combinant plusieurs perspectives d'IA pour aboutir à une décision consensuelle et pondérée.
+Ce projet est un système de support à la décision de trading qui utilise une approche d'IA hybride tri-modale pour générer des signaux de trading pour les ETFs du NASDAQ. Il est conçu pour fournir une analyse complète et nuancée en combinant plusieurs perspectives d'IA pour aboutir à une décision consensuelle et pondérée.
 
 Le système combine :
-1.  Un **modèle quantitatif classique** (`scikit-learn`) entraîné sur des indicateurs techniques.
+1.  Un **modèle quantitatif classique** (`scikit-learn`) entraîné sur des indicateurs techniques et des données macroéconomiques.
 2.  Un **Large Language Model (LLM)** pour une analyse contextuelle des données de marché brutes.
-3.  Un **LLM multi-modal (V-LLM)** qui analyse des graphiques financiers pour une interprétation visuelle.
+3.  Un **LLM multi-modal (V-LLM)** qui analyse des graphiques financiers pour une interprétation visuelle des tendances.
 
-L'objectif est de fusionner ces trois signaux pour produire une décision de trading finale (`ACHAT`, `VENTE`, `NEUTRE`) avec un score de confiance élevé.
+L'objectif est de fusionner ces trois signaux pour produire une décision de trading finale (`ACHAT`, `VENTE`, `NEUTRE`) accompagnée d'un score de confiance.
 
 ### ✨ Fonctionnalités Clés
 
@@ -66,8 +66,34 @@ L'objectif est de fusionner ces trois signaux pour produire une décision de tra
 - **Calculs & Données** : `pandas`, `numpy`, `yfinance`, `pyarrow`, `pandas_datareader`
 - **Machine Learning** : `scikit-learn`, `shap`
 - **IA & LLM** : `requests`, `ollama`
+- **Web Scraping** : `beautifulsoup4`
 - **Visualisation** : `matplotlib`, `seaborn`, `mplfinance`
 - **Utilitaires** : `tqdm`, `rich`, `python-dotenv`, `schedule`
+
+---
+
+## 📂 Structure du Projet
+
+Le projet est organisé de manière modulaire pour une meilleure maintenabilité.
+
+```
+Trading-AI/
+├── src/                     # Code source principal
+│   ├── main.py              # Point d'entrée pour l'analyse manuelle
+│   ├── intelligent_scheduler.py # Planificateur intelligent pour l'exécution automatique
+│   ├── data.py              # Gestion des données (API, cache)
+│   ├── features.py          # Création des indicateurs techniques
+│   ├── classic_model.py     # Modèle quantitatif Scikit-learn
+│   ├── llm_client.py        # Client pour les modèles de langage (Ollama)
+│   ├── backtest.py          # Moteur de backtesting
+│   └── ...                  # Autres modules (graphiques, XAI, etc.)
+├── data_cache/              # Données de marché mises en cache
+├── memory-bank/             # Documentation et contexte pour l'agent IA
+├── .env                     # Fichier pour les clés d'API (à créer)
+├── requirements.txt         # Dépendances Python
+├── start_scheduler.bat      # Script de démarrage pour le planificateur (Windows)
+└── README.md                # Cette documentation
+```
 
 ---
 
@@ -164,4 +190,3 @@ Distribué sous la licence MIT. Voir `LICENSE` pour plus d'informations (fichier
 ## 📧 Contact
 
 Lien du projet : [https://github.com/laurentvv/Trading-AI](https://github.com/laurentvv/Trading-AI)
-

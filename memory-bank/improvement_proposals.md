@@ -11,7 +11,7 @@ Ce fichier suit les idées et leur statut pour améliorer le système de trading
 
 1.  **Fiabilisation du Planificateur (Scheduler)**
     *   **Description :** Remplacer le planificateur défaillant pour assurer l'exécution automatique et fiable des analyses.
-    *   **Statut :** **FAIT** - Un nouveau planificateur robuste (`src/scheduler.py`) a été créé, corrigeant les erreurs critiques qui empêchaient le fonctionnement du système.
+    *   **Statut :** **FAIT** - Un nouveau planificateur robuste (`src/intelligent_scheduler.py`) a été créé, corrigeant les erreurs critiques qui empêchaient le fonctionnement du système.
     *   **Priorité :** Critique
 
 2.  **Incorporation de Données Macroéconomiques**
