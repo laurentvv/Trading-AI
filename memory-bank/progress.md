@@ -11,6 +11,7 @@
 - **Client LLM**: Peut interroger les modèles textuels et visuels.
 - **Générateur de Graphiques**: Peut produire des images de graphiques financiers.
 - **Intégration des Données Macroéconomiques**: Le système récupère avec succès les données de FRED, les met en cache et les incorpore comme caractéristiques dans le modèle quantitatif classique.
+- **Script d'Exécution Manuelle**: Un script `run_now.py` a été ajouté pour permettre le déclenchement manuel et immédiat de l'analyse quotidienne, servant de solution de contournement en cas de défaillance du planificateur.
 
 ## 3. Ce Qui Reste à Construire
 - **Tests Finaux**: Un test de bout en bout approfondi pour s'assurer que tous les composants fonctionnent parfaitement.

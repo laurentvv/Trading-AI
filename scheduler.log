@@ -1376,3 +1376,133 @@
 2025-09-10 09:05:35,140 - INFO - [PHASE] Current phase: Phase 1: Configuration & Test
 2025-09-10 09:05:35,140 - INFO - [SCHEDULE] Daily analysis scheduled at: 18:00
 2025-09-10 09:06:57,069 - INFO - [STOP] Scheduler stopped by user
+2025-09-11 00:28:43,943 - INFO - Performance database initialized successfully
+2025-09-11 00:28:43,944 - INFO - Performance monitoring database initialized
+2025-09-11 00:28:43,944 - INFO - Système de trading amélioré initialisé pour QQQ
+2025-09-11 00:28:43,945 - INFO - Performance monitoring database initialized
+2025-09-11 00:28:43,946 - INFO - [OK] Scheduler database initialized
+2025-09-11 00:28:43,951 - INFO - [CONFIG] Configuration loaded from file
+2025-09-11 00:28:43,951 - INFO - [SCHEDULE] Schedule configured according to implementation plan
+2025-09-11 00:28:43,951 - INFO - [INIT] Intelligent Trading AI Scheduler initialized
+2025-09-11 00:28:43,951 - INFO - Project root: C:\GIT\fork\Trading-AI
+2025-09-11 00:28:43,951 - INFO - Current phase: Phase 1: Configuration & Test
+2025-09-11 00:28:43,951 - INFO - [INIT] Starting Intelligent Trading AI Scheduler...
+2025-09-11 00:28:43,952 - INFO - [PHASE] Current phase: Phase 1: Configuration & Test
+2025-09-11 00:28:43,952 - INFO - [SCHEDULE] Daily analysis scheduled at: 18:00
+2025-09-11 00:29:07,561 - INFO - [STOP] Scheduler stopped by user
+2025-09-11 00:29:21,807 - INFO - Performance database initialized successfully
+2025-09-11 00:29:21,808 - INFO - Performance monitoring database initialized
+2025-09-11 00:29:21,808 - INFO - Système de trading amélioré initialisé pour QQQ
+2025-09-11 00:29:21,809 - INFO - Performance monitoring database initialized
+2025-09-11 00:29:21,809 - INFO - [OK] Scheduler database initialized
+2025-09-11 00:29:21,810 - INFO - [CONFIG] Configuration loaded from file
+2025-09-11 00:29:21,810 - INFO - [SCHEDULE] Schedule configured according to implementation plan
+2025-09-11 00:29:21,810 - INFO - [INIT] Intelligent Trading AI Scheduler initialized
+2025-09-11 00:29:21,810 - INFO - Project root: C:\GIT\fork\Trading-AI
+2025-09-11 00:29:21,810 - INFO - Current phase: Phase 1: Configuration & Test
+2025-09-11 00:29:21,810 - INFO - [INIT] Starting Intelligent Trading AI Scheduler...
+2025-09-11 00:29:21,810 - INFO - [PHASE] Current phase: Phase 1: Configuration & Test
+2025-09-11 00:29:21,810 - INFO - [SCHEDULE] Daily analysis scheduled at: 18:00
+2025-09-11 00:29:27,968 - INFO - [STOP] Scheduler stopped by user
+2025-09-11 00:31:30,175 - INFO - Performance database initialized successfully
+2025-09-11 00:31:30,176 - INFO - Performance monitoring database initialized
+2025-09-11 00:31:30,176 - INFO - Système de trading amélioré initialisé pour QQQ
+2025-09-11 00:31:30,176 - INFO - Performance monitoring database initialized
+2025-09-11 00:31:30,176 - INFO - [OK] Scheduler database initialized
+2025-09-11 00:31:30,177 - INFO - [CONFIG] Configuration loaded from file
+2025-09-11 00:31:30,177 - INFO - [SCHEDULE] Schedule configured according to implementation plan
+2025-09-11 00:31:30,177 - INFO - [INIT] Intelligent Trading AI Scheduler initialized
+2025-09-11 00:31:30,177 - INFO - Project root: C:\GIT\fork\Trading-AI
+2025-09-11 00:31:30,177 - INFO - Current phase: Phase 1: Configuration & Test
+2025-09-11 00:31:30,177 - INFO - [ANALYSIS] Starting daily trading analysis...
+2025-09-11 00:31:30,177 - INFO - === DÉMARRAGE DE L'ANALYSE AMÉLIORÉE ===
+2025-09-11 00:31:30,177 - INFO - Récupération et préparation des données...
+2025-09-11 00:31:30,177 - INFO - Loading data from cache: data_cache\QQQ_max_with_vix.parquet
+2025-09-11 00:31:33,959 - INFO - Data loaded from cache: 6656 days.
+2025-09-11 00:31:33,967 - INFO - Final data period: 1999-03-10 00:00:00 to 2025-08-22 00:00:00
+2025-09-11 00:31:33,967 - INFO - Data retrieved: 6656 rows from 1999-03-10 00:00:00 to 2025-08-22 00:00:00
+2025-09-11 00:31:33,982 - INFO - Fetching macroeconomic data for context around 2025-08-22...
+2025-09-11 00:31:33,982 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_10y_monthly.parquet
+2025-09-11 00:31:33,988 - INFO - Using cached multi-source data for treasury_10y
+2025-09-11 00:31:33,990 - INFO - ✅ treasury_yield_10year: 4.33
+2025-09-11 00:31:33,990 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
+2025-09-11 00:31:33,996 - INFO - Using cached multi-source data for treasury_2y
+2025-09-11 00:31:33,998 - INFO - ✅ treasury_yield_2year: 3.79
+2025-09-11 00:31:33,998 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
+2025-09-11 00:31:34,004 - INFO - Using cached multi-source data for fed_funds
+2025-09-11 00:31:34,005 - INFO - ✅ federal_funds_rate: 4.33
+2025-09-11 00:31:34,005 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_cpi_monthly.parquet
+2025-09-11 00:31:34,011 - INFO - Using cached multi-source data for cpi
+2025-09-11 00:31:34,011 - INFO - ✅ cpi: 322.13
+2025-09-11 00:31:34,012 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_unemployment_monthly.parquet
+2025-09-11 00:31:34,017 - INFO - Using cached multi-source data for unemployment
+2025-09-11 00:31:34,018 - INFO - ✅ unemployment: 4.20
+2025-09-11 00:31:34,018 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_gdp_monthly.parquet
+2025-09-11 00:31:34,023 - INFO - Using cached multi-source data for gdp
+2025-09-11 00:31:34,023 - INFO - ✅ real_gdp: 23685.29
+2025-09-11 00:31:34,024 - INFO - Macro data fetch complete. Retrieved 6 indicators.
+2025-09-11 00:31:34,029 - INFO - Added 6 macroeconomic features: ['treasury_yield_10year', 'treasury_yield_2year', 'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp']
+2025-09-11 00:31:34,034 - INFO - Final data with features: 6456 rows, 68 columns
+2025-09-11 00:31:34,034 - INFO - Entraînement du modèle quantitatif...
+2025-09-11 00:31:34,034 - INFO - Core features available: 39/39
+2025-09-11 00:31:34,034 - INFO - All macroeconomic features available
+2025-09-11 00:31:34,037 - INFO - Selected 45 features for model training
+2025-09-11 00:31:34,037 - INFO - Initial data shape: X=(6456, 45), y=(6456,)
+2025-09-11 00:31:34,038 - INFO - After removing NaN targets: X=(6456, 45), y=(6456,)
+2025-09-11 00:31:34,039 - INFO - Filling NaN values in 6 features
+2025-09-11 00:31:34,041 - INFO - Final clean data: X=(6456, 45), y=(6456,)
+2025-09-11 00:31:34,042 - INFO - Target distribution: {0: 4924, 1: 1532}
+2025-09-11 00:31:34,042 - INFO - Features shape: (6456, 45)
+2025-09-11 00:31:34,042 - INFO - Target shape: (6456,)
+2025-09-11 00:31:34,043 - INFO - NaN in features: 0
+2025-09-11 00:31:34,043 - INFO - NaN in target: 0
+2025-09-11 00:31:34,044 - INFO - Unique target values: [1 0]
+2025-09-11 00:31:34,044 - INFO - Original data shape: (6456, 45)
+2025-09-11 00:31:34,044 - INFO - NaN values per column: 0 total
+2025-09-11 00:31:34,045 - INFO - After removing NaN targets: (6456, 45)
+2025-09-11 00:31:34,064 - INFO - Final clean data shape: (6456, 45)
+2025-09-11 00:31:34,065 - INFO - Remaining NaN values: 0
+2025-09-11 00:31:42,003 - INFO - RandomForest - CV Score: 0.1064 (+/- 0.1229)
+2025-09-11 00:32:06,417 - INFO - GradientBoosting - CV Score: 0.1514 (+/- 0.0488)
+2025-09-11 00:32:06,531 - INFO - LogisticRegression - CV Score: 0.3498 (+/- 0.1793)
+2025-09-11 00:32:06,531 - INFO - Best model selected: LogisticRegression
+2025-09-11 00:32:06,558 - INFO - 
+=== LOGISTICREGRESSION MODEL RESULTS ===
+2025-09-11 00:32:06,558 - INFO - Accuracy: 0.5015
+2025-09-11 00:32:06,558 - INFO - Precision: 0.2894
+2025-09-11 00:32:06,558 - INFO - Recall: 0.6377
+2025-09-11 00:32:06,558 - INFO - F1: 0.3981
+2025-09-11 00:32:06,559 - INFO - Modèle classique entraîné avec succès
+2025-09-11 00:32:06,559 - INFO - Génération des prédictions des modèles...
+2025-09-11 00:32:06,560 - INFO - Features disponibles pour prédiction: 45
+2025-09-11 00:32:06,560 - INFO - NaN dans les features: 0
+2025-09-11 00:32:06,562 - INFO - Prédiction classique: 1, confiance: 0.558
+2025-09-11 00:32:06,564 - INFO - Generating chart image and saving to enhanced_trading_chart.png...
+2025-09-11 00:32:07,323 - INFO - Chart generated successfully.
+2025-09-11 00:32:07,323 - INFO - Querying textual LLM for a trading decision...
+2025-09-11 00:32:33,867 - INFO - LLM decision (gemma3:27b) received and validated.
+2025-09-11 00:32:33,867 - INFO - Querying visual LLM with image enhanced_trading_chart.png...
+2025-09-11 00:33:13,924 - INFO - LLM decision (gemma3:27b) received and validated.
+2025-09-11 00:33:13,924 - INFO - Analyse améliorée en cours...
+2025-09-11 00:33:14,098 - INFO - Niveau de risque détecté: VERY_HIGH
+2025-09-11 00:33:14,098 - INFO - Score de risque: 0.313
+2025-09-11 00:33:14,101 - WARNING - Insufficient data for classic: 0 observations
+2025-09-11 00:33:14,102 - WARNING - Insufficient data for llm_text: 0 observations
+2025-09-11 00:33:14,103 - WARNING - Insufficient data for llm_visual: 0 observations
+2025-09-11 00:33:14,104 - WARNING - Insufficient data for sentiment: 0 observations
+2025-09-11 00:33:14,104 - INFO - Poids adaptatifs calculés:
+2025-09-11 00:33:14,104 - INFO -   classic: 0.350
+2025-09-11 00:33:14,104 - INFO -   llm_text: 0.250
+2025-09-11 00:33:14,104 - INFO -   llm_visual: 0.250
+2025-09-11 00:33:14,104 - INFO -   sentiment: 0.150
+2025-09-11 00:33:14,104 - INFO - Décision hybride: HOLD
+2025-09-11 00:33:14,104 - INFO - Consensus: 0.67
+2025-09-11 00:33:14,104 - INFO - Confiance: 0.10
+2025-09-11 00:33:14,104 - INFO - Taille de position recommandée: $656.00
+2025-09-11 00:33:14,104 - INFO - Mise à jour du monitoring de performance...
+2025-09-11 00:33:14,110 - WARNING - ALERT [HIGH]: Win rate critically low: 0.00%
+2025-09-11 00:33:14,110 - INFO - Performance monitoring updated: Portfolio $105,000.00, Daily Return: 1.00%, Alerts: 1
+2025-09-11 00:33:14,891 - INFO - Performance dashboard saved to enhanced_performance_dashboard.png
+2025-09-11 00:33:14,948 - INFO - === ANALYSE AMÉLIORÉE TERMINÉE ===
+2025-09-11 00:33:14,964 - WARNING - [HIGH RISK ALERT] VERY_HIGH - Score: 0.313
+2025-09-11 00:33:14,964 - INFO - [OK] Daily analysis completed successfully

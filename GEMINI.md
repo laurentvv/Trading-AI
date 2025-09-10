@@ -68,6 +68,15 @@ python src/intelligent_scheduler.py
 
 The scheduler will run in the background, perform daily analysis, generate reports, and manage the project's deployment phases. All scheduler activities are logged in `scheduler.log`.
 
+**3. Forcing Immediate Analysis**
+
+In cases where the scheduler does not start or when an immediate analysis is required, you can use the `run_now.py` script. This script directly triggers the daily analysis task without waiting for the scheduled time.
+
+```bash
+python run_now.py
+```
+This is useful for debugging or manual intervention.
+
 ## Development Conventions
 
 *   **Modularity:** The codebase is organized into a clean, modular structure with a clear separation of concerns.
