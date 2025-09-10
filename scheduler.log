@@ -985,3 +985,394 @@
 2025-09-05 19:00:41,733 - INFO - Performance dashboard saved to weekly_dashboard_2025_W35.png
 2025-09-05 19:00:41,749 - INFO - [OK] Weekly report generated successfully
 2025-09-06 08:00:42,671 - INFO - [PHASE] Phase PHASE_2 progress: 52.4%
+2025-09-06 18:00:43,239 - INFO - [ANALYSIS] Starting daily trading analysis...
+2025-09-06 18:00:43,240 - INFO - === DÉMARRAGE DE L'ANALYSE AMÉLIORÉE ===
+2025-09-06 18:00:43,240 - INFO - Récupération et préparation des données...
+2025-09-06 18:00:43,241 - INFO - Loading data from cache: data_cache\QQQ_max_with_vix.parquet
+2025-09-06 18:00:43,622 - INFO - Data loaded from cache: 6656 days.
+2025-09-06 18:00:43,623 - INFO - Final data period: 1999-03-10 00:00:00 to 2025-08-22 00:00:00
+2025-09-06 18:00:43,624 - INFO - Data retrieved: 6656 rows from 1999-03-10 00:00:00 to 2025-08-22 00:00:00
+2025-09-06 18:00:43,656 - INFO - Fetching macroeconomic data for context around 2025-08-22...
+2025-09-06 18:00:43,657 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_10y_monthly.parquet
+2025-09-06 18:00:43,661 - INFO - Using cached multi-source data for treasury_10y
+2025-09-06 18:00:43,665 - INFO - ✅ treasury_yield_10year: 4.33
+2025-09-06 18:00:43,666 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
+2025-09-06 18:00:43,670 - INFO - Using cached multi-source data for treasury_2y
+2025-09-06 18:00:43,674 - INFO - ✅ treasury_yield_2year: 3.79
+2025-09-06 18:00:43,675 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
+2025-09-06 18:00:43,678 - INFO - Using cached multi-source data for fed_funds
+2025-09-06 18:00:43,680 - INFO - ✅ federal_funds_rate: 4.33
+2025-09-06 18:00:43,681 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_cpi_monthly.parquet
+2025-09-06 18:00:43,684 - INFO - Using cached multi-source data for cpi
+2025-09-06 18:00:43,686 - INFO - ✅ cpi: 322.13
+2025-09-06 18:00:43,686 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_unemployment_monthly.parquet
+2025-09-06 18:00:43,690 - INFO - Using cached multi-source data for unemployment
+2025-09-06 18:00:43,692 - INFO - ✅ unemployment: 4.20
+2025-09-06 18:00:43,693 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_gdp_monthly.parquet
+2025-09-06 18:00:43,696 - INFO - Using cached multi-source data for gdp
+2025-09-06 18:00:43,697 - INFO - ✅ real_gdp: 23685.29
+2025-09-06 18:00:43,698 - INFO - Macro data fetch complete. Retrieved 6 indicators.
+2025-09-06 18:00:43,707 - INFO - Added 6 macroeconomic features: ['treasury_yield_10year', 'treasury_yield_2year', 'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp']
+2025-09-06 18:00:43,720 - INFO - Final data with features: 6456 rows, 68 columns
+2025-09-06 18:00:43,721 - INFO - Entraînement du modèle quantitatif...
+2025-09-06 18:00:43,721 - INFO - Core features available: 39/39
+2025-09-06 18:00:43,721 - INFO - All macroeconomic features available
+2025-09-06 18:00:43,728 - INFO - Selected 45 features for model training
+2025-09-06 18:00:43,728 - INFO - Initial data shape: X=(6456, 45), y=(6456,)
+2025-09-06 18:00:43,731 - INFO - After removing NaN targets: X=(6456, 45), y=(6456,)
+2025-09-06 18:00:43,734 - INFO - Filling NaN values in 6 features
+2025-09-06 18:00:43,739 - INFO - Final clean data: X=(6456, 45), y=(6456,)
+2025-09-06 18:00:43,741 - INFO - Target distribution: {0: 4924, 1: 1532}
+2025-09-06 18:00:43,741 - INFO - Features shape: (6456, 45)
+2025-09-06 18:00:43,742 - INFO - Target shape: (6456,)
+2025-09-06 18:00:43,743 - INFO - NaN in features: 0
+2025-09-06 18:00:43,744 - INFO - NaN in target: 0
+2025-09-06 18:00:43,744 - INFO - Unique target values: [1 0]
+2025-09-06 18:00:43,745 - INFO - Original data shape: (6456, 45)
+2025-09-06 18:00:43,747 - INFO - NaN values per column: 0 total
+2025-09-06 18:00:43,749 - INFO - After removing NaN targets: (6456, 45)
+2025-09-06 18:00:43,798 - INFO - Final clean data shape: (6456, 45)
+2025-09-06 18:00:43,801 - INFO - Remaining NaN values: 0
+2025-09-06 18:01:00,442 - INFO - RandomForest - CV Score: 0.1064 (+/- 0.1229)
+2025-09-06 18:01:48,707 - INFO - GradientBoosting - CV Score: 0.1514 (+/- 0.0488)
+2025-09-06 18:01:49,062 - INFO - LogisticRegression - CV Score: 0.3498 (+/- 0.1793)
+2025-09-06 18:01:49,062 - INFO - Best model selected: LogisticRegression
+2025-09-06 18:01:49,144 - INFO - 
+=== LOGISTICREGRESSION MODEL RESULTS ===
+2025-09-06 18:01:49,144 - INFO - Accuracy: 0.5015
+2025-09-06 18:01:49,145 - INFO - Precision: 0.2894
+2025-09-06 18:01:49,145 - INFO - Recall: 0.6377
+2025-09-06 18:01:49,145 - INFO - F1: 0.3981
+2025-09-06 18:01:49,148 - INFO - Modèle classique entraîné avec succès
+2025-09-06 18:01:49,148 - INFO - Génération des prédictions des modèles...
+2025-09-06 18:01:49,150 - INFO - Features disponibles pour prédiction: 45
+2025-09-06 18:01:49,152 - INFO - NaN dans les features: 0
+2025-09-06 18:01:49,156 - INFO - Prédiction classique: 1, confiance: 0.558
+2025-09-06 18:01:49,158 - INFO - Generating chart image and saving to enhanced_trading_chart.png...
+2025-09-06 18:01:50,292 - INFO - Chart generated successfully.
+2025-09-06 18:01:50,293 - INFO - Querying textual LLM for a trading decision...
+2025-09-06 18:03:19,445 - INFO - LLM decision (gemma3:27b) received and validated.
+2025-09-06 18:03:19,447 - INFO - Querying visual LLM with image enhanced_trading_chart.png...
+2025-09-06 18:05:35,796 - INFO - LLM decision (gemma3:27b) received and validated.
+2025-09-06 18:05:35,798 - INFO - Analyse améliorée en cours...
+2025-09-06 18:05:36,200 - INFO - Niveau de risque détecté: VERY_HIGH
+2025-09-06 18:05:36,201 - INFO - Score de risque: 0.313
+2025-09-06 18:05:36,208 - WARNING - Insufficient data for classic: 0 observations
+2025-09-06 18:05:36,212 - WARNING - Insufficient data for llm_text: 0 observations
+2025-09-06 18:05:36,217 - WARNING - Insufficient data for llm_visual: 0 observations
+2025-09-06 18:05:36,220 - WARNING - Insufficient data for sentiment: 0 observations
+2025-09-06 18:05:36,221 - INFO - Poids adaptatifs calculés:
+2025-09-06 18:05:36,222 - INFO -   classic: 0.350
+2025-09-06 18:05:36,222 - INFO -   llm_text: 0.250
+2025-09-06 18:05:36,223 - INFO -   llm_visual: 0.250
+2025-09-06 18:05:36,223 - INFO -   sentiment: 0.150
+2025-09-06 18:05:36,225 - INFO - Décision hybride: HOLD
+2025-09-06 18:05:36,225 - INFO - Consensus: 0.67
+2025-09-06 18:05:36,226 - INFO - Confiance: 0.10
+2025-09-06 18:05:36,226 - INFO - Taille de position recommandée: $656.00
+2025-09-06 18:05:36,227 - INFO - Mise à jour du monitoring de performance...
+2025-09-06 18:05:36,262 - WARNING - ALERT [HIGH]: Win rate critically low: 0.00%
+2025-09-06 18:05:36,263 - INFO - Performance monitoring updated: Portfolio $105,000.00, Daily Return: 1.00%, Alerts: 1
+2025-09-06 18:05:38,230 - INFO - Performance dashboard saved to enhanced_performance_dashboard.png
+2025-09-06 18:05:38,246 - INFO - === ANALYSE AMÉLIORÉE TERMINÉE ===
+2025-09-06 18:05:38,274 - WARNING - [HIGH RISK ALERT] VERY_HIGH - Score: 0.313
+2025-09-06 18:05:38,275 - INFO - [OK] Daily analysis completed successfully
+2025-09-07 08:00:39,304 - INFO - [PHASE] Phase PHASE_2 progress: 57.1%
+2025-09-07 18:00:39,852 - INFO - [ANALYSIS] Starting daily trading analysis...
+2025-09-07 18:00:39,853 - INFO - === DÉMARRAGE DE L'ANALYSE AMÉLIORÉE ===
+2025-09-07 18:00:39,853 - INFO - Récupération et préparation des données...
+2025-09-07 18:00:39,854 - INFO - Loading data from cache: data_cache\QQQ_max_with_vix.parquet
+2025-09-07 18:00:40,416 - INFO - Data loaded from cache: 6656 days.
+2025-09-07 18:00:40,417 - INFO - Final data period: 1999-03-10 00:00:00 to 2025-08-22 00:00:00
+2025-09-07 18:00:40,418 - INFO - Data retrieved: 6656 rows from 1999-03-10 00:00:00 to 2025-08-22 00:00:00
+2025-09-07 18:00:40,451 - INFO - Fetching macroeconomic data for context around 2025-08-22...
+2025-09-07 18:00:40,452 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_10y_monthly.parquet
+2025-09-07 18:00:40,456 - INFO - Using cached multi-source data for treasury_10y
+2025-09-07 18:00:40,460 - INFO - ✅ treasury_yield_10year: 4.33
+2025-09-07 18:00:40,461 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
+2025-09-07 18:00:40,465 - INFO - Using cached multi-source data for treasury_2y
+2025-09-07 18:00:40,469 - INFO - ✅ treasury_yield_2year: 3.79
+2025-09-07 18:00:40,470 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
+2025-09-07 18:00:40,475 - INFO - Using cached multi-source data for fed_funds
+2025-09-07 18:00:40,477 - INFO - ✅ federal_funds_rate: 4.33
+2025-09-07 18:00:40,477 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_cpi_monthly.parquet
+2025-09-07 18:00:40,481 - INFO - Using cached multi-source data for cpi
+2025-09-07 18:00:40,483 - INFO - ✅ cpi: 322.13
+2025-09-07 18:00:40,483 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_unemployment_monthly.parquet
+2025-09-07 18:00:40,488 - INFO - Using cached multi-source data for unemployment
+2025-09-07 18:00:40,489 - INFO - ✅ unemployment: 4.20
+2025-09-07 18:00:40,490 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_gdp_monthly.parquet
+2025-09-07 18:00:40,494 - INFO - Using cached multi-source data for gdp
+2025-09-07 18:00:40,495 - INFO - ✅ real_gdp: 23685.29
+2025-09-07 18:00:40,496 - INFO - Macro data fetch complete. Retrieved 6 indicators.
+2025-09-07 18:00:40,506 - INFO - Added 6 macroeconomic features: ['treasury_yield_10year', 'treasury_yield_2year', 'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp']
+2025-09-07 18:00:40,519 - INFO - Final data with features: 6456 rows, 68 columns
+2025-09-07 18:00:40,520 - INFO - Entraînement du modèle quantitatif...
+2025-09-07 18:00:40,521 - INFO - Core features available: 39/39
+2025-09-07 18:00:40,521 - INFO - All macroeconomic features available
+2025-09-07 18:00:40,528 - INFO - Selected 45 features for model training
+2025-09-07 18:00:40,528 - INFO - Initial data shape: X=(6456, 45), y=(6456,)
+2025-09-07 18:00:40,532 - INFO - After removing NaN targets: X=(6456, 45), y=(6456,)
+2025-09-07 18:00:40,534 - INFO - Filling NaN values in 6 features
+2025-09-07 18:00:40,540 - INFO - Final clean data: X=(6456, 45), y=(6456,)
+2025-09-07 18:00:40,541 - INFO - Target distribution: {0: 4924, 1: 1532}
+2025-09-07 18:00:40,542 - INFO - Features shape: (6456, 45)
+2025-09-07 18:00:40,542 - INFO - Target shape: (6456,)
+2025-09-07 18:00:40,544 - INFO - NaN in features: 0
+2025-09-07 18:00:40,545 - INFO - NaN in target: 0
+2025-09-07 18:00:40,545 - INFO - Unique target values: [1 0]
+2025-09-07 18:00:40,546 - INFO - Original data shape: (6456, 45)
+2025-09-07 18:00:40,548 - INFO - NaN values per column: 0 total
+2025-09-07 18:00:40,551 - INFO - After removing NaN targets: (6456, 45)
+2025-09-07 18:00:40,599 - INFO - Final clean data shape: (6456, 45)
+2025-09-07 18:00:40,602 - INFO - Remaining NaN values: 0
+2025-09-07 18:00:57,555 - INFO - RandomForest - CV Score: 0.1064 (+/- 0.1229)
+2025-09-07 18:01:46,471 - INFO - GradientBoosting - CV Score: 0.1514 (+/- 0.0488)
+2025-09-07 18:01:46,827 - INFO - LogisticRegression - CV Score: 0.3498 (+/- 0.1793)
+2025-09-07 18:01:46,828 - INFO - Best model selected: LogisticRegression
+2025-09-07 18:01:46,912 - INFO - 
+=== LOGISTICREGRESSION MODEL RESULTS ===
+2025-09-07 18:01:46,913 - INFO - Accuracy: 0.5015
+2025-09-07 18:01:46,913 - INFO - Precision: 0.2894
+2025-09-07 18:01:46,914 - INFO - Recall: 0.6377
+2025-09-07 18:01:46,914 - INFO - F1: 0.3981
+2025-09-07 18:01:46,917 - INFO - Modèle classique entraîné avec succès
+2025-09-07 18:01:46,917 - INFO - Génération des prédictions des modèles...
+2025-09-07 18:01:46,919 - INFO - Features disponibles pour prédiction: 45
+2025-09-07 18:01:46,921 - INFO - NaN dans les features: 0
+2025-09-07 18:01:46,925 - INFO - Prédiction classique: 1, confiance: 0.558
+2025-09-07 18:01:46,927 - INFO - Generating chart image and saving to enhanced_trading_chart.png...
+2025-09-07 18:01:47,619 - INFO - Chart generated successfully.
+2025-09-07 18:01:47,620 - INFO - Querying textual LLM for a trading decision...
+2025-09-07 18:03:19,967 - INFO - LLM decision (gemma3:27b) received and validated.
+2025-09-07 18:03:19,968 - INFO - Querying visual LLM with image enhanced_trading_chart.png...
+2025-09-07 18:04:52,129 - WARNING - Attempt 1/3: Response from LLM (gemma3:27b) is malformed: {}
+2025-09-07 18:04:52,130 - WARNING - Attempt 1/3 failed for LLM (gemma3:27b): Invalid or malformed LLM response.
+2025-09-07 18:05:36,984 - INFO - LLM decision (gemma3:27b) received and validated.
+2025-09-07 18:05:36,986 - INFO - Analyse améliorée en cours...
+2025-09-07 18:05:37,462 - INFO - Niveau de risque détecté: VERY_HIGH
+2025-09-07 18:05:37,463 - INFO - Score de risque: 0.313
+2025-09-07 18:05:37,467 - WARNING - Insufficient data for classic: 0 observations
+2025-09-07 18:05:37,469 - WARNING - Insufficient data for llm_text: 0 observations
+2025-09-07 18:05:37,472 - WARNING - Insufficient data for llm_visual: 0 observations
+2025-09-07 18:05:37,474 - WARNING - Insufficient data for sentiment: 0 observations
+2025-09-07 18:05:37,474 - INFO - Poids adaptatifs calculés:
+2025-09-07 18:05:37,475 - INFO -   classic: 0.350
+2025-09-07 18:05:37,475 - INFO -   llm_text: 0.250
+2025-09-07 18:05:37,475 - INFO -   llm_visual: 0.250
+2025-09-07 18:05:37,476 - INFO -   sentiment: 0.150
+2025-09-07 18:05:37,477 - INFO - Décision hybride: HOLD
+2025-09-07 18:05:37,477 - INFO - Consensus: 0.67
+2025-09-07 18:05:37,478 - INFO - Confiance: 0.10
+2025-09-07 18:05:37,478 - INFO - Taille de position recommandée: $656.00
+2025-09-07 18:05:37,479 - INFO - Mise à jour du monitoring de performance...
+2025-09-07 18:05:37,512 - WARNING - ALERT [HIGH]: Win rate critically low: 0.00%
+2025-09-07 18:05:37,513 - INFO - Performance monitoring updated: Portfolio $105,000.00, Daily Return: 1.00%, Alerts: 1
+2025-09-07 18:05:39,405 - INFO - Performance dashboard saved to enhanced_performance_dashboard.png
+2025-09-07 18:05:39,421 - INFO - === ANALYSE AMÉLIORÉE TERMINÉE ===
+2025-09-07 18:05:39,449 - WARNING - [HIGH RISK ALERT] VERY_HIGH - Score: 0.313
+2025-09-07 18:05:39,450 - INFO - [OK] Daily analysis completed successfully
+2025-09-07 22:00:39,633 - INFO - [MAINTENANCE] Performing system maintenance...
+2025-09-07 22:00:39,664 - INFO - [OK] Maintenance completed: ["Health check: {'database_accessible': True, 'csv_writable': False, 'ollama_responsive': False, 'data_cache_available': False}", 'Database optimization completed']
+2025-09-08 08:00:40,376 - INFO - [PHASE] Phase PHASE_2 progress: 61.9%
+2025-09-08 18:00:40,951 - INFO - [ANALYSIS] Starting daily trading analysis...
+2025-09-08 18:00:40,952 - INFO - === DÉMARRAGE DE L'ANALYSE AMÉLIORÉE ===
+2025-09-08 18:00:40,953 - INFO - Récupération et préparation des données...
+2025-09-08 18:00:40,953 - INFO - Loading data from cache: data_cache\QQQ_max_with_vix.parquet
+2025-09-08 18:00:41,459 - INFO - Data loaded from cache: 6656 days.
+2025-09-08 18:00:41,460 - INFO - Final data period: 1999-03-10 00:00:00 to 2025-08-22 00:00:00
+2025-09-08 18:00:41,461 - INFO - Data retrieved: 6656 rows from 1999-03-10 00:00:00 to 2025-08-22 00:00:00
+2025-09-08 18:00:41,493 - INFO - Fetching macroeconomic data for context around 2025-08-22...
+2025-09-08 18:00:41,494 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_10y_monthly.parquet
+2025-09-08 18:00:41,498 - INFO - Using cached multi-source data for treasury_10y
+2025-09-08 18:00:41,503 - INFO - ✅ treasury_yield_10year: 4.33
+2025-09-08 18:00:41,503 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
+2025-09-08 18:00:41,507 - INFO - Using cached multi-source data for treasury_2y
+2025-09-08 18:00:41,512 - INFO - ✅ treasury_yield_2year: 3.79
+2025-09-08 18:00:41,512 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
+2025-09-08 18:00:41,516 - INFO - Using cached multi-source data for fed_funds
+2025-09-08 18:00:41,518 - INFO - ✅ federal_funds_rate: 4.33
+2025-09-08 18:00:41,518 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_cpi_monthly.parquet
+2025-09-08 18:00:41,522 - INFO - Using cached multi-source data for cpi
+2025-09-08 18:00:41,524 - INFO - ✅ cpi: 322.13
+2025-09-08 18:00:41,524 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_unemployment_monthly.parquet
+2025-09-08 18:00:41,527 - INFO - Using cached multi-source data for unemployment
+2025-09-08 18:00:41,529 - INFO - ✅ unemployment: 4.20
+2025-09-08 18:00:41,530 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_gdp_monthly.parquet
+2025-09-08 18:00:41,533 - INFO - Using cached multi-source data for gdp
+2025-09-08 18:00:41,534 - INFO - ✅ real_gdp: 23685.29
+2025-09-08 18:00:41,535 - INFO - Macro data fetch complete. Retrieved 6 indicators.
+2025-09-08 18:00:41,544 - INFO - Added 6 macroeconomic features: ['treasury_yield_10year', 'treasury_yield_2year', 'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp']
+2025-09-08 18:00:41,557 - INFO - Final data with features: 6456 rows, 68 columns
+2025-09-08 18:00:41,558 - INFO - Entraînement du modèle quantitatif...
+2025-09-08 18:00:41,558 - INFO - Core features available: 39/39
+2025-09-08 18:00:41,559 - INFO - All macroeconomic features available
+2025-09-08 18:00:41,565 - INFO - Selected 45 features for model training
+2025-09-08 18:00:41,566 - INFO - Initial data shape: X=(6456, 45), y=(6456,)
+2025-09-08 18:00:41,569 - INFO - After removing NaN targets: X=(6456, 45), y=(6456,)
+2025-09-08 18:00:41,572 - INFO - Filling NaN values in 6 features
+2025-09-08 18:00:41,577 - INFO - Final clean data: X=(6456, 45), y=(6456,)
+2025-09-08 18:00:41,578 - INFO - Target distribution: {0: 4924, 1: 1532}
+2025-09-08 18:00:41,579 - INFO - Features shape: (6456, 45)
+2025-09-08 18:00:41,580 - INFO - Target shape: (6456,)
+2025-09-08 18:00:41,581 - INFO - NaN in features: 0
+2025-09-08 18:00:41,582 - INFO - NaN in target: 0
+2025-09-08 18:00:41,582 - INFO - Unique target values: [1 0]
+2025-09-08 18:00:41,583 - INFO - Original data shape: (6456, 45)
+2025-09-08 18:00:41,584 - INFO - NaN values per column: 0 total
+2025-09-08 18:00:41,588 - INFO - After removing NaN targets: (6456, 45)
+2025-09-08 18:00:41,636 - INFO - Final clean data shape: (6456, 45)
+2025-09-08 18:00:41,639 - INFO - Remaining NaN values: 0
+2025-09-08 18:00:58,228 - INFO - RandomForest - CV Score: 0.1064 (+/- 0.1229)
+2025-09-08 18:01:47,114 - INFO - GradientBoosting - CV Score: 0.1514 (+/- 0.0488)
+2025-09-08 18:01:47,484 - INFO - LogisticRegression - CV Score: 0.3498 (+/- 0.1793)
+2025-09-08 18:01:47,484 - INFO - Best model selected: LogisticRegression
+2025-09-08 18:01:47,568 - INFO - 
+=== LOGISTICREGRESSION MODEL RESULTS ===
+2025-09-08 18:01:47,568 - INFO - Accuracy: 0.5015
+2025-09-08 18:01:47,569 - INFO - Precision: 0.2894
+2025-09-08 18:01:47,569 - INFO - Recall: 0.6377
+2025-09-08 18:01:47,569 - INFO - F1: 0.3981
+2025-09-08 18:01:47,572 - INFO - Modèle classique entraîné avec succès
+2025-09-08 18:01:47,572 - INFO - Génération des prédictions des modèles...
+2025-09-08 18:01:47,574 - INFO - Features disponibles pour prédiction: 45
+2025-09-08 18:01:47,576 - INFO - NaN dans les features: 0
+2025-09-08 18:01:47,580 - INFO - Prédiction classique: 1, confiance: 0.558
+2025-09-08 18:01:47,582 - INFO - Generating chart image and saving to enhanced_trading_chart.png...
+2025-09-08 18:01:48,237 - INFO - Chart generated successfully.
+2025-09-08 18:01:48,237 - INFO - Querying textual LLM for a trading decision...
+2025-09-08 18:03:14,623 - INFO - LLM decision (gemma3:27b) received and validated.
+2025-09-08 18:03:14,624 - INFO - Querying visual LLM with image enhanced_trading_chart.png...
+2025-09-08 18:05:30,930 - INFO - LLM decision (gemma3:27b) received and validated.
+2025-09-08 18:05:30,932 - INFO - Analyse améliorée en cours...
+2025-09-08 18:05:31,338 - INFO - Niveau de risque détecté: VERY_HIGH
+2025-09-08 18:05:31,339 - INFO - Score de risque: 0.313
+2025-09-08 18:05:31,346 - WARNING - Insufficient data for classic: 0 observations
+2025-09-08 18:05:31,350 - WARNING - Insufficient data for llm_text: 0 observations
+2025-09-08 18:05:31,354 - WARNING - Insufficient data for llm_visual: 0 observations
+2025-09-08 18:05:31,359 - WARNING - Insufficient data for sentiment: 0 observations
+2025-09-08 18:05:31,360 - INFO - Poids adaptatifs calculés:
+2025-09-08 18:05:31,361 - INFO -   classic: 0.350
+2025-09-08 18:05:31,361 - INFO -   llm_text: 0.250
+2025-09-08 18:05:31,362 - INFO -   llm_visual: 0.250
+2025-09-08 18:05:31,363 - INFO -   sentiment: 0.150
+2025-09-08 18:05:31,365 - INFO - Décision hybride: HOLD
+2025-09-08 18:05:31,366 - INFO - Consensus: 0.80
+2025-09-08 18:05:31,367 - INFO - Confiance: 0.32
+2025-09-08 18:05:31,368 - INFO - Taille de position recommandée: $1,000.00
+2025-09-08 18:05:31,369 - INFO - Mise à jour du monitoring de performance...
+2025-09-08 18:05:31,405 - WARNING - ALERT [HIGH]: Win rate critically low: 0.00%
+2025-09-08 18:05:31,405 - INFO - Performance monitoring updated: Portfolio $105,000.00, Daily Return: 1.00%, Alerts: 1
+2025-09-08 18:05:33,332 - INFO - Performance dashboard saved to enhanced_performance_dashboard.png
+2025-09-08 18:05:33,348 - INFO - === ANALYSE AMÉLIORÉE TERMINÉE ===
+2025-09-08 18:05:33,374 - WARNING - [HIGH RISK ALERT] VERY_HIGH - Score: 0.313
+2025-09-08 18:05:33,375 - INFO - [OK] Daily analysis completed successfully
+2025-09-09 08:00:34,403 - INFO - [PHASE] Phase PHASE_2 progress: 66.7%
+2025-09-09 18:00:34,962 - INFO - [ANALYSIS] Starting daily trading analysis...
+2025-09-09 18:00:34,963 - INFO - === DÉMARRAGE DE L'ANALYSE AMÉLIORÉE ===
+2025-09-09 18:00:34,963 - INFO - Récupération et préparation des données...
+2025-09-09 18:00:34,964 - INFO - Loading data from cache: data_cache\QQQ_max_with_vix.parquet
+2025-09-09 18:00:35,394 - INFO - Data loaded from cache: 6656 days.
+2025-09-09 18:00:35,394 - INFO - Final data period: 1999-03-10 00:00:00 to 2025-08-22 00:00:00
+2025-09-09 18:00:35,395 - INFO - Data retrieved: 6656 rows from 1999-03-10 00:00:00 to 2025-08-22 00:00:00
+2025-09-09 18:00:35,427 - INFO - Fetching macroeconomic data for context around 2025-08-22...
+2025-09-09 18:00:35,428 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_10y_monthly.parquet
+2025-09-09 18:00:35,432 - INFO - Using cached multi-source data for treasury_10y
+2025-09-09 18:00:35,437 - INFO - ✅ treasury_yield_10year: 4.33
+2025-09-09 18:00:35,437 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
+2025-09-09 18:00:35,441 - INFO - Using cached multi-source data for treasury_2y
+2025-09-09 18:00:35,445 - INFO - ✅ treasury_yield_2year: 3.79
+2025-09-09 18:00:35,446 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
+2025-09-09 18:00:35,450 - INFO - Using cached multi-source data for fed_funds
+2025-09-09 18:00:35,452 - INFO - ✅ federal_funds_rate: 4.33
+2025-09-09 18:00:35,453 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_cpi_monthly.parquet
+2025-09-09 18:00:35,456 - INFO - Using cached multi-source data for cpi
+2025-09-09 18:00:35,458 - INFO - ✅ cpi: 322.13
+2025-09-09 18:00:35,458 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_unemployment_monthly.parquet
+2025-09-09 18:00:35,462 - INFO - Using cached multi-source data for unemployment
+2025-09-09 18:00:35,463 - INFO - ✅ unemployment: 4.20
+2025-09-09 18:00:35,464 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_gdp_monthly.parquet
+2025-09-09 18:00:35,467 - INFO - Using cached multi-source data for gdp
+2025-09-09 18:00:35,469 - INFO - ✅ real_gdp: 23685.29
+2025-09-09 18:00:35,469 - INFO - Macro data fetch complete. Retrieved 6 indicators.
+2025-09-09 18:00:35,478 - INFO - Added 6 macroeconomic features: ['treasury_yield_10year', 'treasury_yield_2year', 'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp']
+2025-09-09 18:00:35,491 - INFO - Final data with features: 6456 rows, 68 columns
+2025-09-09 18:00:35,492 - INFO - Entraînement du modèle quantitatif...
+2025-09-09 18:00:35,493 - INFO - Core features available: 39/39
+2025-09-09 18:00:35,493 - INFO - All macroeconomic features available
+2025-09-09 18:00:35,500 - INFO - Selected 45 features for model training
+2025-09-09 18:00:35,501 - INFO - Initial data shape: X=(6456, 45), y=(6456,)
+2025-09-09 18:00:35,504 - INFO - After removing NaN targets: X=(6456, 45), y=(6456,)
+2025-09-09 18:00:35,506 - INFO - Filling NaN values in 6 features
+2025-09-09 18:00:35,512 - INFO - Final clean data: X=(6456, 45), y=(6456,)
+2025-09-09 18:00:35,513 - INFO - Target distribution: {0: 4924, 1: 1532}
+2025-09-09 18:00:35,514 - INFO - Features shape: (6456, 45)
+2025-09-09 18:00:35,515 - INFO - Target shape: (6456,)
+2025-09-09 18:00:35,516 - INFO - NaN in features: 0
+2025-09-09 18:00:35,517 - INFO - NaN in target: 0
+2025-09-09 18:00:35,518 - INFO - Unique target values: [1 0]
+2025-09-09 18:00:35,518 - INFO - Original data shape: (6456, 45)
+2025-09-09 18:00:35,520 - INFO - NaN values per column: 0 total
+2025-09-09 18:00:35,523 - INFO - After removing NaN targets: (6456, 45)
+2025-09-09 18:00:35,572 - INFO - Final clean data shape: (6456, 45)
+2025-09-09 18:00:35,575 - INFO - Remaining NaN values: 0
+2025-09-09 18:00:52,209 - INFO - RandomForest - CV Score: 0.1064 (+/- 0.1229)
+2025-09-09 18:01:40,622 - INFO - GradientBoosting - CV Score: 0.1514 (+/- 0.0488)
+2025-09-09 18:01:40,972 - INFO - LogisticRegression - CV Score: 0.3498 (+/- 0.1793)
+2025-09-09 18:01:40,973 - INFO - Best model selected: LogisticRegression
+2025-09-09 18:01:41,053 - INFO - 
+=== LOGISTICREGRESSION MODEL RESULTS ===
+2025-09-09 18:01:41,054 - INFO - Accuracy: 0.5015
+2025-09-09 18:01:41,054 - INFO - Precision: 0.2894
+2025-09-09 18:01:41,055 - INFO - Recall: 0.6377
+2025-09-09 18:01:41,055 - INFO - F1: 0.3981
+2025-09-09 18:01:41,057 - INFO - Modèle classique entraîné avec succès
+2025-09-09 18:01:41,058 - INFO - Génération des prédictions des modèles...
+2025-09-09 18:01:41,060 - INFO - Features disponibles pour prédiction: 45
+2025-09-09 18:01:41,061 - INFO - NaN dans les features: 0
+2025-09-09 18:01:41,065 - INFO - Prédiction classique: 1, confiance: 0.558
+2025-09-09 18:01:41,067 - INFO - Generating chart image and saving to enhanced_trading_chart.png...
+2025-09-09 18:01:41,708 - INFO - Chart generated successfully.
+2025-09-09 18:01:41,709 - INFO - Querying textual LLM for a trading decision...
+2025-09-09 18:03:12,481 - INFO - LLM decision (gemma3:27b) received and validated.
+2025-09-09 18:03:12,482 - INFO - Querying visual LLM with image enhanced_trading_chart.png...
+2025-09-09 18:04:44,821 - WARNING - Attempt 1/3: Response from LLM (gemma3:27b) is malformed: {}
+2025-09-09 18:04:44,822 - WARNING - Attempt 1/3 failed for LLM (gemma3:27b): Invalid or malformed LLM response.
+2025-09-09 18:05:36,082 - INFO - LLM decision (gemma3:27b) received and validated.
+2025-09-09 18:05:36,084 - INFO - Analyse améliorée en cours...
+2025-09-09 18:05:36,492 - INFO - Niveau de risque détecté: VERY_HIGH
+2025-09-09 18:05:36,492 - INFO - Score de risque: 0.313
+2025-09-09 18:05:36,499 - WARNING - Insufficient data for classic: 0 observations
+2025-09-09 18:05:36,504 - WARNING - Insufficient data for llm_text: 0 observations
+2025-09-09 18:05:36,508 - WARNING - Insufficient data for llm_visual: 0 observations
+2025-09-09 18:05:36,513 - WARNING - Insufficient data for sentiment: 0 observations
+2025-09-09 18:05:36,514 - INFO - Poids adaptatifs calculés:
+2025-09-09 18:05:36,515 - INFO -   classic: 0.350
+2025-09-09 18:05:36,516 - INFO -   llm_text: 0.250
+2025-09-09 18:05:36,517 - INFO -   llm_visual: 0.250
+2025-09-09 18:05:36,517 - INFO -   sentiment: 0.150
+2025-09-09 18:05:36,520 - INFO - Décision hybride: HOLD
+2025-09-09 18:05:36,520 - INFO - Consensus: 0.67
+2025-09-09 18:05:36,521 - INFO - Confiance: 0.10
+2025-09-09 18:05:36,522 - INFO - Taille de position recommandée: $656.00
+2025-09-09 18:05:36,523 - INFO - Mise à jour du monitoring de performance...
+2025-09-09 18:05:36,557 - WARNING - ALERT [HIGH]: Win rate critically low: 0.00%
+2025-09-09 18:05:36,558 - INFO - Performance monitoring updated: Portfolio $105,000.00, Daily Return: 1.00%, Alerts: 1
+2025-09-09 18:05:38,520 - INFO - Performance dashboard saved to enhanced_performance_dashboard.png
+2025-09-09 18:05:38,535 - INFO - === ANALYSE AMÉLIORÉE TERMINÉE ===
+2025-09-09 18:05:38,569 - WARNING - [HIGH RISK ALERT] VERY_HIGH - Score: 0.313
+2025-09-09 18:05:38,570 - INFO - [OK] Daily analysis completed successfully
+2025-09-10 09:05:35,129 - INFO - Performance database initialized successfully
+2025-09-10 09:05:35,132 - INFO - Performance monitoring database initialized
+2025-09-10 09:05:35,133 - INFO - Système de trading amélioré initialisé pour QQQ
+2025-09-10 09:05:35,134 - INFO - Performance monitoring database initialized
+2025-09-10 09:05:35,136 - INFO - [OK] Scheduler database initialized
+2025-09-10 09:05:35,138 - INFO - [CONFIG] Configuration loaded from file
+2025-09-10 09:05:35,138 - INFO - [SCHEDULE] Schedule configured according to implementation plan
+2025-09-10 09:05:35,139 - INFO - [INIT] Intelligent Trading AI Scheduler initialized
+2025-09-10 09:05:35,139 - INFO - Project root: D:\TreeSizeFree-Portable\LicenseFiles\Trace
+2025-09-10 09:05:35,139 - INFO - Current phase: Phase 1: Configuration & Test
+2025-09-10 09:05:35,140 - INFO - [INIT] Starting Intelligent Trading AI Scheduler...
+2025-09-10 09:05:35,140 - INFO - [PHASE] Current phase: Phase 1: Configuration & Test
+2025-09-10 09:05:35,140 - INFO - [SCHEDULE] Daily analysis scheduled at: 18:00
+2025-09-10 09:06:57,069 - INFO - [STOP] Scheduler stopped by user
