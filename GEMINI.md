@@ -52,17 +52,21 @@ The script will:
 4.  Generate a final trading decision based on the three models.
 5.  Save a plot of the backtest analysis as `backtest_analysis.png`.
 
-**2. Automated Analysis with the Scheduler**
+**2. Automated Analysis with the Intelligent Scheduler**
 
-The project includes a scheduler to run the analysis automatically every day.
+The project includes an intelligent scheduler to manage the entire Trading AI deployment timeline, including automated daily analysis, reporting, and phase management.
 
-To run the scheduler, execute the following command from the root directory:
-
+For Windows, the easiest way to run the scheduler is to use the provided batch script:
 ```bash
-python src/scheduler.py
+start_scheduler.bat
 ```
 
-The scheduler will run in the background and perform the daily analysis at the configured time (default 18:00). All scheduler activities are logged in `scheduler.log`.
+Alternatively, you can run the Python script directly:
+```bash
+python src/intelligent_scheduler.py
+```
+
+The scheduler will run in the background, perform daily analysis, generate reports, and manage the project's deployment phases. All scheduler activities are logged in `scheduler.log`.
 
 ## Development Conventions
 
