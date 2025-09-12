@@ -18,6 +18,7 @@
 ## 4. Problèmes Connus
 - **Résolu**: Le planificateur précédent était non fonctionnel et provoquait l'échec de l'analyse quotidienne. Ceci a été résolu avec le nouveau `src/intelligent_scheduler.py`.
 - **Résolu**: Problèmes de transition de phase et de persistance de la date de démarrage du projet (corrigés le 12 septembre 2025).
+- **Résolu (2025-09-12)**: Corrigé un bug de persistance où la transition de phase n'était pas sauvegardée immédiatement, causant une réinitialisation de la phase au redémarrage du planificateur.
 
 ## 5. Corrections Récentes
 - **2025-09-12**: Corrections majeures du planificateur intelligent :

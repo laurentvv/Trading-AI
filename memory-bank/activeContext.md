@@ -13,6 +13,7 @@ Le focus immédiat est sur **la surveillance de la stabilité du système et l'a
 - **Données Historiques Étendues (2025-08-20)** : Le système récupère désormais l'historique complet des données disponibles pour QQQ, augmentant considérablement le jeu de données pour l'entraînement et le backtesting.
 - **Corrections du Planificateur Intelligent (2025-09-12)** : Correction de la logique de transition de phase et de la persistance de la date de démarrage du projet.
 - **Gestion de la Configuration du Scheduler (2025-09-12)** : Ajout d'un fichier de configuration `scheduler_config.json` pour permettre un contrôle précis du comportement du planificateur, notamment les transitions de phase. La documentation (`GEMINI.md`, `README.md`, `techContext.md`) a été mise à jour pour refléter ce changement.
+- **Correction du Bug de Persistance de Phase (2025-09-12)** : Corrigé un bug où la transition de phase du scheduler n'était pas immédiatement sauvegardée dans la base de données. La méthode `_transition_to_next_phase` appelle maintenant une nouvelle fonction `_persist_phase_transition` pour assurer la persistance immédiate.
 
 ## 3. Prochaines Étapes
 1.  Continuer la surveillance en Phase 2 jusqu'à son achèvement (22 septembre 2025).
