@@ -154,6 +154,17 @@ Le script va :
 
 Le projet inclut un planificateur intelligent qui gère le déploiement, les analyses quotidiennes, les rapports et les transitions de phase du projet.
 
+**Système de Phases :**
+- **Phase 1 : Configuration & Test** (7 jours)
+- **Phase 2 : Apprentissage Initial** (21 jours) - *Phase Actuelle*
+- **Phase 3 : Optimisation** (30 jours)
+- **Phase 4 : Maturité** (120 jours)
+
+Le système a démarré le 25 août 2025 et est actuellement en Phase 2 depuis le 12 septembre 2025.
+
+**Configuration du Planificateur :**
+Le comportement du planificateur, notamment la durée des phases, peut être personnalisé en créant un fichier `scheduler_config.json` à la racine du projet. Sans ce fichier, une configuration par défaut est utilisée.
+
 Pour les utilisateurs Windows, le moyen le plus simple de démarrer le planificateur est d'utiliser le script batch fourni :
 ```bash
 start_scheduler.bat
@@ -164,6 +175,12 @@ Alternativement, vous pouvez exécuter le script Python directement :
 python src/intelligent_scheduler.py
 ```
 Le planificateur s'exécutera en arrière-plan et consignera toutes ses activités dans `scheduler.log`.
+
+**Exécution Immédiate :**
+Pour exécuter une analyse immédiate sans attendre le calendrier planifié :
+```bash
+python run_now.py
+```
 
 ---
 

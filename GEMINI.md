@@ -77,6 +77,57 @@ python run_now.py
 ```
 This is useful for debugging or manual intervention.
 
+## Configuration
+
+The behavior of the Intelligent Scheduler can be customized via a `scheduler_config.json` file placed in the root directory of the project. If this file is not present, the scheduler will use a default configuration.
+
+Creating this file allows you to control parameters such as phase durations, performance targets, and the project's start date.
+
+### Example `scheduler_config.json`
+
+```json
+{
+    "project_start_date": "2025-08-25T18:05:27.149745",
+    "trading_ticker": "QQQ",
+    "daily_execution_time": "18:00",
+    "weekly_report_day": "friday",
+    "monthly_report_day": 28,
+    "phase_transitions": {
+        "phase_1_duration_days": 7,
+        "phase_2_duration_days": 21,
+        "phase_3_duration_days": 30,
+        "phase_4_duration_days": 120
+    },
+    "performance_targets": {
+        "phase_2": {
+            "sharpe_ratio": 0.5,
+            "max_drawdown": 0.05,
+            "win_rate": 0.45
+        },
+        "phase_3": {
+            "sharpe_ratio": 1.0,
+            "max_drawdown": 0.03,
+            "win_rate": 0.55
+        },
+        "phase_4": {
+            "sharpe_ratio": 1.5,
+            "max_drawdown": 0.02,
+            "win_rate": 0.60
+        }
+    },
+    "alerts": {
+        "email_notifications": false,
+        "performance_alerts": true,
+        "phase_completion_alerts": true
+    }
+}
+```
+
+### Key Parameters
+
+*   `project_start_date`: The official start date of the project. This is crucial for calculating phase transitions.
+*   `phase_transitions`: Allows you to define the duration (in days) for each of the four project phases. This is the primary way to control the automatic transition between phases.
+
 ## Development Conventions
 
 *   **Modularity:** The codebase is organized into a clean, modular structure with a clear separation of concerns.

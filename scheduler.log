@@ -1617,3 +1617,256 @@
 2025-09-12 08:00:23,710 - INFO - [REASON] Reason: Phase 1 duration completed
 2025-09-12 08:00:23,711 - INFO - [SCHEDULE] Schedule configured according to implementation plan
 2025-09-12 08:00:23,711 - INFO - [PHASE] Phase PHASE_2 progress: 100.0%
+2025-09-12 14:19:15,890 - INFO - Performance database initialized successfully
+2025-09-12 14:19:15,891 - INFO - Performance monitoring database initialized
+2025-09-12 14:19:15,891 - INFO - Système de trading amélioré initialisé pour QQQ
+2025-09-12 14:19:15,892 - INFO - Performance monitoring database initialized
+2025-09-12 14:19:15,892 - INFO - [OK] Scheduler database initialized
+2025-09-12 14:19:15,893 - INFO - [CONFIG] Default configuration created
+2025-09-12 14:19:15,893 - INFO - [SCHEDULE] Schedule configured according to implementation plan
+2025-09-12 14:19:15,893 - INFO - [INIT] Intelligent Trading AI Scheduler initialized
+2025-09-12 14:19:15,893 - INFO - Project root: C:\GIT\fork\Trading-AI
+2025-09-12 14:19:15,893 - INFO - Current phase: Phase 1: Configuration & Test
+2025-09-12 14:21:01,326 - INFO - Performance database initialized successfully
+2025-09-12 14:21:01,326 - INFO - Performance monitoring database initialized
+2025-09-12 14:21:01,326 - INFO - Système de trading amélioré initialisé pour QQQ
+2025-09-12 14:21:01,326 - INFO - Performance monitoring database initialized
+2025-09-12 14:21:01,327 - INFO - [OK] Scheduler database initialized
+2025-09-12 14:21:01,332 - INFO - [CONFIG] Configuration loaded from file
+2025-09-12 14:21:01,339 - INFO - [PHASE] Loaded current phase from database: Phase 1: Configuration & Test
+2025-09-12 14:21:01,340 - INFO - [SCHEDULE] Schedule configured according to implementation plan
+2025-09-12 14:21:01,340 - INFO - [INIT] Intelligent Trading AI Scheduler initialized
+2025-09-12 14:21:01,340 - INFO - Project root: C:\GIT\fork\Trading-AI
+2025-09-12 14:21:01,340 - INFO - Current phase: Phase 1: Configuration & Test
+2025-09-12 14:24:22,189 - INFO - Performance database initialized successfully
+2025-09-12 14:24:22,189 - INFO - Performance monitoring database initialized
+2025-09-12 14:24:22,190 - INFO - Système de trading amélioré initialisé pour QQQ
+2025-09-12 14:24:22,190 - INFO - Performance monitoring database initialized
+2025-09-12 14:24:22,190 - INFO - [OK] Scheduler database initialized
+2025-09-12 14:24:22,195 - INFO - [CONFIG] Configuration loaded from file
+2025-09-12 14:24:22,195 - INFO - [PHASE] Loaded current phase from database: Phase 1: Configuration & Test
+2025-09-12 14:24:22,195 - INFO - [SCHEDULE] Schedule configured according to implementation plan
+2025-09-12 14:24:22,195 - INFO - [INIT] Intelligent Trading AI Scheduler initialized
+2025-09-12 14:24:22,195 - INFO - Project root: C:\GIT\fork\Trading-AI
+2025-09-12 14:24:22,195 - INFO - Current phase: Phase 1: Configuration & Test
+2025-09-12 14:24:35,605 - INFO - Performance database initialized successfully
+2025-09-12 14:24:35,606 - INFO - Performance monitoring database initialized
+2025-09-12 14:24:35,606 - INFO - Système de trading amélioré initialisé pour QQQ
+2025-09-12 14:24:35,606 - INFO - Performance monitoring database initialized
+2025-09-12 14:24:35,607 - INFO - [OK] Scheduler database initialized
+2025-09-12 14:24:35,607 - INFO - [CONFIG] Configuration loaded from file
+2025-09-12 14:24:35,607 - INFO - [PHASE] Loaded current phase from database: Phase 2: Initial Learning
+2025-09-12 14:24:35,608 - INFO - [SCHEDULE] Schedule configured according to implementation plan
+2025-09-12 14:24:35,608 - INFO - [INIT] Intelligent Trading AI Scheduler initialized
+2025-09-12 14:24:35,608 - INFO - Project root: C:\GIT\fork\Trading-AI
+2025-09-12 14:24:35,608 - INFO - Current phase: Phase 2: Initial Learning
+2025-09-12 14:25:11,672 - INFO - Performance database initialized successfully
+2025-09-12 14:25:11,672 - INFO - Performance monitoring database initialized
+2025-09-12 14:25:11,672 - INFO - Système de trading amélioré initialisé pour QQQ
+2025-09-12 14:25:11,672 - INFO - Performance monitoring database initialized
+2025-09-12 14:25:11,672 - INFO - [OK] Scheduler database initialized
+2025-09-12 14:25:11,673 - INFO - [CONFIG] Configuration loaded from file
+2025-09-12 14:25:11,673 - INFO - [PHASE] Loaded current phase from database: Phase 2: Initial Learning
+2025-09-12 14:25:11,673 - INFO - [SCHEDULE] Schedule configured according to implementation plan
+2025-09-12 14:25:11,673 - INFO - [INIT] Intelligent Trading AI Scheduler initialized
+2025-09-12 14:25:11,673 - INFO - Project root: C:\GIT\fork\Trading-AI
+2025-09-12 14:25:11,673 - INFO - Current phase: Phase 2: Initial Learning
+2025-09-12 14:41:39,890 - INFO - Performance database initialized successfully
+2025-09-12 14:41:39,890 - INFO - Performance monitoring database initialized
+2025-09-12 14:41:39,890 - INFO - Système de trading amélioré initialisé pour QQQ
+2025-09-12 14:41:39,890 - INFO - Performance monitoring database initialized
+2025-09-12 14:41:39,891 - INFO - [OK] Scheduler database initialized
+2025-09-12 14:41:39,891 - INFO - [CONFIG] Configuration loaded from file
+2025-09-12 14:41:39,891 - INFO - [PHASE] Loaded current phase from database: Phase 2: Initial Learning
+2025-09-12 14:41:39,891 - INFO - [SCHEDULE] Schedule configured according to implementation plan
+2025-09-12 14:41:39,891 - INFO - [INIT] Intelligent Trading AI Scheduler initialized
+2025-09-12 14:41:39,891 - INFO - Project root: C:\GIT\fork\Trading-AI
+2025-09-12 14:41:39,891 - INFO - Current phase: Phase 2: Initial Learning
+2025-09-12 14:41:39,891 - INFO - [ANALYSIS] Starting daily trading analysis...
+2025-09-12 14:41:39,891 - INFO - === DÉMARRAGE DE L'ANALYSE AMÉLIORÉE ===
+2025-09-12 14:41:39,891 - INFO - Récupération et préparation des données...
+2025-09-12 14:41:39,892 - INFO - Loading data from cache: data_cache\QQQ_max_with_vix.parquet
+2025-09-12 14:41:40,679 - INFO - Data loaded from cache: 6656 days.
+2025-09-12 14:41:40,679 - INFO - Final data period: 1999-03-10 00:00:00 to 2025-08-22 00:00:00
+2025-09-12 14:41:40,679 - INFO - Data retrieved: 6656 rows from 1999-03-10 00:00:00 to 2025-08-22 00:00:00
+2025-09-12 14:41:40,692 - INFO - Fetching macroeconomic data for context around 2025-08-22...
+2025-09-12 14:41:40,692 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_10y_monthly.parquet
+2025-09-12 14:41:40,698 - INFO - Using cached multi-source data for treasury_10y
+2025-09-12 14:41:40,699 - INFO - ✅ treasury_yield_10year: 4.33
+2025-09-12 14:41:40,700 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
+2025-09-12 14:41:40,704 - INFO - Using cached multi-source data for treasury_2y
+2025-09-12 14:41:40,705 - INFO - ✅ treasury_yield_2year: 3.79
+2025-09-12 14:41:40,705 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
+2025-09-12 14:41:40,709 - INFO - Using cached multi-source data for fed_funds
+2025-09-12 14:41:40,710 - INFO - ✅ federal_funds_rate: 4.33
+2025-09-12 14:41:40,710 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_cpi_monthly.parquet
+2025-09-12 14:41:40,714 - INFO - Using cached multi-source data for cpi
+2025-09-12 14:41:40,714 - INFO - ✅ cpi: 322.13
+2025-09-12 14:41:40,714 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_unemployment_monthly.parquet
+2025-09-12 14:41:40,718 - INFO - Using cached multi-source data for unemployment
+2025-09-12 14:41:40,718 - INFO - ✅ unemployment: 4.20
+2025-09-12 14:41:40,719 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_gdp_monthly.parquet
+2025-09-12 14:41:40,722 - INFO - Using cached multi-source data for gdp
+2025-09-12 14:41:40,723 - INFO - ✅ real_gdp: 23685.29
+2025-09-12 14:41:40,723 - INFO - Macro data fetch complete. Retrieved 6 indicators.
+2025-09-12 14:41:40,726 - INFO - Added 6 macroeconomic features: ['treasury_yield_10year', 'treasury_yield_2year', 'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp']
+2025-09-12 14:41:40,729 - INFO - Final data with features: 6456 rows, 68 columns
+2025-09-12 14:41:40,729 - INFO - Entraînement du modèle quantitatif...
+2025-09-12 14:41:40,729 - INFO - Core features available: 39/39
+2025-09-12 14:41:40,729 - INFO - All macroeconomic features available
+2025-09-12 14:41:40,731 - INFO - Selected 45 features for model training
+2025-09-12 14:41:40,732 - INFO - Initial data shape: X=(6456, 45), y=(6456,)
+2025-09-12 14:41:40,732 - INFO - After removing NaN targets: X=(6456, 45), y=(6456,)
+2025-09-12 14:41:40,733 - INFO - Filling NaN values in 6 features
+2025-09-12 14:41:40,735 - INFO - Final clean data: X=(6456, 45), y=(6456,)
+2025-09-12 14:41:40,735 - INFO - Target distribution: {0: 4924, 1: 1532}
+2025-09-12 14:41:40,735 - INFO - Features shape: (6456, 45)
+2025-09-12 14:41:40,735 - INFO - Target shape: (6456,)
+2025-09-12 14:41:40,735 - INFO - NaN in features: 0
+2025-09-12 14:41:40,736 - INFO - NaN in target: 0
+2025-09-12 14:41:40,736 - INFO - Unique target values: [1 0]
+2025-09-12 14:41:40,736 - INFO - Original data shape: (6456, 45)
+2025-09-12 14:41:40,736 - INFO - NaN values per column: 0 total
+2025-09-12 14:41:40,737 - INFO - After removing NaN targets: (6456, 45)
+2025-09-12 14:41:40,755 - INFO - Final clean data shape: (6456, 45)
+2025-09-12 14:41:40,756 - INFO - Remaining NaN values: 0
+2025-09-12 14:41:48,377 - INFO - RandomForest - CV Score: 0.1064 (+/- 0.1229)
+2025-09-12 14:42:11,494 - INFO - GradientBoosting - CV Score: 0.1514 (+/- 0.0488)
+2025-09-12 14:42:11,591 - INFO - LogisticRegression - CV Score: 0.3498 (+/- 0.1793)
+2025-09-12 14:42:11,591 - INFO - Best model selected: LogisticRegression
+2025-09-12 14:42:11,614 - INFO - 
+=== LOGISTICREGRESSION MODEL RESULTS ===
+2025-09-12 14:42:11,615 - INFO - Accuracy: 0.5015
+2025-09-12 14:42:11,615 - INFO - Precision: 0.2894
+2025-09-12 14:42:11,615 - INFO - Recall: 0.6377
+2025-09-12 14:42:11,615 - INFO - F1: 0.3981
+2025-09-12 14:42:11,615 - INFO - Modèle classique entraîné avec succès
+2025-09-12 14:42:11,616 - INFO - Génération des prédictions des modèles...
+2025-09-12 14:42:11,616 - INFO - Features disponibles pour prédiction: 45
+2025-09-12 14:42:11,617 - INFO - NaN dans les features: 0
+2025-09-12 14:42:11,618 - INFO - Prédiction classique: 1, confiance: 0.558
+2025-09-12 14:42:11,619 - INFO - Generating chart image and saving to enhanced_trading_chart.png...
+2025-09-12 14:42:12,243 - INFO - Chart generated successfully.
+2025-09-12 14:42:12,243 - INFO - Querying textual LLM for a trading decision...
+2025-09-12 14:42:40,097 - INFO - LLM decision (gemma3:27b) received and validated.
+2025-09-12 14:42:40,097 - INFO - Querying visual LLM with image enhanced_trading_chart.png...
+2025-09-12 14:43:09,632 - WARNING - Attempt 1/3: Response from LLM (gemma3:27b) is malformed: {}
+2025-09-12 14:43:09,632 - WARNING - Attempt 1/3 failed for LLM (gemma3:27b): Invalid or malformed LLM response.
+2025-09-12 14:43:24,896 - INFO - LLM decision (gemma3:27b) received and validated.
+2025-09-12 14:43:24,897 - INFO - Analyse améliorée en cours...
+2025-09-12 14:43:25,038 - INFO - Niveau de risque détecté: VERY_HIGH
+2025-09-12 14:43:25,038 - INFO - Score de risque: 0.313
+2025-09-12 14:43:25,040 - WARNING - Insufficient data for classic: 0 observations
+2025-09-12 14:43:25,041 - WARNING - Insufficient data for llm_text: 0 observations
+2025-09-12 14:43:25,041 - WARNING - Insufficient data for llm_visual: 0 observations
+2025-09-12 14:43:25,042 - WARNING - Insufficient data for sentiment: 0 observations
+2025-09-12 14:43:25,042 - INFO - Poids adaptatifs calculés:
+2025-09-12 14:43:25,042 - INFO -   classic: 0.350
+2025-09-12 14:43:25,042 - INFO -   llm_text: 0.250
+2025-09-12 14:43:25,042 - INFO -   llm_visual: 0.250
+2025-09-12 14:43:25,042 - INFO -   sentiment: 0.150
+2025-09-12 14:43:25,042 - INFO - Décision hybride: HOLD
+2025-09-12 14:43:25,042 - INFO - Consensus: 0.67
+2025-09-12 14:43:25,042 - INFO - Confiance: 0.10
+2025-09-12 14:43:25,042 - INFO - Taille de position recommandée: $656.00
+2025-09-12 14:43:25,042 - INFO - Mise à jour du monitoring de performance...
+2025-09-12 14:43:25,048 - WARNING - ALERT [HIGH]: Win rate critically low: 0.00%
+2025-09-12 14:43:25,048 - INFO - Performance monitoring updated: Portfolio $105,000.00, Daily Return: 1.00%, Alerts: 1
+2025-09-12 14:43:25,738 - INFO - Performance dashboard saved to enhanced_performance_dashboard.png
+2025-09-12 14:43:25,787 - INFO - === ANALYSE AMÉLIORÉE TERMINÉE ===
+2025-09-12 14:43:25,806 - WARNING - [HIGH RISK ALERT] VERY_HIGH - Score: 0.313
+2025-09-12 14:43:25,806 - INFO - [OK] Daily analysis completed successfully
+2025-09-12 14:59:02,209 - INFO - Performance database initialized successfully
+2025-09-12 14:59:02,209 - INFO - Performance monitoring database initialized
+2025-09-12 14:59:02,209 - INFO - Système de trading amélioré initialisé pour QQQ
+2025-09-12 14:59:02,210 - INFO - Performance monitoring database initialized
+2025-09-12 14:59:02,210 - INFO - [OK] Scheduler database initialized
+2025-09-12 14:59:02,210 - INFO - [CONFIG] Configuration loaded from file
+2025-09-12 14:59:02,211 - INFO - [PHASE] Loaded current phase from database: Phase 2: Initial Learning
+2025-09-12 14:59:02,211 - INFO - [SCHEDULE] Schedule configured according to implementation plan
+2025-09-12 14:59:02,211 - INFO - [INIT] Intelligent Trading AI Scheduler initialized
+2025-09-12 14:59:02,211 - INFO - Project root: C:\GIT\fork\Trading-AI
+2025-09-12 14:59:02,211 - INFO - Current phase: Phase 2: Initial Learning
+2025-09-12 15:02:01,544 - INFO - Performance database initialized successfully
+2025-09-12 15:02:01,545 - INFO - Performance monitoring database initialized
+2025-09-12 15:02:01,545 - INFO - Système de trading amélioré initialisé pour QQQ
+2025-09-12 15:02:01,545 - INFO - Performance monitoring database initialized
+2025-09-12 15:02:01,545 - INFO - [OK] Scheduler database initialized
+2025-09-12 15:02:01,545 - INFO - [CONFIG] Configuration loaded from file
+2025-09-12 15:02:01,546 - INFO - [PHASE] Loaded current phase from database: Phase 2: Initial Learning
+2025-09-12 15:02:01,546 - INFO - [SCHEDULE] Schedule configured according to implementation plan
+2025-09-12 15:02:01,546 - INFO - [INIT] Intelligent Trading AI Scheduler initialized
+2025-09-12 15:02:01,546 - INFO - Project root: C:\GIT\fork\Trading-AI
+2025-09-12 15:02:01,546 - INFO - Current phase: Phase 2: Initial Learning
+2025-09-12 15:02:10,802 - INFO - Performance database initialized successfully
+2025-09-12 15:02:10,803 - INFO - Performance monitoring database initialized
+2025-09-12 15:02:10,803 - INFO - Système de trading amélioré initialisé pour QQQ
+2025-09-12 15:02:10,803 - INFO - Performance monitoring database initialized
+2025-09-12 15:02:10,804 - INFO - [OK] Scheduler database initialized
+2025-09-12 15:02:10,804 - INFO - [CONFIG] Configuration loaded from file
+2025-09-12 15:02:10,804 - INFO - [PHASE] Loaded current phase from database: Phase 2: Initial Learning
+2025-09-12 15:02:10,804 - INFO - [SCHEDULE] Schedule configured according to implementation plan
+2025-09-12 15:02:10,804 - INFO - [INIT] Intelligent Trading AI Scheduler initialized
+2025-09-12 15:02:10,805 - INFO - Project root: C:\GIT\fork\Trading-AI
+2025-09-12 15:02:10,805 - INFO - Current phase: Phase 2: Initial Learning
+2025-09-12 15:02:10,805 - INFO - [INIT] Starting Intelligent Trading AI Scheduler...
+2025-09-12 15:02:10,805 - INFO - [PHASE] Current phase: Phase 2: Initial Learning
+2025-09-12 15:02:10,805 - INFO - [SCHEDULE] Daily analysis scheduled at: 18:00
+2025-09-12 15:26:44,353 - INFO - Performance database initialized successfully
+2025-09-12 15:26:44,353 - INFO - Performance monitoring database initialized
+2025-09-12 15:26:44,353 - INFO - Système de trading amélioré initialisé pour QQQ
+2025-09-12 15:26:44,354 - INFO - Performance monitoring database initialized
+2025-09-12 15:26:44,354 - INFO - [OK] Scheduler database initialized
+2025-09-12 15:26:44,354 - INFO - [CONFIG] Configuration loaded from file
+2025-09-12 15:26:44,354 - INFO - [PHASE] Loaded current phase from database: Phase 2: Initial Learning
+2025-09-12 15:26:44,355 - INFO - [SCHEDULE] Schedule configured according to implementation plan
+2025-09-12 15:26:44,355 - INFO - [INIT] Intelligent Trading AI Scheduler initialized
+2025-09-12 15:26:44,355 - INFO - Project root: C:\GIT\fork\Trading-AI
+2025-09-12 15:26:44,355 - INFO - Current phase: Phase 2: Initial Learning
+2025-09-12 15:27:54,108 - INFO - Performance database initialized successfully
+2025-09-12 15:27:54,109 - INFO - Performance monitoring database initialized
+2025-09-12 15:27:54,109 - INFO - Système de trading amélioré initialisé pour QQQ
+2025-09-12 15:27:54,109 - INFO - Performance monitoring database initialized
+2025-09-12 15:27:54,109 - INFO - [OK] Scheduler database initialized
+2025-09-12 15:27:54,109 - INFO - [CONFIG] Configuration loaded from file
+2025-09-12 15:27:54,110 - INFO - [PHASE] Loaded current phase from database: Phase 2: Initial Learning
+2025-09-12 15:27:54,110 - INFO - [SCHEDULE] Schedule configured according to implementation plan
+2025-09-12 15:27:54,110 - INFO - [INIT] Intelligent Trading AI Scheduler initialized
+2025-09-12 15:27:54,110 - INFO - Project root: C:\GIT\fork\Trading-AI
+2025-09-12 15:27:54,110 - INFO - Current phase: Phase 2: Initial Learning
+2025-09-12 15:27:54,110 - INFO - [INIT] Starting Intelligent Trading AI Scheduler...
+2025-09-12 15:27:54,110 - INFO - [PHASE] Current phase: Phase 2: Initial Learning
+2025-09-12 15:27:54,110 - INFO - [SCHEDULE] Daily analysis scheduled at: 18:00
+2025-09-12 15:58:06,289 - INFO - Performance database initialized successfully
+2025-09-12 15:58:06,289 - INFO - Performance monitoring database initialized
+2025-09-12 15:58:06,289 - INFO - Système de trading amélioré initialisé pour QQQ
+2025-09-12 15:58:06,289 - INFO - Performance monitoring database initialized
+2025-09-12 15:58:06,290 - INFO - [OK] Scheduler database initialized
+2025-09-12 15:58:06,290 - INFO - [CONFIG] Configuration loaded from file
+2025-09-12 15:58:06,290 - INFO - [PHASE] Loaded current phase from database: Phase 2: Initial Learning
+2025-09-12 15:58:06,290 - INFO - [SCHEDULE] Schedule configured according to implementation plan
+2025-09-12 15:58:06,290 - INFO - [INIT] Intelligent Trading AI Scheduler initialized
+2025-09-12 15:58:06,290 - INFO - Project root: C:\GIT\fork\Trading-AI
+2025-09-12 15:58:06,290 - INFO - Current phase: Phase 2: Initial Learning
+2025-09-12 16:13:53,001 - INFO - Performance database initialized successfully
+2025-09-12 16:13:53,002 - INFO - Performance monitoring database initialized
+2025-09-12 16:13:53,002 - INFO - Système de trading amélioré initialisé pour QQQ
+2025-09-12 16:13:53,002 - INFO - Performance monitoring database initialized
+2025-09-12 16:13:53,002 - INFO - [OK] Scheduler database initialized
+2025-09-12 16:13:53,002 - INFO - [CONFIG] Configuration loaded from file
+2025-09-12 16:13:53,003 - INFO - [PHASE] Loaded current phase from database: Phase 2: Initial Learning
+2025-09-12 16:13:53,003 - INFO - [SCHEDULE] Schedule configured according to implementation plan
+2025-09-12 16:13:53,003 - INFO - [INIT] Intelligent Trading AI Scheduler initialized
+2025-09-12 16:13:53,003 - INFO - Project root: C:\GIT\fork\Trading-AI
+2025-09-12 16:13:53,003 - INFO - Current phase: Phase 2: Initial Learning
+2025-09-12 16:20:05,503 - INFO - Performance database initialized successfully
+2025-09-12 16:20:05,504 - INFO - Performance monitoring database initialized
+2025-09-12 16:20:05,504 - INFO - Système de trading amélioré initialisé pour QQQ
+2025-09-12 16:20:05,504 - INFO - Performance monitoring database initialized
+2025-09-12 16:20:05,505 - INFO - [OK] Scheduler database initialized
+2025-09-12 16:20:05,511 - INFO - [CONFIG] Configuration loaded from file
+2025-09-12 16:20:05,512 - INFO - [PHASE] Loaded current phase from database: Phase 2: Initial Learning
+2025-09-12 16:20:05,512 - INFO - [SCHEDULE] Schedule configured according to implementation plan
+2025-09-12 16:20:05,512 - INFO - [INIT] Intelligent Trading AI Scheduler initialized
+2025-09-12 16:20:05,512 - INFO - Project root: C:\GIT\fork\Trading-AI
+2025-09-12 16:20:05,512 - INFO - Current phase: Phase 2: Initial Learning

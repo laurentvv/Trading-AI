@@ -220,9 +220,70 @@ class IntelligentScheduler:
         
         # Set project start date
         self.project_start_date = datetime.fromisoformat(self.config["project_start_date"])
+        
+        # Load current phase from database if it exists
+        self._load_current_phase_from_database()
+    
+    def _load_current_phase_from_database(self):
+        """Load the current phase from the database."""
+        try:
+            conn = sqlite3.connect(self.scheduler_db)
+            cursor = conn.cursor()
+            
+            # Get the latest phase with status 'completed' or 'in_progress'
+            cursor.execute('''
+                SELECT phase, status FROM phase_progress 
+                WHERE status IN ('completed', 'in_progress')
+                ORDER BY last_updated DESC LIMIT 1
+            ''')
+            
+            result = cursor.fetchone()
+            conn.close()
+            
+            if result:
+                phase_name, status = result
+                # Map phase name to Phase enum
+                phase_mapping = {
+                    'PHASE_1': Phase.PHASE_1,
+                    'PHASE_2': Phase.PHASE_2,
+                    'PHASE_3': Phase.PHASE_3,
+                    'PHASE_4': Phase.PHASE_4
+                }
+                
+                if phase_name in phase_mapping:
+                    # If the phase was completed, move to the next phase
+                    if status == 'completed' and phase_name in phase_mapping:
+                        next_phase_map = {
+                            'PHASE_1': Phase.PHASE_2,
+                            'PHASE_2': Phase.PHASE_3,
+                            'PHASE_3': Phase.PHASE_4
+                        }
+                        if phase_name in next_phase_map:
+                            self.current_phase = next_phase_map[phase_name]
+                            self.logger.info(f"[PHASE] Loaded next phase from database: {self.current_phase.value}")
+                        else:
+                            self.current_phase = phase_mapping[phase_name]
+                            self.logger.info(f"[PHASE] Loaded current phase from database: {self.current_phase.value}")
+                    else:
+                        self.current_phase = phase_mapping[phase_name]
+                        self.logger.info(f"[PHASE] Loaded current phase from database: {self.current_phase.value}")
+                        
+        except Exception as e:
+            self.logger.error(f"[ERROR] Failed to load phase from database: {e}")
     
     def _save_configuration(self):
         """Save current configuration to file."""
+        # Preserve the original project start date if it exists
+        if self.config_file.exists():
+            try:
+                with open(self.config_file, 'r') as f:
+                    existing_config = json.load(f)
+                # Keep the original start date
+                if "project_start_date" in existing_config:
+                    self.config["project_start_date"] = existing_config["project_start_date"]
+            except Exception as e:
+                self.logger.warning(f"Could not preserve original start date: {e}")
+        
         with open(self.config_file, 'w') as f:
             json.dump(self.config, f, indent=4, default=str)
     
@@ -530,17 +591,28 @@ class IntelligentScheduler:
     
     def _should_transition_phase(self):
         """Determine if current phase should transition to next phase."""
-        days_in_phase = (datetime.now() - self.project_start_date).days
+        days_since_start = (datetime.now() - self.project_start_date).days
         
         phase_durations = self.config["phase_transitions"]
         
+        # Calculate cumulative days for each phase
+        phase_1_end = phase_durations["phase_1_duration_days"]
+        phase_2_end = phase_1_end + phase_durations["phase_2_duration_days"]
+        phase_3_end = phase_2_end + phase_durations["phase_3_duration_days"]
+        phase_4_end = phase_3_end + phase_durations["phase_4_duration_days"]
+        
         if self.current_phase == Phase.PHASE_1:
-            if days_in_phase >= phase_durations["phase_1_duration_days"]:
+            if days_since_start >= phase_1_end:
                 return True, "Phase 1 duration completed"
         elif self.current_phase == Phase.PHASE_2:
-            if days_in_phase >= phase_durations["phase_1_duration_days"] + phase_durations["phase_2_duration_days"]:
+            if days_since_start >= phase_2_end:
                 return True, "Phase 2 duration completed"
-        # Add logic for other phases
+        elif self.current_phase == Phase.PHASE_3:
+            if days_since_start >= phase_3_end:
+                return True, "Phase 3 duration completed"
+        elif self.current_phase == Phase.PHASE_4:
+            if days_since_start >= phase_4_end:
+                return True, "Phase 4 duration completed"
         
         return False, "Phase duration not met"
     
@@ -554,13 +626,42 @@ class IntelligentScheduler:
         
         if self.current_phase in phase_transitions:
             old_phase = self.current_phase
-            self.current_phase = phase_transitions[self.current_phase]
+            new_phase = phase_transitions[self.current_phase]
+            self.current_phase = new_phase
             
-            self.logger.info(f"[TRANSITION] Phase transition: {old_phase.value} -> {self.current_phase.value}")
+            self.logger.info(f"[TRANSITION] Phase transition: {old_phase.value} -> {new_phase.value}")
             self.logger.info(f"[REASON] Reason: {reason}")
+
+            # Persist the change immediately to the database
+            self._persist_phase_transition(old_phase, new_phase)
             
             # Update schedule for new phase
             self._setup_schedule()
+
+    def _persist_phase_transition(self, old_phase: Phase, new_phase: Phase):
+        """Persist the phase transition to the database."""
+        try:
+            conn = sqlite3.connect(self.scheduler_db)
+            cursor = conn.cursor()
+
+            # Mark old phase as completed
+            cursor.execute("""
+                UPDATE phase_progress
+                SET status = 'completed', last_updated = ?
+                WHERE phase = ?
+            """, (datetime.now().isoformat(), old_phase.name))
+
+            # Insert new phase as in_progress
+            cursor.execute("""
+                INSERT OR IGNORE INTO phase_progress (phase, start_date, status, last_updated)
+                VALUES (?, ?, 'in_progress', ?)
+            """, (new_phase.name, datetime.now().isoformat(), datetime.now().isoformat()))
+
+            conn.commit()
+            conn.close()
+            self.logger.info(f"[DB] Persisted phase transition from {old_phase.value} to {new_phase.value}")
+        except Exception as e:
+            self.logger.error(f"Failed to persist phase transition: {e}")
     
     def _record_task_execution(self, task_id: str, task_type: TaskType, success: bool, 
                              duration: float, results=None, error_message: str = None):
@@ -592,17 +693,32 @@ class IntelligentScheduler:
     
     def _calculate_phase_progress(self):
         """Calculate current phase completion percentage."""
-        days_in_phase = (datetime.now() - self.project_start_date).days
+        days_since_start = (datetime.now() - self.project_start_date).days
+        
+        phase_durations = self.config["phase_transitions"]
+        
+        # Calculate cumulative days for each phase
+        phase_1_end = phase_durations["phase_1_duration_days"]
+        phase_2_end = phase_1_end + phase_durations["phase_2_duration_days"]
+        phase_3_end = phase_2_end + phase_durations["phase_3_duration_days"]
+        phase_4_end = phase_3_end + phase_durations["phase_4_duration_days"]
         
         if self.current_phase == Phase.PHASE_1:
-            target_days = self.config["phase_transitions"]["phase_1_duration_days"]
+            target_days = phase_durations["phase_1_duration_days"]
+            days_in_phase = days_since_start
         elif self.current_phase == Phase.PHASE_2:
-            target_days = self.config["phase_transitions"]["phase_2_duration_days"]
-        # Add other phases
+            target_days = phase_durations["phase_2_duration_days"]
+            days_in_phase = days_since_start - phase_1_end
+        elif self.current_phase == Phase.PHASE_3:
+            target_days = phase_durations["phase_3_duration_days"]
+            days_in_phase = days_since_start - phase_2_end
+        elif self.current_phase == Phase.PHASE_4:
+            target_days = phase_durations["phase_4_duration_days"]
+            days_in_phase = days_since_start - phase_3_end
         else:
             return 0.0
         
-        return min(100.0, (days_in_phase / target_days) * 100)
+        return min(100.0, (days_in_phase / target_days) * 100) if target_days > 0 else 0.0
     
     def _update_phase_progress(self, analysis_data):
         """Update phase progress based on analysis data."""
@@ -634,7 +750,7 @@ class IntelligentScheduler:
             ''', (
                 self.current_phase.name,
                 self.project_start_date.isoformat(),
-                (self.project_start_date + timedelta(days=self._get_phase_duration())).isoformat(),
+                (self.project_start_date + timedelta(days=self._get_cumulative_phase_duration())).isoformat(),
                 progress,
                 json.dumps(metrics_achieved),
                 status,
@@ -658,6 +774,25 @@ class IntelligentScheduler:
             return phase_durations["phase_3_duration_days"]
         elif self.current_phase == Phase.PHASE_4:
             return phase_durations["phase_4_duration_days"]
+        return 30  # Default
+    
+    def _get_cumulative_phase_duration(self):
+        """Get the cumulative duration from project start to end of current phase."""
+        phase_durations = self.config["phase_transitions"]
+        
+        if self.current_phase == Phase.PHASE_1:
+            return phase_durations["phase_1_duration_days"]
+        elif self.current_phase == Phase.PHASE_2:
+            return phase_durations["phase_1_duration_days"] + phase_durations["phase_2_duration_days"]
+        elif self.current_phase == Phase.PHASE_3:
+            return (phase_durations["phase_1_duration_days"] + 
+                   phase_durations["phase_2_duration_days"] + 
+                   phase_durations["phase_3_duration_days"])
+        elif self.current_phase == Phase.PHASE_4:
+            return (phase_durations["phase_1_duration_days"] + 
+                   phase_durations["phase_2_duration_days"] + 
+                   phase_durations["phase_3_duration_days"] + 
+                   phase_durations["phase_4_duration_days"])
         return 30  # Default
     
     def _analyze_performance_trends(self):

@@ -1,8 +1,8 @@
 # Contexte Actif
 
 ## 1. Focus Actuel du Travail
-Le projet est en **Phase 3 : Finalisation et Documentation**.
-Le focus immédiat est sur **la Mise à jour de toute la documentation du projet pour refléter les dernières améliorations, y compris l'intégration des données macroéconomiques et le moteur hybride à 3 modèles**.
+Le projet est en **Phase 2 : Apprentissage Initial**.
+Le focus immédiat est sur **la surveillance de la stabilité du système et l'acquisition de données**.
 
 ## 2. Changements Récents
 - **Moteur Hybride à 3 Modèles Intégré** : `src/main.py` a été mis à jour avec succès pour orchestrer le modèle classique, le LLM textuel et le nouveau LLM visuel, combinant leurs sorties en une décision finale.
@@ -11,11 +11,13 @@ Le focus immédiat est sur **la Mise à jour de toute la documentation du projet
 - **Correction de Bug (2025-08-18)** : Correction d'un crash causé par une `ALPHA_VANTAGE_API_KEY` manquante. Le système charge désormais la clé depuis un fichier `.env`.
 - **Intégration des Données Macroeconomiques (2025-08-19)** : Implémentation réussie de la récupération robuste des données depuis FRED via `pandas-datareader` avec mise en cache locale. Ces données sont désormais intégrées comme caractéristiques dans le modèle quantitatif classique.
 - **Données Historiques Étendues (2025-08-20)** : Le système récupère désormais l'historique complet des données disponibles pour QQQ, augmentant considérablement le jeu de données pour l'entraînement et le backtesting.
+- **Corrections du Planificateur Intelligent (2025-09-12)** : Correction de la logique de transition de phase et de la persistance de la date de démarrage du projet.
+- **Gestion de la Configuration du Scheduler (2025-09-12)** : Ajout d'un fichier de configuration `scheduler_config.json` pour permettre un contrôle précis du comportement du planificateur, notamment les transitions de phase. La documentation (`GEMINI.md`, `README.md`, `techContext.md`) a été mise à jour pour refléter ce changement.
 
 ## 3. Prochaines Étapes
-1.  Finaliser les mises à jour de la documentation dans `README.md`, `QWEN.md`, et tous les fichiers pertinents de `memory-bank`.
-2.  Effectuer un test de bout en bout final du système complet pour s'assurer que tous les composants fonctionnent de manière fluide.
-3.  Soumettre le projet final.
+1.  Continuer la surveillance en Phase 2 jusqu'à son achèvement (22 septembre 2025).
+2.  Transition automatique vers Phase 3 : Optimisation.
+3.  Surveillance des performances et ajustements si nécessaire.
 
 ## 4. Décisions et Considérations Actives
 - Les graphiques seront générés en interne en utilisant `mplfinance` pour la fiabilité.
@@ -23,3 +25,4 @@ Le focus immédiat est sur **la Mise à jour de toute la documentation du projet
 - Le nouveau signal visuel constitue un troisième vote, égal aux autres, dans le moteur hybride.
 - Les données macroéconomiques (taux d'intérêt, IPC, chômage, PIB) font désormais partie intégrante du jeu de caractéristiques du modèle quantitatif classique.
 - Le système exploite un vaste jeu de données historiques (de 1999 à aujourd'hui) pour un entraînement et un backtesting robustes.
+- Le système est en production depuis le 25 août 2025 et fonctionne correctement avec les corrections récentes.
