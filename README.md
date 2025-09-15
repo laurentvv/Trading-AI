@@ -1,3 +1,4 @@
+
 <div align="center">
   <br />
   <h1>📈 Système de Trading IA Hybride 📈</h1>
@@ -47,11 +48,12 @@ Le système combine :
 2.  Un **Large Language Model (LLM)** pour une analyse contextuelle des données de marché brutes.
 3.  Un **LLM multi-modal (V-LLM)** qui analyse des graphiques financiers pour une interprétation visuelle des tendances.
 
-L'objectif est de fusionner ces trois signaux pour produire une décision de trading finale (`ACHAT`, `VENTE`, `NEUTRE`) accompagnée d'un score de confiance.
+L'objectif est de fusionner ces trois signaux pour produire une décision de trading finale (`ACHAT`, `VENTE`, `NEUTRE`) accompagnée d'un score de confiance. Le système gère un **portefeuille hypothétique** pour simuler les performances des décisions de l'IA et fournir des métriques de performance réalistes.
 
 ### ✨ Fonctionnalités Clés
 
 - **Moteur IA Hybride Tri-Modal** : Combine trois modèles d'IA pour une décision par consensus.
+- **Portefeuille Hypothétique** : Simule les transactions pour un suivi réaliste des performances.
 - **Backtesting Robuste** : Utilise une validation *walk-forward* pour une évaluation réaliste des performances historiques.
 - **Planificateur Intelligent** : Gère le cycle de vie du déploiement, des analyses quotidiennes aux rapports de performance.
 - **Gestion de Risque Avancée** : Évalue le risque de marché et ajuste les décisions en conséquence.
@@ -79,8 +81,9 @@ Le projet est organisé de manière modulaire pour une meilleure maintenabilité
 ```
 Trading-AI/
 ├── src/                     # Code source principal
-│   ├── main.py              # Point d'entrée pour l'analyse manuelle
 │   ├── intelligent_scheduler.py # Planificateur intelligent pour l'exécution automatique
+│   ├── enhanced_trading_example.py # Logique principale de l'analyse de trading
+│   ├── run_now.py           # Point d'entrée pour l'analyse manuelle
 │   ├── data.py              # Gestion des données (API, cache)
 │   ├── features.py          # Création des indicateurs techniques
 │   ├── classic_model.py     # Modèle quantitatif Scikit-learn
@@ -137,18 +140,20 @@ Le système peut être utilisé de deux manières principales.
 
 ### Analyse Manuelle
 
-Pour lancer une analyse unique et obtenir une décision de trading immédiate.
+Pour lancer une analyse unique et obtenir une décision de trading immédiate, utilisez le script `run_now.py`. C'est la méthode recommandée pour une exécution manuelle.
 
 ```sh
-python src/main.py
+python run_now.py
 ```
 
 Le script va :
 1.  Récupérer les données de marché.
-2.  Lancer un backtest *walk-forward*.
-3.  Générer un graphique pour l'analyse visuelle.
-4.  Produire une décision de trading finale basée sur les trois modèles.
-5.  Sauvegarder un graphique d'analyse du backtest (`backtest_analysis.png`).
+2.  Entraîner les modèles d'IA.
+3.  Générer une décision de trading finale.
+4.  Mettre à jour le portefeuille hypothétique avec la décision.
+5.  Sauvegarder les graphiques d'analyse.
+
+L'ancien script `src/main.py` est déprécié et ne sera plus maintenu.
 
 ### Analyse Automatisée avec le Planificateur Intelligent
 
@@ -159,8 +164,6 @@ Le projet inclut un planificateur intelligent qui gère le déploiement, les ana
 - **Phase 2 : Apprentissage Initial** (21 jours) - *Phase Actuelle*
 - **Phase 3 : Optimisation** (30 jours)
 - **Phase 4 : Maturité** (120 jours)
-
-Le système a démarré le 25 août 2025 et est actuellement en Phase 2 depuis le 12 septembre 2025.
 
 **Configuration du Planificateur :**
 Le comportement du planificateur, notamment la durée des phases, peut être personnalisé en créant un fichier `scheduler_config.json` à la racine du projet. Sans ce fichier, une configuration par défaut est utilisée.
@@ -176,11 +179,6 @@ python src/intelligent_scheduler.py
 ```
 Le planificateur s'exécutera en arrière-plan et consignera toutes ses activités dans `scheduler.log`.
 
-**Exécution Immédiate :**
-Pour exécuter une analyse immédiate sans attendre le calendrier planifié :
-```bash
-python run_now.py
-```
 
 ---
 

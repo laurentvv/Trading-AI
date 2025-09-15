@@ -1,15 +1,17 @@
+
 ## 1. Statut Actuel
 - **Progression Globale**: Phase 2 (Apprentissage Initial) en cours depuis le 12 septembre 2025.
-- **Dernière Étape Complétée**: Corrections du planificateur intelligent et résolution des problèmes de transition de phase.
+- **Dernière Étape Complétée**: Implémentation d'un portefeuille hypothétique et fiabilisation du suivi des performances.
 - **Étape Actuelle**: Surveillance de la stabilité du système et acquisition de données en Phase 2.
 
 ## 2. Ce Qui Fonctionne
 - **Planificateur Automatisé**: Un nouveau planificateur robuste (`src/intelligent_scheduler.py`) est en place, assurant l'exécution automatique et fiable des analyses quotidiennes avec gestion correcte des phases.
 - **Moteur Hybride Tri-Modal**: Le système est entièrement intégré et peut générer une décision finale basée sur le modèle classique amélioré (avec données macro), un LLM textuel et un LLM visuel.
+- **Portefeuille Hypothétique**: Le système simule désormais les transactions basées sur les signaux de l'IA, permettant un suivi réaliste des performances.
 - **Client LLM**: Peut interroger les modèles textuels et visuels.
 - **Générateur de Graphiques**: Peut produire des images de graphiques financiers.
 - **Intégration des Données Macroéconomiques**: Le système récupère avec succès les données de FRED, les met en cache et les incorpore comme caractéristiques dans le modèle quantitatif classique.
-- **Script d'Exécution Manuelle**: Un script `run_now.py` a été ajouté pour permettre le déclenchement manuel et immédiat de l'analyse quotidienne, servant de solution de contournement en cas de défaillance du planificateur.
+- **Script d'Exécution Manuelle**: Un script `run_now.py` a été ajouté pour permettre le déclenchement manuel et immédiat de l'analyse quotidienne.
 
 ## 3. Ce Qui Reste à Construire
 - **Phase 3 : Optimisation** - Le système transitionnera automatiquement vers cette phase le 22 septembre 2025.
@@ -21,6 +23,12 @@
 - **Résolu (2025-09-12)**: Corrigé un bug de persistance où la transition de phase n'était pas sauvegardée immédiatement, causant une réinitialisation de la phase au redémarrage du planificateur.
 
 ## 5. Corrections Récentes
+- **2025-09-15**: Implémentation du portefeuille hypothétique et fiabilisation du suivi des performances.
+  * Clarification de l'objectif du projet : système d'aide à la décision, pas un robot de trading autonome.
+  * Implémentation d'un portefeuille hypothétique pour suivre la performance des décisions de l'IA.
+  * Correction de `performance_monitor.py` pour calculer le `win_rate` sur la base de l'historique des transactions du portefeuille hypothétique.
+  * Correction de divers bugs liés à l'intégration des nouvelles fonctionnalités.
+  * Dépréciation de `main.py` au profit de `run_now.py` pour l'analyse manuelle.
 - **2025-09-12**: Corrections majeures du planificateur intelligent :
   * Réparation de la logique de transition de phase incomplète
   * Correction de la persistance de la date de démarrage du projet

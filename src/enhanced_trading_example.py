@@ -9,6 +9,11 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 from pathlib import Path
+import subprocess
+import json
+import sys
+import os
+from dotenv import load_dotenv
 
 # Imports des modules existants
 from data import get_etf_data, fetch_macro_data_for_date
@@ -17,6 +22,7 @@ from classic_model import train_ensemble_model, get_classic_prediction
 from llm_client import get_llm_decision, get_visual_llm_decision
 from sentiment_analysis import get_sentiment_decision_from_score
 from chart_generator import generate_chart_image
+from database import init_db, insert_transaction, insert_portfolio_state, get_latest_portfolio_state, get_transactions_history
 
 # Imports des nouveaux modules d'amélioration
 from enhanced_decision_engine import EnhancedDecisionEngine
@@ -24,7 +30,18 @@ from advanced_risk_manager import AdvancedRiskManager
 from adaptive_weight_manager import AdaptiveWeightManager
 from performance_monitor import PerformanceMonitor
 
+# Load environment variables from .env file
+load_dotenv()
+
 logger = logging.getLogger(__name__)
+
+# --- Constants for the Alpha Vantage API ---
+# IMPORTANT: It is strongly recommended to use an environment variable for your API key.
+ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
+if not ALPHA_VANTAGE_API_KEY:
+    logger.critical("CRITICAL: The ALPHA_VANTAGE_API_KEY environment variable is not set.")
+    logger.critical("Please set it to your Alpha Vantage API key.")
+    sys.exit(1)
 
 class EnhancedTradingSystem:
     """
@@ -52,8 +69,25 @@ class EnhancedTradingSystem:
         
         # Configuration du système
         self.chart_output_path = Path("enhanced_trading_chart.png")
+
+        # Initialize database and portfolio
+        init_db()
+        self._initialize_portfolio(hist_data=get_etf_data(ticker=self.ticker)[0])
         
         logger.info(f"Système de trading amélioré initialisé pour {ticker}")
+    
+    def _initialize_portfolio(self, hist_data):
+        """Initializes the portfolio if it doesn't exist."""
+        if get_latest_portfolio_state(self.ticker) is None:
+            logger.info("No existing portfolio found. Initializing a new one.")
+            insert_portfolio_state(
+                date=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                ticker=self.ticker,
+                position=0,
+                cash=self.initial_portfolio_value,
+                total_value=self.initial_portfolio_value,
+                benchmark_value=self.initial_portfolio_value
+            )
     
     def prepare_data_and_features(self):
         """Prépare les données et indicateurs techniques."""
@@ -172,8 +206,27 @@ class EnhancedTradingSystem:
                 "analysis": "Chart generation failed."
             }
         
-        # 4. Analyse de sentiment (simulée pour l'exemple)
-        sentiment_score = 0.1  # Remplacer par vraie analyse sentiment
+        # 4. Analyse de sentiment
+        logger.info("Fetching live news and sentiment from Alpha Vantage...")
+        try:
+            # Construct the path to the script and the python executable
+            script_path = Path(__file__).parent / "news_fetcher.py"
+            python_executable = sys.executable
+            
+            # Run the script as a subprocess
+            process = subprocess.run(
+                [python_executable, str(script_path), self.ticker, ALPHA_VANTAGE_API_KEY],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            news_data = json.loads(process.stdout)
+            sentiment_score = news_data.get("sentiment", 0)
+            logger.info(f"Successfully fetched news. Overall sentiment score: {sentiment_score:.2f}")
+        except (subprocess.CalledProcessError, json.JSONDecodeError, FileNotFoundError) as e:
+            logger.error(f"Failed to fetch or parse news headlines: {e}")
+            sentiment_score = 0
+
         sentiment_decision = get_sentiment_decision_from_score(sentiment_score)
         
         return {
@@ -281,28 +334,134 @@ class EnhancedTradingSystem:
             'market_data': market_data
         }
     
-    def update_performance_monitoring(self, analysis_results):
+    def run_enhanced_analysis(self):
+        """
+        Lance une analyse complète avec tous les composants améliorés.
+        """
+        logger.info("=== DÉMARRAGE DE L'ANALYSE AMÉLIORÉE ===")
+        
+        try:
+            # 1. Préparation des données
+            data_with_features, hist_data, macro_context = self.prepare_data_and_features()
+            
+            # 2. Entraînement du modèle classique
+            classic_model, scaler = self.train_classic_model(data_with_features)
+            
+            # 3. Prédictions de tous les modèles
+            model_predictions = self.get_model_predictions(
+                data_with_features, classic_model, scaler)
+            
+            # 4. Analyse améliorée
+            analysis_results = self.perform_enhanced_analysis(
+                data_with_features, model_predictions)
+
+            # 5. Execute hypothetical trade
+            trades = self._execute_hypothetical_trade(analysis_results, hist_data)
+            
+            # 6. Mise à jour du monitoring
+            performance_report = self.update_performance_monitoring(analysis_results, hist_data, trades)
+            
+            # 7. Affichage des résultats
+            self.display_enhanced_results(analysis_results, performance_report)
+            
+            logger.info("=== ANALYSE AMÉLIORÉE TERMINÉE ===")
+            
+            return analysis_results, performance_report
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de l'analyse améliorée: {e}")
+            raise
+
+    def _execute_hypothetical_trade(self, analysis_results, hist_data):
+        """Executes a hypothetical trade based on the signal."""
+        signal = analysis_results['risk_adjusted_signal']
+        position_sizing = analysis_results['position_sizing']
+        current_price = hist_data['Close'].iloc[-1]
+        analysis_date = hist_data.index[-1]
+
+        latest_portfolio_state = get_latest_portfolio_state(self.ticker)
+        current_position, current_cash, _, _ = latest_portfolio_state
+
+        trades = []
+
+        if "BUY" in signal and current_cash > 0:
+            trade_amount = min(current_cash, position_sizing.recommended_size)
+            if trade_amount > 0:
+                quantity = trade_amount / current_price
+                cost = trade_amount
+                insert_transaction(
+                    date=analysis_date.strftime('%Y-%m-%d %H:%M:%S'),
+                    ticker=self.ticker,
+                    type='BUY',
+                    quantity=quantity,
+                    price=current_price,
+                    cost=cost,
+                    signal_source=analysis_results['enhanced_decision'].final_signal,
+                    reason=analysis_results['adjustment_reason']
+                )
+                new_position = current_position + quantity
+                new_cash = current_cash - cost
+                trades.append({'type': 'BUY', 'quantity': quantity, 'price': current_price, 'cost': cost})
+                logger.info(f"Executed hypothetical BUY: {quantity:.2f} shares at ${current_price:.2f}")
+
+        elif "SELL" in signal and current_position > 0:
+            sell_amount = min(current_position * current_price, position_sizing.recommended_size)
+            if sell_amount > 0:
+                quantity = sell_amount / current_price
+                cost = sell_amount
+                insert_transaction(
+                    date=analysis_date.strftime('%Y-%m-%d %H:%M:%S'),
+                    ticker=self.ticker,
+                    type='SELL',
+                    quantity=quantity,
+                    price=current_price,
+                    cost=cost,
+                    signal_source=analysis_results['enhanced_decision'].final_signal,
+                    reason=analysis_results['adjustment_reason']
+                )
+                new_position = current_position - quantity
+                new_cash = current_cash + cost
+                trades.append({'type': 'SELL', 'quantity': quantity, 'price': current_price, 'cost': cost})
+                logger.info(f"Executed hypothetical SELL: {quantity:.2f} shares at ${current_price:.2f}")
+        else:
+            new_position = current_position
+            new_cash = current_cash
+
+        # Update portfolio state
+        total_value = new_position * current_price + new_cash
+        insert_portfolio_state(
+            date=analysis_date.strftime('%Y-%m-%d %H:%M:%S'),
+            ticker=self.ticker,
+            position=new_position,
+            cash=new_cash,
+            total_value=total_value,
+            benchmark_value=self.initial_portfolio_value # Benchmark is buy and hold initial value
+        )
+        return trades
+
+    def update_performance_monitoring(self, analysis_results, hist_data, trades):
         """Met à jour le monitoring de performance."""
         logger.info("Mise à jour du monitoring de performance...")
         
-        # Simuler des données de performance (à remplacer par vraies données)
-        current_portfolio_value = self.initial_portfolio_value * 1.05  # +5% exemple
-        daily_return = 0.01  # +1% aujourd'hui exemple
-        
-        # Prédictions des modèles pour le tracking
-        model_predictions = {
-            'classic': {'total_predictions': 10, 'correct_predictions': 7},
-            'llm_text': {'total_predictions': 10, 'correct_predictions': 6},
-            'llm_visual': {'total_predictions': 10, 'correct_predictions': 8},
-            'sentiment': {'total_predictions': 10, 'correct_predictions': 5}
+        latest_portfolio_state = get_latest_portfolio_state(self.ticker)
+        _, _, total_value, _ = latest_portfolio_state
+
+        daily_return = hist_data['Close'].pct_change().iloc[-1]
+
+        # Model accuracy (can't be calculated in real time without knowing the future)
+        model_accuracy = {
+            'classic': {'total_predictions': 0, 'correct_predictions': 0}, # Placeholder
+            'llm_text': {'total_predictions': 0, 'correct_predictions': 0},
+            'llm_visual': {'total_predictions': 0, 'correct_predictions': 0},
+            'sentiment': {'total_predictions': 0, 'correct_predictions': 0}
         }
-        
-        # Mise à jour du monitoring
+
+        # Create RealTimeMetrics object from actual data
         self.performance_monitor.update_monitoring(
-            portfolio_value=current_portfolio_value,
+            portfolio_value=total_value,
             daily_return=daily_return,
-            trades_data=[],  # Liste des trades récents
-            model_predictions=model_predictions
+            trades_data=trades,
+            model_predictions=model_accuracy
         )
         
         # Génération du dashboard
@@ -420,50 +579,15 @@ class EnhancedTradingSystem:
         if not performance_report.get('error'):
             perf_summary = performance_report.get('performance_summary', {})
             console.print(Panel(
-                f"Retour sur 7 jours: {perf_summary.get('period_return', 0):.2%}\n"
-                f"Sharpe Ratio: {perf_summary.get('sharpe_ratio', 0):.2f}\n"
-                f"Taux de réussite: {perf_summary.get('win_rate', 0):.2%}\n"
+                f"Retour sur 7 jours: {perf_summary.get('period_return', 0):.2%}"
+                f"Sharpe Ratio: {perf_summary.get('sharpe_ratio', 0):.2f}"
+                f"Taux de réussite: {perf_summary.get('win_rate', 0):.2%}"
                 f"Volatilité: {perf_summary.get('volatility', 0):.2%}",
                 title="[bold]Performance Récente[/bold]",
                 border_style="cyan"
             ))
         
         console.print("")
-    
-    def run_enhanced_analysis(self):
-        """
-        Lance une analyse complète avec tous les composants améliorés.
-        """
-        logger.info("=== DÉMARRAGE DE L'ANALYSE AMÉLIORÉE ===")
-        
-        try:
-            # 1. Préparation des données
-            data_with_features, hist_data, macro_context = self.prepare_data_and_features()
-            
-            # 2. Entraînement du modèle classique
-            classic_model, scaler = self.train_classic_model(data_with_features)
-            
-            # 3. Prédictions de tous les modèles
-            model_predictions = self.get_model_predictions(
-                data_with_features, classic_model, scaler)
-            
-            # 4. Analyse améliorée
-            analysis_results = self.perform_enhanced_analysis(
-                data_with_features, model_predictions)
-            
-            # 5. Mise à jour du monitoring
-            performance_report = self.update_performance_monitoring(analysis_results)
-            
-            # 6. Affichage des résultats
-            self.display_enhanced_results(analysis_results, performance_report)
-            
-            logger.info("=== ANALYSE AMÉLIORÉE TERMINÉE ===")
-            
-            return analysis_results, performance_report
-            
-        except Exception as e:
-            logger.error(f"Erreur lors de l'analyse améliorée: {e}")
-            raise
 
 def main():
     """Fonction principale de démonstration."""

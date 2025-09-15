@@ -1,3 +1,4 @@
+
 """
 Real-Time Performance Tracking and Monitoring System
 Provides comprehensive performance monitoring, alerts, and automated model evaluation.
@@ -646,7 +647,7 @@ class PerformanceMonitor:
             
         except Exception as e:
             logger.error(f"Failed to create dashboard: {e}")
-    
+
     def update_monitoring(self, 
                          portfolio_value: float,
                          daily_return: float,
@@ -688,12 +689,8 @@ class PerformanceMonitor:
             else:
                 max_drawdown = 0.0
             
-            # Calculate win rate
-            if trades_data:
-                winning_trades = sum(1 for trade in trades_data if trade.get('return', 0) > 0)
-                win_rate = winning_trades / len(trades_data)
-            else:
-                win_rate = 0.0
+            # Calculate win rate from historical trades
+            win_rate = self._calculate_win_rate()
             
             # Model accuracy
             model_accuracy = {}
@@ -733,3 +730,33 @@ class PerformanceMonitor:
             
         except Exception as e:
             logger.error(f"Failed to update monitoring: {e}")
+
+    def _calculate_win_rate(self) -> float:
+        """Calculates the win rate based on the transaction history."""
+        try:
+            conn = sqlite3.connect("trading_history.db")
+            df = pd.read_sql_query("SELECT * FROM transactions ORDER BY date ASC", conn)
+            conn.close()
+
+            if df.empty:
+                return 0.0
+
+            wins = 0
+            losses = 0
+            last_buy_price = 0
+
+            for index, row in df.iterrows():
+                if row['type'] == 'BUY':
+                    last_buy_price = row['price']
+                elif row['type'] == 'SELL' and last_buy_price > 0:
+                    if row['price'] > last_buy_price:
+                        wins += 1
+                    else:
+                        losses += 1
+                    last_buy_price = 0 # Reset after a sell
+
+            total_closed_trades = wins + losses
+            return wins / total_closed_trades if total_closed_trades > 0 else 0.0
+        except Exception as e:
+            logger.error(f"Error calculating win rate: {e}")
+            return 0.0
