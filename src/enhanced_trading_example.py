@@ -22,7 +22,9 @@ from classic_model import train_ensemble_model, get_classic_prediction
 from llm_client import get_llm_decision, get_visual_llm_decision
 from sentiment_analysis import get_sentiment_decision_from_score
 from chart_generator import generate_chart_image
+
 from database import init_db, insert_transaction, insert_portfolio_state, get_latest_portfolio_state, get_transactions_history
+from timesfm_model import get_timesfm_prediction
 
 # Imports des nouveaux modules d'amélioration
 from enhanced_decision_engine import EnhancedDecisionEngine
@@ -229,11 +231,16 @@ class EnhancedTradingSystem:
 
         sentiment_decision = get_sentiment_decision_from_score(sentiment_score)
         
+        # 5. Prédictions TimesFM
+        logger.info("Génération de la prédiction TimesFM...")
+        timesfm_decision = get_timesfm_prediction(data_with_features)
+
         return {
             'classic': {'prediction': classic_pred, 'confidence': classic_conf},
             'text_llm': text_llm_decision,
             'visual_llm': visual_llm_decision,
-            'sentiment': sentiment_decision
+            'sentiment': sentiment_decision,
+            'timesfm': timesfm_decision
         }
     
     def perform_enhanced_analysis(self, data_with_features, model_predictions):

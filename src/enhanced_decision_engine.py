@@ -80,10 +80,11 @@ class EnhancedDecisionEngine:
             base_weights: Base weights for each model type
         """
         self.base_weights = base_weights or {
-            'classic': 0.35,
+            'classic': 0.25,
             'llm_text': 0.25,
-            'llm_visual': 0.25,
-            'sentiment': 0.15
+            'llm_visual': 0.20,
+            'sentiment': 0.15,
+            'timesfm': 0.15
         }
         
         # Adaptive thresholds based on market conditions
@@ -222,6 +223,7 @@ class EnhancedDecisionEngine:
         text_llm_decision: Dict,
         visual_llm_decision: Dict,
         sentiment_decision: Dict,
+        timesfm_decision: Dict = None,
         market_data: Dict = None,
         adaptive_weights: Dict[str, float] = None
     ) -> HybridDecision:
@@ -282,6 +284,18 @@ class EnhancedDecisionEngine:
             )
         ]
         
+        if timesfm_decision:
+            decisions.append(
+                ModelDecision(
+                    signal=timesfm_decision.get('signal', 'HOLD'),
+                    confidence=timesfm_decision.get('confidence', 0.0),
+                    strength=self._normalize_signal(timesfm_decision.get('signal', 'HOLD')),
+                    timestamp=timestamp,
+                    model_name='timesfm',
+                    reasoning=timesfm_decision.get('analysis', 'TimesFM time series forecasting')
+                )
+            )
+
         # Calculate weighted score
         weighted_score = 0.0
         for decision in decisions:
