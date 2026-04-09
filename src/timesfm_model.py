@@ -99,7 +99,11 @@ class TimesFMModel:
             last_pred = predictions[-1]
 
             # Calculate expected return in %
-            expected_return = (last_pred - current_price) / current_price
+            if current_price != 0:
+                expected_return = (last_pred - current_price) / current_price
+            else:
+                logger.warning("Current price is 0, cannot calculate expected return.")
+                expected_return = 0.0
 
             # Determine signal
             signal = "HOLD"
