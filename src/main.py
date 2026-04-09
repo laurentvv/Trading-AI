@@ -100,31 +100,54 @@ def plot_analysis(data, backtest_data):
     logger.info("Analysis chart saved as 'backtest_analysis.png'")
     plt.close()
 
-def run_walk_forward_backtest(data_with_features: pd.DataFrame, train_period_days: int, test_period_days: int, macro_context: dict = None, ticker: str = 'QQQ'):
+def run_walk_forward_backtest(data_with_indicators: pd.DataFrame, train_period_days: int, test_period_days: int, macro_context: dict = {}, ticker: str = 'QQQ'):
     """
-    Runs a backtest using walk-forward validation and simulates the 3 models.
-    Note: For a full backtest with historical macro data, a more complex alignment is needed.
-    This version uses a static macro context for simplicity.
+    Runs a backtest using walk-forward validation with historical macro data.
+    Now fetches macro data for each test period to create realistic features.
     """
     all_signals = []
-    num_iterations = (len(data_with_features) - train_period_days) // test_period_days
+    num_iterations = (len(data_with_indicators) - train_period_days) // test_period_days
 
-    with tqdm(total=num_iterations, desc="Walk-Forward Backtest") as pbar:
+    logger.info(f"Starting enhanced walk-forward backtest with historical macro data...")
+    logger.info(f"Total iterations: {num_iterations}, Train period: {train_period_days} days, Test period: {test_period_days} days")
+    
+    with tqdm(total=num_iterations, desc="Enhanced Walk-Forward Backtest") as pbar:
         start_index = 0
-        while start_index + train_period_days + test_period_days <= len(data_with_features):
+        iteration = 0
+        
+        while start_index + train_period_days + test_period_days <= len(data_with_indicators):
+            iteration += 1
             train_end_index = start_index + train_period_days
             test_end_index = train_end_index + test_period_days
-            train_data = data_with_features.iloc[start_index:train_end_index]
-            test_data = data_with_features.iloc[train_end_index:test_end_index]
+            
+            # Get the test period start date for macro data fetching
+            test_start_date = pd.Timestamp(data_with_indicators.index[train_end_index])
+            
+            # Fetch historical macro data for this test period
+            try:
+                historical_macro_context = fetch_macro_data_for_date(test_start_date, force_refresh=False)
+                macro_available = len([k for k, v in historical_macro_context.items() if v is not None])
+                logger.debug(f"Iteration {iteration}: Fetched {macro_available}/6 macro indicators for {test_start_date.strftime('%Y-%m-%d')}")
+            except Exception as e:
+                logger.warning(f"Iteration {iteration}: Failed to fetch macro data for {test_start_date.strftime('%Y-%m-%d')}: {e}")
+                historical_macro_context = {}
+            
+            # Create features with historical macro context for both train and test data
+            train_data_raw = data_with_indicators.iloc[start_index:train_end_index]
+            test_data_raw = data_with_indicators.iloc[train_end_index:test_end_index]
+            
+            # Apply feature engineering with macro context
+            train_data_with_features = create_features(train_data_raw, historical_macro_context)
+            test_data_with_features = create_features(test_data_raw, historical_macro_context)
 
-            X_train, y_train, _ = select_features(train_data)
+            X_train, y_train, _ = select_features(train_data_with_features)
             classic_model, scaler, _, _ = train_ensemble_model(X_train, y_train)
 
             fold_signals = []
             feature_cols = [col for col in X_train.columns if col in scaler.feature_names_in_]
 
-            for i in range(len(test_data)):
-                current_features = test_data.iloc[i:i+1]
+            for i in range(len(test_data_with_features)):
+                current_features = test_data_with_features.iloc[i:i+1]
                 current_features_subset = current_features[feature_cols]
                 classic_pred, classic_conf = get_classic_prediction(classic_model, scaler, current_features_subset)
 
@@ -144,7 +167,7 @@ def run_walk_forward_backtest(data_with_features: pd.DataFrame, train_period_day
 
                 fold_signals.append(1 if "BUY" in final_decision else 0)
 
-            all_signals.append(pd.Series(fold_signals, index=test_data.index))
+            all_signals.append(pd.Series(fold_signals, index=test_data_with_features.index))
             start_index += test_period_days
             pbar.update(1)
 
@@ -152,11 +175,19 @@ def run_walk_forward_backtest(data_with_features: pd.DataFrame, train_period_day
         logger.error("Not enough data to perform a walk-forward backtest.")
         return None, None
 
+    logger.info(f"Completed enhanced backtest with {iteration} iterations using historical macro data")
+    
     final_signals = pd.concat(all_signals)
-    aligned_signals = pd.Series(index=data_with_features.index, dtype=int).fillna(0)
-    aligned_signals.update(final_signals)
+    
+    # Create final data with features for backtesting (using most recent macro context)
+    final_macro_context = fetch_macro_data_for_date(pd.Timestamp(data_with_indicators.index[-1]), force_refresh=False)
+    data_with_features_final = create_features(data_with_indicators, final_macro_context)
+    
+    aligned_signals = pd.Series(index=data_with_features_final.index, dtype=int).fillna(0)
+    for signal_series in all_signals:
+        aligned_signals.update(signal_series)
     # Pass ticker to run_backtest
-    return run_backtest(data_with_features, aligned_signals, ticker=ticker)
+    return run_backtest(data_with_features_final, aligned_signals, ticker=ticker)
 
 def main():
     """
@@ -177,19 +208,19 @@ def main():
     data_with_features = create_features(data_with_indicators, macro_context)
     
     # --- NEW: Fetch macroeconomic data for context ---
-    analysis_date = data_with_features.index[-1]
+    analysis_date = pd.Timestamp(data_with_features.index[-1])
     macro_context = fetch_macro_data_for_date(analysis_date)
-    logger.info(f"Macro Context for {analysis_date.date()}: {macro_context}")
+    logger.info(f"Macro Context for {analysis_date.strftime('%Y-%m-%d')}: {macro_context}")
     # Re-run feature creation with the actual macro context for the final prediction
     data_with_features_final = create_features(data_with_indicators, macro_context)
 
-    logger.info("\nStep 2: Running backtest with walk-forward validation...")
-    # For backtest, we currently pass a None or empty macro_context as full historical alignment is complex.
-    # The features.py is designed to handle missing macro columns gracefully.
-    backtest_data, performance = run_walk_forward_backtest(data_with_features, 252, 63, macro_context={}, ticker=TICKER) # Pass ticker
+    logger.info("\nStep 2: Running enhanced backtest with walk-forward validation and historical macro data...")
+    # Enhanced backtest now uses historical macro data for each test period
+    backtest_data, performance = run_walk_forward_backtest(data_with_indicators, 252, 63, macro_context=macro_context, ticker=TICKER) # Pass ticker
 
     if performance:
-        logger.info("\n=== WALK-FORWARD BACKTEST RESULTS ===")
+        logger.info("\n=== ENHANCED WALK-FORWARD BACKTEST RESULTS ===") 
+        logger.info("(Now includes historical macroeconomic features for realistic performance)")
         for metric, value in performance.items():
             logger.info(f"{metric.replace('_', ' ').capitalize()}: {value:.4f}")
 
@@ -475,7 +506,7 @@ def main():
     console.print("")
     console.print(Panel(
         table,
-        title=f"[bold]Analyse de la Décision Hybride pour {TICKER} le {analysis_date.date()}[/bold]",
+        title=f"[bold]Analyse de la Décision Hybride pour {TICKER} le {analysis_date.strftime('%Y-%m-%d')}[/bold]",
         border_style="blue"
     ))
     console.print(visual_analysis_panel)
@@ -490,8 +521,11 @@ def main():
     console.print("")
 
     if backtest_data is not None:
-        logger.info("\nStep 4: Generating backtest analysis charts...")
-        plot_analysis(data_with_features, backtest_data)
+        logger.info("\nStep 4: Generating enhanced backtest analysis charts...")
+        # Use the final data with macro features for plotting
+        final_macro_context_for_plot = fetch_macro_data_for_date(pd.Timestamp(data_with_indicators.index[-1]), force_refresh=False)
+        data_with_features_for_plot = create_features(data_with_indicators, final_macro_context_for_plot)
+        plot_analysis(data_with_features_for_plot, backtest_data)
 
 
 if __name__ == "__main__":

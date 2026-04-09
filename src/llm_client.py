@@ -91,7 +91,7 @@ def _query_ollama(payload: dict, max_retries: int = 3) -> dict:
     model_name = payload.get("model", "unknown")
     for attempt in range(max_retries):
         try:
-            response = requests.post(OLLAMA_API_URL, json=payload, timeout=120) # Longer timeout for visual models
+            response = requests.post(OLLAMA_API_URL, json=payload, timeout=600) # Extended timeout for CPU-based models (10 min)
             response.raise_for_status()
 
             response_data = response.json()

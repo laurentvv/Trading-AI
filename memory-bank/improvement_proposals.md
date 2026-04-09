@@ -2,16 +2,18 @@
 
 Ce fichier suit les idées et leur statut pour améliorer le système de trading AI.
 
-**Mise à jour :** La fiabilisation du système via un nouveau planificateur a été réalisée. Le système est maintenant stable et collecte des données de manière autonome.
+**Mise à jour :** Le système est stable et collecte des données de manière autonome en production depuis août 2025. Les corrections récentes du planificateur intelligent ont résolu les problèmes de transition de phase.
 
-**Prochaine étape :**
-- Utiliser SHAP pour expliquer les décisions du modèle classique.
+**Statut Actuel :**
+- Système en production en Phase 2 (Apprentissage Initial)
+- Prochaine transition vers Phase 3 prévue le 22 septembre 2025
+- Tous les composants critiques fonctionnent correctement
 
 ## Liste des propositions
 
 1.  **Fiabilisation du Planificateur (Scheduler)**
     *   **Description :** Remplacer le planificateur défaillant pour assurer l'exécution automatique et fiable des analyses.
-    *   **Statut :** **FAIT** - Un nouveau planificateur robuste (`src/scheduler.py`) a été créé, corrigeant les erreurs critiques qui empêchaient le fonctionnement du système.
+    *   **Statut :** **FAIT** - Un nouveau planificateur robuste (`src/intelligent_scheduler.py`) a été créé, corrigeant les erreurs critiques qui empêchaient le fonctionnement du système.
     *   **Priorité :** Critique
 
 2.  **Incorporation de Données Macroéconomiques**

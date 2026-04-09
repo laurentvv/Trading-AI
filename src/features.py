@@ -116,9 +116,16 @@ def create_features(data: pd.DataFrame, macro_context: dict = None) -> pd.DataFr
     df = data.copy()
     
     # If macro context is provided, align and add it
-    if macro_context:
-        df = _align_macro_data(df, macro_context)
-        logger.info(f"Added macroeconomic context to features. New columns: {list(macro_context.keys())}")
+    if macro_context and isinstance(macro_context, dict) and macro_context:
+        try:
+            df = _align_macro_data(df, macro_context)
+            available_macro = [k for k, v in macro_context.items() if v is not None]
+            logger.info(f"Added {len(available_macro)} macroeconomic features: {list(available_macro)}")
+        except Exception as e:
+            logger.warning(f"Failed to add macroeconomic context: {e}")
+            logger.info("Continuing with technical indicators only")
+    else:
+        logger.info("No macroeconomic context provided - using technical indicators only")
 
     # Crossover signals
     df['MA_Cross_5_20'] = (df['MA_5'] > df['MA_20']).astype(int)
@@ -157,7 +164,13 @@ def create_features(data: pd.DataFrame, macro_context: dict = None) -> pd.DataFr
     df['Target_5d'] = np.where(df['Close'].shift(-5) > df['Close'], 1, 0)
 
     # Main target based on a return threshold
-    threshold = df['Returns'].std() * 0.5  # 50% of volatility
+    returns_std = df['Returns'].std()
+    if pd.isna(returns_std) or returns_std == 0:
+        threshold = 0.001  # Default 0.1% threshold
+        logger.warning("Using default threshold for target variable")
+    else:
+        threshold = returns_std * 0.5  # 50% of volatility
+    
     df['Target'] = np.where(df['Returns'].shift(-1) > threshold, 1, 0)
     
     # The target for the very last row will be NaN due to shift(-1).
@@ -176,7 +189,8 @@ def select_features(data: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, list]:
     """
     Intelligently selects features for the model.
     """
-    feature_columns = [
+    # Core technical indicators (always required)
+    core_features = [
         'Returns', 'Log_Returns',
         'MA_5', 'MA_20', 'MA_50', 'MA_5_slope', 'MA_20_slope',
         'EMA_12', 'EMA_26',
@@ -185,11 +199,6 @@ def select_features(data: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, list]:
         'BB_Position', 'BB_Width',
         'Stoch_K', 'Stoch_D',
         'Volume_Ratio', 'Volatility', 'ATR', 'VIX', 'VIX_MA_20',
-        # --- New Macro Features ---
-        # These will only be included if present in the data
-        'treasury_yield_10year', 'treasury_yield_2year',
-        'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp',
-        # --------------------------
         'MA_Cross_5_20', 'MA_Cross_20_50', 'EMA_Cross_12_26',
         'RSI_Oversold', 'RSI_Overbought', 'RSI_Neutral',
         'MACD_Bull', 'MACD_Cross',
@@ -197,12 +206,74 @@ def select_features(data: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, list]:
         'Price_Above_MA20', 'Price_Above_MA50', 'Volume_Spike',
         'Trend_Short', 'Trend_Long'
     ]
+    
+    # Optional macroeconomic features (nice to have but not required)
+    macro_features = [
+        'treasury_yield_10year', 'treasury_yield_2year',
+        'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp'
+    ]
+    
+    # Combine all potential features
+    all_potential_features = core_features + macro_features
 
-    available_features = [col for col in feature_columns if col in data.columns]
+    # Filter to only available features
+    available_features = [col for col in all_potential_features if col in data.columns]
+    missing_core = [col for col in core_features if col not in data.columns]
+    missing_macro = [col for col in macro_features if col not in data.columns]
+    
+    # Log feature availability
+    logger.info(f"Core features available: {len(core_features) - len(missing_core)}/{len(core_features)}")
+    if missing_core:
+        logger.warning(f"Missing CORE features: {missing_core[:3]}{'...' if len(missing_core) > 3 else ''}")
+    
+    if missing_macro:
+        logger.info(f"Missing macro features (optional): {len(missing_macro)}/{len(macro_features)}")
+        logger.debug(f"Macro features not available: {missing_macro}")
+    else:
+        logger.info("All macroeconomic features available")
 
-    X = data[available_features]
-    y = data['Target']
+    # Check if we have minimum required features
+    min_required_features = ['Returns', 'MA_20', 'RSI', 'MACD', 'BB_Position', 'Volume_Ratio']
+    missing_required = [col for col in min_required_features if col not in available_features]
+    
+    if missing_required:
+        raise ValueError(f"Critical features missing: {missing_required}. Cannot proceed with analysis.")
 
-    logger.info(f"Features selected: {len(available_features)}")
-
-    return X, y, available_features
+    # Select features and target
+    X = data[available_features].copy()
+    y = data['Target'].copy()
+    
+    # Log initial data quality
+    logger.info(f"Selected {len(available_features)} features for model training")
+    logger.info(f"Initial data shape: X={X.shape}, y={y.shape}")
+    
+    # Remove rows where target is NaN (these are typically the last few rows due to forward-looking targets)
+    valid_target_mask = ~y.isnull()
+    X_clean = X[valid_target_mask].copy()
+    y_clean = y[valid_target_mask].copy()
+    
+    logger.info(f"After removing NaN targets: X={X_clean.shape}, y={y_clean.shape}")
+    
+    # Check for infinite values and replace them
+    inf_mask = np.isinf(X_clean).any(axis=1)
+    if inf_mask.sum() > 0:
+        logger.warning(f"Found {inf_mask.sum()} rows with infinite values, removing them")
+        X_clean = X_clean[~inf_mask]
+        y_clean = y_clean[~inf_mask]
+    
+    # Handle remaining NaN values in features
+    nan_counts = X_clean.isnull().sum()
+    features_with_nans = nan_counts[nan_counts > 0]
+    if len(features_with_nans) > 0:
+        logger.info(f"Filling NaN values in {len(features_with_nans)} features")
+        # Forward fill, then backward fill, then fill with 0
+        X_clean = X_clean.ffill().bfill().fillna(0)
+    
+    # Final validation
+    if X_clean.empty or y_clean.empty:
+        raise ValueError("No valid data remaining after cleaning")
+    
+    logger.info(f"Final clean data: X={X_clean.shape}, y={y_clean.shape}")
+    logger.info(f"Target distribution: {y_clean.value_counts().to_dict()}")
+    
+    return X_clean, y_clean, available_features

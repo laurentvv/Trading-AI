@@ -23,3 +23,14 @@
 - **Ollama Service**: The system assumes that an Ollama service is running locally and is accessible at `http://localhost:11434`. It must provide an LLM capable of both text and visual analysis (e.g., `gemma3:27b`).
 - **Internet Connection**: An internet connection is required for the initial data download (or when the cache is empty/stale).
 - **No GUI**: This is a command-line application. All output is text-based or saved as image files.
+
+## 4. Scheduler Configuration
+The `intelligent_scheduler.py` can be configured by placing a `scheduler_config.json` file in the project root. This file allows for overriding the default scheduler settings.
+
+- **Purpose**: To provide user-configurable parameters for the scheduler's operation, especially for managing phase transitions.
+- **Format**: JSON
+- **Key Parameters**:
+    - `project_start_date`: An ISO 8601 formatted string representing the project's start date, which is used to calculate phase durations.
+    - `phase_transitions`: An object containing the duration in days for each phase (`phase_1_duration_days`, `phase_2_duration_days`, etc.).
+
+If this file is not present, the scheduler will use a default configuration.
