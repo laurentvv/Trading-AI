@@ -30,25 +30,31 @@ class TimesFMModel:
         if TIMESFM_AVAILABLE:
             try:
                 logger.info("Initialisation de TimesFM 2.5...")
-                # Initialize the PyTorch version of TimesFM 2.5 200M parameters
-                self.model = timesfm.TimesFM_2p5_200M_torch.from_pretrained("google/timesfm-2.5-200m-pytorch")
-
-                # Configuration for standard use
-                self.model.compile(
-                    timesfm.ForecastConfig(
-                        max_context=512,  # Need some context for series
-                        max_horizon=5,    # 5 days horizon prediction
-                        normalize_inputs=True,
-                        use_continuous_quantile_head=True,
-                        force_flip_invariance=True,
-                        infer_is_positive=True,
-                        fix_quantile_crossing=True,
-                    )
+                # Initialize TimesFM 2.5
+                self.model = timesfm.TimesFm(
+                    hparams=timesfm.TimesFmHparams(
+                        backend="torch",
+                        per_core_batch_size=32,
+                        horizon_len=5,
+                        context_len=512,
+                        num_layers=20,
+                        model_dims=1280,
+                        input_patch_len=32,
+                    ),
+                    checkpoint=timesfm.TimesFmCheckpoint(
+                        huggingface_repo_id="google/timesfm-2.5-200m-pytorch"
+                    ),
                 )
+
+                # Initialize state
                 self.initialized = True
                 logger.info("TimesFM initialisé avec succès.")
             except Exception as e:
-                logger.error(f"Erreur lors de l'initialisation de TimesFM: {e}")
+                # Often fails due to huggingface cache paths missing the exact .ckpt file
+                if isinstance(e, FileNotFoundError) or "[Errno 2]" in str(e):
+                    logger.warning(f"TimesFM checkpoint introuvable, le modèle sera ignoré: {e}")
+                else:
+                    logger.warning(f"Erreur lors de l'initialisation de TimesFM: {e}")
                 self.initialized = False
 
     def predict(self, df: pd.DataFrame, horizon: int = 5) -> Dict:
@@ -89,8 +95,8 @@ class TimesFMModel:
 
             # Predict
             point_forecast, _ = self.model.forecast(
-                horizon=horizon,
                 inputs=inputs,
+                freq=[0], # 0 for daily/high freq usually
             )
 
             # point_forecast shape is (1, horizon)

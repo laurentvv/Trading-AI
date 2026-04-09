@@ -1,25 +1,24 @@
-# Fiche Projet : Système de Trading IA pour les ETF du NASDAQ
+# Fiche Projet : Système de Trading IA Hybride
 
 ## 1. Objectif Principal
-L'objectif principal de ce projet est de développer un système sophistiqué de prise de décision de trading piloté par l'IA, axé sur les Fonds Négociés en Bourse (ETF) cotés au NASDAQ, en ciblant spécifiquement les tickers disponibles sur Euronext Paris (par exemple, `FR0011871110.PA`).
+L'objectif principal de ce projet est de développer un système de support à la décision de trading ultra-performant, combinant des modèles quantitatifs classiques, des modèles de fondation spécialisés (`TimesFM`) et des Large Language Models (`Gemma 3`). Il cible les actifs majeurs comme le NASDAQ (QQQ).
 
 ## 2. Exigences Clés
-Le système doit remplir les fonctions clés suivantes :
-- **Ingestion et Mise en Cache des Données** : Récupérer les données historiques de marché (klines) et les mettre en cache localement pour éviter les téléchargements redondants.
-- **Moteur de Décision IA Hybride** : Générer des signaux de trading (`ACHAT`/`VENTE`/`NEUTRE`) en utilisant une approche hybride qui combine :
-    1. Un modèle quantitatif traditionnel (par exemple, classifieur `scikit-learn`) entraîné sur des indicateurs techniques.
-    2. Un Grand Modèle de Langage (LLM) comme Gemma 3 (via Ollama) qui fournit à la fois un signal direct et une analyse qualitative du marché.
-- **Backtesting** : Fournir un cadre de backtesting robuste pour évaluer la performance de la stratégie de trading, y compris des métriques telles que le ratio de Sharpe, le drawdown maximal et le taux de gain, tout en tenant compte des coûts de transaction.
-- **Modularité et Maintenabilité** : La base de code doit être bien structurée, modulaire et facile à étendre.
+Le système remplit les fonctions clés suivantes :
+- **Architecture Tri-Modale** : Fusion de signaux provenant de :
+    1. Un ensemble de modèles **Scikit-learn** (RandomForest, GradientBoosting, LogisticRegression) validés par `TimeSeriesSplit`.
+    2. Une analyse contextuelle et visuelle via **Gemma 3 (4b)**.
+    3. Une prédiction temporelle via **TimesFM (Google Research)**.
+- **Unified Interface** : Un point d'entrée unique (`main.py`) pour l'entraînement et l'analyse.
+- **Mode Simulation (Paper Trading)** : Un mode de test réaliste avec capital fictif de 1000 € et historique persistant dans une base de données SQLite.
+- **Gestion de la Performance** : Monitoring en temps réel avec génération automatique de tableaux de bord visuels.
 
 ## 3. Périmètre
 - **Dans le Périmètre** :
-    - Développement de la logique de trading et de l'intégration de l'IA.
-    - Création d'un cache de données local ("banque de mémoire kline").
-    - Implémentation d'un moteur de backtesting.
-    - Documentation complète du projet via le système "Banque de Mémoire".
-    - Le système est un outil de support à la décision, et non d'exécution automatisée.
+    - Entraînement automatique à chaque lancement.
+    - Analyse technique, fondamentale (macro) et sentiment (news).
+    - Mode simulation strict (alternance Achat/Vente).
+    - Documentation via la Memory Bank.
 - **Hors Périmètre** :
-    - Exécution de trading en direct et intégration de courtiers.
-    - Interface utilisateur (le système s'exécute en tant que script).
-    - Hébergement et déploiement du modèle Ollama (il est supposé qu'il s'exécute localement).
+    - Connexion directe aux APIs de courtiers pour l'exécution réelle (envisagé pour Trading 212 plus tard).
+    - Interface graphique lourde (focus CLI et rapports images).

@@ -341,11 +341,11 @@ class EnhancedTradingSystem:
             'market_data': market_data
         }
     
-    def run_enhanced_analysis(self):
+    def run_enhanced_analysis(self, is_simulation=False):
         """
         Lance une analyse complète avec tous les composants améliorés.
         """
-        logger.info("=== DÉMARRAGE DE L'ANALYSE AMÉLIORÉE ===")
+        logger.info(f"=== DÉMARRAGE DE L'ANALYSE {'SIMULÉE' if is_simulation else 'AMÉLIORÉE'} ===")
         
         try:
             # 1. Préparation des données
@@ -362,8 +362,8 @@ class EnhancedTradingSystem:
             analysis_results = self.perform_enhanced_analysis(
                 data_with_features, model_predictions)
 
-            # 5. Execute hypothetical trade
-            trades = self._execute_hypothetical_trade(analysis_results, hist_data)
+            # 5. Execute trade (Simulation or Hypothetical)
+            trades = self._execute_hypothetical_trade(analysis_results, hist_data, is_simulation=is_simulation)
             
             # 6. Mise à jour du monitoring
             performance_report = self.update_performance_monitoring(analysis_results, hist_data, trades)
@@ -371,68 +371,81 @@ class EnhancedTradingSystem:
             # 7. Affichage des résultats
             self.display_enhanced_results(analysis_results, performance_report)
             
-            logger.info("=== ANALYSE AMÉLIORÉE TERMINÉE ===")
+            logger.info("=== ANALYSE TERMINÉE ===")
             
             return analysis_results, performance_report
             
         except Exception as e:
-            logger.error(f"Erreur lors de l'analyse améliorée: {e}")
+            logger.error(f"Erreur lors de l'analyse: {e}")
             raise
 
-    def _execute_hypothetical_trade(self, analysis_results, hist_data):
-        """Executes a hypothetical trade based on the signal."""
+    def _execute_hypothetical_trade(self, analysis_results, hist_data, is_simulation=False):
+        """Executes a hypothetical trade based on the signal with strict simulation logic."""
         signal = analysis_results['risk_adjusted_signal']
-        position_sizing = analysis_results['position_sizing']
         current_price = hist_data['Close'].iloc[-1]
         analysis_date = hist_data.index[-1]
+        transaction_cost_pct = 0.001 # 0.1%
 
+        # Get current state from DB
         latest_portfolio_state = get_latest_portfolio_state(self.ticker)
-        current_position, current_cash, _, _ = latest_portfolio_state
+        
+        if latest_portfolio_state is None:
+            # First time initialization
+            current_position = 0.0
+            current_cash = 1000.0 if is_simulation else self.initial_portfolio_value
+            benchmark_value = current_cash
+        else:
+            current_position, current_cash, _, benchmark_value = latest_portfolio_state
+
+        # Get latest transaction to enforce BUY/SELL alternation
+        from database import get_latest_transaction
+        last_tx = get_latest_transaction(self.ticker)
+        last_type = last_tx[1] if last_tx else 'SELL' # Assume we start ready to BUY
 
         trades = []
+        new_position = current_position
+        new_cash = current_cash
 
-        if "BUY" in signal and current_cash > 0:
-            trade_amount = min(current_cash, position_sizing.recommended_size)
-            if trade_amount > 0:
-                quantity = trade_amount / current_price
-                cost = trade_amount
-                insert_transaction(
-                    date=analysis_date.strftime('%Y-%m-%d %H:%M:%S'),
-                    ticker=self.ticker,
-                    type='BUY',
-                    quantity=quantity,
-                    price=current_price,
-                    cost=cost,
-                    signal_source=analysis_results['enhanced_decision'].final_signal,
-                    reason=analysis_results['adjustment_reason']
-                )
-                new_position = current_position + quantity
-                new_cash = current_cash - cost
-                trades.append({'type': 'BUY', 'quantity': quantity, 'price': current_price, 'cost': cost})
-                logger.info(f"Executed hypothetical BUY: {quantity:.2f} shares at ${current_price:.2f}")
+        # Simulation Logic: Strict Alternation
+        if "BUY" in signal and last_type == 'SELL' and current_cash > 10:
+            # We can BUY only if the last action was SELL
+            cost_val = current_cash * transaction_cost_pct
+            quantity = (current_cash - cost_val) / current_price
+            
+            insert_transaction(
+                date=analysis_date.strftime('%Y-%m-%d %H:%M:%S'),
+                ticker=self.ticker,
+                type='BUY',
+                quantity=quantity,
+                price=current_price,
+                cost=current_cash,
+                signal_source=analysis_results['enhanced_decision'].final_signal,
+                reason=f"Consensus Score: {analysis_results['enhanced_decision'].consensus_score:.2f}"
+            )
+            new_position = quantity
+            new_cash = 0
+            trades.append({'type': 'BUY', 'quantity': quantity, 'price': current_price, 'cost': current_cash})
+            logger.info(f"TRADE: Executed BUY of {quantity:.4f} shares at ${current_price:.2f}")
 
-        elif "SELL" in signal and current_position > 0:
-            sell_amount = min(current_position * current_price, position_sizing.recommended_size)
-            if sell_amount > 0:
-                quantity = sell_amount / current_price
-                cost = sell_amount
-                insert_transaction(
-                    date=analysis_date.strftime('%Y-%m-%d %H:%M:%S'),
-                    ticker=self.ticker,
-                    type='SELL',
-                    quantity=quantity,
-                    price=current_price,
-                    cost=cost,
-                    signal_source=analysis_results['enhanced_decision'].final_signal,
-                    reason=analysis_results['adjustment_reason']
-                )
-                new_position = current_position - quantity
-                new_cash = current_cash + cost
-                trades.append({'type': 'SELL', 'quantity': quantity, 'price': current_price, 'cost': cost})
-                logger.info(f"Executed hypothetical SELL: {quantity:.2f} shares at ${current_price:.2f}")
-        else:
-            new_position = current_position
-            new_cash = current_cash
+        elif "SELL" in signal and last_type == 'BUY' and current_position > 0:
+            # We can SELL only if we currently hold a position
+            sell_val = current_position * current_price
+            cost_val = sell_val * transaction_cost_pct
+            new_cash = sell_val - cost_val
+            
+            insert_transaction(
+                date=analysis_date.strftime('%Y-%m-%d %H:%M:%S'),
+                ticker=self.ticker,
+                type='SELL',
+                quantity=current_position,
+                price=current_price,
+                cost=new_cash,
+                signal_source=analysis_results['enhanced_decision'].final_signal,
+                reason=f"P&L Trade: {((current_price/last_tx[3])-1)*100:+.2f}%"
+            )
+            new_position = 0
+            trades.append({'type': 'SELL', 'quantity': current_position, 'price': current_price, 'cost': new_cash})
+            logger.info(f"TRADE: Executed SELL at ${current_price:.2f}, New Balance: ${new_cash:.2f}")
 
         # Update portfolio state
         total_value = new_position * current_price + new_cash
@@ -442,7 +455,7 @@ class EnhancedTradingSystem:
             position=new_position,
             cash=new_cash,
             total_value=total_value,
-            benchmark_value=self.initial_portfolio_value # Benchmark is buy and hold initial value
+            benchmark_value=benchmark_value
         )
         return trades
 

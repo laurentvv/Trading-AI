@@ -12,6 +12,7 @@ __pycache__/
 
 # Environments
 .env
+.env.t212
 .venv
 env/
 venv/

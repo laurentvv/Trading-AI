@@ -9,8 +9,8 @@ import time
 logger = logging.getLogger(__name__)
 
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
-TEXT_LLM_MODEL = "gemma3:27b"
-VISUAL_LLM_MODEL = "gemma3:27b"
+TEXT_LLM_MODEL = "gemma3:4b"
+VISUAL_LLM_MODEL = "gemma3:4b"
 
 def construct_llm_prompt(latest_data: pd.DataFrame) -> str:
     """
@@ -31,7 +31,13 @@ def construct_llm_prompt(latest_data: pd.DataFrame) -> str:
     - Long-term Trend (MA20 vs MA50): {'Bullish' if data['Trend_Long'] == 1 else 'Bearish' if data['Trend_Long'] == -1 else 'Neutral'}
 
     **Instructions:**
-    Respond with a single, valid JSON object with three keys: "signal" (string: "BUY", "SELL", or "HOLD"), "confidence" (float: 0.0 to 1.0), and "analysis" (string: a brief 2-3 sentence justification).
+    Provide your analysis ONLY as a valid JSON object. Do not include any other text or explanation outside the JSON.
+    Expected format:
+    {{
+      "signal": "BUY",
+      "confidence": 0.85,
+      "analysis": "Brief explanation here."
+    }}
     """
     return prompt.strip()
 

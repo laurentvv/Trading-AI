@@ -609,7 +609,7 @@ def fetch_macro_data_for_date(date: pd.Timestamp, force_refresh: bool = False) -
                 if not valid_data.empty:
                     latest_value = valid_data.iloc[-1]['value']
                     macro_context[output_name] = float(latest_value)
-                    logger.info(f"✅ {output_name}: {latest_value:.2f}")
+                    logger.info(f"[SUCCESS] {output_name}: {latest_value:.2f}")
                 else:
                     # Use the most recent available data if nothing before analysis_date
                     latest_value = df.iloc[-1]['value']

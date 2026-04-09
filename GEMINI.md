@@ -12,20 +12,18 @@ The system is written in Python and leverages a variety of libraries for data an
 
 - Python 3.10+
 - Ollama running locally
-- A downloaded LLM (e.g., `ollama pull gemma3:27b`)
+- A downloaded LLM (e.g., `ollama pull gemma3:4b`)
 
 ### Installation
 
-1.  **Create and activate a virtual environment (recommended):**
-    ```bash
-    python -m venv .venv
-    source .venv/bin/activate  # On Windows, use `.venv\Scripts\activate`
-    ```
+1.  **Installer `uv` (si ce n'est pas déjà fait) :**
+    Consultez [astral.sh/uv](https://astral.sh/uv) pour les instructions d'installation.
 
-2.  **Install the dependencies:**
+2.  **Initialiser et synchroniser l'environnement :**
     ```bash
-    pip install -r requirements.txt
+    uv sync
     ```
+    Cela créera automatiquement un environnement virtuel `.venv` avec la bonne version de Python (3.12) et toutes les dépendances.
 
 3.  **Set up your API Key:**
     Create a file named `.env` in the root directory of the project and add your Alpha Vantage API key to it like this:
@@ -35,38 +33,25 @@ The system is written in Python and leverages a variety of libraries for data an
 
 ### Running the System
 
-There are two ways to run the system:
-
-**1. Manual Analysis**
-
-To run a single, on-demand analysis, execute the `run_now.py` script from the root directory. This is the recommended method for manual execution.
+To run a full analysis and get a clear trading signal, use the `main.py` script:
 
 ```bash
-python run_now.py
+uv run main.py --ticker QQQ
+```
+
+To run with **automatic execution** on your Trading 212 account (starts with a 1000€ budget):
+
+```bash
+uv run main.py --ticker QQQ --t212
 ```
 
 The script will:
-1.  Fetch or load market data.
-2.  Train the AI models.
-3.  Generate a final trading decision.
-4.  Update the hypothetical portfolio with the decision.
-5.  Save analysis charts.
+1.  **Fetch/Load Data**: Retrieves the latest market data.
+2.  **Train Models**: Trains the AI models on the available history.
+3.  **Generate Decision**: Executes the hybrid analysis.
+4.  **Execute Trade**: If `--t212` is set, places a fractional order on Trading 212 and updates `t212_portfolio_state.json`.
 
-The old `src/main.py` script is deprecated and will no longer be maintained.
-
-**2. Automated Analysis with the Intelligent Scheduler**
-
-The project includes an intelligent scheduler to manage the entire Trading AI deployment timeline, including automated daily analysis, reporting, and phase management.
-
-For Windows, the easiest way to run the scheduler is to use the provided batch script:
-```bash
-start_scheduler.bat
-```
-
-Alternatively, you can run the Python script directly:
-```bash
-python src/intelligent_scheduler.py
-```
+Analysis charts are saved as `enhanced_trading_chart.png`.
 
 The scheduler will run in the background, perform daily analysis, generate reports, and manage the project's deployment phases. All scheduler activities are logged in `scheduler.log`.
 

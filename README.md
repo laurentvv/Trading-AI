@@ -108,7 +108,7 @@ Suivez ces étapes pour mettre en place votre environnement de développement lo
 
 - Python 3.10 ou supérieur
 - [Ollama](https://ollama.com/) installé et en cours d'exécution localement.
-- Un modèle LLM téléchargé (ex: `ollama pull gemma3:27b`)
+- Un modèle LLM téléchargé (ex: `ollama pull gemma3:4b`)
 
 ### ⚙️ Installation
 
@@ -117,15 +117,15 @@ Suivez ces étapes pour mettre en place votre environnement de développement lo
     git clone https://github.com/laurentvv/Trading-AI.git
     cd Trading-AI
     ```
-2.  **Créez et activez un environnement virtuel :**
-    ```sh
-    python -m venv .venv
-    source .venv/bin/activate  # Sur Windows: .venv\Scripts\activate
+2.  **Installez `uv` (si ce n'est pas déjà fait) :**
+    Consultez [astral.sh/uv](https://astral.sh/uv) pour les instructions d'installation.
+
+3.  **Initialisez et synchronisez l'environnement :**
+    ```bash
+    uv sync
     ```
-3.  **Installez les dépendances :**
-    ```sh
-    pip install -r requirements.txt
-    ```
+    Cela créera automatiquement un environnement virtuel `.venv` avec la bonne version de Python (3.12) et toutes les dépendances.
+
 4.  **Configurez votre clé API :**
     Créez un fichier `.env` à la racine du projet et ajoutez votre clé API Alpha Vantage :
     ```
@@ -136,48 +136,45 @@ Suivez ces étapes pour mettre en place votre environnement de développement lo
 
 ## 🛠️ Utilisation
 
-Le système peut être utilisé de deux manières principales.
+Le système est conçu pour être simple et puissant. Il entraîne ses modèles sur les données les plus récentes à chaque exécution avant de donner une décision.
 
-### Analyse Manuelle
+### Mode Simulation (Paper Trading)
 
-Pour lancer une analyse unique et obtenir une décision de trading immédiate, utilisez le script `run_now.py`. C'est la méthode recommandée pour une exécution manuelle.
+Pour tester le système sans risque avec un capital fictif de 1000 €, utilisez le flag `--simul`. Le système gérera un historique strict d'achats et de ventes.
 
 ```sh
-python run_now.py
+# Lancer une analyse simulée
+uv run main.py --ticker QQQ --simul
+
+# Voir le rapport de simulation (achats, ventes, performance)
+uv run python src/read_simul.py
 ```
+
+Le mode simulation garantit :
+- Un capital de départ de **1000 €**.
+- Une **alternance stricte** : impossible de vendre si on ne possède rien, impossible d'acheter si on est déjà positionné.
+- Un **suivi persistant** via une base de données locale (`trading_history.db`).
 
 Le script va :
-1.  Récupérer les données de marché.
-2.  Entraîner les modèles d'IA.
-3.  Générer une décision de trading finale.
-4.  Mettre à jour le portefeuille hypothétique avec la décision.
-5.  Sauvegarder les graphiques d'analyse.
+1.  **Récupérer les données** de marché en temps réel.
+2.  **Entraîner les modèles** d'IA (Ensemble RandomForest, GradientBoosting, etc.) sur l'historique complet.
+3.  **Générer une décision hybride** combinant :
+    - Modèle quantitatif classique.
+    - Analyse de texte via **gemma3:4b** (Ollama).
+    - Analyse visuelle des graphiques techniques.
+    - Analyse de sentiment des actualités.
+    - Prédiction de série temporelle via **TimesFM**.
+4.  **Afficher un signal clair** avec le niveau de confiance et la taille de position recommandée.
 
-L'ancien script `src/main.py` est déprécié et ne sera plus maintenu.
+### Sortie attendue
 
-### Analyse Automatisée avec le Planificateur Intelligent
+L'analyse produit un tableau récapitulatif directement dans votre terminal :
+- **FINAL DECISION**: BUY / SELL / HOLD
+- **CONFIDENCE**: Pourcentage de certitude
+- **RISK LEVEL**: Évaluation du risque actuel du marché
+- **REC. POSITION**: Montant suggéré pour l'investissement
 
-Le projet inclut un planificateur intelligent qui gère le déploiement, les analyses quotidiennes, les rapports et les transitions de phase du projet.
-
-**Système de Phases :**
-- **Phase 1 : Configuration & Test** (7 jours)
-- **Phase 2 : Apprentissage Initial** (21 jours) - *Phase Actuelle*
-- **Phase 3 : Optimisation** (30 jours)
-- **Phase 4 : Maturité** (120 jours)
-
-**Configuration du Planificateur :**
-Le comportement du planificateur, notamment la durée des phases, peut être personnalisé en créant un fichier `scheduler_config.json` à la racine du projet. Sans ce fichier, une configuration par défaut est utilisée.
-
-Pour les utilisateurs Windows, le moyen le plus simple de démarrer le planificateur est d'utiliser le script batch fourni :
-```bash
-start_scheduler.bat
-```
-
-Alternativement, vous pouvez exécuter le script Python directement :
-```bash
-python src/intelligent_scheduler.py
-```
-Le planificateur s'exécutera en arrière-plan et consignera toutes ses activités dans `scheduler.log`.
+Les graphiques d'analyse sont sauvegardés sous `enhanced_trading_chart.png`.
 
 
 ---

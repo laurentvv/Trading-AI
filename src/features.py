@@ -159,9 +159,15 @@ def create_features(data: pd.DataFrame, macro_context: dict = None) -> pd.DataFr
                               np.where(df['MA_20'] < df['MA_50'], -1, 0))
 
     # Improved target variable (future return over multiple horizons)
+    # Use np.where but preserve NaN for the last rows
     df['Target_1d'] = np.where(df['Returns'].shift(-1) > 0, 1, 0)
+    df.loc[df['Returns'].shift(-1).isna(), 'Target_1d'] = np.nan
+    
     df['Target_3d'] = np.where(df['Close'].shift(-3) > df['Close'], 1, 0)
+    df.loc[df['Close'].shift(-3).isna(), 'Target_3d'] = np.nan
+    
     df['Target_5d'] = np.where(df['Close'].shift(-5) > df['Close'], 1, 0)
+    df.loc[df['Close'].shift(-5).isna(), 'Target_5d'] = np.nan
 
     # Main target based on a return threshold
     returns_std = df['Returns'].std()
@@ -172,6 +178,7 @@ def create_features(data: pd.DataFrame, macro_context: dict = None) -> pd.DataFr
         threshold = returns_std * 0.5  # 50% of volatility
     
     df['Target'] = np.where(df['Returns'].shift(-1) > threshold, 1, 0)
+    df.loc[df['Returns'].shift(-1).isna(), 'Target'] = np.nan
     
     # The target for the very last row will be NaN due to shift(-1).
     # This is expected as we don't know the future return for the last data point.
