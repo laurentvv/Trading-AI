@@ -319,6 +319,8 @@ class PerformanceMonitor:
     
     def process_alerts(self, alerts: List[PerformanceAlert]):
         """Process and send alerts"""
+        valid_alerts = []
+
         for alert in alerts:
             # Check cooldown
             alert_key = f"{alert.alert_type}_{alert.severity}"
@@ -327,8 +329,7 @@ class PerformanceMonitor:
                 if time_since_last < self.cooldown_period:
                     continue  # Skip due to cooldown
             
-            # Record alert
-            self._record_alert(alert)
+            valid_alerts.append(alert)
             
             # Send notification
             if self.email_config and alert.severity in ['HIGH', 'CRITICAL']:
@@ -338,32 +339,40 @@ class PerformanceMonitor:
             self.alert_cooldown[alert_key] = datetime.now()
             
             logger.warning(f"ALERT [{alert.severity}]: {alert.message}")
+
+        if valid_alerts:
+            self._record_alerts(valid_alerts)
     
-    def _record_alert(self, alert: PerformanceAlert):
-        """Record alert to database"""
+    def _record_alerts(self, alerts: List[PerformanceAlert]):
+        """Record alerts to database in bulk"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            cursor.execute('''
+            records = [
+                (
+                    alert.timestamp.isoformat(),
+                    alert.alert_type,
+                    alert.severity,
+                    alert.message,
+                    alert.model_name,
+                    alert.metric_value,
+                    alert.threshold
+                )
+                for alert in alerts
+            ]
+
+            cursor.executemany('''
                 INSERT INTO performance_alerts 
                 (timestamp, alert_type, severity, message, model_name, metric_value, threshold)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                alert.timestamp.isoformat(),
-                alert.alert_type,
-                alert.severity,
-                alert.message,
-                alert.model_name,
-                alert.metric_value,
-                alert.threshold
-            ))
+            ''', records)
             
             conn.commit()
             conn.close()
             
         except Exception as e:
-            logger.error(f"Failed to record alert: {e}")
+            logger.error(f"Failed to record alerts: {e}")
     
     def _send_email_alert(self, alert: PerformanceAlert):
         """Send email alert notification"""
