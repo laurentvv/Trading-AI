@@ -745,11 +745,11 @@ class PerformanceMonitor:
             losses = 0
             last_buy_price = 0
 
-            for index, row in df.iterrows():
-                if row['type'] == 'BUY':
-                    last_buy_price = row['price']
-                elif row['type'] == 'SELL' and last_buy_price > 0:
-                    if row['price'] > last_buy_price:
+            for row in df.itertuples(index=False):
+                if row.type == 'BUY':
+                    last_buy_price = row.price
+                elif row.type == 'SELL' and last_buy_price > 0:
+                    if row.price > last_buy_price:
                         wins += 1
                     else:
                         losses += 1
