@@ -15,3 +15,5 @@ pandas_datareader
 setuptools
 shap
 schedule
+timesfm
+huggingface_hub
