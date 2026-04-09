@@ -5,13 +5,11 @@ and model reliability metrics.
 """
 
 import logging
-import numpy as np
 import pandas as pd
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, Optional
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import sqlite3
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -315,7 +313,6 @@ class AdaptiveWeightManager:
         
         # Volatility thresholds
         high_vol_threshold = 0.03
-        low_vol_threshold = 0.015
         
         # Trend thresholds
         strong_trend_threshold = 0.05
