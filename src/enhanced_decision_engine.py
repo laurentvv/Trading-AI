@@ -102,16 +102,19 @@ class EnhancedDecisionEngine:
         
     def _normalize_signal(self, signal: str) -> SignalStrength:
         """Convert signal string to SignalStrength enum"""
-        signal = signal.upper()
-        if signal in ['STRONG BUY', 'STRONG_BUY']:
-            return SignalStrength.STRONG_BUY
-        elif signal == 'BUY':
-            return SignalStrength.BUY
-        elif signal == 'HOLD':
+        if not signal:
             return SignalStrength.HOLD
-        elif signal == 'SELL':
+            
+        signal = signal.upper().replace(' ', '_')
+        if signal in ['STRONG_BUY', 'VERY_BULLISH']:
+            return SignalStrength.STRONG_BUY
+        elif signal in ['BUY', 'BULLISH']:
+            return SignalStrength.BUY
+        elif signal in ['HOLD', 'NEUTRAL', 'STAY']:
+            return SignalStrength.HOLD
+        elif signal in ['SELL', 'BEARISH']:
             return SignalStrength.SELL
-        elif signal in ['STRONG SELL', 'STRONG_SELL']:
+        elif signal in ['STRONG_SELL', 'VERY_BEARISH']:
             return SignalStrength.STRONG_SELL
         else:
             logger.warning(f"Unknown signal: {signal}, defaulting to HOLD")
@@ -327,8 +330,19 @@ class EnhancedDecisionEngine:
         consensus_adjustment = consensus_score * 0.3  # Boost confidence for consensus
         disagreement_penalty = disagreement_factor * 0.2  # Reduce confidence for disagreement
         
+        # Super-Consensus Boost: if Classic and TimesFM agree on a non-HOLD signal
+        classic_decision = next((d for d in decisions if d.model_name == 'classic'), None)
+        timesfm_decision = next((d for d in decisions if d.model_name == 'timesfm'), None)
+        
+        boost = 0.0
+        if classic_decision and timesfm_decision:
+            if (classic_decision.strength.value * timesfm_decision.strength.value) > 0:
+                # Both agree on BUY or both agree on SELL
+                if classic_decision.confidence > 0.5 and timesfm_decision.confidence > 0.3:
+                    boost = 0.15  # 15% boost for strong objective agreement
+        
         final_confidence = min(1.0, max(0.0, 
-            base_confidence + consensus_adjustment - disagreement_penalty))
+            base_confidence + consensus_adjustment - disagreement_penalty + boost))
         
         # Apply risk management
         risk_adjusted_signal = self._apply_risk_management(

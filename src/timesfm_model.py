@@ -85,9 +85,14 @@ class TimesFMModel:
             expected_return = (last_pred - current_price) / current_price if current_price != 0 else 0.0
 
             signal = "HOLD"
-            confidence = min(1.0, abs(expected_return) * 10)
-            if expected_return > 0.01: signal = "BUY"
-            elif expected_return < -0.01: signal = "SELL"
+            # On scale la confiance : 1% de mouvement -> 0.5 de confiance, 2% -> 1.0
+            confidence = min(1.0, abs(expected_return) * 50)
+
+            threshold = 0.005  # Seuil de 0.5% (plus réaliste pour un ETF sur 5 jours)
+            if expected_return > threshold:
+                signal = "BUY"
+            elif expected_return < -threshold:
+                signal = "SELL"
 
             analysis = (f"TimesFM 2.5 forecasts price move: {current_price:.2f} -> {last_pred:.2f} "
                        f"({expected_return*100:+.2f}%) over {horizon} days.")
