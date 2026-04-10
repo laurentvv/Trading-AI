@@ -6,7 +6,6 @@ Usage: python main.py --ticker QQQ
 
 import logging
 import sys
-import os
 import argparse
 from pathlib import Path
 from dotenv import load_dotenv
