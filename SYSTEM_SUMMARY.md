@@ -73,9 +73,13 @@ Deux tests majeurs ont été réalisés pour valider la robustesse :
 
 ---
 
-## 🎯 Prise de Décision
+## 🎯 Prise de Décision : L'Algorithme de "Justesse"
 
-Le système ne donne pas seulement un signal, il fournit un rapport complet :
+Le système ne se contente pas d'additionner les signaux. Il applique une logique de filtrage rigoureuse pour éviter les faux signaux :
+
+1.  **Pondération Cognitive (75% vs 25%)** : Même si le modèle mathématique (`Classic`) est très agressif, il ne pèse que 25% de la note. Les modèles cognitifs (LLM, Vision, Sentiment, TimesFM) contrôlent la décision finale.
+2.  **Seuil de Confiance Critique (40%)** : Toute décision de mouvement (`BUY` ou `SELL`) doit avoir une confiance globale > 40%. Si la confiance est entre 20% et 40%, le signal est dégradé en `HOLD`.
+3.  **Gestion de la Panique** : En risque `VERY_HIGH`, le système exige un consensus quasi-parfait. Si les modèles divergent (ex: Classic dit SELL mais LLM dit HOLD), le système reste en `HOLD` pour protéger le capital.
 
 | Élément | Description |
 | :--- | :--- |

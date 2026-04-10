@@ -58,6 +58,12 @@ Le système fusionne cinq signaux distincts :
 
 L'objectif est de produire une décision finale (`ACHAT`, `VENTE`, `HOLD`) avec une priorité absolue sur la **justesse** (Accuracy First).
 
+### 🧘 Philosophie de Décision : "La Prudence Cognitive"
+Contrairement aux algorithmes de trading classiques qui paniquent dès que la volatilité explose, ce système applique une approche d'investisseur averti :
+- **Consensus Fort Requis** : Un modèle quantitatif (Classic) peut crier au loup (`SELL`), mais si les modèles cognitifs (LLM Texte, Vision, TimesFM) restent neutres, le système privilégiera le `HOLD`.
+- **Filtre de Confiance** : Une décision de mouvement (Achat ou Vente) n'est validée que si la confiance globale dépasse un seuil de sécurité (généralement 40%). En dessous, le système considère le signal comme du "bruit" et reste en attente.
+- **Protection du Capital** : En mode `VERY_HIGH` risque, le `HOLD` sert de bouclier. Il empêche d'entrer sur un marché instable et évite de sortir prématurément sur une simple correction technique si les fondamentaux (News/Vision) ne confirment pas un crash imminent.
+
 ### ✨ Fonctionnalités Clés
 
 - **Approche Dual-Ticker** : Analyse l'indice, trade l'ETF.
