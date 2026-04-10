@@ -6,7 +6,7 @@
 - **AI / Machine Learning**:
     - **Scikit-learn**: Quantitative models (RandomForest, etc.) with `TimeSeriesSplit`.
     - **TimesFM**: Foundation model for time-series forecasting (Google Research).
-    - **Ollama**: Local serving of **Gemma 3 (4b)** for text and visual chart analysis.
+    - **Ollama**: Local serving of **Gemma 4 (e4b)** for text and visual chart analysis.
 - **Data Architecture**:
     - **yfinance**: Market data download.
     - **pandas-datareader**: Macroeconomic data (FRED).
@@ -19,7 +19,7 @@
 - Entry point: `main.py`.
 
 ## 3. Technical Constraints & Assumptions
-- **Ollama**: Must be running locally with `gemma3:4b`.
+- **Ollama**: Must be running locally with `gemma4:e4b`.
 - **Operating System**: win32 (optimized for Windows terminal with CP1252/UTF-8 handling).
 - **Network**: Required for initial API calls (Yahoo, FRED, Alpha Vantage).
 
@@ -28,3 +28,8 @@
 - `src/enhanced_trading_example.py`: Main engine orchestrating all models.
 - `src/database.py`: DAO layer for SQLite persistence.
 - `src/read_simul.py`: Reporting tool for simulation performance.
+
+## 5. Monitoring & Diagnostic
+- **CSV Journal (`trading_journal.csv`)**: (Test Phase) Detailed audit trail of AI reasoning and decisions.
+- **SQLite DB**: Performance and simulation state.
+- **Dashboard**: `enhanced_performance_dashboard.png`.

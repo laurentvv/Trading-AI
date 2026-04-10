@@ -185,6 +185,11 @@ Le script va :
     - Prédiction de série temporelle via **TimesFM**.
 4.  **Afficher un signal clair** avec le niveau de confiance et la taille de position recommandée.
 
+### 📝 Journal de Bord (Mode Test)
+Pendant la phase de test, le système génère un fichier **`trading_journal.csv`** à chaque exécution. 
+- **Utilité** : Permet de relire après coup la justification technique de Gemma 4 pour chaque décision (même les `HOLD`).
+- **Suppression** : Ce fichier peut être supprimé à tout moment sans risque. Pour désactiver la fonction, il suffit de retirer le bloc "AJOUT : Journalisation CSV" dans `main.py`.
+
 ### Sortie attendue
 
 L'analyse produit un tableau récapitulatif directement dans votre terminal :
