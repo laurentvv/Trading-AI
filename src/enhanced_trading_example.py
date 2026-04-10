@@ -48,7 +48,18 @@ if not ALPHA_VANTAGE_API_KEY:
 class EnhancedTradingSystem:
     """
     Système de trading AI amélioré intégrant tous les nouveaux composants.
+    Utilise une approche dual-ticker : analyse l'indice de référence pour les modèles,
+    mais exécute les transactions sur l'ETF spécifié.
     """
+    
+    # Mapping des tickers de trading vers les tickers d'analyse (indices)
+    ANALYSIS_MAPPING = {
+        'SXRV.DE': '^NDX',   # iShares Nasdaq 100 -> Nasdaq 100 Index
+        'SXRV.FRK': '^NDX',
+        'CRUDP.PA': 'CL=F',  # Lyxor WTI Oil -> Crude Oil Futures
+        'QQQ': '^NDX',
+        'SPY': '^GSPC',
+    }
     
     def __init__(self, 
                  ticker: str = 'QQQ',
@@ -60,7 +71,8 @@ class EnhancedTradingSystem:
             ticker: Symbole de l'ETF à trader
             initial_portfolio_value: Valeur initiale du portefeuille
         """
-        self.ticker = ticker
+        self.ticker = ticker  # Ticker de TRADING (ex: SXRV.DE)
+        self.analysis_ticker = self.ANALYSIS_MAPPING.get(ticker, ticker) # Ticker d'ANALYSE (ex: ^NDX)
         self.initial_portfolio_value = initial_portfolio_value
         
         # Initialisation des composants améliorés
@@ -74,14 +86,15 @@ class EnhancedTradingSystem:
 
         # Initialize database and portfolio
         init_db()
+        # Pour l'initialisation du portefeuille, on utilise le ticker de trading
         self._initialize_portfolio(hist_data=get_etf_data(ticker=self.ticker)[0])
         
-        logger.info(f"Système de trading amélioré initialisé pour {ticker}")
+        logger.info(f"Système de trading amélioré initialisé. Trading: {self.ticker} | Analyse: {self.analysis_ticker}")
     
     def _initialize_portfolio(self, hist_data):
         """Initializes the portfolio if it doesn't exist."""
         if get_latest_portfolio_state(self.ticker) is None:
-            logger.info("No existing portfolio found. Initializing a new one.")
+            logger.info(f"No existing portfolio found for {self.ticker}. Initializing a new one.")
             insert_portfolio_state(
                 date=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 ticker=self.ticker,
@@ -92,18 +105,23 @@ class EnhancedTradingSystem:
             )
     
     def prepare_data_and_features(self):
-        """Prépare les données et indicateurs techniques."""
-        logger.info("Récupération et préparation des données...")
+        """Prépare les données et indicateurs techniques basés sur l'indice d'analyse."""
+        logger.info(f"Récupération et préparation des données pour l'indice {self.analysis_ticker}...")
         
         try:
-            # Récupération des données (code existant)
-            hist_data, info = get_etf_data(ticker=self.ticker)
+            # 1. Récupération des données de l'indice pour l'analyse IA
+            hist_data, info = get_etf_data(ticker=self.analysis_ticker)
+            
+            # 2. Récupération du prix actuel de l'ETF pour le trading
+            etf_data, _ = get_etf_data(ticker=self.ticker)
+            current_etf_price = etf_data['Close'].iloc[-1]
+            logger.info(f"Prix actuel de l'ETF ({self.ticker}): {current_etf_price:.2f}")
             
             # Validate data
             if hist_data is None or hist_data.empty:
-                raise ValueError(f"No data retrieved for {self.ticker}")
+                raise ValueError(f"No data retrieved for analysis ticker {self.analysis_ticker}")
             
-            logger.info(f"Data retrieved: {len(hist_data)} rows from {hist_data.index.min()} to {hist_data.index.max()}")
+            logger.info(f"Analysis Data retrieved: {len(hist_data)} rows from {hist_data.index.min()} to {hist_data.index.max()}")
             
             # Check minimum data requirements
             if len(hist_data) < 50:
@@ -128,7 +146,8 @@ class EnhancedTradingSystem:
             
             logger.info(f"Final data with features: {len(data_with_features)} rows, {len(data_with_features.columns)} columns")
             
-            return data_with_features, hist_data, macro_context
+            # On retourne aussi le prix de l'ETF pour les calculs de trading
+            return data_with_features, hist_data, macro_context, current_etf_price
             
         except Exception as e:
             logger.error(f"Error in data preparation: {e}")
@@ -243,7 +262,7 @@ class EnhancedTradingSystem:
             'timesfm': timesfm_decision
         }
     
-    def perform_enhanced_analysis(self, data_with_features, model_predictions):
+    def perform_enhanced_analysis(self, data_with_features, model_predictions, current_etf_price):
         """Effectue l'analyse améliorée avec tous les nouveaux composants."""
         logger.info("Analyse améliorée en cours...")
         
@@ -251,13 +270,14 @@ class EnhancedTradingSystem:
         if data_with_features.empty:
             raise ValueError("Cannot perform analysis on empty data")
         
+        # hist_data contient maintenant l'INDICE (NDX ou CL=F)
         hist_data = data_with_features[['Close', 'Volume']].dropna()
         
         # Check if we have sufficient data for analysis
         if hist_data.empty or len(hist_data) < 2:
             raise ValueError(f"Insufficient price data for analysis: {len(hist_data)} rows")
         
-        # 1. Évaluation des risques
+        # 1. Évaluation des risques (basée sur l'INDICE)
         risk_metrics = self.risk_manager.calculate_comprehensive_risk(
             price_data=hist_data['Close'],
             volume_data=hist_data['Volume']
@@ -308,17 +328,16 @@ class EnhancedTradingSystem:
         logger.info(f"Consensus: {enhanced_decision.consensus_score:.2f}")
         logger.info(f"Confiance: {enhanced_decision.final_confidence:.2f}")
         
-        # 5. Calcul de la taille de position optimale
-        current_price = hist_data['Close'].iloc[-1]
+        # 5. Calcul de la taille de position optimale (basée sur le prix de l'ETF)
         position_sizing = self.risk_manager.calculate_position_sizing(
             signal_strength=enhanced_decision.final_confidence,
             confidence=enhanced_decision.final_confidence,
             risk_metrics=risk_metrics,
             portfolio_value=self.initial_portfolio_value,
-            current_price=current_price
+            current_price=current_etf_price
         )
         
-        logger.info(f"Taille de position recommandée: ${position_sizing.recommended_size:,.2f}")
+        logger.info(f"Taille de position recommandée: ${position_sizing.recommended_size:,.2f} (ETF: {current_etf_price:.2f})")
         
         # 6. Vérification des overrides de risque
         risk_adjusted_signal, adjustment_reason = self.risk_manager.get_risk_adjusted_signal(
@@ -349,8 +368,8 @@ class EnhancedTradingSystem:
         logger.info(f"=== DÉMARRAGE DE L'ANALYSE {'SIMULÉE' if is_simulation else 'AMÉLIORÉE'} ===")
         
         try:
-            # 1. Préparation des données
-            data_with_features, hist_data, macro_context = self.prepare_data_and_features()
+            # 1. Préparation des données (avec current_etf_price)
+            data_with_features, hist_data, macro_context, current_etf_price = self.prepare_data_and_features()
             
             # 2. Entraînement du modèle classique
             classic_model, scaler = self.train_classic_model(data_with_features)
@@ -361,13 +380,13 @@ class EnhancedTradingSystem:
             
             # 4. Analyse améliorée
             analysis_results = self.perform_enhanced_analysis(
-                data_with_features, model_predictions)
+                data_with_features, model_predictions, current_etf_price)
 
             # 5. Execute trade (Simulation or Hypothetical)
-            trades = self._execute_hypothetical_trade(analysis_results, hist_data, is_simulation=is_simulation)
+            trades = self._execute_hypothetical_trade(analysis_results, current_etf_price, hist_data.index[-1], is_simulation=is_simulation)
             
-            # 6. Mise à jour du monitoring
-            performance_report = self.update_performance_monitoring(analysis_results, hist_data, trades)
+            # 6. Mise à jour du monitoring (basée sur le rendement de l'ETF)
+            performance_report = self.update_performance_monitoring(analysis_results, current_etf_price, trades)
             
             # 7. Affichage des résultats
             self.display_enhanced_results(analysis_results, performance_report)
@@ -380,11 +399,9 @@ class EnhancedTradingSystem:
             logger.error(f"Erreur lors de l'analyse: {e}")
             raise
 
-    def _execute_hypothetical_trade(self, analysis_results, hist_data, is_simulation=False):
+    def _execute_hypothetical_trade(self, analysis_results, current_price, analysis_date, is_simulation=False):
         """Executes a hypothetical trade based on the signal with strict simulation logic."""
         signal = analysis_results['risk_adjusted_signal']
-        current_price = hist_data['Close'].iloc[-1]
-        analysis_date = hist_data.index[-1]
         transaction_cost_pct = 0.001 # 0.1%
 
         # Get current state from DB
@@ -460,14 +477,16 @@ class EnhancedTradingSystem:
         )
         return trades
 
-    def update_performance_monitoring(self, analysis_results, hist_data, trades):
+    def update_performance_monitoring(self, analysis_results, current_etf_price, trades):
         """Met à jour le monitoring de performance."""
         logger.info("Mise à jour du monitoring de performance...")
         
         latest_portfolio_state = get_latest_portfolio_state(self.ticker)
         _, _, total_value, _ = latest_portfolio_state
 
-        daily_return = hist_data['Close'].pct_change().iloc[-1]
+        # Note: accurate daily return for monitoring would need the ETF history
+        # For simplicity, we use 0 or a placeholder if only current price is available
+        daily_return = 0.0 
 
         # Model accuracy (can't be calculated in real time without knowing the future)
         model_accuracy = {

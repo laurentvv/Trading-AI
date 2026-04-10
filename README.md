@@ -41,26 +41,31 @@
 
 ## 🌟 À Propos du Projet
 
-Ce projet est un système de support à la décision de trading qui utilise une approche d'IA hybride tri-modale pour générer des signaux de trading pour les ETFs du NASDAQ. Il est conçu pour fournir une analyse complète et nuancée en combinant plusieurs perspectives d'IA pour aboutir à une décision consensuelle et pondérée.
+Ce projet est un système expert d'aide à la décision pour le trading d'ETFs, utilisant une approche d'IA hybride tri-modale. Il est conçu pour fournir une analyse complète et robuste en combinant plusieurs perspectives d'IA.
 
-Le système combine :
-1.  Un **modèle quantitatif classique** (`scikit-learn`) entraîné sur des indicateurs techniques et des données macroéconomiques.
-2.  Un **Large Language Model (LLM)** pour une analyse contextuelle des données de marché brutes.
-3.  Un **LLM multi-modal (V-LLM)** qui analyse des graphiques financiers pour une interprétation visuelle des tendances.
+### 🚀 Stratégie Dual-Ticker (Analyse vs Trading)
+Le système utilise une approche innovante pour maximiser la précision des modèles :
+- **Analyse Haute Fidélité** : Les modèles IA analysent les **indices de référence mondiaux** (`^NDX` pour le Nasdaq, `CL=F` pour le pétrole WTI). Ces indices offrent un historique plus long et des tendances plus "pures", sans le bruit lié aux horaires de cotation ou aux frais des ETFs.
+- **Exécution sur ETF** : Les ordres réels sont passés sur les tickers correspondants sur **Trading 212** (`SXRV.DE`, `CRUDP.PA`), en utilisant les prix réels du marché pour le dimensionnement des positions.
 
-L'objectif est de fusionner ces trois signaux pour produire une décision de trading finale (`ACHAT`, `VENTE`, `NEUTRE`) accompagnée d'un score de confiance. Le système gère un **portefeuille hypothétique** pour simuler les performances des décisions de l'IA et fournir des métriques de performance réalistes.
+### 🧠 Moteur IA Hybride
+Le système fusionne cinq signaux distincts :
+1.  **Modèle Quantitatif Classique** : Ensemble RandomForest/GradientBoosting entraîné sur indicateurs techniques et macroéconomiques.
+2.  **TimesFM 2.5 (Google Research)** : Modèle de fondation de pointe pour la prévision de séries temporelles (J+5).
+3.  **LLM Textuel (Gemma 3)** : Analyse contextuelle des données brutes et des actualités.
+4.  **LLM Visuel (V-LLM)** : Analyse directe des graphiques techniques (`enhanced_trading_chart.png`).
+5.  **Sentiment Analysis** : Analyse en temps réel des gros titres via Alpha Vantage.
+
+L'objectif est de produire une décision finale (`ACHAT`, `VENTE`, `HOLD`) avec un score de confiance pondéré et une gestion des risques dynamique.
 
 ### ✨ Fonctionnalités Clés
 
-- **Moteur IA Hybride Tri-Modal** : Combine trois modèles d'IA pour une décision par consensus.
-- **Portefeuille Hypothétique** : Simule les transactions pour un suivi réaliste des performances.
-- **Backtesting Robuste** : Utilise une validation *walk-forward* pour une évaluation réaliste des performances historiques.
-- **Planificateur Intelligent** : Gère le cycle de vie du déploiement, des analyses quotidiennes aux rapports de performance.
-- **Gestion de Risque Avancée** : Évalue le risque de marché et ajuste les décisions en conséquence.
-- **Pondération Adaptative** : Ajuste dynamiquement l'influence de chaque modèle en fonction de leurs performances et de la confiance.
-- **Explicabilité (XAI)** : Intègre des outils comme SHAP pour interpréter les prédictions du modèle quantitatif.
-- **Monitoring de Performance** : Génère des tableaux de bord visuels pour suivre les performances du système.
-- **Mise en Cache des Données** : Met en cache les données de marché pour accélérer les exécutions futures.
+- **Approche Dual-Ticker** : Analyse l'indice, trade l'ETF.
+- **TimesFM 2.5 Intégré** : Prévisions probabilistes de pointe.
+- **Portefeuille Hypothétique & Simulation** : Suivi réaliste des performances.
+- **Exécution Trading 212** : Gestion automatique des fractions d'actions et du cash.
+- **Gestion de Risque Avancée** : Ajustement automatique du signal en fonction de la volatilité.
+- **Pondération Adaptative** : Les modèles les plus performants pèsent plus lourd dans la décision.
 
 ### 💻 Stack Technologique
 

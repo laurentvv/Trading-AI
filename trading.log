@@ -288,3 +288,105 @@
 2026-04-10 11:16:03,102 - INFO - Performance monitoring updated: Portfolio $1,000.00, Daily Return: 0.68%, Alerts: 1
 2026-04-10 11:16:03,951 - INFO - Performance dashboard saved to enhanced_performance_dashboard.png
 2026-04-10 11:16:03,962 - INFO - === ANALYSE TERMINÉE ===
+2026-04-10 11:32:04,423 - INFO - Performance database initialized successfully
+2026-04-10 11:32:04,425 - INFO - Performance monitoring database initialized
+2026-04-10 11:32:04,426 - INFO - Database initialized at trading_history.db
+2026-04-10 11:32:04,427 - INFO - Loading data from cache: data_cache\CRUDP_PA_max_with_vix.parquet
+2026-04-10 11:32:05,191 - INFO - Data loaded from cache: 4672 days.
+2026-04-10 11:32:05,196 - INFO - Final data period: 2008-01-02 00:00:00 to 2026-04-10 00:00:00
+2026-04-10 11:32:05,198 - INFO - Système de trading amélioré initialisé. Trading: CRUDP.PA | Analyse: CL=F
+2026-04-10 11:32:05,199 - INFO - === DÉMARRAGE DE L'ANALYSE AMÉLIORÉE ===
+2026-04-10 11:32:05,199 - INFO - Récupération et préparation des données pour l'indice CL=F...
+2026-04-10 11:32:05,199 - INFO - Downloading data for CL=F and ^VIX...
+2026-04-10 11:32:05,200 - INFO - Attempt 1/3 to download data...
+2026-04-10 11:32:07,635 - INFO - Data for CL=F and ^VIX saved to cache: data_cache\CL=F_max_with_vix.parquet
+2026-04-10 11:32:07,635 - INFO - Final data period: 2000-08-23 00:00:00 to 2026-04-10 00:00:00
+2026-04-10 11:32:07,635 - INFO - Loading data from cache: data_cache\CRUDP_PA_max_with_vix.parquet
+2026-04-10 11:32:07,851 - INFO - Data loaded from cache: 4672 days.
+2026-04-10 11:32:07,852 - INFO - Final data period: 2008-01-02 00:00:00 to 2026-04-10 00:00:00
+2026-04-10 11:32:07,853 - INFO - Prix actuel de l'ETF (CRUDP.PA): 12.03
+2026-04-10 11:32:07,854 - INFO - Analysis Data retrieved: 6435 rows from 2000-08-23 00:00:00 to 2026-04-10 00:00:00
+2026-04-10 11:32:07,874 - INFO - Fetching macroeconomic data for context around 2026-04-10...
+2026-04-10 11:32:07,877 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_10y_monthly.parquet
+2026-04-10 11:32:07,880 - INFO - Using cached multi-source data for treasury_10y
+2026-04-10 11:32:07,880 - INFO - [SUCCESS] treasury_yield_10year: 4.33
+2026-04-10 11:32:07,880 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
+2026-04-10 11:32:07,880 - INFO - Using cached multi-source data for treasury_2y
+2026-04-10 11:32:07,889 - INFO - [SUCCESS] treasury_yield_2year: 3.79
+2026-04-10 11:32:07,889 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
+2026-04-10 11:32:07,890 - INFO - Using cached multi-source data for fed_funds
+2026-04-10 11:32:07,893 - INFO - [SUCCESS] federal_funds_rate: 4.33
+2026-04-10 11:32:07,893 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_cpi_monthly.parquet
+2026-04-10 11:32:07,896 - INFO - Using cached multi-source data for cpi
+2026-04-10 11:32:07,896 - INFO - [SUCCESS] cpi: 322.13
+2026-04-10 11:32:07,896 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_unemployment_monthly.parquet
+2026-04-10 11:32:07,901 - INFO - Using cached multi-source data for unemployment
+2026-04-10 11:32:07,902 - INFO - [SUCCESS] unemployment: 4.20
+2026-04-10 11:32:07,903 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_gdp_monthly.parquet
+2026-04-10 11:32:07,905 - INFO - Using cached multi-source data for gdp
+2026-04-10 11:32:07,905 - INFO - [SUCCESS] real_gdp: 23685.29
+2026-04-10 11:32:07,906 - INFO - Macro data fetch complete. Retrieved 6 indicators.
+2026-04-10 11:32:07,911 - INFO - Added 6 macroeconomic features: ['treasury_yield_10year', 'treasury_yield_2year', 'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp']
+2026-04-10 11:32:07,919 - INFO - Final data with features: 6233 rows, 68 columns
+2026-04-10 11:32:07,919 - INFO - Entraînement du modèle quantitatif...
+2026-04-10 11:32:07,920 - INFO - Core features available: 39/39
+2026-04-10 11:32:07,921 - INFO - All macroeconomic features available
+2026-04-10 11:32:07,924 - INFO - Selected 45 features for model training
+2026-04-10 11:32:07,924 - INFO - Initial data shape: X=(6233, 45), y=(6233,)
+2026-04-10 11:32:07,925 - INFO - After removing NaN targets: X=(6232, 45), y=(6232,)
+2026-04-10 11:32:07,926 - INFO - Filling NaN values in 6 features
+2026-04-10 11:32:07,930 - INFO - Final clean data: X=(6232, 45), y=(6232,)
+2026-04-10 11:32:07,931 - INFO - Target distribution: {0.0: 4633, 1.0: 1599}
+2026-04-10 11:32:07,931 - INFO - Features shape: (6232, 45)
+2026-04-10 11:32:07,932 - INFO - Target shape: (6232,)
+2026-04-10 11:32:07,932 - INFO - NaN in features: 0
+2026-04-10 11:32:07,932 - INFO - NaN in target: 0
+2026-04-10 11:32:07,934 - INFO - Unique target values: [0. 1.]
+2026-04-10 11:32:07,934 - INFO - Original data shape: (6232, 45)
+2026-04-10 11:32:07,935 - INFO - NaN values per column: 0 total
+2026-04-10 11:32:07,935 - INFO - After removing NaN targets: (6232, 45)
+2026-04-10 11:32:07,940 - INFO - Final clean data shape: (6232, 45)
+2026-04-10 11:32:12,647 - INFO - RandomForest - TimeSeries CV Score: 0.1484 (+/- 0.1633)
+2026-04-10 11:32:24,527 - INFO - GradientBoosting - TimeSeries CV Score: 0.2446 (+/- 0.2230)
+2026-04-10 11:32:24,660 - INFO - LogisticRegression - TimeSeries CV Score: 0.3293 (+/- 0.1720)
+2026-04-10 11:32:24,660 - INFO - Best model selected: LogisticRegression
+2026-04-10 11:32:24,703 - INFO - 
+=== LOGISTICREGRESSION MODEL RESULTS ===
+2026-04-10 11:32:24,704 - INFO - Accuracy: 0.5774
+2026-04-10 11:32:24,704 - INFO - Precision: 0.3198
+2026-04-10 11:32:24,704 - INFO - Recall: 0.4486
+2026-04-10 11:32:24,704 - INFO - F1: 0.3734
+2026-04-10 11:32:24,706 - INFO - Modèle classique entraîné avec succès
+2026-04-10 11:32:24,707 - INFO - Génération des prédictions des modèles...
+2026-04-10 11:32:24,708 - INFO - Features disponibles pour prédiction: 45
+2026-04-10 11:32:24,709 - INFO - NaN dans les features: 0
+2026-04-10 11:32:24,711 - INFO - Prédiction classique: 1.0, confiance: 0.920
+2026-04-10 11:32:24,713 - INFO - Generating chart image and saving to enhanced_trading_chart.png...
+2026-04-10 11:32:25,362 - INFO - Chart generated successfully.
+2026-04-10 11:32:25,363 - INFO - Querying textual LLM for a trading decision...
+2026-04-10 11:32:36,233 - INFO - LLM decision (gemma3:4b) received and validated.
+2026-04-10 11:32:36,234 - INFO - Querying visual LLM with image enhanced_trading_chart.png...
+2026-04-10 11:32:41,404 - INFO - LLM decision (gemma3:4b) received and validated.
+2026-04-10 11:32:41,404 - INFO - Fetching live news and sentiment from Alpha Vantage...
+2026-04-10 11:32:41,929 - INFO - Successfully fetched news. Overall sentiment score: 0.00
+2026-04-10 11:32:41,930 - INFO - Génération de la prédiction TimesFM...
+2026-04-10 11:32:41,930 - INFO - Analyse améliorée en cours...
+2026-04-10 11:32:42,072 - INFO - Niveau de risque détecté: VERY_HIGH
+2026-04-10 11:32:42,072 - INFO - Score de risque: 0.638
+2026-04-10 11:32:42,075 - INFO - Poids adaptatifs calculés:
+2026-04-10 11:32:42,076 - INFO -   classic: 0.250
+2026-04-10 11:32:42,076 - INFO -   llm_text: 0.250
+2026-04-10 11:32:42,076 - INFO -   llm_visual: 0.200
+2026-04-10 11:32:42,076 - INFO -   sentiment: 0.150
+2026-04-10 11:32:42,076 - INFO -   timesfm: 0.150
+2026-04-10 11:32:42,077 - INFO - Décision hybride: BUY
+2026-04-10 11:32:42,077 - INFO - Consensus: 0.71
+2026-04-10 11:32:42,078 - INFO - Confiance: 0.38
+2026-04-10 11:32:42,078 - INFO - Taille de position recommandée: $100.00 (ETF: 12.03)
+2026-04-10 11:32:42,079 - WARNING - Raison: Converted to HOLD due to: High risk environment (VERY_HIGH) requires high confidence
+2026-04-10 11:32:42,086 - INFO - Updated portfolio state for CRUDP.PA on 2026-04-10 00:00:00
+2026-04-10 11:32:42,086 - INFO - Mise à jour du monitoring de performance...
+2026-04-10 11:32:42,096 - WARNING - ALERT [HIGH]: Win rate critically low: 0.00%
+2026-04-10 11:32:42,101 - INFO - Performance monitoring updated: Portfolio $1,000.00, Daily Return: 0.00%, Alerts: 1
+2026-04-10 11:32:42,945 - INFO - Performance dashboard saved to enhanced_performance_dashboard.png
+2026-04-10 11:32:42,957 - INFO - === ANALYSE TERMINÉE ===

@@ -2,47 +2,40 @@
 
 ## Project Overview
 
-This project is a sophisticated trading decision support system for NASDAQ ETFs. It utilizes a tri-modal hybrid AI approach to generate trading signals, combining a traditional quantitative model, a text-based Large Language Model (LLM), and a visual (multi-modal) LLM for a robust and nuanced analysis.
+Ce projet est un système expert d'aide à la décision pour le trading d'ETFs NASDAQ et Pétrole (WTI). Il utilise une approche **IA hybride tri-modale** et une stratégie **Dual-Ticker** unique :
+- **Analyse sur Indices** : Le système télécharge et analyse les indices de référence (`^NDX`, `CL=F`) pour obtenir des signaux d'IA plus propres et robustes.
+- **Trading sur ETFs** : Les décisions sont appliquées aux ETFs correspondants sur Trading 212 (`SXRV.DE`, `CRUDP.PA`).
 
-The system is written in Python and leverages a variety of libraries for data analysis, machine learning, and visualization. It is designed to be run from the command line and provides a comprehensive analysis of a given ETF, including a final trading decision. The system manages a hypothetical portfolio to simulate the performance of the AI's decisions and provide realistic performance metrics.
+Le moteur fusionne un modèle quantitatif classique, un LLM textuel (Gemma 3), un LLM visuel (analyse de graphiques), et le modèle de fondation **TimesFM 2.5** de Google Research.
 
 ## Building and Running
 
 ### Prerequisites
 
-- Python 3.10+
-- Ollama running locally
-- A downloaded LLM (e.g., `ollama pull gemma3:4b`)
+- Python 3.12+ (via `uv`)
+- Ollama fonctionnant localement avec `gemma3:4b`
+- Clé API Alpha Vantage (pour la macroéconomie et le sentiment)
 
 ### Installation
 
-1.  **Installer `uv` (si ce n'est pas déjà fait) :**
-    Consultez [astral.sh/uv](https://astral.sh/uv) pour les instructions d'installation.
-
-2.  **Initialiser l'environnement et installer TimesFM 2.5 :**
-    Exécutez la commande suivante qui va synchroniser les dépendances et configurer le modèle de prévision de Google :
+1.  **Installer `uv`** : [astral.sh/uv](https://astral.sh/uv)
+2.  **Initialiser l'environnement et TimesFM 2.5** :
     ```bash
     uv run setup
     ```
-    Cela va cloner le dépôt TimesFM, appliquer les patchs nécessaires pour l'API 2.5 et l'installer en mode éditable dans votre environnement virtuel.
-
-3.  **Set up your API Key:**
-    Create a file named `.env` in the root directory of the project and add your Alpha Vantage API key to it like this:
-    ```
-    ALPHA_VANTAGE_API_KEY="YOUR_API_KEY_HERE"
-    ```
+    *Cette commande synchronise les dépendances, clone TimesFM, applique les correctifs d'API 2.5 et installe le tout.*
+3.  **Configurer l'API** : Créer un fichier `.env` avec `ALPHA_VANTAGE_API_KEY`.
 
 ### Running the System
 
-To run a full analysis and get a clear trading signal, use the `main.py` script:
-
 ```bash
-uv run main.py --ticker SXRV.FRK
-```
+# Analyse standard (Analyse ^NDX, trading virtuel SXRV.DE)
+uv run main.py
 
-To run with **automatic execution** on your Trading 212 account (starts with a 1000€ budget):
+# Analyse Pétrole (Analyse CL=F, trading virtuel CRUDP.PA)
+uv run main.py --ticker CRUDP.PA
 
-```bash
+# Exécution réelle sur Trading 212 (Budget 1000€)
 uv run main.py --t212
 ```
 
