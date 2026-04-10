@@ -23,6 +23,10 @@
 - **Résolu (2025-09-12)**: Corrigé un bug de persistance où la transition de phase n'était pas sauvegardée immédiatement, causant une réinitialisation de la phase au redémarrage du planificateur.
 
 ## 5. Corrections Récentes
+- **2026-04-10**: Fiabilisation T212 et Risques
+  * Correction du mapping des tickers Trading 212 : `SXRVd_EQ` et `CRUDl_EQ`.
+  * Forçage de l'utilisation du signal filtré par le risk manager pour l'exécution réelle.
+  * Correction de bugs mineurs (`MarketDataManager` tuple, encodage Windows).
 - **2026-04-10**: Migration Cognitive et News
   * Passage de Gemma 3 à **Gemma 4:e4b** pour une meilleure synthèse.
   * Intégration du skill **AlphaEar** via `src/news_fetcher.py`.

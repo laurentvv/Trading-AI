@@ -108,8 +108,10 @@ Le système peut désormais passer des ordres réels sur un compte Trading 212 v
 
 ### Caractéristiques :
 - **Sécurité et Vérification** : Consulte le cash réel et les positions ouvertes **avant** toute action.
+- **Tickers Certifiés** : Utilisation des identifiants d'instruments exacts pour garantir l'exécution (`SXRVd_EQ` pour le Nasdaq EUR, `CRUDl_EQ` pour le Pétrole WTI).
+- **Logique de Signal Ajusté** : Le robot utilise le signal filtré par le `AdvancedRiskManager`. Si le risque est jugé trop élevé par rapport à la confiance, l'exécution est bloquée (conversion en `HOLD`).
 - **Budget Dédié :** Commence avec 1000 € (paramétrable dans `t212_portfolio_state.json`).
-- **Actions Fractionnées :** Le système calcule la quantité exacte (ex: 0.8172 action) pour respecter le budget au centime près.
+- **Actions Fractionnées :** Le système calcule la quantité exacte pour respecter le budget au centime près.
 - **Vente Totale :** En cas de signal SELL, le robot liquide 100% de la position (incluant toutes les fractions).
 - **Gestion des API** : Retry automatique en cas de limite de requêtes API (Rate Limit).
 

@@ -19,8 +19,14 @@ except ImportError:
 load_dotenv(".env.t212")
 
 STATE_FILE = "t212_portfolio_state.json"
-DEFAULT_TICKER = "CRUDP"      # Ticker T212 (WisdomTree WTI Crude Oil EUR)
-AV_TICKER = "CRUDP.PA"        # Ticker Yahoo Finance correspondant
+DEFAULT_TICKER = "SXRV_EQ"   # Ticker T212 NASDAQ (iShares)
+# Mapping Ticker Yahoo -> Ticker T212
+TICKER_MAPPING_T212 = {
+    "SXRV.DE": "SXRVd_EQ",
+    "SXRV.FRK": "SXRVd_EQ",
+    "CRUDP.PA": "CRUDl_EQ",
+    "CRUDP": "CRUDl_EQ"
+}
 
 def get_auth_header():
     api_key = os.getenv("T212_API_KEY")
@@ -95,11 +101,15 @@ def save_portfolio_state(ticker_state, ticker):
     with open(STATE_FILE, 'w') as f:
         json.dump(full_state, f, indent=4)
 
-def get_real_price_eur(ticker=None):
+def get_real_price_eur(ticker_yahoo=None):
     """Récupère le prix le plus frais possible via Alpha Vantage."""
-    target = ticker if ticker else AV_TICKER
+    target = ticker_yahoo if ticker_yahoo else "SXRV.DE"
     if MarketDataManager:
         try:
+            # S'assurer que target est une chaîne de caractères
+            if isinstance(target, list) or isinstance(target, tuple):
+                target = target[0]
+            
             dm = MarketDataManager(target)
             df = dm.get_price_data(force_refresh=True)
             if not df.empty:
@@ -113,10 +123,10 @@ def get_real_price_eur(ticker=None):
     return 100.0 
 
 def execute_t212_trade(signal, confidence, ticker=DEFAULT_TICKER):
-    # Nettoyage du ticker T212
-    t212_ticker = ticker.split('.')[0]
+    # Mapping du ticker Yahoo vers le ticker T212
+    t212_ticker = TICKER_MAPPING_T212.get(ticker, ticker.split('.')[0])
     
-    # Charger l'état spécifique au ticker
+    # Charger l'état spécifique au ticker (on utilise le ticker T212 comme clé)
     state = load_portfolio_state(t212_ticker)
     
     env = os.getenv("T212_ENV", "demo").lower()

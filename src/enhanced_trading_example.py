@@ -347,7 +347,7 @@ class EnhancedTradingSystem:
         
         if risk_adjusted_signal != enhanced_decision.final_signal:
             logger.warning(f"Signal ajusté par la gestion des risques: "
-                         f"{enhanced_decision.final_signal} → {risk_adjusted_signal}")
+                         f"{enhanced_decision.final_signal} -> {risk_adjusted_signal}")
             logger.warning(f"Raison: {adjustment_reason}")
         
         return {

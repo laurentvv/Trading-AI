@@ -163,9 +163,10 @@ uv run main.py --t212
 
 Le système est désormais **pleinement intégré** avec Trading 212 :
 - **Vérification du Portefeuille** : Avant toute action, le robot consulte votre cash réel et vos positions.
-- **Calcul Précis des Fractions** : Calcule le nombre d'actions exact pour atteindre votre budget cible (ex: 0.8172 actions).
+- **Calcul Précis des Fractions** : Calcule le nombre d'actions exact pour atteindre votre budget cible.
+- **Tickers Certifiés** : Utilisation des identifiants exacts (`SXRVd_EQ` pour le Nasdaq EUR, `CRUDl_EQ` pour le Pétrole WTI).
+- **Sécurité de Risque** : Le signal final est systématiquement filtré par le gestionnaire de risques avant l'envoi de l'ordre (Accuracy First).
 - **Gestion des API** : Inclut des mécanismes de retry automatique contre les limites de requêtes (Rate Limiting).
-- **Sécurité** : Utilise le ticker EUR (`SXRV.FRK` pour l'analyse, `SXRVd_EQ` pour l'ordre) pour éviter les frais de change.
 
 Le script va :
 1.  **Récupérer les données** de marché en temps réel.

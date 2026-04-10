@@ -77,15 +77,21 @@ def run_trading_analysis(ticker: str, is_simulation: bool = False, is_t212: bool
         decision = results['enhanced_decision']
         risk = results['risk_metrics']
         
-        signal = decision.final_signal
+        # Use the risk-adjusted signal for execution
+        signal = results.get('risk_adjusted_signal', decision.final_signal)
         confidence = decision.final_confidence
         risk_level = risk.risk_level.name
         
         # T212 Execution
         if is_t212:
-            console.print(f"[bold yellow]🚀 Execution of the signal on Trading 212 for {ticker}...[/bold yellow]")
-            # We use the final signal (BUY/SELL/HOLD) and confidence
-            execute_t212_trade(signal, confidence, ticker=ticker)
+            if signal != decision.final_signal:
+                console.print(f"[bold orange3]⚠️ Risk Management Override: {decision.final_signal} -> {signal}[/bold orange3]")
+            
+            if signal in ["BUY", "SELL"]:
+                console.print(f"[bold yellow]🚀 Execution of the signal on Trading 212 for {ticker}...[/bold yellow]")
+                execute_t212_trade(signal, confidence, ticker=ticker)
+            else:
+                console.print(f"[bold blue]ℹ️ No trade executed (Signal is {signal})[/bold blue]")
 
         # Color coding
         color = "green" if "BUY" in signal else "red" if "SELL" in signal else "yellow"

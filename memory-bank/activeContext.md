@@ -5,11 +5,10 @@ The project has undergone a major simplification and optimization phase. The com
 
 ## Recent Accomplishments
 - **Gemma 4 Migration**: Upgraded cognitive analysis to `gemma4:e4b` for superior reasoning and technical/fundamental synthesis.
-- **AlphaEar Integration**: Integrated real-time financial news and social trends via the `alphaear-news` skill, providing better market sentiment context to the LLM.
-- **Autonomous Scheduler**: Created `schedule.py`, a robust Windows-compatible scheduler for continuous trading (8:30-18:00, Mon-Fri) with a live monitoring dashboard.
-- **Accuracy First Logic**: Refined the `EnhancedDecisionEngine` and `AdvancedRiskManager` to prioritize "justesse" (accuracy) over frequency, implementing stricter consensus and confidence checks.
-- **TimesFM 2.5 Integration**: Successfully integrated Google Research's TimesFM 2.5 via a custom automated setup script.
-- **Trading 212 Production**: Fully integrated Trading 212 API for real trade execution in both DEMO and LIVE modes.
+- **T212 Ticker Certification**: Finalized and verified exact instrument identifiers for Trading 212 (`SXRVd_EQ` for Nasdaq EUR and `CRUDl_EQ` for WTI Oil), eliminating "Ticker not found" errors.
+- **Risk-Adjusted Execution**: Fixed a bug where raw signals were used for T212 trades; the system now strictly follows the `AdvancedRiskManager` filtered signal (Accuracy First).
+- **AlphaEar Integration**: Integrated real-time financial news and social trends via the `alphaear-news` skill.
+- **Autonomous Scheduler**: Created `schedule.py` with a live monitoring dashboard.
 
 ## Next Steps
 - **Demo Mode Monitoring**: Run the system on the T212 Demo account via `schedule.py` to evaluate the "Accuracy First" philosophy.
