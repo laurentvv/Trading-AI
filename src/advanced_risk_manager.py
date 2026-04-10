@@ -417,29 +417,18 @@ class AdvancedRiskManager:
                              risk_metrics: RiskMetrics) -> Tuple[bool, str]:
         """
         Determine if signal should be overridden due to risk concerns.
-        
-        Args:
-            signal: Trading signal
-            confidence: Signal confidence
-            risk_metrics: Current risk assessment
-            
-        Returns:
-            Tuple of (should_override, reason)
         """
-        # High risk override conditions
-        if risk_metrics.risk_level in [RiskLevel.HIGH, RiskLevel.VERY_HIGH]:
-            if signal in ['BUY', 'STRONG_BUY'] and confidence < 0.8:
-                return True, f"High risk environment ({risk_metrics.risk_level.name}) requires high confidence"
+        # FORCED BYPASS FOR INDEX TRADING (Aggressive mode)
+        # We allow BUY signals even in HIGH risk if confidence is at least 0.2
+        if signal in ['BUY', 'STRONG_BUY']:
+            if risk_metrics.risk_level == RiskLevel.VERY_HIGH and confidence < 0.35:
+                return True, f"Extreme risk ({risk_metrics.risk_level.name}) still requires minimal confidence (0.35)"
+            return False, "" # NO OVERRIDE for BUY in other risk levels
         
-        # Extreme volatility override
-        if risk_metrics.volatility_risk > 0.8:
-            if signal in ['STRONG_BUY', 'STRONG_SELL']:
+        # Extreme volatility override for SELL signals
+        if risk_metrics.volatility_risk > 0.95:
+            if signal in ['STRONG_SELL'] and confidence < 0.7:
                 return True, "Extreme volatility detected, reducing signal strength"
-        
-        # Significant drawdown override
-        if risk_metrics.drawdown_risk > 0.7:
-            if signal in ['BUY', 'STRONG_BUY']:
-                return True, "Significant drawdown detected, avoiding new long positions"
         
         return False, ""
     

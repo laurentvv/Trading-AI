@@ -169,13 +169,13 @@ def create_features(data: pd.DataFrame, macro_context: dict = None) -> pd.DataFr
     df['Target_5d'] = np.where(df['Close'].shift(-5) > df['Close'], 1, 0)
     df.loc[df['Close'].shift(-5).isna(), 'Target_5d'] = np.nan
 
-    # Main target based on a return threshold
+    # Main target based on a return threshold (reduced for better responsiveness)
     returns_std = df['Returns'].std()
     if pd.isna(returns_std) or returns_std == 0:
-        threshold = 0.001  # Default 0.1% threshold
-        logger.warning("Using default threshold for target variable")
+        threshold = 0.0005  # 0.05% threshold
     else:
-        threshold = returns_std * 0.5  # 50% of volatility
+        # Reduced from 0.5 to 0.1 for more BUY signals
+        threshold = max(0.0002, returns_std * 0.1) 
     
     df['Target'] = np.where(df['Returns'].shift(-1) > threshold, 1, 0)
     df.loc[df['Returns'].shift(-1).isna(), 'Target'] = np.nan

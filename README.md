@@ -50,22 +50,21 @@ Le système utilise une approche innovante pour maximiser la précision des mod�
 
 ### 🧠 Moteur IA Hybride
 Le système fusionne cinq signaux distincts :
-1.  **Modèle Quantitatif Classique** : Ensemble RandomForest/GradientBoosting entraîné sur indicateurs techniques et macroéconomiques.
-2.  **TimesFM 2.5 (Google Research)** : Modèle de fondation de pointe pour la prévision de séries temporelles (J+5).
-3.  **LLM Textuel (Gemma 3)** : Analyse contextuelle des données brutes et des actualités.
-4.  **LLM Visuel (V-LLM)** : Analyse directe des graphiques techniques (`enhanced_trading_chart.png`).
-5.  **Sentiment Analysis** : Analyse en temps réel des gros titres via Alpha Vantage.
+1.  **Modèle Quantitatif Classique** : Ensemble RandomForest/GradientBoosting/LogisticRegression entraîné sur indicateurs techniques et macroéconomiques.
+2.  **TimesFM 2.5 (Google Research)** : Modèle de fondation de pointe pour la prévision de séries temporelles.
+3.  **LLM Textuel (Gemma 4:e4b)** : Analyse contextuelle des données brutes et des actualités en temps réel via le skill **AlphaEar**.
+4.  **LLM Visuel (Gemma 4:e4b)** : Analyse directe des graphiques techniques (`enhanced_trading_chart.png`).
+5.  **Sentiment Analysis** : Analyse hybride combinant Alpha Vantage et les tendances "hot" d'**AlphaEar** (Weibo, WallstreetCN).
 
-L'objectif est de produire une décision finale (`ACHAT`, `VENTE`, `HOLD`) avec un score de confiance pondéré et une gestion des risques dynamique.
+L'objectif est de produire une décision finale (`ACHAT`, `VENTE`, `HOLD`) avec une priorité absolue sur la **justesse** (Accuracy First).
 
 ### ✨ Fonctionnalités Clés
 
 - **Approche Dual-Ticker** : Analyse l'indice, trade l'ETF.
-- **TimesFM 2.5 Intégré** : Prévisions probabilistes de pointe.
-- **Portefeuille Hypothétique & Simulation** : Suivi réaliste des performances.
-- **Exécution Trading 212** : Gestion automatique des fractions d'actions et du cash.
-- **Gestion de Risque Avancée** : Ajustement automatique du signal en fonction de la volatilité.
-- **Pondération Adaptative** : Les modèles les plus performants pèsent plus lourd dans la décision.
+- **Cognition Avancée** : Utilisation de **Gemma 4** pour une meilleure synthèse technique/fondamentale.
+- **News en Temps Réel** : Intégration du skill **AlphaEar** pour capturer le sentiment social et macro.
+- **Scheduler Automatisé** : Nouveau script `schedule.py` pour une exécution continue (8h30-18h00) sur serveur.
+- **Gestion de Risque Avancée** : Ajustement automatique du signal en fonction de la volatilité et du régime de marché.
 
 ### 💻 Stack Technologique
 

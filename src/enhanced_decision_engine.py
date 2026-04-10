@@ -80,21 +80,21 @@ class EnhancedDecisionEngine:
             base_weights: Base weights for each model type
         """
         self.base_weights = base_weights or {
-            'classic': 0.25,
+            'classic': 0.15,
             'llm_text': 0.25,
             'llm_visual': 0.20,
             'sentiment': 0.15,
-            'timesfm': 0.15
+            'timesfm': 0.25
         }
         
-        # Adaptive thresholds based on market conditions
+        # Adaptive thresholds (Balanced for Index trading)
         self.adaptive_thresholds = {
-            'strong_buy': 0.6,
-            'buy': 0.2,
-            'hold_upper': 0.1,
-            'hold_lower': -0.1,
-            'sell': -0.2,
-            'strong_sell': -0.6
+            'strong_buy': 0.35,
+            'buy': 0.12,
+            'hold_upper': 0.05,
+            'hold_lower': -0.05,
+            'sell': -0.15,
+            'strong_sell': -0.45
         }
         
         # Track model performance for weight adjustment
@@ -168,25 +168,24 @@ class EnhancedDecisionEngine:
     def _adjust_for_market_regime(self, score: float, market_data: Dict) -> float:
         """
         Adjust decision score based on current market regime.
-        
-        Args:
-            score: Base decision score
-            market_data: Current market indicators (volatility, trend, etc.)
         """
-        # Example regime adjustments
         volatility = market_data.get('volatility', 0.02)
         rsi = market_data.get('rsi', 50)
         
+        # Bullish Bias for Indices (NASDAQ usually trends up)
+        # We add a small constant positive bias to the score
+        score += 0.05 
+        
         # Reduce signal strength in high volatility environments
-        if volatility > 0.04:  # High volatility
+        if volatility > 0.04:  
             score *= 0.8
-        elif volatility < 0.01:  # Low volatility
+        elif volatility < 0.01:
             score *= 1.1
         
-        # Adjust for overbought/oversold conditions
-        if rsi > 80 and score > 0:  # Overbought, reduce buy signals
+        # Adjust for overbought/oversold conditions (relaxed for BUY)
+        if rsi > 85 and score > 0:  # Only very overbought stops a BUY
             score *= 0.7
-        elif rsi < 20 and score < 0:  # Oversold, reduce sell signals
+        elif rsi < 25 and score < 0: 
             score *= 0.7
         
         return score
@@ -195,25 +194,23 @@ class EnhancedDecisionEngine:
                              market_data: Dict) -> str:
         """
         Apply risk management rules to adjust the final decision.
-        
-        Args:
-            decision: Original decision
-            confidence: Decision confidence
-            market_data: Current market conditions
         """
-        # Conservative adjustment for low confidence
-        if confidence < 0.6:
-            if decision in ['STRONG_BUY', 'STRONG_SELL']:
-                # Downgrade strong signals to regular signals
-                return 'BUY' if 'BUY' in decision else 'SELL'
-            elif decision in ['BUY', 'SELL'] and confidence < 0.4:
-                # Very low confidence, default to HOLD
+        # Very permissive for BUY signals on indices
+        if decision in ['BUY', 'STRONG_BUY']:
+            if confidence < 0.2: # Only extremely low confidence defaults to HOLD
+                return 'HOLD'
+            return decision
+            
+        # Conservative adjustment for low confidence on SELL signals
+        if confidence < 0.4:
+            if decision in ['STRONG_SELL']:
+                return 'SELL'
+            elif decision == 'SELL':
                 return 'HOLD'
         
         # Market regime-based adjustments
         volatility = market_data.get('volatility', 0.02)
-        if volatility > 0.05:  # Very high volatility
-            # Be more conservative in volatile markets
+        if volatility > 0.06:  # Extreme volatility only
             if decision in ['BUY', 'SELL']:
                 return 'HOLD'
         
@@ -308,6 +305,16 @@ class EnhancedDecisionEngine:
         
         # Adjust for market regime
         adjusted_score = self._adjust_for_market_regime(weighted_score, market_data)
+        
+        # Bullish Super-Boost for index trading
+        # If either Classic or TimesFM is bullish, we give it a chance even if others are neutral
+        classic_decision = next((d for d in decisions if d.model_name == 'classic'), None)
+        timesfm_decision = next((d for d in decisions if d.model_name == 'timesfm'), None)
+        
+        if classic_decision and classic_decision.signal == 'BUY' and classic_decision.confidence > 0.4:
+            adjusted_score += 0.1
+        if timesfm_decision and timesfm_decision.signal == 'BUY' and timesfm_decision.confidence > 0.2:
+            adjusted_score += 0.1
         
         # Calculate consensus metrics
         consensus_score = self._calculate_consensus_score(decisions)

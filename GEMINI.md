@@ -35,19 +35,16 @@ uv run main.py
 # Analyse Pétrole (Analyse CL=F, trading virtuel CRUDP.PA)
 uv run main.py --ticker CRUDP.PA
 
-# Exécution réelle sur Trading 212 (Budget 1000€)
+# Exécution réelle sur Trading 212 (Mode DEMO ou REEL via .env)
 uv run main.py --t212
+
+# Lancer le scheduler automatique (8h30 - 18h00, Lun-Ven)
+uv run schedule.py
 ```
 
-The script will:
-1.  **Fetch/Load Data**: Retrieves the latest market data for SXRV.FRK (iShares Nasdaq 100 EUR).
-2.  **Train Models**: Trains the AI models on the available history.
-3.  **Generate Decision**: Executes the hybrid analysis.
-4.  **Execute Trade**: If `--t212` is set, it **verifies your real portfolio (cash/positions)**, calculates the exact fractional quantity for a 1000€ budget (or available cash), and places a market order on Trading 212.
+The system now uses **Gemma 4:e4b** for enhanced cognitive analysis and integrates the **AlphaEar** skill for real-time financial news context.
 
-Analysis charts are saved as `enhanced_trading_chart.png`.
-
-The scheduler will run in the background, perform daily analysis, generate reports, and manage the project's deployment phases. All scheduler activities are logged in `scheduler.log`.
+The scheduler will run in the background, perform periodic analysis (every 30 minutes), and execute trades on Trading 212. All activities are logged in `scheduler.log`.
 
 ## Configuration
 

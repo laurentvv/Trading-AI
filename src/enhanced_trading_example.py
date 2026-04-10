@@ -219,22 +219,13 @@ class EnhancedTradingSystem:
             title=f"{self.ticker} - Enhanced Analysis Chart"
         )
         
-        # 3. Prédictions LLM
-        text_llm_decision = get_llm_decision(latest_data)
-        visual_llm_decision = get_visual_llm_decision(
-            self.chart_output_path) if chart_generated else {
-                "signal": "HOLD", "confidence": 0.0, 
-                "analysis": "Chart generation failed."
-            }
-        
-        # 4. Analyse de sentiment
-        logger.info("Fetching live news and sentiment from Alpha Vantage...")
+        # 3. Analyse de sentiment et News (Déplacé avant le LLM pour servir de contexte)
+        logger.info("Fetching live news and sentiment...")
+        headlines = []
+        sentiment_score = 0
         try:
-            # Construct the path to the script and the python executable
             script_path = Path(__file__).parent / "news_fetcher.py"
             python_executable = sys.executable
-            
-            # Run the script as a subprocess
             process = subprocess.run(
                 [python_executable, str(script_path), self.ticker, ALPHA_VANTAGE_API_KEY],
                 capture_output=True,
@@ -242,13 +233,21 @@ class EnhancedTradingSystem:
                 check=True
             )
             news_data = json.loads(process.stdout)
+            headlines = news_data.get("headlines", [])
             sentiment_score = news_data.get("sentiment", 0)
-            logger.info(f"Successfully fetched news. Overall sentiment score: {sentiment_score:.2f}")
-        except (subprocess.CalledProcessError, json.JSONDecodeError, FileNotFoundError) as e:
-            logger.error(f"Failed to fetch or parse news headlines: {e}")
-            sentiment_score = 0
+            logger.info(f"Successfully fetched {len(headlines)} news headlines. Sentiment score: {sentiment_score:.2f}")
+        except Exception as e:
+            logger.error(f"Failed to fetch news: {e}")
 
         sentiment_decision = get_sentiment_decision_from_score(sentiment_score)
+        
+        # 4. Prédictions LLM (Maintenant avec le contexte des news)
+        text_llm_decision = get_llm_decision(latest_data, headlines=headlines)
+        visual_llm_decision = get_visual_llm_decision(
+            self.chart_output_path) if chart_generated else {
+                "signal": "HOLD", "confidence": 0.0, 
+                "analysis": "Chart generation failed."
+            }
         
         # 5. Prédictions TimesFM
         logger.info("Génération de la prédiction TimesFM...")

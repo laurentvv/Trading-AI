@@ -9,50 +9,57 @@ import time
 logger = logging.getLogger(__name__)
 
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
-TEXT_LLM_MODEL = "gemma3:4b"
-VISUAL_LLM_MODEL = "gemma3:4b"
+TEXT_LLM_MODEL = "gemma4:e4b"
+VISUAL_LLM_MODEL = "gemma4:e4b"
 
-def construct_llm_prompt(latest_data: pd.DataFrame) -> str:
+def construct_llm_prompt(latest_data: pd.DataFrame, headlines: list = None) -> str:
     """
-    Constructs a detailed prompt for the LLM from the latest market data.
+    Constructs a detailed prompt for the LLM from the latest market data and news.
     """
     data = latest_data.iloc[0]
+    news_text = "\n".join([f"- {h}" for h in headlines[:15]]) if headlines else "No recent news available."
+    
     prompt = f"""
-    Analyze the following market data and provide a trading decision in JSON format.
+    Analyze the following market data and news for a NASDAQ-100 ETF to provide a highly accurate trading decision.
+    Your priority is ACCURACY (justesse) over trading frequency.
 
     **Current Market Data:**
     - Close Price: {data['Close']:.2f}
     - RSI (14): {data['RSI']:.2f}
-    - MACD: {data['MACD']:.4f}
-    - MACD Signal: {data['MACD_Signal']:.4f}
-    - MACD Histogram: {data['MACD_Histogram']:.4f}
-    - Bollinger Bands Position (0-1): {data['BB_Position']:.2f}
-    - Short-term Trend (MA5 vs MA20): {'Bullish' if data['Trend_Short'] == 1 else 'Bearish' if data['Trend_Short'] == -1 else 'Neutral'}
-    - Long-term Trend (MA20 vs MA50): {'Bullish' if data['Trend_Long'] == 1 else 'Bearish' if data['Trend_Long'] == -1 else 'Neutral'}
+    - MACD: {data['MACD']:.4f} | Signal: {data['MACD_Signal']:.4f}
+    - Bollinger Bands Position: {data['BB_Position']:.2f}
+    - Short-term Trend: {'Bullish' if data['Trend_Short'] == 1 else 'Bearish' if data['Trend_Short'] == -1 else 'Neutral'}
+    - Long-term Trend: {'Bullish' if data['Trend_Long'] == 1 else 'Bearish' if data['Trend_Long'] == -1 else 'Neutral'}
 
-    **Instructions:**
-    Provide your analysis ONLY as a valid JSON object. Do not include any other text or explanation outside the JSON.
-    Expected format:
+    **Recent News Headlines:**
+    {news_text}
+
+    **Decision Rules:**
+    1. Priority: ACCURACY. If news contradict technicals or signals are weak/mixed, default to HOLD.
+    2. Bullish trend + Positive news = High conviction BUY.
+    3. Bearish trend + Negative news = High conviction SELL.
+
+    Provide your analysis ONLY as a valid JSON object.
     {{
-      "signal": "BUY",
-      "confidence": 0.85,
-      "analysis": "Brief explanation here."
+      "signal": "BUY | SELL | HOLD",
+      "confidence": <float 0.0 to 1.0>,
+      "analysis": "A rigorous 2-sentence technical and fundamental justification."
     }}
     """
     return prompt.strip()
 
-def get_llm_decision(latest_data: pd.DataFrame) -> dict:
+def get_llm_decision(latest_data: pd.DataFrame, headlines: list = None) -> dict:
     """
     Queries the textual LLM via Ollama to get a trading decision.
     """
     logger.info("Querying textual LLM for a trading decision...")
-    prompt = construct_llm_prompt(latest_data)
+    prompt = construct_llm_prompt(latest_data, headlines)
     payload = {
         "model": TEXT_LLM_MODEL,
         "prompt": prompt,
         "stream": False,
         "format": "json",
-        "system": "You are an expert financial analyst specializing in NASDAQ ETFs. Your task is to analyze market data and provide a trading decision in a valid JSON format."
+        "system": "You are an expert financial analyst. Your task is to analyze market data and news to provide a trading decision in a valid JSON format."
     }
     return _query_ollama(payload)
 

@@ -16,7 +16,7 @@ graph TD
     end
     
     subgraph "Analyse Contextuelle"
-    B --> E[LLM Texte - Gemma 3]
+    B --> E[LLM Texte - Gemma 4]
     B --> F[LLM Visuel - Analyse Graphique]
     B --> G[Sentiment Analysis - News]
     end
@@ -37,15 +37,24 @@ graph TD
     *   **Sélection :** Le système teste les 3 modèles via `TimeSeriesSplit` et sélectionne automatiquement le plus performant pour la journée.
     *   **Features :** 45 indicateurs (RSI, MACD, Bollinger, Moyennes Mobiles, Yields Trésorerie US, PIB, Chômage).
 
-2.  **LLM (Gemma 3 : 4b) :**
-    *   **Texte :** Analyse les données brutes et les indicateurs pour détecter des anomalies ou des configurations de prix.
-    *   **Visuel :** Analyse directement l'image du graphique technique (`enhanced_trading_chart.png`) pour identifier des supports/résistances et des patterns visuels.
+2.  **LLM (Gemma 4 : e4b) :**
+    *   **Texte :** Analyse les données brutes et les indicateurs. Intègre désormais les titres de presse en temps réel via le skill **AlphaEar** pour une synthèse technique et fondamentale.
+    *   **Visuel :** Analyse directement l'image du graphique technique (`enhanced_trading_chart.png`) pour identifier des patterns chartistes complexes.
 
 3.  **TimesFM (Google Research) :**
-    *   Modèle de fondation **TimesFM 2.5** (version la plus récente) spécialisé dans la prédiction de séries temporelles pour estimer la tendance à 5 jours. Intégré via un processus d'installation automatisé (`uv run setup`).
+    *   Modèle de fondation **TimesFM 2.5** spécialisé dans la prévision de séries temporelles.
 
-4.  **Sentiment Analysis :**
-    *   Analyse en temps réel les gros titres de l'actualité financière via l'API Alpha Vantage pour ajuster le score de confiance.
+4.  **Sentiment Analysis (Hybride) :**
+    *   Combine les news d'Alpha Vantage avec les tendances "hot" d'**AlphaEar** (Weibo, WallstreetCN, etc.) pour une détection précoce des changements de sentiment.
+
+---
+
+## 🕒 Automatisation (Scheduler)
+
+Un nouveau script autonome `schedule.py` permet une exécution continue sur serveur :
+- **Horaires :** Lundi au Vendredi, 8h30 à 18h00.
+- **Fréquence :** Analyse et trading toutes les 30 minutes.
+- **Dashboard :** Suivi en temps réel de l'état du scheduler et du prochain run.
 
 ---
 

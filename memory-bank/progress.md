@@ -1,17 +1,17 @@
 
 ## 1. Statut Actuel
-- **Progression Globale**: Phase 2 (Apprentissage Initial) en cours depuis le 12 septembre 2025.
-- **Dernière Étape Complétée**: Implémentation d'un portefeuille hypothétique et fiabilisation du suivi des performances.
-- **Étape Actuelle**: Surveillance de la stabilité du système et acquisition de données en Phase 2.
+- **Progression Globale**: Phase de Validation en mode "Justesse" (Accuracy First).
+- **Dernière Étape Complétée**: Migration vers Gemma 4 et intégration du skill AlphaEar pour le sentiment temps réel.
+- **Étape Actuelle**: Exécution autonome via `schedule.py` sur compte démo T212.
 
 ## 2. Ce Qui Fonctionne
-- **Planificateur Automatisé**: Un nouveau planificateur robuste (`src/intelligent_scheduler.py`) est en place, assurant l'exécution automatique et fiable des analyses quotidiennes avec gestion correcte des phases.
-- **Moteur Hybride Tri-Modal**: Le système est entièrement intégré et peut générer une décision finale basée sur le modèle classique amélioré (avec données macro), un LLM textuel et un LLM visuel.
-- **Portefeuille Hypothétique**: Le système simule désormais les transactions basées sur les signaux de l'IA, permettant un suivi réaliste des performances.
-- **Client LLM**: Peut interroger les modèles textuels et visuels.
-- **Générateur de Graphiques**: Peut produire des images de graphiques financiers.
-- **Intégration des Données Macroéconomiques**: Le système récupère avec succès les données de FRED, les met en cache et les incorpore comme caractéristiques dans le modèle quantitatif classique.
-- **Script d'Exécution Manuelle**: Un script `run_now.py` a été ajouté pour permettre le déclenchement manuel et immédiat de l'analyse quotidienne.
+- **Moteur Hybride Gemma 4**: Utilisation de `gemma4:e4b` pour une analyse tri-modale (texte, vision, news) plus fine.
+- **Skill AlphaEar News**: Récupération des tendances financières "hot" (Weibo, WallstreetCN) intégrée au flux décisionnel.
+- **Nouveau Scheduler Autonome**: Script `schedule.py` gérant les horaires de marché (8h30-18h00) et l'intervalle de 30 minutes avec dashboard live.
+- **Logique de Justesse**: Moteur de décision et gestionnaire de risques calibrés pour prioriser la conservation du capital.
+- **TimesFM 2.5**: Prédictions probabilistes de pointe intégrées et stables.
+- **Trading 212**: Exécution complète (achat/vente) testée et validée en mode démo.
+- **Modèle Quantitatif Classique**: Sélection automatique du meilleur modèle (LR, RF, GB) avec intégration macroéconomique.
 
 ## 3. Ce Qui Reste à Construire
 - **Phase 3 : Optimisation** - Le système transitionnera automatiquement vers cette phase le 22 septembre 2025.
@@ -23,6 +23,12 @@
 - **Résolu (2025-09-12)**: Corrigé un bug de persistance où la transition de phase n'était pas sauvegardée immédiatement, causant une réinitialisation de la phase au redémarrage du planificateur.
 
 ## 5. Corrections Récentes
+- **2026-04-10**: Migration Cognitive et News
+  * Passage de Gemma 3 à **Gemma 4:e4b** pour une meilleure synthèse.
+  * Intégration du skill **AlphaEar** via `src/news_fetcher.py`.
+  * Création de `schedule.py` pour remplacer l'ancien scheduler complexe.
+  * Optimisation des seuils de décision dans `EnhancedDecisionEngine` et `AdvancedRiskManager`.
+  * Amélioration du logging du backtester pour une transparence quotidienne.
 - **2026-04-10**: Intégration de **TimesFM 2.5** (Google Research).
   * Automatisation de l'installation via `setup_timesfm.py` et `uv run setup`.
   * Patch de l'API 2.5 pour permettre l'importation directe de `TimesFM_2p5_200M_torch`.

@@ -29,5 +29,7 @@ dependencies = [
     "yfinance>=1.2.1",
 ]
 
-[tool.uv.scripts]
-setup = "python setup_timesfm.py"
+[tool.uv.sources]
+timesfm = { path = "vendor/timesfm" }
+
+# Pour installer TimesFM, utilisez : uv run python setup_timesfm.py
