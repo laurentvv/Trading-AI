@@ -2,12 +2,25 @@ import os
 import subprocess
 import sys
 import shutil
+import stat
 from pathlib import Path
+
+def on_rm_error(func, path, exc_info):
+    """
+    Handler for shutil.rmtree error on Windows (Read-only files).
+    """
+    # Force permissions to writeable
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
 
 def run_command(command, description):
     print(f"[*] {description}...")
     try:
-        subprocess.run(command, shell=True, check=True)
+        # Use subprocess list instead of shell=True for safer execution on Windows
+        if isinstance(command, str):
+            subprocess.run(command, shell=True, check=True)
+        else:
+            subprocess.run(command, check=True)
     except subprocess.CalledProcessError as e:
         print(f"[!] Error: {e}")
         sys.exit(1)
@@ -22,7 +35,18 @@ def main():
     # 1. Nettoyage des anciennes installations
     if timesfm_dir.exists():
         print(f"[*] Removing existing TimesFM source at {timesfm_dir}...")
-        shutil.rmtree(timesfm_dir)
+        try:
+            shutil.rmtree(timesfm_dir, onerror=on_rm_error)
+        except Exception as e:
+            print(f"[!] Warning: Could not remove directory perfectly: {e}")
+            # Try to rename it as a fallback to avoid blocking the clone
+            old_dir = f"{timesfm_dir}_old_{int(os.path.getmtime(timesfm_dir))}"
+            try:
+                os.rename(timesfm_dir, old_dir)
+                print(f"[*] Renamed old directory to {old_dir}")
+            except:
+                print(f"[!] CRITICAL: Path {timesfm_dir} is locked.")
+                sys.exit(1)
     
     if not vendor_dir.exists():
         vendor_dir.mkdir()
