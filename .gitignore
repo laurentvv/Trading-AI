@@ -37,6 +37,10 @@ $RECYCLE.BIN/
 *.json
 *.pkl
 *.pickle
+*.db
+*.log
+*.png
+vendor/
 models/
 data_cache/
 logs/
@@ -45,3 +49,4 @@ trading_data/
 api_keys.txt
 config.ini
 secrets.json
+*.png

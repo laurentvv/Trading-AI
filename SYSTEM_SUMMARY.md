@@ -42,7 +42,7 @@ graph TD
     *   **Visuel :** Analyse directement l'image du graphique technique (`enhanced_trading_chart.png`) pour identifier des supports/résistances et des patterns visuels.
 
 3.  **TimesFM (Google Research) :**
-    *   Modèle de fondation spécialisé dans la prédiction de séries temporelles pour estimer la tendance à 5 jours.
+    *   Modèle de fondation **TimesFM 2.5** (version la plus récente) spécialisé dans la prédiction de séries temporelles pour estimer la tendance à 5 jours. Intégré via un processus d'installation automatisé (`uv run setup`).
 
 4.  **Sentiment Analysis :**
     *   Analyse en temps réel les gros titres de l'actualité financière via l'API Alpha Vantage pour ajuster le score de confiance.
@@ -85,14 +85,10 @@ Le système inclut un mode simulation persistant pour tester les performances en
 - **Capital Initial :** 1000 € (fixe).
 - **Persistance :** L'état du portefeuille et l'historique des trades sont sauvegardés dans `trading_history.db`.
 - **Logique Strict :** Le mode simulation impose une alternance Achat -> Vente. Il est impossible d'acheter si le capital est déjà engagé, ou de vendre si aucune action n'est détenue.
-- **Rapport Dédié :** Un script permet de consulter l'état actuel de la simulation.
 
 ```bash
-# Lancer la simulation quotidienne
-uv run main.py --ticker QQQ --simul
-
-# Consulter le rapport de simulation
-uv run python src/read_simul.py
+# Lancer la simulation quotidienne (Défaut: SXRV.FRK)
+uv run main.py --simul
 ```
 
 ---
@@ -102,23 +98,24 @@ uv run python src/read_simul.py
 Le système peut désormais passer des ordres réels sur un compte Trading 212 via l'API.
 
 ### Caractéristiques :
+- **Sécurité et Vérification** : Consulte le cash réel et les positions ouvertes **avant** toute action.
 - **Budget Dédié :** Commence avec 1000 € (paramétrable dans `t212_portfolio_state.json`).
 - **Actions Fractionnées :** Le système calcule la quantité exacte (ex: 0.8172 action) pour respecter le budget au centime près.
 - **Vente Totale :** En cas de signal SELL, le robot liquide 100% de la position (incluant toutes les fractions).
-- **Suivi de Capital :** Les profits sont automatiquement réinvestis pour le trade suivant.
+- **Gestion des API** : Retry automatique en cas de limite de requêtes API (Rate Limit).
 
 ```bash
 # Lancer l'analyse avec exécution réelle (Mode Démo ou Live)
-uv run main.py --ticker QQQ --t212
+uv run main.py --t212
 ```
 
 ---
 
 ## 🛠️ Comment utiliser ?
 
-Pour lancer une analyse complète sur un actif (ex: QQQ) :
+Pour lancer une analyse complète sur un actif (Défaut: SXRV.FRK - Nasdaq 100 EUR) :
 ```bash
-uv run main.py --ticker QQQ
+uv run main.py
 ```
 
 Le script générera :

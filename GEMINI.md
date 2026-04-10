@@ -19,11 +19,12 @@ The system is written in Python and leverages a variety of libraries for data an
 1.  **Installer `uv` (si ce n'est pas déjà fait) :**
     Consultez [astral.sh/uv](https://astral.sh/uv) pour les instructions d'installation.
 
-2.  **Initialiser et synchroniser l'environnement :**
+2.  **Initialiser l'environnement et installer TimesFM 2.5 :**
+    Exécutez la commande suivante qui va synchroniser les dépendances et configurer le modèle de prévision de Google :
     ```bash
-    uv sync
+    uv run setup
     ```
-    Cela créera automatiquement un environnement virtuel `.venv` avec la bonne version de Python (3.12) et toutes les dépendances.
+    Cela va cloner le dépôt TimesFM, appliquer les patchs nécessaires pour l'API 2.5 et l'installer en mode éditable dans votre environnement virtuel.
 
 3.  **Set up your API Key:**
     Create a file named `.env` in the root directory of the project and add your Alpha Vantage API key to it like this:
@@ -36,20 +37,20 @@ The system is written in Python and leverages a variety of libraries for data an
 To run a full analysis and get a clear trading signal, use the `main.py` script:
 
 ```bash
-uv run main.py --ticker QQQ
+uv run main.py --ticker SXRV.FRK
 ```
 
 To run with **automatic execution** on your Trading 212 account (starts with a 1000€ budget):
 
 ```bash
-uv run main.py --ticker QQQ --t212
+uv run main.py --t212
 ```
 
 The script will:
-1.  **Fetch/Load Data**: Retrieves the latest market data.
+1.  **Fetch/Load Data**: Retrieves the latest market data for SXRV.FRK (iShares Nasdaq 100 EUR).
 2.  **Train Models**: Trains the AI models on the available history.
 3.  **Generate Decision**: Executes the hybrid analysis.
-4.  **Execute Trade**: If `--t212` is set, places a fractional order on Trading 212 and updates `t212_portfolio_state.json`.
+4.  **Execute Trade**: If `--t212` is set, it **verifies your real portfolio (cash/positions)**, calculates the exact fractional quantity for a 1000€ budget (or available cash), and places a market order on Trading 212.
 
 Analysis charts are saved as `enhanced_trading_chart.png`.
 

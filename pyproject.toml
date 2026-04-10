@@ -28,3 +28,6 @@ dependencies = [
     "tqdm>=4.67.3",
     "yfinance>=1.2.1",
 ]
+
+[tool.uv.scripts]
+setup = "python setup_timesfm.py"

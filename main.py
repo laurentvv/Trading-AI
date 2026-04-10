@@ -19,6 +19,8 @@ sys.path.append(str(Path(__file__).parent / 'src'))
 
 # Import system modules
 from enhanced_trading_example import EnhancedTradingSystem
+from t212_executor import execute_t212_trade
+from database import get_latest_portfolio_state, get_latest_transaction
 
 # Load environment
 load_dotenv()
@@ -34,17 +36,41 @@ logging.basicConfig(
 )
 logger = logging.getLogger("TradingAI")
 
-def run_trading_analysis(ticker: str, is_simulation: bool = False):
+def check_setup() -> bool:
+    """Vérifie si TimesFM 2.5 est correctement installé et patché"""
+    vendor_path = Path(__file__).parent / "vendor" / "timesfm"
+    if not vendor_path.exists():
+        console = Console()
+        console.print(Panel(
+            "[bold red]ERREUR : TimesFM 2.5 n'est pas installé.[/bold red]\n\n"
+            "[*] Veuillez lancer la commande suivante pour tout configurer automatiquement :\n"
+            "    [bold cyan]uv run setup[/bold cyan]",
+            title="Setup Manquant",
+            border_style="red"
+        ))
+        return False
+    return True
+
+def run_trading_analysis(ticker: str, is_simulation: bool = False, is_t212: bool = False):
+    if not check_setup():
+        return
+        
     console = Console()
-    mode_text = "SIMULATION (1000€)" if is_simulation else "ANALYSIS"
+    
+    # Priority handling: T212 execution overrides internal simulation
+    if is_t212:
+        is_simulation = False
+        mode_text = "TRADING 212 EXECUTION"
+    else:
+        mode_text = "SIMULATION (1000€)" if is_simulation else "ANALYSIS"
+        
     console.print(Panel(f"[bold blue]Trading AI {mode_text} for {ticker}[/bold blue]", border_style="blue"))
     
     try:
         # Initialize the system
-        # If simulation, we use fixed capital of 1000 in the logic
-        system = EnhancedTradingSystem(ticker=ticker, initial_portfolio_value=1000 if is_simulation else 10000)
+        system = EnhancedTradingSystem(ticker=ticker, initial_portfolio_value=1000 if (is_simulation or is_t212) else 10000)
         
-        # Run full analysis with simulation flag
+        # Run full analysis
         results, report = system.run_enhanced_analysis(is_simulation=is_simulation)
         
         # CLEAR OUTPUT OF DECISION
@@ -55,6 +81,12 @@ def run_trading_analysis(ticker: str, is_simulation: bool = False):
         confidence = decision.final_confidence
         risk_level = risk.risk_level.name
         
+        # T212 Execution
+        if is_t212:
+            console.print(f"[bold yellow]🚀 Execution of the signal on Trading 212 for {ticker}...[/bold yellow]")
+            # We use the final signal (BUY/SELL/HOLD) and confidence
+            execute_t212_trade(signal, confidence, ticker=ticker)
+
         # Color coding
         color = "green" if "BUY" in signal else "red" if "SELL" in signal else "yellow"
         
@@ -70,23 +102,32 @@ def run_trading_analysis(ticker: str, is_simulation: bool = False):
         
         if is_simulation:
             # Show current simulation state
-            from database import get_latest_portfolio_state, get_latest_transaction
             state = get_latest_portfolio_state(ticker)
             last_tx = get_latest_transaction(ticker)
             
+            if state:
+                summary_table.add_row("---", "---")
+                summary_table.add_row("PORTFOLIO VALUE", f"[bold]{state[2]:.2f} €[/bold]")
+                summary_table.add_row("CASH", f"{state[1]:.2f} €")
+                summary_table.add_row("SHARES", f"{state[0]:.4f}")
+                if last_tx:
+                    summary_table.add_row("LAST TRADE", f"{last_tx[1]} on {last_tx[0]}")
+        elif is_t212:
+            from t212_executor import load_portfolio_state as load_t212_state
+            t212_ticker = ticker.split('.')[0]
+            t212_state = load_t212_state(t212_ticker)
             summary_table.add_row("---", "---")
-            summary_table.add_row("PORTFOLIO VALUE", f"[bold]{state[2]:.2f} €[/bold]")
-            summary_table.add_row("CASH", f"{state[1]:.2f} €")
-            summary_table.add_row("SHARES", f"{state[0]:.4f}")
-            if last_tx:
-                summary_table.add_row("LAST TRADE", f"{last_tx[1]} on {last_tx[0]}")
-
+            summary_table.add_row("T212 CAPITAL", f"[bold]{t212_state['current_capital']:.2f} €[/bold]")
+            summary_table.add_row("T212 P/L", f"{t212_state['total_realized_pl']:.2f} €")
+            if t212_state['active_position']:
+                pos = t212_state['active_position']
+                summary_table.add_row("T212 POSITION", f"{pos['quantity']} shares")
         else:
             summary_table.add_row("REC. POSITION", f"${results['position_sizing'].recommended_size:,.2f}")
         
         console.print(Panel(
             summary_table,
-            title="🎯 [bold]TRADING SIGNAL[/bold]",
+            title=f"🎯 [bold]TRADING SIGNAL: {ticker}[/bold]",
             border_style=color,
             expand=False
         ))
@@ -94,15 +135,18 @@ def run_trading_analysis(ticker: str, is_simulation: bool = False):
         return signal
         
     except Exception as e:
-        logger.error(f"Analysis failed: {e}")
-        console.print(f"[bold red]Error during analysis: {e}[/bold red]")
+        logger.error(f"Analysis failed for {ticker}: {e}")
+        console.print(f"[bold red]Error during analysis for {ticker}: {e}[/bold red]")
+        import traceback
+        traceback.print_exc()
         return "ERROR"
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run Trading AI Analysis')
-    parser.add_argument('--ticker', type=str, default='QQQ', help='Ticker to analyze (default: QQQ)')
+    parser.add_argument('--ticker', type=str, nargs='+', default=['CRUDP.PA', 'SXRV.DE'], help='Ticker(s) to analyze (default: CRUDP.PA and SXRV.DE)')
     parser.add_argument('--simul', action='store_true', help='Run in simulation mode (1000€ starting capital)')
-    parser.add_argument('--t212', action='store_true', help='Execute trades on Trading 212 account (starts with 1000€ budget)')
+    parser.add_argument('--t212', action='store_true', help='Execute trades on Trading 212 account (starts with 1000€ budget per ticker)')
     args = parser.parse_args()
     
-    run_trading_analysis(args.ticker, args.simul, args.t212)
+    for t in args.ticker:
+        run_trading_analysis(t, args.simul, args.t212)

@@ -83,10 +83,11 @@ class AdaptiveWeightManager:
         """
         self.db_path = db_path
         self.base_weights = base_weights or {
-            'classic': 0.35,
+            'classic': 0.25,
             'llm_text': 0.25,
-            'llm_visual': 0.25,
-            'sentiment': 0.15
+            'llm_visual': 0.20,
+            'sentiment': 0.15,
+            'timesfm': 0.15
         }
         self.lookback_days = lookback_days
         self.min_observations = min_observations
@@ -103,10 +104,10 @@ class AdaptiveWeightManager:
         
         # Market regime adjustments
         self.regime_adjustments = {
-            'trending': {'classic': 1.1, 'llm_text': 0.9, 'llm_visual': 1.0, 'sentiment': 0.8},
-            'volatile': {'classic': 0.8, 'llm_text': 0.9, 'llm_visual': 1.2, 'sentiment': 1.1},
-            'sideways': {'classic': 1.0, 'llm_text': 1.1, 'llm_visual': 0.9, 'sentiment': 1.0},
-            'crisis': {'classic': 0.7, 'llm_text': 1.3, 'llm_visual': 1.1, 'sentiment': 1.4}
+            'trending': {'classic': 1.1, 'llm_text': 0.9, 'llm_visual': 1.0, 'sentiment': 0.8, 'timesfm': 1.2},
+            'volatile': {'classic': 0.8, 'llm_text': 0.9, 'llm_visual': 1.2, 'sentiment': 1.1, 'timesfm': 1.0},
+            'sideways': {'classic': 1.0, 'llm_text': 1.1, 'llm_visual': 0.9, 'sentiment': 1.0, 'timesfm': 1.0},
+            'crisis': {'classic': 0.7, 'llm_text': 1.3, 'llm_visual': 1.1, 'sentiment': 1.4, 'timesfm': 0.5}
         }
         
         self._init_database()

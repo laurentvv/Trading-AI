@@ -23,6 +23,11 @@
 - **Résolu (2025-09-12)**: Corrigé un bug de persistance où la transition de phase n'était pas sauvegardée immédiatement, causant une réinitialisation de la phase au redémarrage du planificateur.
 
 ## 5. Corrections Récentes
+- **2026-04-10**: Intégration de **TimesFM 2.5** (Google Research).
+  * Automatisation de l'installation via `setup_timesfm.py` et `uv run setup`.
+  * Patch de l'API 2.5 pour permettre l'importation directe de `TimesFM_2p5_200M_torch`.
+  * Utilisation des fichiers `safetensors` pour le chargement du modèle.
+  * Mise à jour du moteur de décision pour intégrer les signaux de TimesFM avec un poids de 15%.
 - **2025-09-15**: Implémentation du portefeuille hypothétique et fiabilisation du suivi des performances.
   * Clarification de l'objectif du projet : système d'aide à la décision, pas un robot de trading autonome.
   * Implémentation d'un portefeuille hypothétique pour suivre la performance des décisions de l'IA.

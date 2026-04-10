@@ -124,9 +124,14 @@ Suivez ces étapes pour mettre en place votre environnement de développement lo
     ```bash
     uv sync
     ```
-    Cela créera automatiquement un environnement virtuel `.venv` avec la bonne version de Python (3.12) et toutes les dépendances.
 
-4.  **Configurez votre clé API :**
+4.  **Installez et Patchez TimesFM 2.5 (Requis pour les prévisions) :**
+    Lancez le script d'installation automatisé pour cloner et configurer le modèle :
+    ```bash
+    uv run python setup_timesfm.py
+    ```
+
+5.  **Configurez votre clé API :**
     Créez un fichier `.env` à la racine du projet et ajoutez votre clé API Alpha Vantage :
     ```
     ALPHA_VANTAGE_API_KEY="VOTRE_CLE_API_ICI"
@@ -143,17 +148,20 @@ Le système est conçu pour être simple et puissant. Il entraîne ses modèles 
 Pour tester le système sans risque avec un capital fictif de 1000 €, utilisez le flag `--simul`. Le système gérera un historique strict d'achats et de ventes.
 
 ```sh
-# Lancer une analyse simulée
-uv run main.py --ticker QQQ --simul
+# Lancer une analyse simulée (Défaut: SXRV.FRK - Nasdaq 100 EUR)
+uv run main.py --simul
 
-# Voir le rapport de simulation (achats, ventes, performance)
-uv run python src/read_simul.py
+# Lancer une exécution réelle sur Trading 212
+uv run main.py --t212
 ```
 
-Le mode simulation garantit :
-- Un capital de départ de **1000 €**.
-- Une **alternance stricte** : impossible de vendre si on ne possède rien, impossible d'acheter si on est déjà positionné.
-- Un **suivi persistant** via une base de données locale (`trading_history.db`).
+### Exécution Réelle (Trading 212)
+
+Le système est désormais **pleinement intégré** avec Trading 212 :
+- **Vérification du Portefeuille** : Avant toute action, le robot consulte votre cash réel et vos positions.
+- **Calcul Précis des Fractions** : Calcule le nombre d'actions exact pour atteindre votre budget cible (ex: 0.8172 actions).
+- **Gestion des API** : Inclut des mécanismes de retry automatique contre les limites de requêtes (Rate Limiting).
+- **Sécurité** : Utilise le ticker EUR (`SXRV.FRK` pour l'analyse, `SXRVd_EQ` pour l'ordre) pour éviter les frais de change.
 
 Le script va :
 1.  **Récupérer les données** de marché en temps réel.

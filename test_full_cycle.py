@@ -36,12 +36,27 @@ def show_t212_summary():
             print("Empty portfolio (Aucune position réelle).")
 
 def run_test():
-    # 0. Réinitialisation du fichier de suivi pour le test (1000€)
-    state = load_portfolio_state()
-    state["current_capital"] = 1000.0
-    state["active_position"] = None
+    # 0. Suppression de l'historique et réinitialisation
+    print_status("NETTOYAGE DE L'HISTORIQUE...")
+    db_files = ["trading_history.db", "model_performance.db", "performance_monitor.db"]
+    for db in db_files:
+        if os.path.exists(db):
+            os.remove(db)
+            print(f"🗑️ Base de données {db} supprimée.")
+    
+    if os.path.exists("t212_portfolio_state.json"):
+        os.remove("t212_portfolio_state.json")
+        print("🗑️ Fichier d'état t212_portfolio_state.json supprimé.")
+
+    state = {
+        "initial_budget": 1000.0,
+        "current_capital": 1000.0,
+        "total_realized_pl": 0.0,
+        "active_position": None
+    }
     with open("t212_portfolio_state.json", 'w') as f:
         json.dump(state, f, indent=4)
+    print("✨ Nouvel état initialisé à 1000€.")
     
     print_status("ÉTAPE 1 : ACHAT DE 1000€")
     execute_t212_trade("BUY", 1.0) # Confidence 1.0 pour le test
@@ -55,11 +70,12 @@ def run_test():
     print_status("VÉRIFICATION APRÈS ACHAT")
     show_t212_summary()
     
-    wait_minutes = 10
+    wait_minutes = 5
     print_status(f"ÉTAPE 2 : ATTENTE DE {wait_minutes} MINUTES...")
     for i in range(wait_minutes, 0, -1):
         print(f"⏳ Temps restant : {i} minute(s)...")
         time.sleep(60)
+
     
     print_status("VÉRIFICATION AVANT VENTE")
     show_t212_summary()

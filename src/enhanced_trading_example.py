@@ -299,6 +299,7 @@ class EnhancedTradingSystem:
             text_llm_decision=model_predictions['text_llm'],
             visual_llm_decision=model_predictions['visual_llm'],
             sentiment_decision=model_predictions['sentiment'],
+            timesfm_decision=model_predictions['timesfm'],
             market_data=market_data,
             adaptive_weights=weight_adjustment.model_weights
         )

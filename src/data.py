@@ -23,6 +23,25 @@ MACRO_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
 if not ALPHA_VANTAGE_API_KEY:
     logger.warning("ALPHA_VANTAGE_API_KEY not found in environment variables. Some features might be disabled.")
+
+class MarketDataManager:
+    """Helper class for single ticker price data retrieval."""
+    def __init__(self, ticker):
+        self.ticker = ticker
+        
+    def get_price_data(self, force_refresh=False):
+        """Retrieves historical price data for the ticker."""
+        try:
+            # We use a shorter period for quick price checks
+            data = yf.download(self.ticker, period="5d", progress=False)
+            if not data.empty:
+                # Rename columns to lowercase for consistency if needed
+                data.columns = [col.lower() for col in data.columns]
+                return data
+            return pd.DataFrame()
+        except Exception as e:
+            logger.error(f"MarketDataManager error for {self.ticker}: {e}")
+            return pd.DataFrame()
     
 def get_etf_data(ticker: str, period: str = '5y', force_refresh: bool = False) -> tuple[pd.DataFrame, dict]:
     """

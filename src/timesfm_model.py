@@ -2,16 +2,24 @@ import logging
 import numpy as np
 import pandas as pd
 from typing import Dict, Tuple
+import torch
+import sys
+import os
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Essayons d'importer timesfm. Si non installé, on gérera avec un fallback ou on le loggera
+# Tentative d'importation de l'API 2.5
+# (Elle doit être installée via setup_timesfm.py qui patche __init__.py)
 try:
     import timesfm
-    TIMESFM_AVAILABLE = True
-except ImportError:
-    TIMESFM_AVAILABLE = False
-    logger.warning("Le module 'timesfm' n'est pas installé. Les prédictions TimesFM seront désactivées.")
+    from timesfm.timesfm_2p5.timesfm_2p5_torch import TimesFM_2p5_200M_torch
+    from timesfm.configs import ForecastConfig
+    TIMESFM_2P5_AVAILABLE = True
+    logger.info("API TimesFM 2.5 (Torch) chargée avec succès.")
+except ImportError as e:
+    TIMESFM_2P5_AVAILABLE = False
+    logger.error(f"API TimesFM 2.5 non trouvée. Veuillez lancer 'python setup_timesfm.py' pour l'installer.")
 
 class TimesFMModel:
     """Wrapper pour le modèle TimesFM 2.5 de Google Research"""
@@ -27,121 +35,75 @@ class TimesFMModel:
     def __init__(self):
         self.model = None
         self.initialized = False
-        if TIMESFM_AVAILABLE:
-            try:
-                logger.info("Initialisation de TimesFM 2.5...")
-                # Initialize TimesFM 2.5
-                self.model = timesfm.TimesFm(
-                    hparams=timesfm.TimesFmHparams(
-                        backend="torch",
-                        per_core_batch_size=32,
-                        horizon_len=5,
-                        context_len=512,
-                        num_layers=20,
-                        model_dims=1280,
-                        input_patch_len=32,
-                    ),
-                    checkpoint=timesfm.TimesFmCheckpoint(
-                        huggingface_repo_id="google/timesfm-2.5-200m-pytorch"
-                    ),
-                )
-
-                # Initialize state
-                self.initialized = True
-                logger.info("TimesFM initialisé avec succès.")
-            except Exception as e:
-                # Often fails due to huggingface cache paths missing the exact .ckpt file
-                if isinstance(e, FileNotFoundError) or "[Errno 2]" in str(e):
-                    logger.warning(f"TimesFM checkpoint introuvable, le modèle sera ignoré: {e}")
-                else:
-                    logger.warning(f"Erreur lors de l'initialisation de TimesFM: {e}")
-                self.initialized = False
-
-    def predict(self, df: pd.DataFrame, horizon: int = 5) -> Dict:
-        """
-        Prédit les valeurs futures et génère une décision.
-
-        Args:
-            df: DataFrame contenant la colonne 'Close'
-            horizon: Nombre de jours à prédire
-
-        Returns:
-            Dict avec 'signal', 'confidence', et 'analysis'
-        """
-        if not self.initialized or self.model is None:
-            return {
-                "signal": "HOLD",
-                "confidence": 0.0,
-                "analysis": "TimesFM model not initialized or unavailable."
-            }
-
-        if 'Close' not in df.columns:
-            logger.error("La colonne 'Close' est requise pour TimesFM.")
-            return {
-                "signal": "HOLD",
-                "confidence": 0.0,
-                "analysis": "Missing 'Close' column for prediction."
-            }
+        
+        if not TIMESFM_2P5_AVAILABLE:
+            return
 
         try:
-            # Prepare inputs (needs numpy array)
-            # Use last max_context data points if available
-            prices = df['Close'].values
-            if len(prices) > 512:
-                prices = prices[-512:]
-
-            # Need a list of 1D arrays for input
-            inputs = [prices]
-
-            # Predict
-            point_forecast, _ = self.model.forecast(
-                inputs=inputs,
-                freq=[0], # 0 for daily/high freq usually
+            logger.info("Initialisation de TimesFM 2.5 (google/timesfm-2.5-200m-pytorch)...")
+            
+            # Initialisation selon l'API 2.5 (sans torch_compile pour Windows)
+            self.model = TimesFM_2p5_200M_torch(torch_compile=False).from_pretrained(
+                "google/timesfm-2.5-200m-pytorch"
             )
+            
+            # Configuration et compilation obligatoire pour l'API 2.5
+            from timesfm.configs import ForecastConfig
+            self.model.compile(
+                ForecastConfig(
+                    max_context=1024,
+                    max_horizon=256,
+                    normalize_inputs=True,
+                    use_continuous_quantile_head=True,
+                    force_flip_invariance=True,
+                    infer_is_positive=True,
+                    fix_quantile_crossing=True,
+                )
+            )
+            logger.info("TimesFM 2.5 initialisé et compilé avec succès.")
+            self.initialized = True
 
-            # point_forecast shape is (1, horizon)
+        except Exception as e:
+            logger.warning(f"Erreur lors de l'initialisation de TimesFM 2.5: {e}")
+            self.initialized = False
+
+    def predict(self, df: pd.DataFrame, horizon: int = 5) -> Dict:
+        """Prédit les valeurs futures et génère une décision."""
+        if not self.initialized or self.model is None:
+            return {"signal": "HOLD", "confidence": 0.0, "analysis": "Model not initialized."}
+
+        try:
+            prices = df['Close'].values
+            if len(prices) > 1024: prices = prices[-1024:]
+            
+            # API 2.5: point_forecast est un numpy array de shape (batch_size, horizon)
+            point_forecast, _ = self.model.forecast(horizon=horizon, inputs=[prices])
             predictions = point_forecast[0]
+
             current_price = prices[-1]
             last_pred = predictions[-1]
+            expected_return = (last_pred - current_price) / current_price if current_price != 0 else 0.0
 
-            # Calculate expected return in %
-            if current_price != 0:
-                expected_return = (last_pred - current_price) / current_price
-            else:
-                logger.warning("Current price is 0, cannot calculate expected return.")
-                expected_return = 0.0
-
-            # Determine signal
             signal = "HOLD"
-            confidence = min(1.0, abs(expected_return) * 10)  # Scale confidence based on expected return (e.g., 5% return -> 0.5 conf)
+            confidence = min(1.0, abs(expected_return) * 10)
+            if expected_return > 0.01: signal = "BUY"
+            elif expected_return < -0.01: signal = "SELL"
 
-            # Add basic thresholds for signal
-            threshold = 0.01  # 1% move expected
-            if expected_return > threshold:
-                signal = "BUY"
-            elif expected_return < -threshold:
-                signal = "SELL"
+            analysis = (f"TimesFM 2.5 forecasts price move: {current_price:.2f} -> {last_pred:.2f} "
+                       f"({expected_return*100:+.2f}%) over {horizon} days.")
 
-            analysis = f"TimesFM forecasts price to move from {current_price:.2f} to {last_pred:.2f} ({expected_return*100:.2f}% expected return) over next {horizon} days."
-
-            logger.info(f"TimesFM prediction: {signal} with {confidence:.2f} confidence")
+            logger.info(f"TimesFM 2.5 prediction: {signal} ({confidence:.2f})")
 
             return {
                 "signal": signal,
                 "confidence": round(float(confidence), 2),
                 "analysis": analysis,
-                "predictions": predictions.tolist() # Keep predictions if needed by UI
+                "predictions": predictions.tolist()
             }
 
         except Exception as e:
-            logger.error(f"Erreur lors de la prédiction TimesFM: {e}")
-            return {
-                "signal": "HOLD",
-                "confidence": 0.0,
-                "analysis": f"Error during prediction: {e}"
-            }
+            logger.error(f"Erreur prédiction TimesFM 2.5: {e}")
+            return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Error: {e}"}
 
 def get_timesfm_prediction(df: pd.DataFrame) -> Dict:
-    """Helper function to get prediction from singleton model"""
-    model = TimesFMModel.get_instance()
-    return model.predict(df)
+    return TimesFMModel.get_instance().predict(df)

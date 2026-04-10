@@ -1,812 +1,194 @@
-2026-04-09 11:59:33,899 - INFO - Performance database initialized successfully
-2026-04-09 11:59:33,903 - INFO - Performance monitoring database initialized
-2026-04-09 11:59:33,905 - INFO - Database initialized at trading_history.db
-2026-04-09 11:59:33,936 - INFO - Loading data from cache: data_cache\QQQ_max_with_vix.parquet
-2026-04-09 11:59:34,919 - INFO - Data loaded from cache: 6656 days.
-2026-04-09 11:59:34,920 - INFO - Final data period: 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 11:59:34,941 - INFO - Système de trading amélioré initialisé pour QQQ
-2026-04-09 11:59:34,942 - INFO - === DÉMARRAGE DE L'ANALYSE AMÉLIORÉE ===
-2026-04-09 11:59:34,943 - INFO - Récupération et préparation des données...
-2026-04-09 11:59:34,944 - INFO - Loading data from cache: data_cache\QQQ_max_with_vix.parquet
-2026-04-09 11:59:34,992 - INFO - Data loaded from cache: 6656 days.
-2026-04-09 11:59:34,992 - INFO - Final data period: 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 11:59:34,993 - INFO - Data retrieved: 6656 rows from 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 11:59:35,040 - INFO - Fetching macroeconomic data for context around 2025-08-22...
-2026-04-09 11:59:35,042 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_10y_monthly.parquet
-2026-04-09 11:59:35,049 - INFO - Using cached multi-source data for treasury_10y
-2026-04-09 11:59:35,070 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
-2026-04-09 11:59:35,076 - INFO - Using cached multi-source data for treasury_2y
-2026-04-09 11:59:35,083 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
-2026-04-09 11:59:35,089 - INFO - Using cached multi-source data for fed_funds
-2026-04-09 11:59:35,094 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_cpi_monthly.parquet
-2026-04-09 11:59:35,098 - INFO - Using cached multi-source data for cpi
-2026-04-09 11:59:35,103 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_unemployment_monthly.parquet
-2026-04-09 11:59:35,107 - INFO - Using cached multi-source data for unemployment
-2026-04-09 11:59:35,142 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_gdp_monthly.parquet
-2026-04-09 11:59:35,147 - INFO - Using cached multi-source data for gdp
-2026-04-09 11:59:35,152 - INFO - Macro data fetch complete. Retrieved 6 indicators.
-2026-04-09 11:59:35,169 - INFO - Added 6 macroeconomic features: ['treasury_yield_10year', 'treasury_yield_2year', 'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp']
-2026-04-09 11:59:35,190 - INFO - Final data with features: 6456 rows, 68 columns
-2026-04-09 11:59:35,191 - INFO - Entraînement du modèle quantitatif...
-2026-04-09 11:59:35,191 - INFO - Core features available: 39/39
-2026-04-09 11:59:35,192 - INFO - All macroeconomic features available
-2026-04-09 11:59:35,200 - INFO - Selected 45 features for model training
-2026-04-09 11:59:35,203 - INFO - Initial data shape: X=(6456, 45), y=(6456,)
-2026-04-09 11:59:35,208 - INFO - After removing NaN targets: X=(6456, 45), y=(6456,)
-2026-04-09 11:59:35,211 - INFO - Filling NaN values in 6 features
-2026-04-09 11:59:35,220 - INFO - Final clean data: X=(6456, 45), y=(6456,)
-2026-04-09 11:59:35,221 - INFO - Target distribution: {0: 4924, 1: 1532}
-2026-04-09 11:59:35,223 - INFO - Features shape: (6456, 45)
-2026-04-09 11:59:35,223 - INFO - Target shape: (6456,)
-2026-04-09 11:59:35,224 - INFO - NaN in features: 0
-2026-04-09 11:59:35,227 - INFO - NaN in target: 0
-2026-04-09 11:59:35,230 - INFO - Unique target values: [1 0]
-2026-04-09 11:59:35,231 - INFO - Original data shape: (6456, 45)
-2026-04-09 11:59:35,233 - INFO - NaN values per column: 0 total
-2026-04-09 11:59:35,236 - INFO - After removing NaN targets: (6456, 45)
-2026-04-09 11:59:35,356 - INFO - Final clean data shape: (6456, 45)
-2026-04-09 11:59:35,369 - INFO - Remaining NaN values: 0
-2026-04-09 11:59:53,268 - INFO - RandomForest - CV Score: 0.1068 (+/- 0.1236)
-2026-04-09 12:00:36,212 - INFO - GradientBoosting - CV Score: 0.1509 (+/- 0.0504)
-2026-04-09 12:00:36,619 - INFO - LogisticRegression - CV Score: 0.3498 (+/- 0.1793)
-2026-04-09 12:00:36,620 - INFO - Best model selected: LogisticRegression
-2026-04-09 12:00:36,718 - INFO - 
+2026-04-10 10:57:22,353 - INFO - Performance database initialized successfully
+2026-04-10 10:57:22,354 - INFO - Performance monitoring database initialized
+2026-04-10 10:57:22,354 - INFO - Database initialized at trading_history.db
+2026-04-10 10:57:22,355 - INFO - Loading data from cache: data_cache\CRUDP_PA_max_with_vix.parquet
+2026-04-10 10:57:23,190 - INFO - Data loaded from cache: 4672 days.
+2026-04-10 10:57:23,191 - INFO - Final data period: 2008-01-02 00:00:00 to 2026-04-10 00:00:00
+2026-04-10 10:57:23,193 - INFO - Système de trading amélioré initialisé pour CRUDP.PA
+2026-04-10 10:57:23,193 - INFO - === DÉMARRAGE DE L'ANALYSE AMÉLIORÉE ===
+2026-04-10 10:57:23,193 - INFO - Récupération et préparation des données...
+2026-04-10 10:57:23,194 - INFO - Loading data from cache: data_cache\CRUDP_PA_max_with_vix.parquet
+2026-04-10 10:57:23,234 - INFO - Data loaded from cache: 4672 days.
+2026-04-10 10:57:23,235 - INFO - Final data period: 2008-01-02 00:00:00 to 2026-04-10 00:00:00
+2026-04-10 10:57:23,235 - INFO - Data retrieved: 4672 rows from 2008-01-02 00:00:00 to 2026-04-10 00:00:00
+2026-04-10 10:57:23,251 - INFO - Fetching macroeconomic data for context around 2026-04-10...
+2026-04-10 10:57:23,252 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_10y_monthly.parquet
+2026-04-10 10:57:23,255 - INFO - Using cached multi-source data for treasury_10y
+2026-04-10 10:57:23,257 - INFO - [SUCCESS] treasury_yield_10year: 4.33
+2026-04-10 10:57:23,258 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
+2026-04-10 10:57:23,261 - INFO - Using cached multi-source data for treasury_2y
+2026-04-10 10:57:23,263 - INFO - [SUCCESS] treasury_yield_2year: 3.79
+2026-04-10 10:57:23,264 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
+2026-04-10 10:57:23,266 - INFO - Using cached multi-source data for fed_funds
+2026-04-10 10:57:23,267 - INFO - [SUCCESS] federal_funds_rate: 4.33
+2026-04-10 10:57:23,268 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_cpi_monthly.parquet
+2026-04-10 10:57:23,272 - INFO - Using cached multi-source data for cpi
+2026-04-10 10:57:23,273 - INFO - [SUCCESS] cpi: 322.13
+2026-04-10 10:57:23,274 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_unemployment_monthly.parquet
+2026-04-10 10:57:23,277 - INFO - Using cached multi-source data for unemployment
+2026-04-10 10:57:23,278 - INFO - [SUCCESS] unemployment: 4.20
+2026-04-10 10:57:23,278 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_gdp_monthly.parquet
+2026-04-10 10:57:23,280 - INFO - Using cached multi-source data for gdp
+2026-04-10 10:57:23,281 - INFO - [SUCCESS] real_gdp: 23685.29
+2026-04-10 10:57:23,281 - INFO - Macro data fetch complete. Retrieved 6 indicators.
+2026-04-10 10:57:23,287 - INFO - Added 6 macroeconomic features: ['treasury_yield_10year', 'treasury_yield_2year', 'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp']
+2026-04-10 10:57:23,295 - INFO - Final data with features: 3368 rows, 68 columns
+2026-04-10 10:57:23,296 - INFO - Entraînement du modèle quantitatif...
+2026-04-10 10:57:23,296 - INFO - Core features available: 39/39
+2026-04-10 10:57:23,296 - INFO - All macroeconomic features available
+2026-04-10 10:57:23,299 - INFO - Selected 45 features for model training
+2026-04-10 10:57:23,300 - INFO - Initial data shape: X=(3368, 45), y=(3368,)
+2026-04-10 10:57:23,303 - INFO - After removing NaN targets: X=(3367, 45), y=(3367,)
+2026-04-10 10:57:23,305 - INFO - Filling NaN values in 6 features
+2026-04-10 10:57:23,307 - INFO - Final clean data: X=(3367, 45), y=(3367,)
+2026-04-10 10:57:23,308 - INFO - Target distribution: {0.0: 2844, 1.0: 523}
+2026-04-10 10:57:23,308 - INFO - Features shape: (3367, 45)
+2026-04-10 10:57:23,309 - INFO - Target shape: (3367,)
+2026-04-10 10:57:23,310 - INFO - NaN in features: 0
+2026-04-10 10:57:23,310 - INFO - NaN in target: 0
+2026-04-10 10:57:23,311 - INFO - Unique target values: [1. 0.]
+2026-04-10 10:57:23,312 - INFO - Original data shape: (3367, 45)
+2026-04-10 10:57:23,312 - INFO - NaN values per column: 0 total
+2026-04-10 10:57:23,313 - INFO - After removing NaN targets: (3367, 45)
+2026-04-10 10:57:23,316 - INFO - Final clean data shape: (3367, 45)
+2026-04-10 10:57:25,961 - INFO - RandomForest - TimeSeries CV Score: 0.0484 (+/- 0.0795)
+2026-04-10 10:57:32,709 - INFO - GradientBoosting - TimeSeries CV Score: 0.2055 (+/- 0.1142)
+2026-04-10 10:57:32,803 - INFO - LogisticRegression - TimeSeries CV Score: 0.2577 (+/- 0.1231)
+2026-04-10 10:57:32,804 - INFO - Best model selected: LogisticRegression
+2026-04-10 10:57:32,832 - INFO - 
 === LOGISTICREGRESSION MODEL RESULTS ===
-2026-04-09 12:00:36,719 - INFO - Accuracy: 0.5015
-2026-04-09 12:00:36,720 - INFO - Precision: 0.2894
-2026-04-09 12:00:36,721 - INFO - Recall: 0.6377
-2026-04-09 12:00:36,721 - INFO - F1: 0.3981
-2026-04-09 12:00:36,723 - INFO - Modèle classique entraîné avec succès
-2026-04-09 12:00:36,724 - INFO - Génération des prédictions des modèles...
-2026-04-09 12:00:36,727 - INFO - Features disponibles pour prédiction: 45
-2026-04-09 12:00:36,730 - INFO - NaN dans les features: 0
-2026-04-09 12:00:36,737 - INFO - Prédiction classique: 1, confiance: 0.558
-2026-04-09 12:00:36,745 - INFO - Generating chart image and saving to enhanced_trading_chart.png...
-2026-04-09 12:00:38,628 - INFO - Chart generated successfully.
-2026-04-09 12:00:38,629 - INFO - Querying textual LLM for a trading decision...
-2026-04-09 12:00:44,112 - INFO - LLM decision (gemma3:4b) received and validated.
-2026-04-09 12:00:44,114 - INFO - Querying visual LLM with image enhanced_trading_chart.png...
-2026-04-09 12:00:50,934 - INFO - LLM decision (gemma3:4b) received and validated.
-2026-04-09 12:00:50,935 - INFO - Fetching live news and sentiment from Alpha Vantage...
-2026-04-09 12:00:52,340 - INFO - Successfully fetched news. Overall sentiment score: 0.07
-2026-04-09 12:00:52,341 - INFO - Génération de la prédiction TimesFM...
-2026-04-09 12:00:52,342 - INFO - Initialisation de TimesFM 2.5...
-2026-04-09 12:00:52,577 - INFO - HTTP Request: GET https://huggingface.co/api/models/google/timesfm-2.5-200m-pytorch/revision/main "HTTP/1.1 200 OK"
-2026-04-09 12:00:54,421 - ERROR - Erreur lors de l'initialisation de TimesFM: [Errno 2] No such file or directory: 'C:\\Users\\lvolff\\.cache\\huggingface\\hub\\models--google--timesfm-2.5-200m-pytorch\\snapshots\\1d952420fba87f3c6dee4f240de0f1a0fbc790e3\\torch_model.ckpt'
-2026-04-09 12:00:54,424 - INFO - Analyse améliorée en cours...
-2026-04-09 12:00:55,036 - INFO - Niveau de risque détecté: VERY_HIGH
-2026-04-09 12:00:55,037 - INFO - Score de risque: 0.313
-2026-04-09 12:00:55,044 - WARNING - Insufficient data for classic: 0 observations
-2026-04-09 12:00:55,049 - WARNING - Insufficient data for llm_text: 0 observations
-2026-04-09 12:00:55,053 - WARNING - Insufficient data for llm_visual: 0 observations
-2026-04-09 12:00:55,058 - WARNING - Insufficient data for sentiment: 0 observations
-2026-04-09 12:00:55,058 - INFO - Poids adaptatifs calculés:
-2026-04-09 12:00:55,059 - INFO -   classic: 0.350
-2026-04-09 12:00:55,060 - INFO -   llm_text: 0.250
-2026-04-09 12:00:55,060 - INFO -   llm_visual: 0.250
-2026-04-09 12:00:55,061 - INFO -   sentiment: 0.150
-2026-04-09 12:00:55,063 - INFO - Décision hybride: HOLD
-2026-04-09 12:00:55,064 - INFO - Consensus: 0.68
-2026-04-09 12:00:55,064 - INFO - Confiance: 0.12
-2026-04-09 12:00:55,065 - INFO - Taille de position recommandée: $77.80
-2026-04-09 12:00:55,089 - INFO - Updated portfolio state for QQQ on 2025-08-22 00:00:00
-2026-04-09 12:00:55,090 - INFO - Mise à jour du monitoring de performance...
-2026-04-09 12:00:55,823 - INFO - Performance monitoring updated: Portfolio $9,087.27, Daily Return: 1.54%, Alerts: 0
-2026-04-09 12:00:58,584 - INFO - Performance dashboard saved to enhanced_performance_dashboard.png
-2026-04-09 12:00:58,613 - INFO - === ANALYSE AMÉLIORÉE TERMINÉE ===
-2026-04-09 12:05:10,640 - INFO - Performance database initialized successfully
-2026-04-09 12:05:10,645 - INFO - Performance monitoring database initialized
-2026-04-09 12:05:10,648 - INFO - Database initialized at trading_history.db
-2026-04-09 12:05:10,649 - INFO - Loading data from cache: data_cache\QQQ_max_with_vix.parquet
-2026-04-09 12:05:11,651 - INFO - Data loaded from cache: 6656 days.
-2026-04-09 12:05:11,659 - INFO - Final data period: 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 12:05:11,676 - INFO - Système de trading amélioré initialisé pour QQQ
-2026-04-09 12:05:11,677 - INFO - === DÉMARRAGE DE L'ANALYSE AMÉLIORÉE ===
-2026-04-09 12:05:11,678 - INFO - Récupération et préparation des données...
-2026-04-09 12:05:11,679 - INFO - Loading data from cache: data_cache\QQQ_max_with_vix.parquet
-2026-04-09 12:05:11,723 - INFO - Data loaded from cache: 6656 days.
-2026-04-09 12:05:11,725 - INFO - Final data period: 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 12:05:11,726 - INFO - Data retrieved: 6656 rows from 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 12:05:11,788 - INFO - Fetching macroeconomic data for context around 2025-08-22...
-2026-04-09 12:05:11,789 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_10y_monthly.parquet
-2026-04-09 12:05:11,798 - INFO - Using cached multi-source data for treasury_10y
-2026-04-09 12:05:11,805 - INFO - [SUCCESS] treasury_yield_10year: 4.33
-2026-04-09 12:05:11,806 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
-2026-04-09 12:05:11,812 - INFO - Using cached multi-source data for treasury_2y
-2026-04-09 12:05:11,817 - INFO - [SUCCESS] treasury_yield_2year: 3.79
-2026-04-09 12:05:11,819 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
-2026-04-09 12:05:11,824 - INFO - Using cached multi-source data for fed_funds
-2026-04-09 12:05:11,827 - INFO - [SUCCESS] federal_funds_rate: 4.33
-2026-04-09 12:05:11,829 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_cpi_monthly.parquet
-2026-04-09 12:05:11,833 - INFO - Using cached multi-source data for cpi
-2026-04-09 12:05:11,836 - INFO - [SUCCESS] cpi: 322.13
-2026-04-09 12:05:11,838 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_unemployment_monthly.parquet
-2026-04-09 12:05:11,844 - INFO - Using cached multi-source data for unemployment
-2026-04-09 12:05:11,847 - INFO - [SUCCESS] unemployment: 4.20
-2026-04-09 12:05:11,848 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_gdp_monthly.parquet
-2026-04-09 12:05:11,852 - INFO - Using cached multi-source data for gdp
-2026-04-09 12:05:11,855 - INFO - [SUCCESS] real_gdp: 23685.29
-2026-04-09 12:05:11,855 - INFO - Macro data fetch complete. Retrieved 6 indicators.
-2026-04-09 12:05:11,877 - INFO - Added 6 macroeconomic features: ['treasury_yield_10year', 'treasury_yield_2year', 'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp']
-2026-04-09 12:05:11,894 - INFO - Final data with features: 6456 rows, 68 columns
-2026-04-09 12:05:11,895 - INFO - Entraînement du modèle quantitatif...
-2026-04-09 12:05:11,895 - INFO - Core features available: 39/39
-2026-04-09 12:05:11,896 - INFO - All macroeconomic features available
-2026-04-09 12:05:11,907 - INFO - Selected 45 features for model training
-2026-04-09 12:05:11,908 - INFO - Initial data shape: X=(6456, 45), y=(6456,)
-2026-04-09 12:05:11,912 - INFO - After removing NaN targets: X=(6456, 45), y=(6456,)
-2026-04-09 12:05:11,916 - INFO - Filling NaN values in 6 features
-2026-04-09 12:05:11,927 - INFO - Final clean data: X=(6456, 45), y=(6456,)
-2026-04-09 12:05:11,932 - INFO - Target distribution: {0: 4924, 1: 1532}
-2026-04-09 12:05:11,933 - INFO - Features shape: (6456, 45)
-2026-04-09 12:05:11,934 - INFO - Target shape: (6456,)
-2026-04-09 12:05:11,937 - INFO - NaN in features: 0
-2026-04-09 12:05:11,939 - INFO - NaN in target: 0
-2026-04-09 12:05:11,943 - INFO - Unique target values: [1 0]
-2026-04-09 12:05:11,944 - INFO - Original data shape: (6456, 45)
-2026-04-09 12:05:11,946 - INFO - NaN values per column: 0 total
-2026-04-09 12:05:11,951 - INFO - After removing NaN targets: (6456, 45)
-2026-04-09 12:05:12,035 - INFO - Final clean data shape: (6456, 45)
-2026-04-09 12:05:12,041 - INFO - Remaining NaN values: 0
-2026-04-09 12:05:27,554 - INFO - RandomForest - CV Score: 0.1068 (+/- 0.1236)
-2026-04-09 12:06:15,981 - INFO - GradientBoosting - CV Score: 0.1509 (+/- 0.0504)
-2026-04-09 12:06:16,381 - INFO - LogisticRegression - CV Score: 0.3498 (+/- 0.1793)
-2026-04-09 12:06:16,382 - INFO - Best model selected: LogisticRegression
-2026-04-09 12:06:16,484 - INFO - 
+2026-04-10 10:57:32,832 - INFO - Accuracy: 0.2967
+2026-04-10 10:57:32,833 - INFO - Precision: 0.1975
+2026-04-10 10:57:32,833 - INFO - Recall: 0.8284
+2026-04-10 10:57:32,833 - INFO - F1: 0.3190
+2026-04-10 10:57:32,833 - INFO - Modèle classique entraîné avec succès
+2026-04-10 10:57:32,834 - INFO - Génération des prédictions des modèles...
+2026-04-10 10:57:32,835 - INFO - Features disponibles pour prédiction: 45
+2026-04-10 10:57:32,836 - INFO - NaN dans les features: 0
+2026-04-10 10:57:32,838 - INFO - Prédiction classique: 1.0, confiance: 0.615
+2026-04-10 10:57:32,840 - INFO - Generating chart image and saving to enhanced_trading_chart.png...
+2026-04-10 10:57:33,335 - INFO - Chart generated successfully.
+2026-04-10 10:57:33,336 - INFO - Querying textual LLM for a trading decision...
+2026-04-10 10:57:44,353 - INFO - LLM decision (gemma3:4b) received and validated.
+2026-04-10 10:57:44,353 - INFO - Querying visual LLM with image enhanced_trading_chart.png...
+2026-04-10 10:57:50,009 - INFO - LLM decision (gemma3:4b) received and validated.
+2026-04-10 10:57:50,010 - INFO - Fetching live news and sentiment from Alpha Vantage...
+2026-04-10 10:57:50,672 - INFO - Successfully fetched news. Overall sentiment score: 0.00
+2026-04-10 10:57:50,673 - INFO - Génération de la prédiction TimesFM...
+2026-04-10 10:57:50,674 - INFO - Analyse améliorée en cours...
+2026-04-10 10:57:50,894 - INFO - Niveau de risque détecté: VERY_HIGH
+2026-04-10 10:57:50,895 - INFO - Score de risque: 0.647
+2026-04-10 10:57:50,898 - INFO - Poids adaptatifs calculés:
+2026-04-10 10:57:50,899 - INFO -   classic: 0.250
+2026-04-10 10:57:50,899 - INFO -   llm_text: 0.250
+2026-04-10 10:57:50,899 - INFO -   llm_visual: 0.200
+2026-04-10 10:57:50,899 - INFO -   sentiment: 0.150
+2026-04-10 10:57:50,900 - INFO -   timesfm: 0.150
+2026-04-10 10:57:50,900 - WARNING - Unknown signal: NEUTRAL, defaulting to HOLD
+2026-04-10 10:57:50,901 - INFO - Décision hybride: HOLD
+2026-04-10 10:57:50,901 - INFO - Consensus: 0.80
+2026-04-10 10:57:50,901 - INFO - Confiance: 0.30
+2026-04-10 10:57:50,901 - INFO - Taille de position recommandée: $100.00
+2026-04-10 10:57:50,913 - INFO - Updated portfolio state for CRUDP.PA on 2026-04-10 00:00:00
+2026-04-10 10:57:50,913 - INFO - Mise à jour du monitoring de performance...
+2026-04-10 10:57:50,925 - WARNING - ALERT [HIGH]: Win rate critically low: 0.00%
+2026-04-10 10:57:50,935 - INFO - Performance monitoring updated: Portfolio $1,000.00, Daily Return: 0.68%, Alerts: 1
+2026-04-10 10:57:51,796 - INFO - Performance dashboard saved to enhanced_performance_dashboard.png
+2026-04-10 10:57:51,811 - INFO - === ANALYSE TERMINÉE ===
+2026-04-10 10:57:51,817 - INFO - Performance database initialized successfully
+2026-04-10 10:57:51,818 - INFO - Performance monitoring database initialized
+2026-04-10 10:57:51,819 - INFO - Database initialized at trading_history.db
+2026-04-10 10:57:51,819 - INFO - Loading data from cache: data_cache\SXRV_DE_max_with_vix.parquet
+2026-04-10 10:57:52,182 - INFO - Data loaded from cache: 3979 days.
+2026-04-10 10:57:52,183 - INFO - Final data period: 2010-05-07 00:00:00 to 2026-04-10 00:00:00
+2026-04-10 10:57:52,184 - INFO - Système de trading amélioré initialisé pour SXRV.DE
+2026-04-10 10:57:52,185 - INFO - === DÉMARRAGE DE L'ANALYSE AMÉLIORÉE ===
+2026-04-10 10:57:52,185 - INFO - Récupération et préparation des données...
+2026-04-10 10:57:52,185 - INFO - Loading data from cache: data_cache\SXRV_DE_max_with_vix.parquet
+2026-04-10 10:57:52,231 - INFO - Data loaded from cache: 3979 days.
+2026-04-10 10:57:52,233 - INFO - Final data period: 2010-05-07 00:00:00 to 2026-04-10 00:00:00
+2026-04-10 10:57:52,233 - INFO - Data retrieved: 3979 rows from 2010-05-07 00:00:00 to 2026-04-10 00:00:00
+2026-04-10 10:57:52,250 - INFO - Fetching macroeconomic data for context around 2026-04-10...
+2026-04-10 10:57:52,250 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_10y_monthly.parquet
+2026-04-10 10:57:52,254 - INFO - Using cached multi-source data for treasury_10y
+2026-04-10 10:57:52,255 - INFO - [SUCCESS] treasury_yield_10year: 4.33
+2026-04-10 10:57:52,256 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
+2026-04-10 10:57:52,258 - INFO - Using cached multi-source data for treasury_2y
+2026-04-10 10:57:52,260 - INFO - [SUCCESS] treasury_yield_2year: 3.79
+2026-04-10 10:57:52,261 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
+2026-04-10 10:57:52,262 - INFO - Using cached multi-source data for fed_funds
+2026-04-10 10:57:52,264 - INFO - [SUCCESS] federal_funds_rate: 4.33
+2026-04-10 10:57:52,264 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_cpi_monthly.parquet
+2026-04-10 10:57:52,266 - INFO - Using cached multi-source data for cpi
+2026-04-10 10:57:52,267 - INFO - [SUCCESS] cpi: 322.13
+2026-04-10 10:57:52,267 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_unemployment_monthly.parquet
+2026-04-10 10:57:52,269 - INFO - Using cached multi-source data for unemployment
+2026-04-10 10:57:52,271 - INFO - [SUCCESS] unemployment: 4.20
+2026-04-10 10:57:52,271 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_gdp_monthly.parquet
+2026-04-10 10:57:52,273 - INFO - Using cached multi-source data for gdp
+2026-04-10 10:57:52,274 - INFO - [SUCCESS] real_gdp: 23685.29
+2026-04-10 10:57:52,275 - INFO - Macro data fetch complete. Retrieved 6 indicators.
+2026-04-10 10:57:52,278 - INFO - Added 6 macroeconomic features: ['treasury_yield_10year', 'treasury_yield_2year', 'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp']
+2026-04-10 10:57:52,287 - INFO - Final data with features: 3779 rows, 68 columns
+2026-04-10 10:57:52,288 - INFO - Entraînement du modèle quantitatif...
+2026-04-10 10:57:52,289 - INFO - Core features available: 39/39
+2026-04-10 10:57:52,289 - INFO - All macroeconomic features available
+2026-04-10 10:57:52,291 - INFO - Selected 45 features for model training
+2026-04-10 10:57:52,292 - INFO - Initial data shape: X=(3779, 45), y=(3779,)
+2026-04-10 10:57:52,293 - INFO - After removing NaN targets: X=(3778, 45), y=(3778,)
+2026-04-10 10:57:52,294 - INFO - Filling NaN values in 6 features
+2026-04-10 10:57:52,296 - INFO - Final clean data: X=(3778, 45), y=(3778,)
+2026-04-10 10:57:52,296 - INFO - Target distribution: {0.0: 2650, 1.0: 1128}
+2026-04-10 10:57:52,297 - INFO - Features shape: (3778, 45)
+2026-04-10 10:57:52,297 - INFO - Target shape: (3778,)
+2026-04-10 10:57:52,298 - INFO - NaN in features: 0
+2026-04-10 10:57:52,299 - INFO - NaN in target: 0
+2026-04-10 10:57:52,299 - INFO - Unique target values: [0. 1.]
+2026-04-10 10:57:52,300 - INFO - Original data shape: (3778, 45)
+2026-04-10 10:57:52,301 - INFO - NaN values per column: 0 total
+2026-04-10 10:57:52,302 - INFO - After removing NaN targets: (3778, 45)
+2026-04-10 10:57:52,304 - INFO - Final clean data shape: (3778, 45)
+2026-04-10 10:57:56,005 - INFO - RandomForest - TimeSeries CV Score: 0.1722 (+/- 0.2674)
+2026-04-10 10:58:03,352 - INFO - GradientBoosting - TimeSeries CV Score: 0.3628 (+/- 0.1063)
+2026-04-10 10:58:03,427 - INFO - LogisticRegression - TimeSeries CV Score: 0.4599 (+/- 0.0865)
+2026-04-10 10:58:03,427 - INFO - Best model selected: LogisticRegression
+2026-04-10 10:58:03,457 - INFO - 
 === LOGISTICREGRESSION MODEL RESULTS ===
-2026-04-09 12:06:16,485 - INFO - Accuracy: 0.5015
-2026-04-09 12:06:16,485 - INFO - Precision: 0.2894
-2026-04-09 12:06:16,486 - INFO - Recall: 0.6377
-2026-04-09 12:06:16,486 - INFO - F1: 0.3981
-2026-04-09 12:06:16,489 - INFO - Modèle classique entraîné avec succès
-2026-04-09 12:06:16,490 - INFO - Génération des prédictions des modèles...
-2026-04-09 12:06:16,493 - INFO - Features disponibles pour prédiction: 45
-2026-04-09 12:06:16,495 - INFO - NaN dans les features: 0
-2026-04-09 12:06:16,502 - INFO - Prédiction classique: 1, confiance: 0.558
-2026-04-09 12:06:16,512 - INFO - Generating chart image and saving to enhanced_trading_chart.png...
-2026-04-09 12:06:18,282 - INFO - Chart generated successfully.
-2026-04-09 12:06:18,284 - INFO - Querying textual LLM for a trading decision...
-2026-04-09 12:06:35,518 - INFO - LLM decision (gemma3:4b) received and validated.
-2026-04-09 12:06:35,520 - INFO - Querying visual LLM with image enhanced_trading_chart.png...
-2026-04-09 12:06:41,647 - INFO - LLM decision (gemma3:4b) received and validated.
-2026-04-09 12:06:41,649 - INFO - Fetching live news and sentiment from Alpha Vantage...
-2026-04-09 12:06:43,107 - INFO - Successfully fetched news. Overall sentiment score: 0.07
-2026-04-09 12:06:43,107 - INFO - Génération de la prédiction TimesFM...
-2026-04-09 12:06:43,109 - INFO - Initialisation de TimesFM 2.5...
-2026-04-09 12:06:43,346 - INFO - HTTP Request: GET https://huggingface.co/api/models/google/timesfm-2.5-200m-pytorch/revision/main "HTTP/1.1 200 OK"
-2026-04-09 12:06:45,146 - ERROR - Erreur lors de l'initialisation de TimesFM: [Errno 2] No such file or directory: 'C:\\Users\\lvolff\\.cache\\huggingface\\hub\\models--google--timesfm-2.5-200m-pytorch\\snapshots\\1d952420fba87f3c6dee4f240de0f1a0fbc790e3\\torch_model.ckpt'
-2026-04-09 12:06:45,149 - INFO - Analyse améliorée en cours...
-2026-04-09 12:06:45,776 - INFO - Niveau de risque détecté: VERY_HIGH
-2026-04-09 12:06:45,776 - INFO - Score de risque: 0.313
-2026-04-09 12:06:45,784 - WARNING - Insufficient data for classic: 0 observations
-2026-04-09 12:06:45,787 - WARNING - Insufficient data for llm_text: 0 observations
-2026-04-09 12:06:45,791 - WARNING - Insufficient data for llm_visual: 0 observations
-2026-04-09 12:06:45,795 - WARNING - Insufficient data for sentiment: 0 observations
-2026-04-09 12:06:45,796 - INFO - Poids adaptatifs calculés:
-2026-04-09 12:06:45,796 - INFO -   classic: 0.350
-2026-04-09 12:06:45,797 - INFO -   llm_text: 0.250
-2026-04-09 12:06:45,797 - INFO -   llm_visual: 0.250
-2026-04-09 12:06:45,798 - INFO -   sentiment: 0.150
-2026-04-09 12:06:45,799 - WARNING - Unknown signal: NEUTRAL, defaulting to HOLD
-2026-04-09 12:06:45,800 - INFO - Décision hybride: HOLD
-2026-04-09 12:06:45,800 - INFO - Consensus: 0.79
-2026-04-09 12:06:45,801 - INFO - Confiance: 0.32
-2026-04-09 12:06:45,801 - INFO - Taille de position recommandée: $100.00
-2026-04-09 12:06:45,838 - INFO - Updated portfolio state for QQQ on 2025-08-22 00:00:00
-2026-04-09 12:06:45,839 - INFO - Mise à jour du monitoring de performance...
-2026-04-09 12:06:46,582 - INFO - Performance monitoring updated: Portfolio $9,087.27, Daily Return: 1.54%, Alerts: 0
-2026-04-09 12:06:47,616 - INFO - Performance dashboard saved to enhanced_performance_dashboard.png
-2026-04-09 12:06:47,626 - INFO - === ANALYSE AMÉLIORÉE TERMINÉE ===
-2026-04-09 12:08:02,650 - INFO - Performance database initialized successfully
-2026-04-09 12:08:02,653 - INFO - Performance monitoring database initialized
-2026-04-09 12:08:02,654 - INFO - Database initialized at trading_history.db
-2026-04-09 12:08:02,655 - INFO - Loading data from cache: data_cache\QQQ_max_with_vix.parquet
-2026-04-09 12:08:16,406 - INFO - Data loaded from cache: 6656 days.
-2026-04-09 12:08:16,408 - INFO - Final data period: 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 12:08:16,414 - INFO - Système de trading amélioré initialisé pour QQQ
-2026-04-09 12:08:16,415 - INFO - === DÉMARRAGE DE L'ANALYSE AMÉLIORÉE ===
-2026-04-09 12:08:16,416 - INFO - Récupération et préparation des données...
-2026-04-09 12:08:16,417 - INFO - Loading data from cache: data_cache\QQQ_max_with_vix.parquet
-2026-04-09 12:08:22,142 - INFO - Data loaded from cache: 6656 days.
-2026-04-09 12:08:22,143 - INFO - Final data period: 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 12:08:22,143 - INFO - Data retrieved: 6656 rows from 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 12:08:22,189 - INFO - Fetching macroeconomic data for context around 2025-08-22...
-2026-04-09 12:08:22,190 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_10y_monthly.parquet
-2026-04-09 12:08:22,196 - INFO - Using cached multi-source data for treasury_10y
-2026-04-09 12:08:22,202 - INFO - [SUCCESS] treasury_yield_10year: 4.33
-2026-04-09 12:08:22,203 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
-2026-04-09 12:08:22,208 - INFO - Using cached multi-source data for treasury_2y
-2026-04-09 12:08:22,213 - INFO - [SUCCESS] treasury_yield_2year: 3.79
-2026-04-09 12:08:22,214 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
-2026-04-09 12:08:22,218 - INFO - Using cached multi-source data for fed_funds
-2026-04-09 12:08:22,221 - INFO - [SUCCESS] federal_funds_rate: 4.33
-2026-04-09 12:08:22,222 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_cpi_monthly.parquet
-2026-04-09 12:08:22,227 - INFO - Using cached multi-source data for cpi
-2026-04-09 12:08:22,229 - INFO - [SUCCESS] cpi: 322.13
-2026-04-09 12:08:22,231 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_unemployment_monthly.parquet
-2026-04-09 12:08:22,236 - INFO - Using cached multi-source data for unemployment
-2026-04-09 12:08:22,239 - INFO - [SUCCESS] unemployment: 4.20
-2026-04-09 12:08:22,239 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_gdp_monthly.parquet
-2026-04-09 12:08:22,245 - INFO - Using cached multi-source data for gdp
-2026-04-09 12:08:22,248 - INFO - [SUCCESS] real_gdp: 23685.29
-2026-04-09 12:08:22,249 - INFO - Macro data fetch complete. Retrieved 6 indicators.
-2026-04-09 12:08:22,262 - INFO - Added 6 macroeconomic features: ['treasury_yield_10year', 'treasury_yield_2year', 'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp']
-2026-04-09 12:08:22,278 - INFO - Final data with features: 6456 rows, 68 columns
-2026-04-09 12:08:22,280 - INFO - Entraînement du modèle quantitatif...
-2026-04-09 12:08:22,281 - INFO - Core features available: 39/39
-2026-04-09 12:08:22,281 - INFO - All macroeconomic features available
-2026-04-09 12:08:22,289 - INFO - Selected 45 features for model training
-2026-04-09 12:08:22,291 - INFO - Initial data shape: X=(6456, 45), y=(6456,)
-2026-04-09 12:08:22,293 - INFO - After removing NaN targets: X=(6456, 45), y=(6456,)
-2026-04-09 12:08:22,296 - INFO - Filling NaN values in 6 features
-2026-04-09 12:08:22,303 - INFO - Final clean data: X=(6456, 45), y=(6456,)
-2026-04-09 12:08:22,304 - INFO - Target distribution: {0: 4924, 1: 1532}
-2026-04-09 12:08:22,304 - INFO - Features shape: (6456, 45)
-2026-04-09 12:08:22,305 - INFO - Target shape: (6456,)
-2026-04-09 12:08:22,307 - INFO - NaN in features: 0
-2026-04-09 12:08:22,308 - INFO - NaN in target: 0
-2026-04-09 12:08:22,308 - INFO - Unique target values: [1 0]
-2026-04-09 12:08:22,310 - INFO - Original data shape: (6456, 45)
-2026-04-09 12:08:22,311 - INFO - NaN values per column: 0 total
-2026-04-09 12:08:22,316 - INFO - After removing NaN targets: (6456, 45)
-2026-04-09 12:08:22,329 - INFO - Final clean data shape: (6456, 45)
-2026-04-09 12:08:31,214 - INFO - RandomForest - TimeSeries CV Score: 0.0827 (+/- 0.1457)
-2026-04-09 12:08:59,558 - INFO - GradientBoosting - TimeSeries CV Score: 0.2133 (+/- 0.1261)
-2026-04-09 12:08:59,835 - INFO - LogisticRegression - TimeSeries CV Score: 0.2341 (+/- 0.3366)
-2026-04-09 12:08:59,837 - INFO - Best model selected: LogisticRegression
-2026-04-09 12:08:59,931 - INFO - 
-=== LOGISTICREGRESSION MODEL RESULTS ===
-2026-04-09 12:08:59,932 - INFO - Accuracy: 0.5015
-2026-04-09 12:08:59,932 - INFO - Precision: 0.2894
-2026-04-09 12:08:59,933 - INFO - Recall: 0.6377
-2026-04-09 12:08:59,934 - INFO - F1: 0.3981
-2026-04-09 12:08:59,935 - INFO - Modèle classique entraîné avec succès
-2026-04-09 12:08:59,937 - INFO - Génération des prédictions des modèles...
-2026-04-09 12:08:59,940 - INFO - Features disponibles pour prédiction: 45
-2026-04-09 12:08:59,943 - INFO - NaN dans les features: 0
-2026-04-09 12:08:59,951 - INFO - Prédiction classique: 1, confiance: 0.558
-2026-04-09 12:08:59,956 - INFO - Generating chart image and saving to enhanced_trading_chart.png...
-2026-04-09 12:09:01,578 - INFO - Chart generated successfully.
-2026-04-09 12:09:01,579 - INFO - Querying textual LLM for a trading decision...
-2026-04-09 12:09:06,595 - INFO - LLM decision (gemma3:4b) received and validated.
-2026-04-09 12:09:06,597 - INFO - Querying visual LLM with image enhanced_trading_chart.png...
-2026-04-09 12:09:12,389 - INFO - LLM decision (gemma3:4b) received and validated.
-2026-04-09 12:09:12,390 - INFO - Fetching live news and sentiment from Alpha Vantage...
-2026-04-09 12:09:13,507 - INFO - Successfully fetched news. Overall sentiment score: 0.07
-2026-04-09 12:09:13,508 - INFO - Génération de la prédiction TimesFM...
-2026-04-09 12:09:13,508 - INFO - Initialisation de TimesFM 2.5...
-2026-04-09 12:09:13,751 - INFO - HTTP Request: GET https://huggingface.co/api/models/google/timesfm-2.5-200m-pytorch/revision/main "HTTP/1.1 200 OK"
-2026-04-09 12:09:15,520 - ERROR - Erreur lors de l'initialisation de TimesFM: [Errno 2] No such file or directory: 'C:\\Users\\lvolff\\.cache\\huggingface\\hub\\models--google--timesfm-2.5-200m-pytorch\\snapshots\\1d952420fba87f3c6dee4f240de0f1a0fbc790e3\\torch_model.ckpt'
-2026-04-09 12:09:15,522 - INFO - Analyse améliorée en cours...
-2026-04-09 12:09:16,134 - INFO - Niveau de risque détecté: VERY_HIGH
-2026-04-09 12:09:16,135 - INFO - Score de risque: 0.313
-2026-04-09 12:09:16,141 - WARNING - Insufficient data for classic: 0 observations
-2026-04-09 12:09:16,144 - WARNING - Insufficient data for llm_text: 0 observations
-2026-04-09 12:09:16,148 - WARNING - Insufficient data for llm_visual: 0 observations
-2026-04-09 12:09:16,151 - WARNING - Insufficient data for sentiment: 0 observations
-2026-04-09 12:09:16,152 - INFO - Poids adaptatifs calculés:
-2026-04-09 12:09:16,153 - INFO -   classic: 0.350
-2026-04-09 12:09:16,154 - INFO -   llm_text: 0.250
-2026-04-09 12:09:16,154 - INFO -   llm_visual: 0.250
-2026-04-09 12:09:16,154 - INFO -   sentiment: 0.150
-2026-04-09 12:09:16,156 - INFO - Décision hybride: HOLD
-2026-04-09 12:09:16,157 - INFO - Consensus: 0.68
-2026-04-09 12:09:16,158 - INFO - Confiance: 0.12
-2026-04-09 12:09:16,158 - INFO - Taille de position recommandée: $73.66
-2026-04-09 12:09:16,180 - INFO - Updated portfolio state for QQQ on 2025-08-22 00:00:00
-2026-04-09 12:09:16,180 - INFO - Mise à jour du monitoring de performance...
-2026-04-09 12:09:16,913 - INFO - Performance monitoring updated: Portfolio $9,087.27, Daily Return: 1.54%, Alerts: 0
-2026-04-09 12:09:19,609 - INFO - Performance dashboard saved to enhanced_performance_dashboard.png
-2026-04-09 12:09:19,634 - INFO - === ANALYSE AMÉLIORÉE TERMINÉE ===
-2026-04-09 12:10:57,673 - INFO - Performance database initialized successfully
-2026-04-09 12:10:57,676 - INFO - Performance monitoring database initialized
-2026-04-09 12:10:57,679 - INFO - Database initialized at trading_history.db
-2026-04-09 12:10:57,680 - INFO - Loading data from cache: data_cache\QQQ_max_with_vix.parquet
-2026-04-09 12:11:36,125 - INFO - Data loaded from cache: 6656 days.
-2026-04-09 12:11:36,151 - INFO - Final data period: 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 12:11:36,158 - INFO - Système de trading amélioré initialisé pour QQQ
-2026-04-09 12:11:36,158 - INFO - === DÉMARRAGE DE L'ANALYSE AMÉLIORÉE ===
-2026-04-09 12:11:36,159 - INFO - Récupération et préparation des données...
-2026-04-09 12:11:36,160 - INFO - Loading data from cache: data_cache\QQQ_max_with_vix.parquet
-2026-04-09 12:11:36,230 - INFO - Data loaded from cache: 6656 days.
-2026-04-09 12:11:36,230 - INFO - Final data period: 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 12:11:36,231 - INFO - Data retrieved: 6656 rows from 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 12:11:36,277 - INFO - Fetching macroeconomic data for context around 2025-08-22...
-2026-04-09 12:11:36,278 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_10y_monthly.parquet
-2026-04-09 12:11:36,309 - INFO - Using cached multi-source data for treasury_10y
-2026-04-09 12:11:36,314 - INFO - [SUCCESS] treasury_yield_10year: 4.33
-2026-04-09 12:11:36,314 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
-2026-04-09 12:11:36,318 - INFO - Using cached multi-source data for treasury_2y
-2026-04-09 12:11:36,323 - INFO - [SUCCESS] treasury_yield_2year: 3.79
-2026-04-09 12:11:36,324 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
-2026-04-09 12:11:36,327 - INFO - Using cached multi-source data for fed_funds
-2026-04-09 12:11:36,329 - INFO - [SUCCESS] federal_funds_rate: 4.33
-2026-04-09 12:11:36,329 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_cpi_monthly.parquet
-2026-04-09 12:11:36,332 - INFO - Using cached multi-source data for cpi
-2026-04-09 12:11:36,334 - INFO - [SUCCESS] cpi: 322.13
-2026-04-09 12:11:36,334 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_unemployment_monthly.parquet
-2026-04-09 12:11:36,338 - INFO - Using cached multi-source data for unemployment
-2026-04-09 12:11:36,340 - INFO - [SUCCESS] unemployment: 4.20
-2026-04-09 12:11:36,340 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_gdp_monthly.parquet
-2026-04-09 12:11:36,343 - INFO - Using cached multi-source data for gdp
-2026-04-09 12:11:36,369 - INFO - [SUCCESS] real_gdp: 23685.29
-2026-04-09 12:11:36,369 - INFO - Macro data fetch complete. Retrieved 6 indicators.
-2026-04-09 12:11:36,383 - INFO - Added 6 macroeconomic features: ['treasury_yield_10year', 'treasury_yield_2year', 'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp']
-2026-04-09 12:11:36,402 - INFO - Final data with features: 6456 rows, 68 columns
-2026-04-09 12:11:36,429 - INFO - Entraînement du modèle quantitatif...
-2026-04-09 12:11:36,430 - INFO - Core features available: 39/39
-2026-04-09 12:11:36,434 - INFO - All macroeconomic features available
-2026-04-09 12:11:36,447 - INFO - Selected 45 features for model training
-2026-04-09 12:11:36,448 - INFO - Initial data shape: X=(6456, 45), y=(6456,)
-2026-04-09 12:11:36,452 - INFO - After removing NaN targets: X=(6455, 45), y=(6455,)
-2026-04-09 12:11:36,454 - INFO - Filling NaN values in 6 features
-2026-04-09 12:11:36,460 - INFO - Final clean data: X=(6455, 45), y=(6455,)
-2026-04-09 12:11:36,464 - INFO - Target distribution: {0.0: 4923, 1.0: 1532}
-2026-04-09 12:11:36,464 - INFO - Features shape: (6455, 45)
-2026-04-09 12:11:36,465 - INFO - Target shape: (6455,)
-2026-04-09 12:11:36,467 - INFO - NaN in features: 0
-2026-04-09 12:11:36,468 - INFO - NaN in target: 0
-2026-04-09 12:11:36,470 - INFO - Unique target values: [1. 0.]
-2026-04-09 12:11:36,471 - INFO - Original data shape: (6455, 45)
-2026-04-09 12:11:36,472 - INFO - NaN values per column: 0 total
-2026-04-09 12:11:36,477 - INFO - After removing NaN targets: (6455, 45)
-2026-04-09 12:11:36,504 - INFO - Final clean data shape: (6455, 45)
-2026-04-09 12:11:44,680 - INFO - RandomForest - TimeSeries CV Score: 0.0827 (+/- 0.1457)
-2026-04-09 12:11:56,806 - INFO - GradientBoosting - TimeSeries CV Score: 0.2133 (+/- 0.1261)
-2026-04-09 12:11:56,889 - INFO - LogisticRegression - TimeSeries CV Score: 0.2341 (+/- 0.3366)
-2026-04-09 12:11:56,890 - INFO - Best model selected: LogisticRegression
-2026-04-09 12:11:56,927 - INFO - 
-=== LOGISTICREGRESSION MODEL RESULTS ===
-2026-04-09 12:11:56,927 - INFO - Accuracy: 0.5019
-2026-04-09 12:11:56,927 - INFO - Precision: 0.2898
-2026-04-09 12:11:56,927 - INFO - Recall: 0.6377
-2026-04-09 12:11:56,927 - INFO - F1: 0.3985
-2026-04-09 12:11:56,928 - INFO - Modèle classique entraîné avec succès
-2026-04-09 12:11:56,928 - INFO - Génération des prédictions des modèles...
-2026-04-09 12:11:56,930 - INFO - Features disponibles pour prédiction: 45
-2026-04-09 12:11:56,930 - INFO - NaN dans les features: 0
-2026-04-09 12:11:56,933 - INFO - Prédiction classique: 1.0, confiance: 0.558
-2026-04-09 12:11:56,934 - INFO - Generating chart image and saving to enhanced_trading_chart.png...
-2026-04-09 12:11:57,595 - INFO - Chart generated successfully.
-2026-04-09 12:11:57,595 - INFO - Querying textual LLM for a trading decision...
-2026-04-09 12:12:02,618 - INFO - LLM decision (gemma3:4b) received and validated.
-2026-04-09 12:12:02,619 - INFO - Querying visual LLM with image enhanced_trading_chart.png...
-2026-04-09 12:12:08,034 - INFO - LLM decision (gemma3:4b) received and validated.
-2026-04-09 12:12:08,035 - INFO - Fetching live news and sentiment from Alpha Vantage...
-2026-04-09 12:12:08,717 - INFO - Successfully fetched news. Overall sentiment score: 0.07
-2026-04-09 12:12:08,717 - INFO - Génération de la prédiction TimesFM...
-2026-04-09 12:12:08,718 - INFO - Initialisation de TimesFM 2.5...
-2026-04-09 12:12:08,939 - INFO - HTTP Request: GET https://huggingface.co/api/models/google/timesfm-2.5-200m-pytorch/revision/main "HTTP/1.1 200 OK"
-2026-04-09 12:12:09,600 - ERROR - Erreur lors de l'initialisation de TimesFM: [Errno 2] No such file or directory: 'C:\\Users\\lvolff\\.cache\\huggingface\\hub\\models--google--timesfm-2.5-200m-pytorch\\snapshots\\1d952420fba87f3c6dee4f240de0f1a0fbc790e3\\torch_model.ckpt'
-2026-04-09 12:12:09,600 - INFO - Analyse améliorée en cours...
-2026-04-09 12:12:09,767 - INFO - Niveau de risque détecté: VERY_HIGH
-2026-04-09 12:12:09,768 - INFO - Score de risque: 0.313
-2026-04-09 12:12:09,770 - WARNING - Insufficient data for classic: 0 observations
-2026-04-09 12:12:09,771 - WARNING - Insufficient data for llm_text: 0 observations
-2026-04-09 12:12:09,773 - WARNING - Insufficient data for llm_visual: 0 observations
-2026-04-09 12:12:09,774 - WARNING - Insufficient data for sentiment: 0 observations
-2026-04-09 12:12:09,774 - INFO - Poids adaptatifs calculés:
-2026-04-09 12:12:09,775 - INFO -   classic: 0.350
-2026-04-09 12:12:09,775 - INFO -   llm_text: 0.250
-2026-04-09 12:12:09,775 - INFO -   llm_visual: 0.250
-2026-04-09 12:12:09,775 - INFO -   sentiment: 0.150
-2026-04-09 12:12:09,776 - INFO - Décision hybride: HOLD
-2026-04-09 12:12:09,776 - INFO - Consensus: 0.68
-2026-04-09 12:12:09,777 - INFO - Confiance: 0.12
-2026-04-09 12:12:09,777 - INFO - Taille de position recommandée: $73.66
-2026-04-09 12:12:09,790 - INFO - Updated portfolio state for QQQ on 2025-08-22 00:00:00
-2026-04-09 12:12:09,790 - INFO - Mise à jour du monitoring de performance...
-2026-04-09 12:12:09,989 - INFO - Performance monitoring updated: Portfolio $9,087.27, Daily Return: 1.54%, Alerts: 0
-2026-04-09 12:12:10,912 - INFO - Performance dashboard saved to enhanced_performance_dashboard.png
-2026-04-09 12:12:10,923 - INFO - === ANALYSE AMÉLIORÉE TERMINÉE ===
-2026-04-09 12:13:06,394 - INFO - Performance database initialized successfully
-2026-04-09 12:13:06,395 - INFO - Performance monitoring database initialized
-2026-04-09 12:13:06,395 - INFO - Database initialized at trading_history.db
-2026-04-09 12:13:06,395 - INFO - Loading data from cache: data_cache\QQQ_max_with_vix.parquet
-2026-04-09 12:13:36,511 - WARNING - Could not fetch ticker info: Failed to perform, curl: (28) Operation timed out after 30003 milliseconds with 0 bytes received. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.
-2026-04-09 12:13:36,511 - INFO - Data loaded from cache: 6656 days.
-2026-04-09 12:13:36,512 - INFO - Final data period: 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 12:13:36,514 - INFO - Système de trading amélioré initialisé pour QQQ
-2026-04-09 12:13:36,515 - INFO - === DÉMARRAGE DE L'ANALYSE AMÉLIORÉE ===
-2026-04-09 12:13:36,515 - INFO - Récupération et préparation des données...
-2026-04-09 12:13:36,516 - INFO - Loading data from cache: data_cache\QQQ_max_with_vix.parquet
-2026-04-09 12:14:06,521 - WARNING - Could not fetch ticker info: Failed to perform, curl: (28) Operation timed out after 30001 milliseconds with 0 bytes received. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.
-2026-04-09 12:14:06,522 - INFO - Data loaded from cache: 6656 days.
-2026-04-09 12:14:06,523 - INFO - Final data period: 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 12:14:06,524 - INFO - Data retrieved: 6656 rows from 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 12:14:06,539 - INFO - Fetching macroeconomic data for context around 2025-08-22...
-2026-04-09 12:14:06,540 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_10y_monthly.parquet
-2026-04-09 12:14:06,542 - INFO - Using cached multi-source data for treasury_10y
-2026-04-09 12:14:06,545 - INFO - [SUCCESS] treasury_yield_10year: 4.33
-2026-04-09 12:14:06,545 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
-2026-04-09 12:14:06,547 - INFO - Using cached multi-source data for treasury_2y
-2026-04-09 12:14:06,549 - INFO - [SUCCESS] treasury_yield_2year: 3.79
-2026-04-09 12:14:06,549 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
-2026-04-09 12:14:06,551 - INFO - Using cached multi-source data for fed_funds
-2026-04-09 12:14:06,551 - INFO - [SUCCESS] federal_funds_rate: 4.33
-2026-04-09 12:14:06,551 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_cpi_monthly.parquet
-2026-04-09 12:14:06,553 - INFO - Using cached multi-source data for cpi
-2026-04-09 12:14:06,554 - INFO - [SUCCESS] cpi: 322.13
-2026-04-09 12:14:06,554 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_unemployment_monthly.parquet
-2026-04-09 12:14:06,555 - INFO - Using cached multi-source data for unemployment
-2026-04-09 12:14:06,556 - INFO - [SUCCESS] unemployment: 4.20
-2026-04-09 12:14:06,556 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_gdp_monthly.parquet
-2026-04-09 12:14:06,558 - INFO - Using cached multi-source data for gdp
-2026-04-09 12:14:06,559 - INFO - [SUCCESS] real_gdp: 23685.29
-2026-04-09 12:14:06,560 - INFO - Macro data fetch complete. Retrieved 6 indicators.
-2026-04-09 12:14:06,565 - INFO - Added 6 macroeconomic features: ['treasury_yield_10year', 'treasury_yield_2year', 'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp']
-2026-04-09 12:14:06,572 - INFO - Final data with features: 6456 rows, 68 columns
-2026-04-09 12:14:06,572 - INFO - Entraînement du modèle quantitatif...
-2026-04-09 12:14:06,573 - INFO - Core features available: 39/39
-2026-04-09 12:14:06,573 - INFO - All macroeconomic features available
-2026-04-09 12:14:06,577 - INFO - Selected 45 features for model training
-2026-04-09 12:14:06,577 - INFO - Initial data shape: X=(6456, 45), y=(6456,)
-2026-04-09 12:14:06,579 - INFO - After removing NaN targets: X=(6455, 45), y=(6455,)
-2026-04-09 12:14:06,579 - INFO - Filling NaN values in 6 features
-2026-04-09 12:14:06,583 - INFO - Final clean data: X=(6455, 45), y=(6455,)
-2026-04-09 12:14:06,585 - INFO - Target distribution: {0.0: 4923, 1.0: 1532}
-2026-04-09 12:14:06,585 - INFO - Features shape: (6455, 45)
-2026-04-09 12:14:06,585 - INFO - Target shape: (6455,)
-2026-04-09 12:14:06,586 - INFO - NaN in features: 0
-2026-04-09 12:14:06,587 - INFO - NaN in target: 0
-2026-04-09 12:14:06,587 - INFO - Unique target values: [1. 0.]
-2026-04-09 12:14:06,587 - INFO - Original data shape: (6455, 45)
-2026-04-09 12:14:06,589 - INFO - NaN values per column: 0 total
-2026-04-09 12:14:06,590 - INFO - After removing NaN targets: (6455, 45)
-2026-04-09 12:14:06,595 - INFO - Final clean data shape: (6455, 45)
-2026-04-09 12:14:11,243 - INFO - RandomForest - TimeSeries CV Score: 0.0827 (+/- 0.1457)
-2026-04-09 12:14:23,878 - INFO - GradientBoosting - TimeSeries CV Score: 0.2133 (+/- 0.1261)
-2026-04-09 12:14:24,004 - INFO - LogisticRegression - TimeSeries CV Score: 0.2341 (+/- 0.3366)
-2026-04-09 12:14:24,004 - INFO - Best model selected: LogisticRegression
-2026-04-09 12:14:24,061 - INFO - 
-=== LOGISTICREGRESSION MODEL RESULTS ===
-2026-04-09 12:14:24,061 - INFO - Accuracy: 0.5019
-2026-04-09 12:14:24,063 - INFO - Precision: 0.2898
-2026-04-09 12:14:24,063 - INFO - Recall: 0.6377
-2026-04-09 12:14:24,064 - INFO - F1: 0.3985
-2026-04-09 12:14:24,064 - INFO - Modèle classique entraîné avec succès
-2026-04-09 12:14:24,066 - INFO - Génération des prédictions des modèles...
-2026-04-09 12:14:24,067 - INFO - Features disponibles pour prédiction: 45
-2026-04-09 12:14:24,067 - INFO - NaN dans les features: 0
-2026-04-09 12:14:24,069 - INFO - Prédiction classique: 1.0, confiance: 0.558
-2026-04-09 12:14:24,072 - INFO - Generating chart image and saving to enhanced_trading_chart.png...
-2026-04-09 12:14:24,841 - INFO - Chart generated successfully.
-2026-04-09 12:14:24,841 - INFO - Querying textual LLM for a trading decision...
-2026-04-09 12:14:29,797 - INFO - LLM decision (gemma3:4b) received and validated.
-2026-04-09 12:14:29,798 - INFO - Querying visual LLM with image enhanced_trading_chart.png...
-2026-04-09 12:14:35,240 - INFO - LLM decision (gemma3:4b) received and validated.
-2026-04-09 12:14:35,241 - INFO - Fetching live news and sentiment from Alpha Vantage...
-2026-04-09 12:14:35,965 - INFO - Successfully fetched news. Overall sentiment score: 0.07
-2026-04-09 12:14:35,965 - INFO - Génération de la prédiction TimesFM...
-2026-04-09 12:14:35,966 - INFO - Initialisation de TimesFM 2.5...
-2026-04-09 12:14:36,179 - INFO - HTTP Request: GET https://huggingface.co/api/models/google/timesfm-2.5-200m-pytorch/revision/main "HTTP/1.1 200 OK"
-2026-04-09 12:14:36,915 - WARNING - TimesFM checkpoint introuvable, le modèle sera ignoré: [Errno 2] No such file or directory: 'C:\\Users\\lvolff\\.cache\\huggingface\\hub\\models--google--timesfm-2.5-200m-pytorch\\snapshots\\1d952420fba87f3c6dee4f240de0f1a0fbc790e3\\torch_model.ckpt'
-2026-04-09 12:14:36,917 - INFO - Analyse améliorée en cours...
-2026-04-09 12:14:37,093 - INFO - Niveau de risque détecté: VERY_HIGH
-2026-04-09 12:14:37,093 - INFO - Score de risque: 0.313
-2026-04-09 12:14:37,096 - WARNING - Insufficient data for classic: 0 observations
-2026-04-09 12:14:37,097 - WARNING - Insufficient data for llm_text: 0 observations
-2026-04-09 12:14:37,099 - WARNING - Insufficient data for llm_visual: 0 observations
-2026-04-09 12:14:37,100 - WARNING - Insufficient data for sentiment: 0 observations
-2026-04-09 12:14:37,100 - INFO - Poids adaptatifs calculés:
-2026-04-09 12:14:37,101 - INFO -   classic: 0.350
-2026-04-09 12:14:37,101 - INFO -   llm_text: 0.250
-2026-04-09 12:14:37,101 - INFO -   llm_visual: 0.250
-2026-04-09 12:14:37,101 - INFO -   sentiment: 0.150
-2026-04-09 12:14:37,101 - INFO - Décision hybride: HOLD
-2026-04-09 12:14:37,101 - INFO - Consensus: 0.68
-2026-04-09 12:14:37,101 - INFO - Confiance: 0.12
-2026-04-09 12:14:37,103 - INFO - Taille de position recommandée: $73.66
-2026-04-09 12:14:37,119 - INFO - Updated portfolio state for QQQ on 2025-08-22 00:00:00
-2026-04-09 12:14:37,119 - INFO - Mise à jour du monitoring de performance...
-2026-04-09 12:14:37,356 - INFO - Performance monitoring updated: Portfolio $9,087.27, Daily Return: 1.54%, Alerts: 0
-2026-04-09 12:14:38,340 - INFO - Performance dashboard saved to enhanced_performance_dashboard.png
-2026-04-09 12:14:38,355 - INFO - === ANALYSE AMÉLIORÉE TERMINÉE ===
-2026-04-09 12:25:24,972 - INFO - Performance database initialized successfully
-2026-04-09 12:25:24,972 - INFO - Performance monitoring database initialized
-2026-04-09 12:25:25,004 - INFO - Database initialized at trading_history.db
-2026-04-09 12:25:25,004 - INFO - Loading data from cache: data_cache\QQQ_max_with_vix.parquet
-2026-04-09 12:25:25,729 - INFO - Data loaded from cache: 6656 days.
-2026-04-09 12:25:25,729 - INFO - Final data period: 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 12:25:25,729 - INFO - No existing portfolio found. Initializing a new one.
-2026-04-09 12:25:25,747 - INFO - Updated portfolio state for QQQ on 2026-04-09 12:25:25
-2026-04-09 12:25:25,747 - INFO - Système de trading amélioré initialisé pour QQQ
-2026-04-09 12:25:25,747 - INFO - === DÉMARRAGE DE L'ANALYSE SIMULÉE ===
-2026-04-09 12:25:25,747 - INFO - Récupération et préparation des données...
-2026-04-09 12:25:25,747 - INFO - Loading data from cache: data_cache\QQQ_max_with_vix.parquet
-2026-04-09 12:25:25,792 - INFO - Data loaded from cache: 6656 days.
-2026-04-09 12:25:25,792 - INFO - Final data period: 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 12:25:25,792 - INFO - Data retrieved: 6656 rows from 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 12:25:25,814 - INFO - Fetching macroeconomic data for context around 2025-08-22...
-2026-04-09 12:25:25,814 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_10y_monthly.parquet
-2026-04-09 12:25:25,814 - INFO - Using cached multi-source data for treasury_10y
-2026-04-09 12:25:25,814 - INFO - [SUCCESS] treasury_yield_10year: 4.33
-2026-04-09 12:25:25,814 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
-2026-04-09 12:25:25,824 - INFO - Using cached multi-source data for treasury_2y
-2026-04-09 12:25:25,824 - INFO - [SUCCESS] treasury_yield_2year: 3.79
-2026-04-09 12:25:25,824 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
-2026-04-09 12:25:25,828 - INFO - Using cached multi-source data for fed_funds
-2026-04-09 12:25:25,828 - INFO - [SUCCESS] federal_funds_rate: 4.33
-2026-04-09 12:25:25,828 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_cpi_monthly.parquet
-2026-04-09 12:25:25,828 - INFO - Using cached multi-source data for cpi
-2026-04-09 12:25:25,828 - INFO - [SUCCESS] cpi: 322.13
-2026-04-09 12:25:25,828 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_unemployment_monthly.parquet
-2026-04-09 12:25:25,828 - INFO - Using cached multi-source data for unemployment
-2026-04-09 12:25:25,828 - INFO - [SUCCESS] unemployment: 4.20
-2026-04-09 12:25:25,828 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_gdp_monthly.parquet
-2026-04-09 12:25:25,828 - INFO - Using cached multi-source data for gdp
-2026-04-09 12:25:25,828 - INFO - [SUCCESS] real_gdp: 23685.29
-2026-04-09 12:25:25,828 - INFO - Macro data fetch complete. Retrieved 6 indicators.
-2026-04-09 12:25:25,841 - INFO - Added 6 macroeconomic features: ['treasury_yield_10year', 'treasury_yield_2year', 'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp']
-2026-04-09 12:25:25,849 - INFO - Final data with features: 6456 rows, 68 columns
-2026-04-09 12:25:25,849 - INFO - Entraînement du modèle quantitatif...
-2026-04-09 12:25:25,849 - INFO - Core features available: 39/39
-2026-04-09 12:25:25,849 - INFO - All macroeconomic features available
-2026-04-09 12:25:25,853 - INFO - Selected 45 features for model training
-2026-04-09 12:25:25,853 - INFO - Initial data shape: X=(6456, 45), y=(6456,)
-2026-04-09 12:25:25,853 - INFO - After removing NaN targets: X=(6455, 45), y=(6455,)
-2026-04-09 12:25:25,853 - INFO - Filling NaN values in 6 features
-2026-04-09 12:25:25,860 - INFO - Final clean data: X=(6455, 45), y=(6455,)
-2026-04-09 12:25:25,860 - INFO - Target distribution: {0.0: 4923, 1.0: 1532}
-2026-04-09 12:25:25,860 - INFO - Features shape: (6455, 45)
-2026-04-09 12:25:25,860 - INFO - Target shape: (6455,)
-2026-04-09 12:25:25,860 - INFO - NaN in features: 0
-2026-04-09 12:25:25,860 - INFO - NaN in target: 0
-2026-04-09 12:25:25,860 - INFO - Unique target values: [1. 0.]
-2026-04-09 12:25:25,860 - INFO - Original data shape: (6455, 45)
-2026-04-09 12:25:25,864 - INFO - NaN values per column: 0 total
-2026-04-09 12:25:25,864 - INFO - After removing NaN targets: (6455, 45)
-2026-04-09 12:25:25,870 - INFO - Final clean data shape: (6455, 45)
-2026-04-09 12:25:30,356 - INFO - RandomForest - TimeSeries CV Score: 0.0827 (+/- 0.1457)
-2026-04-09 12:25:41,867 - INFO - GradientBoosting - TimeSeries CV Score: 0.2133 (+/- 0.1261)
-2026-04-09 12:25:41,952 - INFO - LogisticRegression - TimeSeries CV Score: 0.2341 (+/- 0.3366)
-2026-04-09 12:25:41,952 - INFO - Best model selected: LogisticRegression
-2026-04-09 12:25:41,985 - INFO - 
-=== LOGISTICREGRESSION MODEL RESULTS ===
-2026-04-09 12:25:41,985 - INFO - Accuracy: 0.5019
-2026-04-09 12:25:41,985 - INFO - Precision: 0.2898
-2026-04-09 12:25:41,985 - INFO - Recall: 0.6377
-2026-04-09 12:25:41,985 - INFO - F1: 0.3985
-2026-04-09 12:25:41,985 - INFO - Modèle classique entraîné avec succès
-2026-04-09 12:25:41,985 - INFO - Génération des prédictions des modèles...
-2026-04-09 12:25:41,991 - INFO - Features disponibles pour prédiction: 45
-2026-04-09 12:25:41,992 - INFO - NaN dans les features: 0
-2026-04-09 12:25:41,994 - INFO - Prédiction classique: 1.0, confiance: 0.558
-2026-04-09 12:25:41,997 - INFO - Generating chart image and saving to enhanced_trading_chart.png...
-2026-04-09 12:25:42,520 - INFO - Chart generated successfully.
-2026-04-09 12:25:42,520 - INFO - Querying textual LLM for a trading decision...
-2026-04-09 12:25:52,455 - INFO - LLM decision (gemma3:4b) received and validated.
-2026-04-09 12:25:52,455 - INFO - Querying visual LLM with image enhanced_trading_chart.png...
-2026-04-09 12:25:58,010 - INFO - LLM decision (gemma3:4b) received and validated.
-2026-04-09 12:25:58,011 - INFO - Fetching live news and sentiment from Alpha Vantage...
-2026-04-09 12:25:58,715 - INFO - Successfully fetched news. Overall sentiment score: 0.07
-2026-04-09 12:25:58,715 - INFO - Génération de la prédiction TimesFM...
-2026-04-09 12:25:58,715 - INFO - Initialisation de TimesFM 2.5...
-2026-04-09 12:25:58,915 - INFO - HTTP Request: GET https://huggingface.co/api/models/google/timesfm-2.5-200m-pytorch/revision/main "HTTP/1.1 200 OK"
-2026-04-09 12:25:59,607 - WARNING - TimesFM checkpoint introuvable, le modèle sera ignoré: [Errno 2] No such file or directory: 'C:\\Users\\lvolff\\.cache\\huggingface\\hub\\models--google--timesfm-2.5-200m-pytorch\\snapshots\\1d952420fba87f3c6dee4f240de0f1a0fbc790e3\\torch_model.ckpt'
-2026-04-09 12:25:59,607 - INFO - Analyse améliorée en cours...
-2026-04-09 12:25:59,745 - INFO - Niveau de risque détecté: VERY_HIGH
-2026-04-09 12:25:59,745 - INFO - Score de risque: 0.313
-2026-04-09 12:25:59,750 - WARNING - Insufficient data for classic: 0 observations
-2026-04-09 12:25:59,750 - WARNING - Insufficient data for llm_text: 0 observations
-2026-04-09 12:25:59,750 - WARNING - Insufficient data for llm_visual: 0 observations
-2026-04-09 12:25:59,750 - WARNING - Insufficient data for sentiment: 0 observations
-2026-04-09 12:25:59,750 - INFO - Poids adaptatifs calculés:
-2026-04-09 12:25:59,750 - INFO -   classic: 0.350
-2026-04-09 12:25:59,750 - INFO -   llm_text: 0.250
-2026-04-09 12:25:59,750 - INFO -   llm_visual: 0.250
-2026-04-09 12:25:59,750 - INFO -   sentiment: 0.150
-2026-04-09 12:25:59,750 - INFO - Décision hybride: HOLD
-2026-04-09 12:25:59,750 - INFO - Consensus: 0.68
-2026-04-09 12:25:59,750 - INFO - Confiance: 0.12
-2026-04-09 12:25:59,750 - INFO - Taille de position recommandée: $7.37
-2026-04-09 12:25:59,766 - INFO - Updated portfolio state for QQQ on 2025-08-22 00:00:00
-2026-04-09 12:25:59,766 - INFO - Mise à jour du monitoring de performance...
-2026-04-09 12:25:59,788 - WARNING - ALERT [HIGH]: Win rate critically low: 0.00%
-2026-04-09 12:25:59,788 - INFO - Performance monitoring updated: Portfolio $1,000.00, Daily Return: 1.54%, Alerts: 1
-2026-04-09 12:26:00,726 - INFO - Performance dashboard saved to enhanced_performance_dashboard.png
-2026-04-09 12:26:00,745 - INFO - === ANALYSE TERMINÉE ===
-2026-04-09 14:00:26,784 - INFO - Performance database initialized successfully
-2026-04-09 14:00:26,823 - INFO - Performance monitoring database initialized
-2026-04-09 14:00:26,823 - INFO - Database initialized at trading_history.db
-2026-04-09 14:00:26,823 - INFO - Loading data from cache: data_cache\QQQ_max_with_vix.parquet
-2026-04-09 14:00:27,821 - INFO - Data loaded from cache: 6656 days.
-2026-04-09 14:00:27,823 - INFO - Final data period: 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 14:00:27,827 - INFO - Système de trading amélioré initialisé pour QQQ
-2026-04-09 14:00:27,827 - INFO - === DÉMARRAGE DE L'ANALYSE SIMULÉE ===
-2026-04-09 14:00:27,827 - INFO - Récupération et préparation des données...
-2026-04-09 14:00:27,829 - INFO - Loading data from cache: data_cache\QQQ_max_with_vix.parquet
-2026-04-09 14:00:27,874 - INFO - Data loaded from cache: 6656 days.
-2026-04-09 14:00:27,874 - INFO - Final data period: 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 14:00:27,876 - INFO - Data retrieved: 6656 rows from 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 14:00:27,920 - INFO - Fetching macroeconomic data for context around 2025-08-22...
-2026-04-09 14:00:27,922 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_10y_monthly.parquet
-2026-04-09 14:00:27,928 - INFO - Using cached multi-source data for treasury_10y
-2026-04-09 14:00:27,935 - INFO - [SUCCESS] treasury_yield_10year: 4.33
-2026-04-09 14:00:27,936 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
-2026-04-09 14:00:27,939 - INFO - Using cached multi-source data for treasury_2y
-2026-04-09 14:00:27,944 - INFO - [SUCCESS] treasury_yield_2year: 3.79
-2026-04-09 14:00:27,948 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
-2026-04-09 14:00:27,952 - INFO - Using cached multi-source data for fed_funds
-2026-04-09 14:00:27,955 - INFO - [SUCCESS] federal_funds_rate: 4.33
-2026-04-09 14:00:27,957 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_cpi_monthly.parquet
-2026-04-09 14:00:27,962 - INFO - Using cached multi-source data for cpi
-2026-04-09 14:00:27,965 - INFO - [SUCCESS] cpi: 322.13
-2026-04-09 14:00:27,967 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_unemployment_monthly.parquet
-2026-04-09 14:00:27,972 - INFO - Using cached multi-source data for unemployment
-2026-04-09 14:00:27,975 - INFO - [SUCCESS] unemployment: 4.20
-2026-04-09 14:00:27,975 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_gdp_monthly.parquet
-2026-04-09 14:00:27,982 - INFO - Using cached multi-source data for gdp
-2026-04-09 14:00:27,984 - INFO - [SUCCESS] real_gdp: 23685.29
-2026-04-09 14:00:27,984 - INFO - Macro data fetch complete. Retrieved 6 indicators.
-2026-04-09 14:00:27,997 - INFO - Added 6 macroeconomic features: ['treasury_yield_10year', 'treasury_yield_2year', 'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp']
-2026-04-09 14:00:28,010 - INFO - Final data with features: 6456 rows, 68 columns
-2026-04-09 14:00:28,010 - INFO - Entraînement du modèle quantitatif...
-2026-04-09 14:00:28,012 - INFO - Core features available: 39/39
-2026-04-09 14:00:28,012 - INFO - All macroeconomic features available
-2026-04-09 14:00:28,018 - INFO - Selected 45 features for model training
-2026-04-09 14:00:28,018 - INFO - Initial data shape: X=(6456, 45), y=(6456,)
-2026-04-09 14:00:28,022 - INFO - After removing NaN targets: X=(6455, 45), y=(6455,)
-2026-04-09 14:00:28,024 - INFO - Filling NaN values in 6 features
-2026-04-09 14:00:28,028 - INFO - Final clean data: X=(6455, 45), y=(6455,)
-2026-04-09 14:00:28,030 - INFO - Target distribution: {0.0: 4923, 1.0: 1532}
-2026-04-09 14:00:28,030 - INFO - Features shape: (6455, 45)
-2026-04-09 14:00:28,031 - INFO - Target shape: (6455,)
-2026-04-09 14:00:28,033 - INFO - NaN in features: 0
-2026-04-09 14:00:28,034 - INFO - NaN in target: 0
-2026-04-09 14:00:28,034 - INFO - Unique target values: [1. 0.]
-2026-04-09 14:00:28,035 - INFO - Original data shape: (6455, 45)
-2026-04-09 14:00:28,036 - INFO - NaN values per column: 0 total
-2026-04-09 14:00:28,039 - INFO - After removing NaN targets: (6455, 45)
-2026-04-09 14:00:28,047 - INFO - Final clean data shape: (6455, 45)
-2026-04-09 14:00:35,388 - INFO - RandomForest - TimeSeries CV Score: 0.0827 (+/- 0.1457)
-2026-04-09 14:01:02,190 - INFO - GradientBoosting - TimeSeries CV Score: 0.2133 (+/- 0.1261)
-2026-04-09 14:01:02,537 - INFO - LogisticRegression - TimeSeries CV Score: 0.2341 (+/- 0.3366)
-2026-04-09 14:01:02,538 - INFO - Best model selected: LogisticRegression
-2026-04-09 14:01:02,677 - INFO - 
-=== LOGISTICREGRESSION MODEL RESULTS ===
-2026-04-09 14:01:02,677 - INFO - Accuracy: 0.5019
-2026-04-09 14:01:02,679 - INFO - Precision: 0.2898
-2026-04-09 14:01:02,680 - INFO - Recall: 0.6377
-2026-04-09 14:01:02,680 - INFO - F1: 0.3985
-2026-04-09 14:01:02,683 - INFO - Modèle classique entraîné avec succès
-2026-04-09 14:01:02,683 - INFO - Génération des prédictions des modèles...
-2026-04-09 14:01:02,688 - INFO - Features disponibles pour prédiction: 45
-2026-04-09 14:01:02,689 - INFO - NaN dans les features: 0
-2026-04-09 14:01:02,701 - INFO - Prédiction classique: 1.0, confiance: 0.558
-2026-04-09 14:01:02,703 - INFO - Generating chart image and saving to enhanced_trading_chart.png...
-2026-04-09 14:01:03,941 - INFO - Chart generated successfully.
-2026-04-09 14:01:03,941 - INFO - Querying textual LLM for a trading decision...
-2026-04-09 14:01:15,727 - INFO - LLM decision (gemma3:4b) received and validated.
-2026-04-09 14:01:15,728 - INFO - Querying visual LLM with image enhanced_trading_chart.png...
-2026-04-09 14:01:21,186 - INFO - LLM decision (gemma3:4b) received and validated.
-2026-04-09 14:01:21,186 - INFO - Fetching live news and sentiment from Alpha Vantage...
-2026-04-09 14:01:22,183 - INFO - Successfully fetched news. Overall sentiment score: 0.07
-2026-04-09 14:01:22,183 - INFO - Génération de la prédiction TimesFM...
-2026-04-09 14:01:22,183 - INFO - Initialisation de TimesFM 2.5...
-2026-04-09 14:01:22,407 - INFO - HTTP Request: GET https://huggingface.co/api/models/google/timesfm-2.5-200m-pytorch/revision/main "HTTP/1.1 200 OK"
-2026-04-09 14:01:23,474 - WARNING - TimesFM checkpoint introuvable, le modèle sera ignoré: [Errno 2] No such file or directory: 'C:\\Users\\lvolff\\.cache\\huggingface\\hub\\models--google--timesfm-2.5-200m-pytorch\\snapshots\\1d952420fba87f3c6dee4f240de0f1a0fbc790e3\\torch_model.ckpt'
-2026-04-09 14:01:23,475 - INFO - Analyse améliorée en cours...
-2026-04-09 14:01:23,853 - INFO - Niveau de risque détecté: VERY_HIGH
-2026-04-09 14:01:23,853 - INFO - Score de risque: 0.313
-2026-04-09 14:01:23,853 - WARNING - Insufficient data for classic: 0 observations
-2026-04-09 14:01:23,853 - WARNING - Insufficient data for llm_text: 0 observations
-2026-04-09 14:01:23,853 - WARNING - Insufficient data for llm_visual: 0 observations
-2026-04-09 14:01:23,853 - WARNING - Insufficient data for sentiment: 0 observations
-2026-04-09 14:01:23,853 - INFO - Poids adaptatifs calculés:
-2026-04-09 14:01:23,853 - INFO -   classic: 0.350
-2026-04-09 14:01:23,853 - INFO -   llm_text: 0.250
-2026-04-09 14:01:23,853 - INFO -   llm_visual: 0.250
-2026-04-09 14:01:23,853 - INFO -   sentiment: 0.150
-2026-04-09 14:01:23,853 - INFO - Décision hybride: HOLD
-2026-04-09 14:01:23,869 - INFO - Consensus: 0.68
-2026-04-09 14:01:23,869 - INFO - Confiance: 0.12
-2026-04-09 14:01:23,869 - INFO - Taille de position recommandée: $7.37
-2026-04-09 14:01:23,879 - INFO - Updated portfolio state for QQQ on 2025-08-22 00:00:00
-2026-04-09 14:01:23,884 - INFO - Mise à jour du monitoring de performance...
-2026-04-09 14:01:23,900 - WARNING - ALERT [HIGH]: Win rate critically low: 0.00%
-2026-04-09 14:01:23,900 - INFO - Performance monitoring updated: Portfolio $1,000.00, Daily Return: 1.54%, Alerts: 1
-2026-04-09 14:01:25,092 - INFO - Performance dashboard saved to enhanced_performance_dashboard.png
-2026-04-09 14:01:25,106 - INFO - === ANALYSE TERMINÉE ===
-2026-04-09 14:03:14,182 - INFO - Performance database initialized successfully
-2026-04-09 14:03:14,182 - INFO - Performance monitoring database initialized
-2026-04-09 14:03:14,182 - INFO - Database initialized at trading_history.db
-2026-04-09 14:03:14,182 - INFO - Loading data from cache: data_cache\QQQ_max_with_vix.parquet
-2026-04-09 14:03:15,357 - INFO - Data loaded from cache: 6656 days.
-2026-04-09 14:03:15,357 - INFO - Final data period: 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 14:03:15,357 - INFO - Système de trading amélioré initialisé pour QQQ
-2026-04-09 14:03:15,359 - INFO - === DÉMARRAGE DE L'ANALYSE AMÉLIORÉE ===
-2026-04-09 14:03:15,360 - INFO - Récupération et préparation des données...
-2026-04-09 14:03:15,360 - INFO - Loading data from cache: data_cache\QQQ_max_with_vix.parquet
-2026-04-09 14:03:15,399 - INFO - Data loaded from cache: 6656 days.
-2026-04-09 14:03:15,400 - INFO - Final data period: 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 14:03:15,400 - INFO - Data retrieved: 6656 rows from 1999-03-10 00:00:00 to 2025-08-22 00:00:00
-2026-04-09 14:03:15,421 - INFO - Fetching macroeconomic data for context around 2025-08-22...
-2026-04-09 14:03:15,423 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_10y_monthly.parquet
-2026-04-09 14:03:15,426 - INFO - Using cached multi-source data for treasury_10y
-2026-04-09 14:03:15,429 - INFO - [SUCCESS] treasury_yield_10year: 4.33
-2026-04-09 14:03:15,429 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
-2026-04-09 14:03:15,429 - INFO - Using cached multi-source data for treasury_2y
-2026-04-09 14:03:15,435 - INFO - [SUCCESS] treasury_yield_2year: 3.79
-2026-04-09 14:03:15,435 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
-2026-04-09 14:03:15,437 - INFO - Using cached multi-source data for fed_funds
-2026-04-09 14:03:15,438 - INFO - [SUCCESS] federal_funds_rate: 4.33
-2026-04-09 14:03:15,438 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_cpi_monthly.parquet
-2026-04-09 14:03:15,440 - INFO - Using cached multi-source data for cpi
-2026-04-09 14:03:15,443 - INFO - [SUCCESS] cpi: 322.13
-2026-04-09 14:03:15,443 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_unemployment_monthly.parquet
-2026-04-09 14:03:15,446 - INFO - Using cached multi-source data for unemployment
-2026-04-09 14:03:15,446 - INFO - [SUCCESS] unemployment: 4.20
-2026-04-09 14:03:15,446 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_gdp_monthly.parquet
-2026-04-09 14:03:15,448 - INFO - Using cached multi-source data for gdp
-2026-04-09 14:03:15,451 - INFO - [SUCCESS] real_gdp: 23685.29
-2026-04-09 14:03:15,451 - INFO - Macro data fetch complete. Retrieved 6 indicators.
-2026-04-09 14:03:15,457 - INFO - Added 6 macroeconomic features: ['treasury_yield_10year', 'treasury_yield_2year', 'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp']
-2026-04-09 14:03:15,465 - INFO - Final data with features: 6456 rows, 68 columns
-2026-04-09 14:03:15,465 - INFO - Entraînement du modèle quantitatif...
-2026-04-09 14:03:15,465 - INFO - Core features available: 39/39
-2026-04-09 14:03:15,465 - INFO - All macroeconomic features available
-2026-04-09 14:03:15,473 - INFO - Selected 45 features for model training
-2026-04-09 14:03:15,473 - INFO - Initial data shape: X=(6456, 45), y=(6456,)
-2026-04-09 14:03:15,476 - INFO - After removing NaN targets: X=(6455, 45), y=(6455,)
-2026-04-09 14:03:15,476 - INFO - Filling NaN values in 6 features
-2026-04-09 14:03:15,482 - INFO - Final clean data: X=(6455, 45), y=(6455,)
-2026-04-09 14:03:15,485 - INFO - Target distribution: {0.0: 4923, 1.0: 1532}
-2026-04-09 14:03:15,485 - INFO - Features shape: (6455, 45)
-2026-04-09 14:03:15,485 - INFO - Target shape: (6455,)
-2026-04-09 14:03:15,487 - INFO - NaN in features: 0
-2026-04-09 14:03:15,487 - INFO - NaN in target: 0
-2026-04-09 14:03:15,487 - INFO - Unique target values: [1. 0.]
-2026-04-09 14:03:15,490 - INFO - Original data shape: (6455, 45)
-2026-04-09 14:03:15,490 - INFO - NaN values per column: 0 total
-2026-04-09 14:03:15,494 - INFO - After removing NaN targets: (6455, 45)
-2026-04-09 14:03:15,502 - INFO - Final clean data shape: (6455, 45)
-2026-04-09 14:03:20,329 - INFO - RandomForest - TimeSeries CV Score: 0.0827 (+/- 0.1457)
-2026-04-09 14:03:32,804 - INFO - GradientBoosting - TimeSeries CV Score: 0.2133 (+/- 0.1261)
-2026-04-09 14:03:32,897 - INFO - LogisticRegression - TimeSeries CV Score: 0.2341 (+/- 0.3366)
-2026-04-09 14:03:32,897 - INFO - Best model selected: LogisticRegression
-2026-04-09 14:03:32,932 - INFO - 
-=== LOGISTICREGRESSION MODEL RESULTS ===
-2026-04-09 14:03:32,932 - INFO - Accuracy: 0.5019
-2026-04-09 14:03:32,934 - INFO - Precision: 0.2898
-2026-04-09 14:03:32,934 - INFO - Recall: 0.6377
-2026-04-09 14:03:32,934 - INFO - F1: 0.3985
-2026-04-09 14:03:32,935 - INFO - Modèle classique entraîné avec succès
-2026-04-09 14:03:32,935 - INFO - Génération des prédictions des modèles...
-2026-04-09 14:03:32,935 - INFO - Features disponibles pour prédiction: 45
-2026-04-09 14:03:32,935 - INFO - NaN dans les features: 0
-2026-04-09 14:03:32,935 - INFO - Prédiction classique: 1.0, confiance: 0.558
-2026-04-09 14:03:32,935 - INFO - Generating chart image and saving to enhanced_trading_chart.png...
-2026-04-09 14:03:33,594 - INFO - Chart generated successfully.
-2026-04-09 14:03:33,594 - INFO - Querying textual LLM for a trading decision...
-2026-04-09 14:03:38,505 - INFO - LLM decision (gemma3:4b) received and validated.
-2026-04-09 14:03:38,505 - INFO - Querying visual LLM with image enhanced_trading_chart.png...
-2026-04-09 14:03:44,031 - INFO - LLM decision (gemma3:4b) received and validated.
-2026-04-09 14:03:44,031 - INFO - Fetching live news and sentiment from Alpha Vantage...
-2026-04-09 14:03:44,606 - INFO - Successfully fetched news. Overall sentiment score: 0.07
-2026-04-09 14:03:44,606 - INFO - Génération de la prédiction TimesFM...
-2026-04-09 14:03:44,606 - INFO - Initialisation de TimesFM 2.5...
-2026-04-09 14:03:44,809 - INFO - HTTP Request: GET https://huggingface.co/api/models/google/timesfm-2.5-200m-pytorch/revision/main "HTTP/1.1 200 OK"
-2026-04-09 14:03:45,585 - WARNING - TimesFM checkpoint introuvable, le modèle sera ignoré: [Errno 2] No such file or directory: 'C:\\Users\\lvolff\\.cache\\huggingface\\hub\\models--google--timesfm-2.5-200m-pytorch\\snapshots\\1d952420fba87f3c6dee4f240de0f1a0fbc790e3\\torch_model.ckpt'
-2026-04-09 14:03:45,587 - INFO - Analyse améliorée en cours...
-2026-04-09 14:03:45,796 - INFO - Niveau de risque détecté: VERY_HIGH
-2026-04-09 14:03:45,796 - INFO - Score de risque: 0.313
-2026-04-09 14:03:45,800 - WARNING - Insufficient data for classic: 0 observations
-2026-04-09 14:03:45,800 - WARNING - Insufficient data for llm_text: 0 observations
-2026-04-09 14:03:45,800 - WARNING - Insufficient data for llm_visual: 0 observations
-2026-04-09 14:03:45,800 - WARNING - Insufficient data for sentiment: 0 observations
-2026-04-09 14:03:45,800 - INFO - Poids adaptatifs calculés:
-2026-04-09 14:03:45,800 - INFO -   classic: 0.350
-2026-04-09 14:03:45,800 - INFO -   llm_text: 0.250
-2026-04-09 14:03:45,800 - INFO -   llm_visual: 0.250
-2026-04-09 14:03:45,800 - INFO -   sentiment: 0.150
-2026-04-09 14:03:45,800 - INFO - Décision hybride: HOLD
-2026-04-09 14:03:45,800 - INFO - Consensus: 0.68
-2026-04-09 14:03:45,800 - INFO - Confiance: 0.12
-2026-04-09 14:03:45,800 - INFO - Taille de position recommandée: $73.65
-2026-04-09 14:03:45,812 - INFO - Updated portfolio state for QQQ on 2025-08-22 00:00:00
-2026-04-09 14:03:45,812 - INFO - Mise à jour du monitoring de performance...
-2026-04-09 14:03:45,832 - WARNING - ALERT [HIGH]: Win rate critically low: 0.00%
-2026-04-09 14:03:45,832 - INFO - Performance monitoring updated: Portfolio $1,000.00, Daily Return: 1.54%, Alerts: 1
-2026-04-09 14:03:46,643 - INFO - Performance dashboard saved to enhanced_performance_dashboard.png
-2026-04-09 14:03:46,667 - INFO - === ANALYSE TERMINÉE ===
+2026-04-10 10:58:03,458 - INFO - Accuracy: 0.5833
+2026-04-10 10:58:03,458 - INFO - Precision: 0.3215
+2026-04-10 10:58:03,458 - INFO - Recall: 0.4902
+2026-04-10 10:58:03,459 - INFO - F1: 0.3883
+2026-04-10 10:58:03,460 - INFO - Modèle classique entraîné avec succès
+2026-04-10 10:58:03,460 - INFO - Génération des prédictions des modèles...
+2026-04-10 10:58:03,461 - INFO - Features disponibles pour prédiction: 45
+2026-04-10 10:58:03,462 - INFO - NaN dans les features: 0
+2026-04-10 10:58:03,464 - INFO - Prédiction classique: 0.0, confiance: 0.514
+2026-04-10 10:58:03,465 - INFO - Generating chart image and saving to enhanced_trading_chart.png...
+2026-04-10 10:58:03,782 - INFO - Chart generated successfully.
+2026-04-10 10:58:03,783 - INFO - Querying textual LLM for a trading decision...
+2026-04-10 10:58:08,513 - INFO - LLM decision (gemma3:4b) received and validated.
+2026-04-10 10:58:08,514 - INFO - Querying visual LLM with image enhanced_trading_chart.png...
+2026-04-10 10:58:14,018 - INFO - LLM decision (gemma3:4b) received and validated.
+2026-04-10 10:58:14,020 - INFO - Fetching live news and sentiment from Alpha Vantage...
+2026-04-10 10:58:14,596 - INFO - Successfully fetched news. Overall sentiment score: 0.00
+2026-04-10 10:58:14,597 - INFO - Génération de la prédiction TimesFM...
+2026-04-10 10:58:14,597 - INFO - Analyse améliorée en cours...
+2026-04-10 10:58:14,701 - INFO - Niveau de risque détecté: VERY_HIGH
+2026-04-10 10:58:14,701 - INFO - Score de risque: 0.461
+2026-04-10 10:58:14,703 - INFO - Poids adaptatifs calculés:
+2026-04-10 10:58:14,704 - INFO -   classic: 0.250
+2026-04-10 10:58:14,705 - INFO -   llm_text: 0.250
+2026-04-10 10:58:14,705 - INFO -   llm_visual: 0.200
+2026-04-10 10:58:14,705 - INFO -   sentiment: 0.150
+2026-04-10 10:58:14,706 - INFO -   timesfm: 0.150
+2026-04-10 10:58:14,707 - WARNING - Unknown signal: NEUTRAL, defaulting to HOLD
+2026-04-10 10:58:14,708 - INFO - Décision hybride: HOLD
+2026-04-10 10:58:14,708 - INFO - Consensus: 0.81
+2026-04-10 10:58:14,708 - INFO - Confiance: 0.29
+2026-04-10 10:58:14,709 - INFO - Taille de position recommandée: $100.00
+2026-04-10 10:58:14,721 - INFO - Updated portfolio state for SXRV.DE on 2026-04-10 00:00:00
+2026-04-10 10:58:14,721 - INFO - Mise à jour du monitoring de performance...
+2026-04-10 10:58:14,733 - WARNING - ALERT [HIGH]: Win rate critically low: 0.00%
+2026-04-10 10:58:14,745 - INFO - Performance monitoring updated: Portfolio $1,000.00, Daily Return: 0.70%, Alerts: 1
+2026-04-10 10:58:15,790 - INFO - Performance dashboard saved to enhanced_performance_dashboard.png
+2026-04-10 10:58:15,791 - INFO - === ANALYSE TERMINÉE ===

@@ -23,6 +23,10 @@ Le projet utilise un fichier `.env.t212` pour stocker les identifiants de maniè
 ### Actions Fractionnées
 Le système gère nativement les fractions. Lors d'une vente (`SELL`), le script interroge l'API pour récupérer la quantité exacte possédée (ex: `1.8176`) et passe un ordre de vente pour la **totalité** afin de liquider proprement la position.
 
+### Sécurité et Robustesse
+- **Vérification du Portefeuille** : Le système interroge systématiquement votre cash disponible et vos positions ouvertes **avant** d'envoyer un ordre d'achat ou de vente.
+- **Gestion des Erreurs API** : Un mécanisme de **Retry automatique** est implémenté pour gérer les erreurs `TooManyRequests` (Code 429), garantissant que les ordres passent même en cas de congestion de l'API.
+
 ---
 
 ## 3. Workflow d'Exécution IA
