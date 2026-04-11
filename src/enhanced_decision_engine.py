@@ -135,7 +135,10 @@ class EnhancedDecisionEngine:
         signal_agreement = 1 - (signal_variance / max_variance)
         
         # Calculate confidence alignment (do high confidence models agree?)
-        weighted_signal = np.average(signals, weights=confidences)
+        if sum(confidences) == 0:
+            weighted_signal = np.mean(signals)
+        else:
+            weighted_signal = np.average(signals, weights=confidences)
         confidence_alignment = 1 - np.average([abs(s - weighted_signal) for s in signals])
         
         # Combined consensus score
