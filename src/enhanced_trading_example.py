@@ -5,7 +5,6 @@ dans le système de trading AI existant.
 """
 
 import logging
-import pandas as pd
 import numpy as np
 from datetime import datetime
 from pathlib import Path
@@ -23,7 +22,7 @@ from llm_client import get_llm_decision, get_visual_llm_decision
 from sentiment_analysis import get_sentiment_decision_from_score
 from chart_generator import generate_chart_image
 
-from database import init_db, insert_transaction, insert_portfolio_state, get_latest_portfolio_state, get_transactions_history
+from database import init_db, insert_transaction, insert_portfolio_state, get_latest_portfolio_state
 from timesfm_model import get_timesfm_prediction
 
 # Imports des nouveaux modules d'amélioration
@@ -646,7 +645,7 @@ def main():
     print("\n" + "="*80)
     print("SYSTÈME DE TRADING AI AMÉLIORÉ - ANALYSE TERMINÉE")
     print("="*80)
-    print(f"Graphiques générés: enhanced_trading_chart.png, enhanced_performance_dashboard.png")
+    print("Graphiques générés: enhanced_trading_chart.png, enhanced_performance_dashboard.png")
     print(f"Décision finale: {results['enhanced_decision'].final_signal}")
     print(f"Niveau de risque: {results['risk_metrics'].risk_level.name}")
     print(f"Position recommandée: ${results['position_sizing'].recommended_size:,.2f}")

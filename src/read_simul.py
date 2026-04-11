@@ -6,7 +6,6 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent))
 
-import pandas as pd
 from database import get_portfolio_history, get_transactions_history
 from rich.console import Console
 from rich.table import Table

@@ -2,7 +2,6 @@ import requests
 import argparse
 import json
 import sys
-import os
 from pathlib import Path
 
 # Add AlphaEar skill scripts to path
@@ -44,7 +43,7 @@ def fetch_alpha_vantage_news(ticker: str, api_key: str):
         overall_sentiment = sentiment_score / sentiment_count if sentiment_count > 0 else 0
         return headlines, overall_sentiment
 
-    except Exception as e:
+    except Exception:
         return [], 0
 
 def fetch_alpha_ear_trends():

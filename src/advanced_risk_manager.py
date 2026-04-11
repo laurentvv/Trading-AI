@@ -6,7 +6,7 @@ Provides comprehensive risk assessment, position sizing, and risk-adjusted decis
 import logging
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, Tuple
 from dataclasses import dataclass
 from enum import Enum
 

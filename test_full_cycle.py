@@ -87,7 +87,7 @@ def run_test():
     show_t212_summary()
     
     final_state = load_portfolio_state()
-    print(f"\n✅ Test terminé.")
+    print("\n✅ Test terminé.")
     print(f"Capital final IA : {final_state['current_capital']:.2f} €")
     print(f"Profit/Perte réalisé : {final_state['total_realized_pl']:.2f} €")
 

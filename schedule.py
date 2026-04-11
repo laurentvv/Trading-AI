@@ -3,12 +3,9 @@ import subprocess
 import logging
 from datetime import datetime, datetime as dt
 import sys
-import os
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich.live import Live
-from rich.layout import Layout
 
 # Configuration
 TICKERS = ["SXRV.DE", "CRUDP.PA"]

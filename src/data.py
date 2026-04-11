@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 import requests
 from dotenv import load_dotenv
-import json
 import pandas_datareader.data as web
 import datetime
 
