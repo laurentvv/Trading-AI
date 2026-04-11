@@ -6,11 +6,9 @@ and adaptive thresholds.
 
 import logging
 import numpy as np
-import pandas as pd
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Optional
 from dataclasses import dataclass
 from enum import Enum
-import json
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
