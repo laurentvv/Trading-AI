@@ -12,7 +12,6 @@ from dotenv import load_dotenv
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
 
 # Add src to path
 sys.path.append(str(Path(__file__).parent / 'src'))

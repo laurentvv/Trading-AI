@@ -163,7 +163,7 @@ def execute_t212_trade(signal, confidence, ticker=DEFAULT_TICKER):
     
     # Vérification systématique avant action
     portfolio = get_portfolio_info()
-    print(f"📊 VÉRIFICATION PORTEFEUILLE RÉEL :")
+    print("📊 VÉRIFICATION PORTEFEUILLE RÉEL :")
     print(f"   - Cash total disponible : {portfolio['cash']:.2f} €")
     
     # Trouver la position spécifique si elle existe
@@ -195,7 +195,7 @@ def execute_t212_trade(signal, confidence, ticker=DEFAULT_TICKER):
         quantity = round(target_budget / current_price, 4) 
         
         estimated_cost = quantity * current_price
-        print(f"📊 CALCUL QUANTITÉ FRACTIONNÉE :")
+        print("📊 CALCUL QUANTITÉ FRACTIONNÉE :")
         print(f"   - Budget cible : {available_cash:.2f} €")
         print(f"   - Quantité calculée : {quantity} actions")
         print(f"   - Coût estimé : {estimated_cost:.2f} €")
@@ -227,7 +227,7 @@ def execute_t212_trade(signal, confidence, ticker=DEFAULT_TICKER):
             return
             
         if not current_pos:
-            print(f"⚠️ Position présente dans le suivi mais INTROUVABLE sur T212. Reset du suivi.")
+            print("⚠️ Position présente dans le suivi mais INTROUVABLE sur T212. Reset du suivi.")
             state["active_position"] = None
             save_portfolio_state(state, t212_ticker)
             return
@@ -242,7 +242,7 @@ def execute_t212_trade(signal, confidence, ticker=DEFAULT_TICKER):
         sell_resp = safe_request("POST", f"{base_url}/equity/orders/market", headers=headers, json=order_data)
         
         if sell_resp.status_code in [200, 201, 202]:
-            print(f"✅ Vente effectuée.")
+            print("✅ Vente effectuée.")
             # Calcul du profit/perte
             buy_cost = state["active_position"]["buy_budget"] if state.get("active_position") else current_value_eur
             state["current_capital"] = current_value_eur

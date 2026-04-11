@@ -1,11 +1,6 @@
 import logging
-import numpy as np
 import pandas as pd
-from typing import Dict, Tuple
-import torch
-import sys
-import os
-from pathlib import Path
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +12,9 @@ try:
     from timesfm.configs import ForecastConfig
     TIMESFM_2P5_AVAILABLE = True
     logger.info("API TimesFM 2.5 (Torch) chargée avec succès.")
-except ImportError as e:
+except ImportError:
     TIMESFM_2P5_AVAILABLE = False
-    logger.error(f"API TimesFM 2.5 non trouvée. Veuillez lancer 'python setup_timesfm.py' pour l'installer.")
+    logger.error("API TimesFM 2.5 non trouvée. Veuillez lancer 'python setup_timesfm.py' pour l'installer.")
 
 class TimesFMModel:
     """Wrapper pour le modèle TimesFM 2.5 de Google Research"""
