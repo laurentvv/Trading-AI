@@ -19,12 +19,17 @@ Le moteur fusionne un modèle quantitatif classique, un LLM textuel (Gemma 3), u
 ### Installation
 
 1.  **Installer `uv`** : [astral.sh/uv](https://astral.sh/uv)
-2.  **Initialiser l'environnement et TimesFM 2.5** :
+2.  **Initialiser TimesFM 2.5 (CRUCIAL)** :
     ```bash
-    uv run setup
+    python setup_timesfm.py
     ```
-    *Cette commande synchronise les dépendances, clone TimesFM, applique les correctifs d'API 2.5 et installe le tout.*
-3.  **Configurer l'API** : Créer un fichier `.env` avec `ALPHA_VANTAGE_API_KEY`.
+    *Cette commande clone TimesFM et applique les correctifs d'API 2.5. Elle doit être exécutée en premier.*
+3.  **Synchroniser l'environnement et Playwright** :
+    ```bash
+    uv sync
+    uv run playwright install chromium
+    ```
+4.  **Configurer l'API** : Créer un fichier `.env` avec `ALPHA_VANTAGE_API_KEY`.
 
 ### Running the System
 

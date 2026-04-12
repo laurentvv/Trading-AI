@@ -127,18 +127,21 @@ Suivez ces étapes pour mettre en place votre environnement de développement lo
     git clone https://github.com/laurentvv/Trading-AI.git
     cd Trading-AI
     ```
+
 2.  **Installez `uv` (si ce n'est pas déjà fait) :**
     Consultez [astral.sh/uv](https://astral.sh/uv) pour les instructions d'installation.
 
-3.  **Initialisez et synchronisez l'environnement :**
+3.  **Initialisez TimesFM 2.5 (Étape CRUCIALE) :**
+    Le projet dépend d'une version spécifique de TimesFM située dans `vendor/timesfm`. Exécutez ce script **AVANT** toute autre commande pour cloner et patcher le modèle :
     ```bash
-    uv sync
+    python setup_timesfm.py
     ```
 
-4.  **Installez et Patchez TimesFM 2.5 (Requis pour les prévisions) :**
-    Lancez le script d'installation automatisé pour cloner et configurer le modèle :
+4.  **Synchronisez l'environnement et installez Playwright :**
+    Une fois que les sources de TimesFM sont présentes, vous pouvez synchroniser les dépendances et installer les navigateurs requis pour la recherche web :
     ```bash
-    uv run python setup_timesfm.py
+    uv sync
+    uv run playwright install chromium
     ```
 
 5.  **Configurez votre clé API :**
