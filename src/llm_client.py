@@ -101,6 +101,50 @@ def get_visual_llm_decision(image_path: Path) -> dict:
     }
     return _query_ollama(payload)
 
+
+def generate_search_query(ticker: str) -> str:
+    """
+    Uses the LLM to generate the most relevant web search query for a given ticker.
+    """
+    logger.info(f"Generating dynamic web search query for {ticker}...")
+
+    prompt = f"""
+    You are an expert macroeconomic analyst. I am preparing to analyze the financial asset '{ticker}'.
+    To gather the most relevant long-term context, I need to search the web for recent macroeconomic forecasts,
+    fundamental events, or policy decisions that directly impact this specific asset.
+
+    Generate the single most effective web search query (in English, maximum 10 words) to find this information.
+    For example, if the asset is a tech index, you might search for Federal Reserve rates or semiconductor supply chain.
+    If it's oil, you might search for OPEC+ decisions and global demand.
+
+    Provide your response ONLY as a valid JSON object:
+    {{
+      "query": "<your optimized search query>"
+    }}
+    """
+
+    payload = {
+        "model": TEXT_LLM_MODEL,
+        "prompt": prompt.strip(),
+        "stream": False,
+        "format": "json",
+        "system": "You are a web research assistant. Output only a valid JSON object."
+    }
+
+    try:
+        response = _query_ollama(payload)
+        query = response.get("query")
+        if query:
+            logger.info(f"Generated search query: '{query}'")
+            return query
+    except Exception as e:
+        logger.error(f"Failed to generate search query: {e}")
+
+    # Fallback
+    fallback_query = f"Macroeconomic forecast and market analysis for {ticker}"
+    logger.warning(f"Using fallback search query: '{fallback_query}'")
+    return fallback_query
+
 def _query_ollama(payload: dict, max_retries: int = 3) -> dict:
     """
     Helper function to send a request to the Ollama API and handle the response, with retries.

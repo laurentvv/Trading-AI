@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 from data import get_etf_data, fetch_macro_data_for_date
 from features import create_technical_indicators, create_features, select_features
 from classic_model import train_ensemble_model, get_classic_prediction
-from llm_client import get_llm_decision, get_visual_llm_decision
+from llm_client import get_llm_decision, get_visual_llm_decision, generate_search_query
 from sentiment_analysis import get_sentiment_decision_from_score
 from chart_generator import generate_chart_image
 
@@ -243,7 +243,9 @@ class EnhancedTradingSystem:
         
         # 3.5 Web Research Context
         logger.info("Fetching deep web research context...")
-        web_query = f"Macroeconomic forecast and market analysis for {self.ticker}"
+        # Demander à l'LLM de générer la meilleure requête de recherche pour ce ticker
+        web_query = generate_search_query(self.ticker)
+        logger.info(f"Executing web search with query: '{web_query}'")
         web_context = get_web_context_sync(web_query)
         if web_context:
             logger.info("Successfully fetched web research context.")
