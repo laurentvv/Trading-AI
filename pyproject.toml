@@ -30,6 +30,7 @@ dependencies = [
     "httpx>=0.27.0",
     "crawl4ai>=0.4.2",
     "playwright>=1.49.0",
+    "ddgs>=1.0.0",
 ]
 
 [tool.uv.sources]

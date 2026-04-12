@@ -1,7 +1,6 @@
 import asyncio
-import httpx
+from ddgs import DDGS
 import logging
-import os
 from dotenv import load_dotenv
 from typing import List, Dict
 
@@ -16,29 +15,25 @@ logger = logging.getLogger(__name__)
 # Load env variables to get the brave api key
 load_dotenv()
 
-async def search_brave(query: str, count: int = 3) -> List[str]:
-    """Effectue une recherche via l'API Brave et retourne une liste d'URLs."""
-    brave_api_key = os.getenv("BRAVE_API_KEY")
-    if not brave_api_key:
-        logger.warning("BRAVE_API_KEY not found in environment variables. Web research will be skipped.")
-        return []
-
-    headers = {
-        "Accept": "application/json",
-        "X-Subscription-Token": brave_api_key
-    }
-    url = "https://api.search.brave.com/res/v1/web/search"
-    params = {"q": query, "count": count}
-
+def _sync_search_ddg(query: str, count: int) -> List[str]:
+    urls = []
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers, params=params, timeout=10.0)
-            response.raise_for_status()
-            results = response.json()
-            # Extraire les URLs des résultats web
-            return [item["url"] for item in results.get("web", {}).get("results", [])]
+        with DDGS() as ddgs:
+            results = list(ddgs.text(query, max_results=count))
+            if results:
+                urls = [item.get("href") for item in results if item.get("href")]
     except Exception as e:
-        logger.error(f"Error during Brave search: {e}")
+        logger.error(f"Error during DuckDuckGo sync search: {e}")
+    return urls
+
+async def search_ddg(query: str, count: int = 3) -> List[str]:
+    """Effectue une recherche via DuckDuckGo Search et retourne une liste d'URLs (100% gratuit, sans API Key)."""
+    try:
+        loop = asyncio.get_running_loop()
+        urls = await loop.run_in_executor(None, _sync_search_ddg, query, count)
+        return urls
+    except Exception as e:
+        logger.error(f"Error during DuckDuckGo search: {e}")
         return []
 
 async def fetch_and_clean(urls: List[str]) -> List[Dict[str, str]]:
@@ -80,7 +75,7 @@ async def get_web_research_context_async(query: str) -> str:
     Exécute la recherche et le crawling asynchrone et formate le résultat en Markdown.
     """
     logger.info(f"Starting web research for query: '{query}'")
-    urls = await search_brave(query)
+    urls = await search_ddg(query)
 
     if not urls:
         logger.info("No URLs found during web research.")
