@@ -106,4 +106,13 @@ class TimesFMModel:
             return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Error: {e}"}
 
 def get_timesfm_prediction(df: pd.DataFrame) -> Dict:
-    return TimesFMModel.get_instance().predict(df)
+    """
+    Wrapper function to get predictions from the TimesFM model.
+    Handles singleton initialization automatically.
+    """
+    try:
+        model = TimesFMModel.get_instance()
+        return model.predict(df)
+    except Exception as e:
+        logger.error(f"TimesFM prediction failed: {e}")
+        return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Model error: {e}"}
