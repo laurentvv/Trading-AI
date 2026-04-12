@@ -243,8 +243,8 @@ class EnhancedTradingSystem:
         
         # 3.5 Web Research Context
         logger.info("Fetching deep web research context...")
-        # Demander à l'LLM de générer la meilleure requête de recherche pour ce ticker
-        web_query = generate_search_query(self.ticker)
+        # Demander à l'LLM de générer la meilleure requête de recherche pour l'INDICE d'analyse
+        web_query = generate_search_query(self.analysis_ticker)
         logger.info(f"Executing web search with query: '{web_query}'")
         web_context = get_web_context_sync(web_query)
         if web_context:

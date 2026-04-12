@@ -92,31 +92,37 @@ def run_trading_analysis(ticker: str, is_simulation: bool = False, is_t212: bool
             else:
                 console.print(f"[bold blue]ℹ️ No trade executed (Signal is {signal})[/bold blue]")
 
-        # --- AJOUT : Journalisation CSV pour débriefing ---
-        import csv
-        from datetime import datetime
-        journal_file = "trading_journal.csv"
-        file_exists = Path(journal_file).exists()
-        
-        with open(journal_file, mode='a', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            if not file_exists:
-                writer.writerow(["Timestamp", "Ticker", "Signal", "Confidence", "Risk", "LLM_Analysis", "Capital_T212"])
+            # --- AJOUT : Journalisation CSV pour débriefing ---
+            import csv
+            from datetime import datetime
+            journal_file = "trading_journal.csv"
+            file_exists = Path(journal_file).exists()
             
-            t212_ticker = ticker.split('.')[0]
-            from t212_executor import load_portfolio_state as load_t212_state
-            t212_state = load_t212_state(t212_ticker)
-            
-            writer.writerow([
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                ticker,
-                signal,
-                f"{confidence:.2%}",
-                risk_level,
-                decision.individual_decisions[1].analysis if len(decision.individual_decisions) > 1 else "N/A",
-                f"{t212_state['current_capital']:.2f} €"
-            ])
-        # ------------------------------------------------
+            # Determine capital for logging
+            if is_t212:
+                t212_ticker = ticker.split('.')[0]
+                from t212_executor import load_portfolio_state as load_t212_state
+                t212_state = load_t212_state(t212_ticker)
+                current_cap = t212_state.get('current_capital', 0.0)
+            else:
+                state = get_latest_portfolio_state(ticker)
+                current_cap = state[2] if state else 0.0
+
+            with open(journal_file, mode='a', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                if not file_exists:
+                    writer.writerow(["Timestamp", "Ticker", "Signal", "Confidence", "Risk", "LLM_Analysis", "Capital"])
+                
+                writer.writerow([
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    ticker,
+                    signal,
+                    f"{confidence:.2%}",
+                    risk_level,
+                    decision.final_analysis if hasattr(decision, 'final_analysis') else "N/A",
+                    f"{current_cap:.2f} €"
+                ])
+            # ------------------------------------------------
 
         # Color coding
         color = "green" if "BUY" in signal else "red" if "SELL" in signal else "yellow"

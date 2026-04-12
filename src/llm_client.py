@@ -20,8 +20,20 @@ def construct_llm_prompt(latest_data: pd.DataFrame, headlines: list = None, web_
     news_text = "\n".join([f"- {h}" for h in headlines[:15]]) if headlines else "No recent news available."
     web_context_text = web_context if web_context else "No web research context provided."
     
+    # Specific hint for Oil (WTI)
+    oil_hint = ""
+    # Check if data has a Ticker column or if we can infer from news context
+    is_oil = any(x in str(web_context_text).upper() for x in ["WTI", "CRUDE OIL", "CL=F"])
+    if is_oil:
+        oil_hint = """
+        **CRITICAL OIL HINT (Hyperliquid):**
+        Hyperliquid (DEX) trades 'flx:OIL' or 'OIL-USDH' 24/7. Use the web research context to identify if 
+        crypto-traders are front-running a move. Positive funding or price divergence on Hyperliquid 
+        during weekend/closed hours is a powerful leading indicator for WTI Crude Oil (CL=F).
+        """
+
     prompt = f"""
-    Analyze the following market data and news for a NASDAQ-100 ETF to provide a highly accurate trading decision.
+    Analyze the following market data and news for a financial asset to provide a highly accurate trading decision.
     Your priority is ACCURACY (justesse) over trading frequency.
 
     **Current Market Data:**
@@ -31,6 +43,8 @@ def construct_llm_prompt(latest_data: pd.DataFrame, headlines: list = None, web_
     - Bollinger Bands Position: {data['BB_Position']:.2f}
     - Short-term Trend: {'Bullish' if data['Trend_Short'] == 1 else 'Bearish' if data['Trend_Short'] == -1 else 'Neutral'}
     - Long-term Trend: {'Bullish' if data['Trend_Long'] == 1 else 'Bearish' if data['Trend_Long'] == -1 else 'Neutral'}
+
+    {oil_hint}
 
     **Recent News Headlines:**
     {news_text}
@@ -132,7 +146,12 @@ def generate_search_query(ticker: str) -> str:
     }
 
     try:
-        response = _query_ollama(payload)
+        def validate_search(llm_output):
+            if "query" not in llm_output:
+                raise ValueError("Missing 'query' key in LLM response.")
+            return True
+
+        response = _query_ollama(payload, validation_func=validate_search)
         query = response.get("query")
         if query:
             logger.info(f"Generated search query: '{query}'")
@@ -145,7 +164,7 @@ def generate_search_query(ticker: str) -> str:
     logger.warning(f"Using fallback search query: '{fallback_query}'")
     return fallback_query
 
-def _query_ollama(payload: dict, max_retries: int = 3) -> dict:
+def _query_ollama(payload: dict, max_retries: int = 3, validation_func=None) -> dict:
     """
     Helper function to send a request to the Ollama API and handle the response, with retries.
     """
@@ -164,12 +183,15 @@ def _query_ollama(payload: dict, max_retries: int = 3) -> dict:
             else:
                 llm_output = llm_output_str
 
-            required_keys = ["signal", "confidence", "analysis"]
-            if not all(key in llm_output for key in required_keys):
-                logger.warning(f"Attempt {attempt + 1}/{max_retries}: Response from LLM ({model_name}) is malformed: {llm_output}")
-                raise ValueError("Invalid or malformed LLM response.")
+            # Default validation if no function provided
+            if validation_func is None:
+                required_keys = ["signal", "confidence", "analysis"]
+                if not all(key in llm_output for key in required_keys):
+                    raise ValueError(f"Response from LLM ({model_name}) is missing required decision keys: {llm_output}")
+            else:
+                validation_func(llm_output)
 
-            logger.info(f"LLM decision ({model_name}) received and validated.")
+            logger.info(f"LLM response ({model_name}) received and validated.")
             return llm_output
 
         except (requests.exceptions.RequestException, json.JSONDecodeError, ValueError) as e:
@@ -180,10 +202,15 @@ def _query_ollama(payload: dict, max_retries: int = 3) -> dict:
                 logger.error(f"All {max_retries} attempts failed for LLM ({model_name}).")
                 if 'response' in locals() and hasattr(response, 'text'):
                     logger.error(f"Final raw response from LLM: {response.text}")
-                return {"signal": "HOLD", "confidence": 0.0, "analysis": f"LLM ({model_name}) failed after {max_retries} attempts: {e}"}
+                
+                # If it was a decision, return a default HOLD
+                if validation_func is None:
+                    return {"signal": "HOLD", "confidence": 0.0, "analysis": f"LLM ({model_name}) failed: {e}"}
+                raise e # For other types of queries, let the caller handle it
         except Exception as e:
             logger.error(f"Unexpected error when querying the LLM ({model_name}): {e}")
-            return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Unexpected error: {e}"}
+            if validation_func is None:
+                return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Unexpected error: {e}"}
+            raise e
     
-    # This part should be unreachable, but as a fallback
     return {"signal": "HOLD", "confidence": 0.0, "analysis": "Fell through retry loop unexpectedly."}

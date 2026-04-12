@@ -15,58 +15,82 @@ logger = logging.getLogger(__name__)
 # Load env variables to get the brave api key
 load_dotenv()
 
-def _sync_search_ddg(query: str, count: int) -> List[str]:
-    urls = []
+def _sync_search_ddg(query: str, count: int) -> List[Dict[str, str]]:
+    results_list = []
     try:
         with DDGS() as ddgs:
+            # text(query, max_results=count) returns a generator of dicts
             results = list(ddgs.text(query, max_results=count))
-            if results:
-                urls = [item.get("href") for item in results if item.get("href")]
+            for item in results:
+                if item.get("href"):
+                    results_list.append({
+                        "url": item.get("href"),
+                        "title": item.get("title", ""),
+                        "body": item.get("body", "") # DDG already provides a small snippet
+                    })
     except Exception as e:
         logger.error(f"Error during DuckDuckGo sync search: {e}")
-    return urls
+    return results_list
 
-async def search_ddg(query: str, count: int = 3) -> List[str]:
-    """Effectue une recherche via DuckDuckGo Search et retourne une liste d'URLs (100% gratuit, sans API Key)."""
+async def search_ddg(query: str, count: int = 3) -> List[Dict[str, str]]:
+    """Effectue une recherche via DuckDuckGo Search et retourne une liste de dicts (url, title, body)."""
     try:
         loop = asyncio.get_running_loop()
-        urls = await loop.run_in_executor(None, _sync_search_ddg, query, count)
-        return urls
+        results = await loop.run_in_executor(None, _sync_search_ddg, query, count)
+        return results
     except Exception as e:
         logger.error(f"Error during DuckDuckGo search: {e}")
         return []
 
-async def fetch_and_clean(urls: List[str]) -> List[Dict[str, str]]:
-    """Utilise Crawl4AI pour récupérer le contenu de chaque page en Markdown."""
-    if AsyncWebCrawler is None:
-        logger.error("Crawl4AI is not installed or available.")
-        return []
-
+async def fetch_and_clean(search_results: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    """Tente de crawler les URLs, sinon utilise le snippet 'body' de DDG."""
     pages_content = []
+    
+    if AsyncWebCrawler is None:
+        logger.warning("Crawl4AI is not installed. Using DDG snippets only.")
+        for res in search_results:
+            pages_content.append({
+                "url": res['url'],
+                "content": f"Title: {res['title']}\nSnippet: {res['body']}"
+            })
+        return pages_content
 
     try:
         async with AsyncWebCrawler() as crawler:
-            for url in urls:
+            for res in search_results:
+                url = res['url']
                 logger.info(f"Extraction de : {url}...")
                 try:
-                    result = await crawler.arun(url=url)
+                    # Set a timeout for crawling
+                    result = await asyncio.wait_for(crawler.arun(url=url), timeout=30.0)
                     if result.success:
-                        # On ne garde que le Markdown "fit" (nettoyé du bruit)
-                        # Depending on Crawl4AI version, the attribute might be 'markdown_fit' or 'markdown_links_removed'
                         content = getattr(result, "markdown_links_removed", getattr(result, "markdown_fit", ""))
                         if not content:
-                            content = result.markdown # Fallback
-
+                            content = result.markdown
+                        
                         pages_content.append({
                             "url": url,
                             "content": content
                         })
                     else:
-                        logger.warning(f"Failed to crawl {url}: {getattr(result, 'error_message', 'Unknown error')}")
+                        logger.warning(f"Failed to crawl {url}. Using snippet.")
+                        pages_content.append({
+                            "url": url,
+                            "content": f"Title: {res['title']}\nSnippet: {res['body']}"
+                        })
                 except Exception as e:
-                    logger.error(f"Error crawling {url}: {e}")
+                    logger.error(f"Error crawling {url}: {e}. Using snippet.")
+                    pages_content.append({
+                        "url": url,
+                        "content": f"Title: {res['title']}\nSnippet: {res['body']}"
+                    })
     except Exception as e:
-        logger.error(f"Failed to initialize crawler: {e}")
+        logger.error(f"Failed to initialize crawler: {e}. Falling back to snippets.")
+        for res in search_results:
+            pages_content.append({
+                "url": res['url'],
+                "content": f"Title: {res['title']}\nSnippet: {res['body']}"
+            })
 
     return pages_content
 
@@ -75,22 +99,19 @@ async def get_web_research_context_async(query: str) -> str:
     Exécute la recherche et le crawling asynchrone et formate le résultat en Markdown.
     """
     logger.info(f"Starting web research for query: '{query}'")
-    urls = await search_ddg(query)
+    search_results = await search_ddg(query)
 
-    if not urls:
-        logger.info("No URLs found during web research.")
+    if not search_results:
+        logger.info("No results found during web research.")
         return ""
 
-    data = await fetch_and_clean(urls)
-
-    if not data:
-        logger.info("Failed to extract content from URLs.")
-        return ""
+    data = await fetch_and_clean(search_results)
 
     context_parts = []
     for page in data:
-        # Limit to 1500 chars per page to avoid exploding the context window
-        snippet = page['content'][:1500]
+        # Limit to 1200 chars per page to avoid context overflow
+        content = page.get('content', '')
+        snippet = content[:1200] if content else "No content available."
         context_parts.append(f"Source: {page['url']}\nContent Excerpt:\n{snippet}...\n")
 
     return "\n---\n".join(context_parts)
