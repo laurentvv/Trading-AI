@@ -20,16 +20,24 @@ def construct_llm_prompt(latest_data: pd.DataFrame, headlines: list = None, web_
     news_text = "\n".join([f"- {h}" for h in headlines[:15]]) if headlines else "No recent news available."
     web_context_text = web_context if web_context else "No web research context provided."
     
-    # Specific hint for Oil (WTI)
-    oil_hint = ""
-    # Check if data has a Ticker column or if we can infer from news context
-    is_oil = any(x in str(web_context_text).upper() for x in ["WTI", "CRUDE OIL", "CL=F"])
+    # Specific hints for assets
+    extra_hints = ""
+    is_oil = any(x in str(web_context_text).upper() or x in str(data.get('Ticker', '')).upper() for x in ["WTI", "CRUDE OIL", "CL=F", "CRUDP"])
+    is_nasdaq = any(x in str(web_context_text).upper() or x in str(data.get('Ticker', '')).upper() for x in ["NASDAQ", "NDX", "QQQ", "SXRV"])
+
     if is_oil:
-        oil_hint = """
+        extra_hints = """
         **CRITICAL OIL HINT (Hyperliquid):**
-        Hyperliquid (DEX) trades 'flx:OIL' or 'OIL-USDH' 24/7. Use the web research context to identify if 
+        Hyperliquid (DEX) trades 'flx:OIL' or 'OIL-USDH' 24/7. Use web context to identify if 
         crypto-traders are front-running a move. Positive funding or price divergence on Hyperliquid 
-        during weekend/closed hours is a powerful leading indicator for WTI Crude Oil (CL=F).
+        is a powerful leading indicator for WTI Crude Oil (CL=F).
+        """
+    elif is_nasdaq:
+        extra_hints = """
+        **CRITICAL NASDAQ HINT (Hyperliquid):**
+        Hyperliquid (DEX) often trades 'NDX' or tech-related perps 24/7. Use web context to see if 
+        Hyperliquid traders are front-running US tech moves during overnight hours. 
+        Divergence here often predicts the Nasdaq-100 (NDX) opening gap.
         """
 
     prompt = f"""
@@ -44,7 +52,7 @@ def construct_llm_prompt(latest_data: pd.DataFrame, headlines: list = None, web_
     - Short-term Trend: {'Bullish' if data['Trend_Short'] == 1 else 'Bearish' if data['Trend_Short'] == -1 else 'Neutral'}
     - Long-term Trend: {'Bullish' if data['Trend_Long'] == 1 else 'Bearish' if data['Trend_Long'] == -1 else 'Neutral'}
 
-    {oil_hint}
+    {extra_hints}
 
     **Recent News Headlines:**
     {news_text}
@@ -122,10 +130,18 @@ def generate_search_query(ticker: str) -> str:
     """
     logger.info(f"Generating dynamic web search query for {ticker}...")
 
+    # Specific instruction for Hyperliquid on Oil and NASDAQ
+    extra_context = ""
+    if any(x in ticker.upper() for x in ["CL=F", "OIL", "WTI", "CRUDP"]):
+        extra_context = "Specifically check for 'flx:OIL' or 'OIL-USDH' price action and sentiment on Hyperliquid (DEX) as a leading indicator."
+    elif any(x in ticker.upper() for x in ["^NDX", "NASDAQ", "QQQ", "SXRV"]):
+        extra_context = "Specifically check for 'NDX' or tech index price action and sentiment on Hyperliquid (DEX) as a leading indicator for the US tech opening."
+
     prompt = f"""
     You are an expert macroeconomic analyst. I am preparing to analyze the financial asset '{ticker}'.
     To gather the most relevant long-term context, I need to search the web for recent macroeconomic forecasts,
     fundamental events, or policy decisions that directly impact this specific asset.
+    {extra_context}
 
     Generate the single most effective web search query (in English, maximum 10 words) to find this information.
     For example, if the asset is a tech index, you might search for Federal Reserve rates or semiconductor supply chain.

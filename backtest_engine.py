@@ -39,22 +39,17 @@ class ClassicModelWrapper:
         self.scaler = None
         self.feature_cols = []
 
-    def train_and_predict(self, df: pd.DataFrame) -> tuple[int, float, str]:
+    def train_and_predict(self, df_features: pd.DataFrame) -> tuple[int, float, str]:
         try:
-            # 1. Préparation des indicateurs et features
-            df_indicators = create_technical_indicators(df)
-            df_features = create_features(df_indicators)
+            # 1. Sélection des features (déjà calculées pour l'optimisation)
             X, y, feature_cols = select_features(df_features)
             
-            # 2. Entraînement (on ré-entraîne régulièrement dans le backtest pour simuler la réalité)
-            # Pour la performance, on pourrait ne ré-entraîner que tous les N jours, 
-            # mais ici on fait simple et robuste.
+            # 2. Entraînement
             self.model, self.scaler, metrics, _ = train_ensemble_model(X, y)
             self.feature_cols = feature_cols
             
             # 3. Prédiction sur la dernière ligne
             latest_data = df_features.tail(1)
-            # S'assurer que les colonnes correspondent exactement à celles de l'entraînement
             X_latest = latest_data[self.feature_cols]
             
             pred, conf = get_classic_prediction(self.model, self.scaler, X_latest)
@@ -111,19 +106,27 @@ class Backtester:
 
         logger.info(f"📅 Nombre de jours à tester: {len(test_dates)}")
         
+        # OPTIMISATION: Pré-calcul des indicateurs sur toute la série (vectorisé)
+        # Évite de recalculer create_technical_indicators des milliers de fois
+        logger.info("📊 Calcul des indicateurs techniques pour toute la période...")
+        df_all_ind = create_technical_indicators(df_index)
+        df_all_feat = create_features(df_all_ind)
+
         for current_date in tqdm(test_dates, desc="Backtesting"):
             # Slicing "Point-in-time" (on ne voit pas le futur)
             hist_index = df_index.loc[:current_date]
             hist_etf = df_etf.loc[:current_date]
             
-            if len(hist_etf) == 0:
+            if len(hist_etf) == 0 or current_date not in df_all_ind.index:
                 continue
                 
             current_price_etf = hist_etf['Close'].iloc[-1]
+            latest_ind = df_all_ind.loc[current_date]
+            latest_row = df_all_feat.loc[current_date:current_date]
             
             # --- 2. Génération des Signaux ---
-            # Modèle Classique
-            classic_signal, classic_conf, _ = self.classic_model.train_and_predict(hist_index)
+            # Modèle Classique (on passe les features déjà calculées)
+            classic_signal, classic_conf, _ = self.classic_model.train_and_predict(df_all_feat.loc[:current_date])
             classic_pred = 1 if classic_signal == "BUY" else 0
             
             # TimesFM
@@ -136,10 +139,6 @@ class Backtester:
             else:
                 # Appels réels à Ollama
                 try:
-                    # On doit préparer les features complètes (y compris Trend_Short/Long) pour le prompt
-                    df_ind = create_technical_indicators(hist_index)
-                    df_feat = create_features(df_ind)
-                    latest_row = df_feat.tail(1)
                     text_llm_decision = get_llm_decision(latest_row)
                 except Exception as e:
                     logger.warning(f"Erreur LLM Texte au {current_date}: {e}")
@@ -147,8 +146,8 @@ class Backtester:
                 
                 if self.use_visual:
                     try:
-                        # On réutilise df_ind pour le graphique
-                        generate_chart_image(df_ind, self.temp_chart_path, title=f"Backtest {current_date}")
+                        # On utilise les indicateurs pré-calculés pour le graphique
+                        generate_chart_image(df_all_ind.loc[:current_date], self.temp_chart_path, title=f"Backtest {current_date}")
                         visual_llm_decision = get_visual_llm_decision(self.temp_chart_path)
                     except Exception as e:
                         logger.warning(f"Erreur LLM Visuel au {current_date}: {e}")
@@ -160,10 +159,6 @@ class Backtester:
             # Préparation des données de marché pour l'engine
             returns = hist_index['Close'].pct_change().dropna()
             volatility = returns.std() * np.sqrt(252) if len(returns) > 2 else 0.2
-            
-            # Correction: on calcule les indicateurs techniques requis par l'engine
-            df_ind = create_technical_indicators(hist_index)
-            latest_ind = df_ind.iloc[-1]
             
             market_data = {
                 'volatility': volatility,
