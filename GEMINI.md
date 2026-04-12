@@ -6,7 +6,14 @@ Ce projet est un système expert d'aide à la décision pour le trading d'ETFs N
 - **Analyse sur Indices** : Le système télécharge et analyse les indices de référence (`^NDX`, `CL=F`) pour obtenir des signaux d'IA plus propres et robustes.
 - **Trading sur ETFs** : Les décisions sont appliquées aux ETFs correspondants sur Trading 212 (`SXRV.DE`, `CRUDP.PA`).
 
-Le moteur fusionne un modèle quantitatif classique, un LLM textuel (Gemma 3), un LLM visuel (analyse de graphiques), et le modèle de fondation **TimesFM 2.5** de Google Research.
+Le moteur fusionne un modèle quantitatif classique, un LLM textuel (Gemma 4), un LLM visuel (analyse de graphiques), le modèle de fondation **TimesFM 2.5**, et des indicateurs avancés provenant de **Hyperliquid** (DEX 24/7).
+
+### 🚀 Stratégie "Aggressive Growth" (Anti-Veto)
+Le système a été optimisé pour surpasser le **Buy & Hold** :
+- **Biais Haussier** : Injection d'un bonus de score (+0.10) pour les indices.
+- **Gestion des Risques Assouplie** : Risque par position augmenté à 5%, seuil de confiance abaissé à 0.20 pour les achats en zone de volatilité.
+- **Vitesse de Backtest** : Moteur vectorisé (Pandas) pour des simulations ultra-rapides.
+- **Leading Indicators** : Surveillance de `flx:OIL` et `NDX` sur Hyperliquid pour anticiper les gaps d'ouverture.
 
 ## Building and Running
 

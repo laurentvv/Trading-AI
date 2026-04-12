@@ -64,8 +64,8 @@ class AdvancedRiskManager:
     """
     
     def __init__(self, 
-                 max_portfolio_risk: float = 0.02,
-                 max_position_risk: float = 0.01,
+                 max_portfolio_risk: float = 0.05,
+                 max_position_risk: float = 0.05,
                  lookback_period: int = 252):
         """
         Initialize the risk manager.
@@ -79,12 +79,12 @@ class AdvancedRiskManager:
         self.max_position_risk = max_position_risk
         self.lookback_period = lookback_period
         
-        # Risk thresholds
+        # Risk thresholds (RELAXED for performance)
         self.volatility_thresholds = {
-            RiskLevel.VERY_LOW: 0.01,
-            RiskLevel.LOW: 0.015,
-            RiskLevel.MODERATE: 0.025,
-            RiskLevel.HIGH: 0.04,
+            RiskLevel.VERY_LOW: 0.02,
+            RiskLevel.LOW: 0.03,
+            RiskLevel.MODERATE: 0.05,
+            RiskLevel.HIGH: 0.08,
             RiskLevel.VERY_HIGH: float('inf')
         }
         
@@ -421,8 +421,8 @@ class AdvancedRiskManager:
         # FORCED BYPASS FOR INDEX TRADING (Aggressive mode)
         # We allow BUY signals even in HIGH risk if confidence is at least 0.2
         if signal in ['BUY', 'STRONG_BUY']:
-            if risk_metrics.risk_level == RiskLevel.VERY_HIGH and confidence < 0.35:
-                return True, f"Extreme risk ({risk_metrics.risk_level.name}) still requires minimal confidence (0.35)"
+            if risk_metrics.risk_level == RiskLevel.VERY_HIGH and confidence < 0.20:
+                return True, f"Extreme risk ({risk_metrics.risk_level.name}) still requires minimal confidence (0.20)"
             return False, "" # NO OVERRIDE for BUY in other risk levels
         
         # Extreme volatility override for SELL signals

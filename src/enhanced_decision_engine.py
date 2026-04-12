@@ -85,14 +85,14 @@ class EnhancedDecisionEngine:
             'timesfm': 0.25
         }
         
-        # Adaptive thresholds (Balanced for Index trading)
+        # Adaptive thresholds (Aggressive for Index trading)
         self.adaptive_thresholds = {
-            'strong_buy': 0.35,
-            'buy': 0.12,
-            'hold_upper': 0.05,
-            'hold_lower': -0.05,
-            'sell': -0.15,
-            'strong_sell': -0.45
+            'strong_buy': 0.25,
+            'buy': 0.08,
+            'hold_upper': 0.04,
+            'hold_lower': -0.04,
+            'sell': -0.12,
+            'strong_sell': -0.40
         }
         
         # Track model performance for weight adjustment
@@ -175,19 +175,19 @@ class EnhancedDecisionEngine:
         
         # Bullish Bias for Indices (NASDAQ usually trends up)
         # We add a small constant positive bias to the score
-        score += 0.05 
+        score += 0.10 
         
         # Reduce signal strength in high volatility environments
-        if volatility > 0.04:  
+        if volatility > 0.05:  
             score *= 0.8
         elif volatility < 0.01:
-            score *= 1.1
+            score *= 1.2
         
-        # Adjust for overbought/oversold conditions (relaxed for BUY)
-        if rsi > 85 and score > 0:  # Only very overbought stops a BUY
-            score *= 0.7
-        elif rsi < 25 and score < 0: 
-            score *= 0.7
+        # Adjust for overbought/oversold conditions (extremely relaxed for BUY)
+        if rsi > 90 and score > 0:  # Only extreme overbought stops a BUY
+            score *= 0.6
+        elif rsi < 20 and score < 0: 
+            score *= 0.6
         
         return score
     

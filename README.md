@@ -48,13 +48,19 @@ Le système utilise une approche innovante pour maximiser la précision des mod�
 - **Analyse Haute Fidélité** : Les modèles IA analysent les **indices de référence mondiaux** (`^NDX` pour le Nasdaq, `CL=F` pour le pétrole WTI). Ces indices offrent un historique plus long et des tendances plus "pures", sans le bruit lié aux horaires de cotation ou aux frais des ETFs.
 - **Exécution sur ETF** : Les ordres réels sont passés sur les tickers correspondants sur **Trading 212** (`SXRV.DE`, `CRUDP.PA`), en utilisant les prix réels du marché pour le dimensionnement des positions.
 
-### 🧠 Moteur IA Hybride
-Le système fusionne cinq signaux distincts :
+### 🧠 Moteur IA Hybride & Stratégie "Aggressive Growth"
+Le système fusionne cinq signaux distincts avec un biais optimisé pour la performance :
 1.  **Modèle Quantitatif Classique** : Ensemble RandomForest/GradientBoosting/LogisticRegression entraîné sur indicateurs techniques et macroéconomiques.
 2.  **TimesFM 2.5 (Google Research)** : Modèle de fondation de pointe pour la prévision de séries temporelles.
 3.  **LLM Textuel (Gemma 4:e4b)** : Analyse contextuelle des données brutes et des actualités en temps réel via le skill **AlphaEar**.
 4.  **LLM Visuel (Gemma 4:e4b)** : Analyse directe des graphiques techniques (`enhanced_trading_chart.png`).
-5.  **Sentiment Analysis** : Analyse hybride combinant Alpha Vantage et les tendances "hot" d'**AlphaEar** (Weibo, WallstreetCN).
+5.  **Sentiment Analysis & Deep Web** : Intégration de **DuckDuckGo Search** et **Hyperliquid** (DEX) pour capturer les flux 24/7 et le sentiment des traders crypto comme indicateur avancé.
+
+### 🚀 Stratégie "Beat the Market"
+Pour surpasser le **Buy & Hold** du Nasdaq, le système a été calibré pour être plus agressif en tendance haussière :
+- **Biais Bullish** : Le moteur de décision injecte un bonus de score pour les indices afin de favoriser la capture de tendance.
+- **Gestion des Risques Dynamique** : Les seuils de confiance pour l'achat sont abaissés en période de tendance, et la taille de position maximale a été augmentée à 5%.
+- **Veto Assoupli** : Le filtre de volatilité est plus tolérant pour éviter de rater les reprises rapides de marché.
 
 L'objectif est de produire une décision finale (`ACHAT`, `VENTE`, `HOLD`) avec une priorité absolue sur la **justesse** (Accuracy First).
 
@@ -66,21 +72,22 @@ Contrairement aux algorithmes de trading classiques qui paniquent dès que la vo
 
 ### ✨ Fonctionnalités Clés
 
-- **Approche Dual-Ticker** : Analyse l'indice, trade l'ETF.
-- **Cognition Avancée** : Utilisation de **Gemma 4** pour une meilleure synthèse technique/fondamentale.
-- **News en Temps Réel** : Intégration du skill **AlphaEar** pour capturer le sentiment social et macro.
+- **Approche Dual-Ticker** : Analyse l'indice (^NDX, CL=F), trade l'ETF (SXRV.DE, CRUDP.PA).
+- **Stratégie "Beat the Market"** : Gestion des risques assouplie et biais haussier renforcé pour surpasser le **Buy & Hold** du Nasdaq.
+- **Leading Indicators (Hyperliquid)** : Surveillance en temps réel des actifs `flx:OIL` et `NDX` sur Hyperliquid pour anticiper les ouvertures de marché.
+- **Deep Web Research** : Recherche active via DuckDuckGo et extraction de contenu propre via **Crawl4AI**.
+- **Backtest Haute Performance** : Moteur optimisé (vectorisation Pandas) capable de simuler plusieurs années en quelques minutes.
 - **Scheduler Automatisé** : Nouveau script `schedule.py` pour une exécution continue (8h30-18h00) sur serveur.
-- **Gestion de Risque Avancée** : Ajustement automatique du signal en fonction de la volatilité et du régime de marché.
 
 ### 💻 Stack Technologique
 
-- **Langage** : `Python 3.10+`
-- **Calculs & Données** : `pandas`, `numpy`, `yfinance`, `pyarrow`, `pandas_datareader`
-- **Machine Learning** : `scikit-learn`, `shap`
-- **IA & LLM** : `requests`, `ollama`
-- **Web Scraping** : `beautifulsoup4`
-- **Visualisation** : `matplotlib`, `seaborn`, `mplfinance`
-- **Utilitaires** : `tqdm`, `rich`, `python-dotenv`, `schedule`
+- **Langage** : `Python 3.12+` (gestion via `uv`)
+- **Calculs & Données** : `pandas`, `numpy`, `yfinance`, `pyarrow`
+- **Machine Learning & Time Series** : `scikit-learn`, `TimesFM 2.5`
+- **IA & LLM** : `ollama` (Gemma 4:e4b), `requests`
+- **Recherche & Crawl** : `ddgs` (DuckDuckGo), `crawl4ai` (Playwright)
+- **Crypto / Leading Indicators** : `hyperliquid-python-sdk`
+- **Visualisation** : `matplotlib`, `seaborn`, `rich`
 
 ---
 
