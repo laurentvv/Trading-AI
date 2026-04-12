@@ -12,12 +12,13 @@ OLLAMA_API_URL = "http://localhost:11434/api/generate"
 TEXT_LLM_MODEL = "gemma4:e4b"
 VISUAL_LLM_MODEL = "gemma4:e4b"
 
-def construct_llm_prompt(latest_data: pd.DataFrame, headlines: list = None) -> str:
+def construct_llm_prompt(latest_data: pd.DataFrame, headlines: list = None, web_context: str = None) -> str:
     """
     Constructs a detailed prompt for the LLM from the latest market data and news.
     """
     data = latest_data.iloc[0]
     news_text = "\n".join([f"- {h}" for h in headlines[:15]]) if headlines else "No recent news available."
+    web_context_text = web_context if web_context else "No web research context provided."
     
     prompt = f"""
     Analyze the following market data and news for a NASDAQ-100 ETF to provide a highly accurate trading decision.
@@ -34,6 +35,9 @@ def construct_llm_prompt(latest_data: pd.DataFrame, headlines: list = None) -> s
     **Recent News Headlines:**
     {news_text}
 
+    **Deep Web Research Context:**
+    {web_context_text}
+
     **Decision Rules:**
     1. Priority: ACCURACY. If news contradict technicals or signals are weak/mixed, default to HOLD.
     2. Bullish trend + Positive news = High conviction BUY.
@@ -48,12 +52,12 @@ def construct_llm_prompt(latest_data: pd.DataFrame, headlines: list = None) -> s
     """
     return prompt.strip()
 
-def get_llm_decision(latest_data: pd.DataFrame, headlines: list = None) -> dict:
+def get_llm_decision(latest_data: pd.DataFrame, headlines: list = None, web_context: str = None) -> dict:
     """
     Queries the textual LLM via Ollama to get a trading decision.
     """
     logger.info("Querying textual LLM for a trading decision...")
-    prompt = construct_llm_prompt(latest_data, headlines)
+    prompt = construct_llm_prompt(latest_data, headlines, web_context)
     payload = {
         "model": TEXT_LLM_MODEL,
         "prompt": prompt,

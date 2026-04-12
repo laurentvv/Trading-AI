@@ -29,6 +29,7 @@ from timesfm_model import get_timesfm_prediction
 from enhanced_decision_engine import EnhancedDecisionEngine
 from advanced_risk_manager import AdvancedRiskManager
 from adaptive_weight_manager import AdaptiveWeightManager
+from web_researcher import get_web_context_sync
 from performance_monitor import PerformanceMonitor
 
 # Load environment variables from .env file
@@ -240,8 +241,17 @@ class EnhancedTradingSystem:
 
         sentiment_decision = get_sentiment_decision_from_score(sentiment_score)
         
-        # 4. Prédictions LLM (Maintenant avec le contexte des news)
-        text_llm_decision = get_llm_decision(latest_data, headlines=headlines)
+        # 3.5 Web Research Context
+        logger.info("Fetching deep web research context...")
+        web_query = f"Macroeconomic forecast and market analysis for {self.ticker}"
+        web_context = get_web_context_sync(web_query)
+        if web_context:
+            logger.info("Successfully fetched web research context.")
+        else:
+            logger.info("No web context fetched or error occurred.")
+
+        # 4. Prédictions LLM (Maintenant avec le contexte des news et recherche web)
+        text_llm_decision = get_llm_decision(latest_data, headlines=headlines, web_context=web_context)
         visual_llm_decision = get_visual_llm_decision(
             self.chart_output_path) if chart_generated else {
                 "signal": "HOLD", "confidence": 0.0, 
