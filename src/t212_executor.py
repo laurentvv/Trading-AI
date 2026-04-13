@@ -83,6 +83,8 @@ TICKER_MAPPING_T212 = {
 def get_auth_header():
     api_key = os.getenv("T212_API_KEY")
     api_secret = os.getenv("T212_API_SECRET")
+    if not api_key or not api_secret:
+        raise ValueError("T212_API_KEY or T212_API_SECRET is missing. Please set it in your environment or .env.t212 file.")
     auth_str = f"{api_key}:{api_secret}"
     auth_bytes = auth_str.encode("ascii")
     base64_auth = base64.b64encode(auth_bytes).decode("ascii")

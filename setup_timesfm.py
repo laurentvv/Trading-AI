@@ -44,7 +44,7 @@ def main():
             try:
                 os.rename(timesfm_dir, old_dir)
                 print(f"[*] Renamed old directory to {old_dir}")
-            except:
+            except Exception:
                 print(f"[!] CRITICAL: Path {timesfm_dir} is locked.")
                 sys.exit(1)
     
