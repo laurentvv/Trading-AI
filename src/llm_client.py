@@ -92,14 +92,19 @@ def get_visual_llm_decision(image_path: Path) -> dict:
         return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Error reading image: {e}"}
 
     prompt = """
-    You are a technical analysis expert and a chartist. Analyze the provided financial chart.
-    Identify key trends, chart patterns, and indicator dynamics (MAs, RSI, MACD, Volume).
+    Analyze the provided financial chart focusing ONLY on Price Action and geometric patterns.
+    - Identify candlestick patterns (Hammers, Dojis, Engulfing).
+    - Locate visual Support and Resistance zones.
+    - Look for chart figures (Double Bottoms, Triangles, Channels).
+    - Identify visual divergences between price and indicator shapes.
+    
+    IMPORTANT: Do not attempt to read the exact mathematical values of indicators; another model handles the numbers. Your role is purely geometric and visual validation.
 
-    Provide your analysis in a valid JSON object with the following structure:
+    Provide your analysis in a valid JSON object:
     {
       "signal": "BUY|SELL|HOLD",
       "confidence": <float between 0.0 and 1.0>,
-      "analysis": "<your 2-3 sentence analysis of the visual patterns you identified>"
+      "analysis": "<your 2-3 sentence analysis of the visual/geometric patterns identified>"
     }
     """
 
@@ -108,7 +113,8 @@ def get_visual_llm_decision(image_path: Path) -> dict:
         "prompt": prompt.strip(),
         "images": [image_base64],
         "stream": False,
-        "format": "json"
+        "format": "json",
+        "system": "You are an expert Price Action analyst and Geometric Chartist. You specialize in identifying visual patterns on financial charts without relying on raw numerical data."
     }
     return _query_ollama(payload)
 

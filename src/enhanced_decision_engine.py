@@ -211,8 +211,8 @@ class EnhancedDecisionEngine:
         """
         self.base_weights = base_weights or {
             'classic': 0.15,
-            'llm_text': 0.20,
-            'llm_visual': 0.15,
+            'llm_text': 0.25,
+            'llm_visual': 0.10,
             'sentiment': 0.10,
             'timesfm': 0.20,
             'vincent_ganne': 0.20  # Significant weight for geopolitical/cross-asset model
