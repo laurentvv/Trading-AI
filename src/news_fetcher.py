@@ -2,10 +2,18 @@ import requests
 import argparse
 import json
 import sys
+import os
+import logging
 from pathlib import Path
 
+logger = logging.getLogger(__name__)
+
 # Add AlphaEar skill scripts to path
-ALPHA_EAR_PATH = Path("D:/GIT/fork/Trading-AI/.agents/skills/alphaear-news/scripts")
+# Configurable via environment variable, defaults to relative path from project root
+ALPHA_EAR_PATH = Path(os.getenv(
+    "ALPHA_EAR_SCRIPTS_PATH",
+    str(Path(__file__).parent.parent / ".agents" / "skills" / "alphaear-news" / "scripts")
+))
 if ALPHA_EAR_PATH.exists():
     sys.path.append(str(ALPHA_EAR_PATH))
     try:
