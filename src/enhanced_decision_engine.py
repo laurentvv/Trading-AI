@@ -69,7 +69,23 @@ class EnhancedDecisionEngine:
     Enhanced decision engine with consensus validation, adaptive thresholds,
     and risk-adjusted decision making.
     """
-    
+
+    # Decision thresholds and tuning constants
+    BULLISH_BIAS = 0.0  # No hardcoded bias — signal should be evidence-based
+    VOLATILITY_HIGH_THRESHOLD = 0.04
+    VOLATILITY_LOW_THRESHOLD = 0.01
+    VOLATILITY_EXTREME_THRESHOLD = 0.06
+    RSI_OVERBOUGHT_THRESHOLD = 80
+    RSI_OVERSOLD_THRESHOLD = 25
+    CLASSIC_BUY_BONUS_THRESHOLD = 0.4
+    TIMESFM_BUY_BONUS_THRESHOLD = 0.2
+    QUANT_MODEL_BUY_BONUS = 0.0  # Removed: was +0.1 per quant model, creating structural bullish bias
+    SUPER_CONSENSUS_BOOST = 0.15
+
+    # Confidence thresholds for risk management
+    MIN_CONFIDENCE_FOR_ACTION = 0.20
+    MIN_CONFIDENCE_FOR_SELL = 0.40
+
     def __init__(self, base_weights: Dict[str, float] = None):
         """
         Initialize the enhanced decision engine.
@@ -94,9 +110,13 @@ class EnhancedDecisionEngine:
             'sell': -0.15,
             'strong_sell': -0.45
         }
-        
+
         # Track model performance for weight adjustment
         self.model_performance_history = {}
+
+        # Market regime adaptation thresholds
+        self.regime_volatility_high = 0.03
+        self.trend_strength_threshold = 0.7
         
     def _normalize_signal(self, signal: str) -> SignalStrength:
         """Convert signal string to SignalStrength enum"""
@@ -172,49 +192,44 @@ class EnhancedDecisionEngine:
         """
         volatility = market_data.get('volatility', 0.02)
         rsi = market_data.get('rsi', 50)
-        
-        # Bullish Bias for Indices (NASDAQ usually trends up)
-        # We add a small constant positive bias to the score
-        score += 0.05 
-        
+
         # Reduce signal strength in high volatility environments
-        if volatility > 0.04:  
+        if volatility > self.VOLATILITY_HIGH_THRESHOLD:
             score *= 0.8
-        elif volatility < 0.01:
+        elif volatility < self.VOLATILITY_LOW_THRESHOLD:
             score *= 1.1
-        
-        # Adjust for overbought/oversold conditions (relaxed for BUY)
-        if rsi > 85 and score > 0:  # Only very overbought stops a BUY
+
+        # Adjust for overbought/oversold conditions
+        if rsi > self.RSI_OVERBOUGHT_THRESHOLD and score > 0:
             score *= 0.7
-        elif rsi < 25 and score < 0: 
+        elif rsi < self.RSI_OVERSOLD_THRESHOLD and score < 0:
             score *= 0.7
-        
+
         return score
     
-    def _apply_risk_management(self, decision: str, confidence: float, 
+    def _apply_risk_management(self, decision: str, confidence: float,
                              market_data: Dict) -> str:
         """
         Apply risk management rules to adjust the final decision.
         """
-        # Very permissive for BUY signals on indices
         if decision in ['BUY', 'STRONG_BUY']:
-            if confidence < 0.2: # Only extremely low confidence defaults to HOLD
+            if confidence < self.MIN_CONFIDENCE_FOR_ACTION:
                 return 'HOLD'
             return decision
-            
+
         # Conservative adjustment for low confidence on SELL signals
-        if confidence < 0.4:
+        if confidence < self.MIN_CONFIDENCE_FOR_SELL:
             if decision in ['STRONG_SELL']:
                 return 'SELL'
             elif decision == 'SELL':
                 return 'HOLD'
-        
+
         # Market regime-based adjustments
         volatility = market_data.get('volatility', 0.02)
-        if volatility > 0.06:  # Extreme volatility only
+        if volatility > self.VOLATILITY_EXTREME_THRESHOLD:
             if decision in ['BUY', 'SELL']:
                 return 'HOLD'
-        
+
         return decision
     
     def make_enhanced_decision(
@@ -306,17 +321,7 @@ class EnhancedDecisionEngine:
         
         # Adjust for market regime
         adjusted_score = self._adjust_for_market_regime(weighted_score, market_data)
-        
-        # Bullish Super-Boost for index trading
-        # If either Classic or TimesFM is bullish, we give it a chance even if others are neutral
-        classic_decision = next((d for d in decisions if d.model_name == 'classic'), None)
-        timesfm_decision = next((d for d in decisions if d.model_name == 'timesfm'), None)
-        
-        if classic_decision and classic_decision.signal == 'BUY' and classic_decision.confidence > 0.4:
-            adjusted_score += 0.1
-        if timesfm_decision and timesfm_decision.signal == 'BUY' and timesfm_decision.confidence > 0.2:
-            adjusted_score += 0.1
-        
+
         # Calculate consensus metrics
         consensus_score = self._calculate_consensus_score(decisions)
         disagreement_factor = self._calculate_disagreement_factor(decisions)
@@ -347,7 +352,7 @@ class EnhancedDecisionEngine:
             if (classic_decision.strength.value * timesfm_decision.strength.value) > 0:
                 # Both agree on BUY or both agree on SELL
                 if classic_decision.confidence > 0.5 and timesfm_decision.confidence > 0.3:
-                    boost = 0.15  # 15% boost for strong objective agreement
+                    boost = self.SUPER_CONSENSUS_BOOST
         
         final_confidence = min(1.0, max(0.0, 
             base_confidence + consensus_adjustment - disagreement_penalty + boost))
@@ -383,20 +388,20 @@ class EnhancedDecisionEngine:
     def update_adaptive_thresholds(self, market_volatility: float, trend_strength: float):
         """
         Update adaptive thresholds based on market conditions.
-        
+
         Args:
             market_volatility: Current market volatility
             trend_strength: Current trend strength indicator
         """
         base_adjustment = market_volatility * 0.1
-        
+
         # Widen thresholds in volatile markets (be more conservative)
-        if market_volatility > 0.03:
+        if market_volatility > self.regime_volatility_high:
             self.adaptive_thresholds['strong_buy'] += base_adjustment
             self.adaptive_thresholds['strong_sell'] -= base_adjustment
-        
+
         # Narrow thresholds in trending markets (be more responsive)
-        if abs(trend_strength) > 0.7:
+        if abs(trend_strength) > self.trend_strength_threshold:
             trend_adjustment = base_adjustment * 0.5
             self.adaptive_thresholds['buy'] -= trend_adjustment
             self.adaptive_thresholds['sell'] += trend_adjustment
