@@ -27,7 +27,7 @@ dependencies = [
     "torch>=2.10.0",
     "tqdm>=4.67.3",
     "yfinance>=1.2.1",
-    "ddgs>=1.0.0"
+    "ddgs>=1.0.0",
 ]
 
 [tool.uv.sources]

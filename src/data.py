@@ -499,7 +499,7 @@ def get_macro_data_multi_source(indicator: str, force_refresh: bool = False) -> 
     logger.warning(f"All external sources failed for {indicator}, creating realistic default data")
     
     try:
-        from datetime import datetime, timedelta
+        from datetime import datetime
         import numpy as np
         
         # Create 2 years of monthly data with the default value plus realistic variation
