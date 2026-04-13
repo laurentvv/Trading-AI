@@ -135,7 +135,7 @@ class VincentGanneModel:
             max_score += 4
             if urea < self.thresholds['Urea']['max']:
                 score += 4
-                reasons.append(f"Urea below threshold")
+                reasons.append("Urea below threshold")
 
         # US 2Y vs Fed Rate (Weight 3)
         yield_2y = indicators.get('US2Y_yield')
@@ -144,7 +144,7 @@ class VincentGanneModel:
             max_score += 3
             if abs(yield_2y - fed_rate) < 0.25:
                 score += 3
-                reasons.append(f"Yields normalized")
+                reasons.append("Yields normalized")
 
         # US Dollar DXY (Weight 3)
         dxy = indicators.get('DXY_price')

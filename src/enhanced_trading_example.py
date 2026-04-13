@@ -20,6 +20,8 @@ from features import create_technical_indicators, create_features, select_featur
 from classic_model import train_ensemble_model, get_classic_prediction
 from llm_client import get_llm_decision, get_visual_llm_decision
 from sentiment_analysis import get_sentiment_decision_from_score
+from web_researcher import generate_search_query, get_web_context_sync
+
 from chart_generator import generate_chart_image
 
 from database import init_db, insert_transaction, insert_portfolio_state, get_latest_portfolio_state
@@ -243,8 +245,14 @@ class EnhancedTradingSystem:
 
         sentiment_decision = get_sentiment_decision_from_score(sentiment_score)
         
-        # 4. Prédictions LLM (Maintenant avec le contexte des news)
-        text_llm_decision = get_llm_decision(latest_data, headlines=headlines)
+        # Web Research pour contexte Macro
+        logger.info("Début de la recherche Web Macro...")
+        search_query = generate_search_query(self.index_ticker)
+        web_context = get_web_context_sync(search_query)
+        logger.info("Recherche Web Macro terminée.")
+
+        # 4. Prédictions LLM (Maintenant avec le contexte des news et web)
+        text_llm_decision = get_llm_decision(latest_data, headlines=headlines, web_context=web_context)
         visual_llm_decision = get_visual_llm_decision(
             self.chart_output_path) if chart_generated else {
                 "signal": "HOLD", "confidence": 0.0, 

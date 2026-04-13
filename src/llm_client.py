@@ -12,12 +12,13 @@ OLLAMA_API_URL = "http://localhost:11434/api/generate"
 TEXT_LLM_MODEL = "gemma3:4b"
 VISUAL_LLM_MODEL = "gemma3:4b"
 
-def construct_llm_prompt(latest_data: pd.DataFrame, headlines: list = None) -> str:
+def construct_llm_prompt(latest_data: pd.DataFrame, headlines: list = None, web_context: str = None) -> str:
     """
     Constructs a detailed prompt for the LLM from the latest market data and news.
     """
     data = latest_data.iloc[0]
     news_text = "\n".join([f"- {h}" for h in headlines[:15]]) if headlines else "No recent news available."
+    web_text = f"\n**Web Research / Macro Context:**\n{web_context}" if web_context else ""
     
     prompt = f"""
     Analyze the following market data and news for a NASDAQ-100 ETF to provide a highly accurate trading decision.
@@ -32,7 +33,7 @@ def construct_llm_prompt(latest_data: pd.DataFrame, headlines: list = None) -> s
     - Long-term Trend: {'Bullish' if data['Trend_Long'] == 1 else 'Bearish' if data['Trend_Long'] == -1 else 'Neutral'}
 
     **Recent News Headlines:**
-    {news_text}
+    {news_text}{web_text}
 
     **Decision Rules:**
     1. Priority: ACCURACY. If news contradict technicals or signals are weak/mixed, default to HOLD.
@@ -48,12 +49,12 @@ def construct_llm_prompt(latest_data: pd.DataFrame, headlines: list = None) -> s
     """
     return prompt.strip()
 
-def get_llm_decision(latest_data: pd.DataFrame, headlines: list = None) -> dict:
+def get_llm_decision(latest_data: pd.DataFrame, headlines: list = None, web_context: str = None) -> dict:
     """
     Queries the textual LLM via Ollama to get a trading decision.
     """
     logger.info("Querying textual LLM for a trading decision...")
-    prompt = construct_llm_prompt(latest_data, headlines)
+    prompt = construct_llm_prompt(latest_data, headlines, web_context)
     payload = {
         "model": TEXT_LLM_MODEL,
         "prompt": prompt,
@@ -97,10 +98,13 @@ def get_visual_llm_decision(image_path: Path) -> dict:
     }
     return _query_ollama(payload)
 
-def _query_ollama(payload: dict, max_retries: int = 3) -> dict:
+def _query_ollama(payload: dict, max_retries: int = 3, expected_keys: list = None) -> dict:
     """
     Helper function to send a request to the Ollama API and handle the response, with retries.
     """
+    if expected_keys is None:
+        expected_keys = ["signal", "confidence", "analysis"]
+
     model_name = payload.get("model", "unknown")
     for attempt in range(max_retries):
         try:
@@ -116,8 +120,7 @@ def _query_ollama(payload: dict, max_retries: int = 3) -> dict:
             else:
                 llm_output = llm_output_str
 
-            required_keys = ["signal", "confidence", "analysis"]
-            if not all(key in llm_output for key in required_keys):
+            if not all(key in llm_output for key in expected_keys):
                 logger.warning(f"Attempt {attempt + 1}/{max_retries}: Response from LLM ({model_name}) is malformed: {llm_output}")
                 raise ValueError("Invalid or malformed LLM response.")
 
@@ -132,10 +135,15 @@ def _query_ollama(payload: dict, max_retries: int = 3) -> dict:
                 logger.error(f"All {max_retries} attempts failed for LLM ({model_name}).")
                 if 'response' in locals() and hasattr(response, 'text'):
                     logger.error(f"Final raw response from LLM: {response.text}")
-                return {"signal": "HOLD", "confidence": 0.0, "analysis": f"LLM ({model_name}) failed after {max_retries} attempts: {e}"}
+
+                # Default response fallback
+                fallback = {k: "HOLD" if k == "signal" else 0.0 if k == "confidence" else f"LLM ({model_name}) failed after {max_retries} attempts: {e}" for k in expected_keys}
+                return fallback
         except Exception as e:
             logger.error(f"Unexpected error when querying the LLM ({model_name}): {e}")
-            return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Unexpected error: {e}"}
+            fallback = {k: "HOLD" if k == "signal" else 0.0 if k == "confidence" else f"Unexpected error: {e}" for k in expected_keys}
+            return fallback
     
     # This part should be unreachable, but as a fallback
-    return {"signal": "HOLD", "confidence": 0.0, "analysis": "Fell through retry loop unexpectedly."}
+    fallback = {k: "HOLD" if k == "signal" else 0.0 if k == "confidence" else "Fell through retry loop unexpectedly." for k in expected_keys}
+    return fallback

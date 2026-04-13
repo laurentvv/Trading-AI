@@ -52,7 +52,7 @@ Le système utilise une approche innovante pour maximiser la précision des mod�
 Le système fusionne cinq signaux distincts :
 1.  **Modèle Quantitatif Classique** : Ensemble RandomForest/GradientBoosting/LogisticRegression entraîné sur indicateurs techniques et macroéconomiques.
 2.  **TimesFM 2.5 (Google Research)** : Modèle de fondation de pointe pour la prévision de séries temporelles.
-3.  **LLM Textuel (Gemma 4:e4b)** : Analyse contextuelle des données brutes et des actualités en temps réel via le skill **AlphaEar**.
+3.  **LLM Textuel (Gemma 4:e4b)** : Analyse contextuelle des données brutes, des actualités en temps réel via le skill **AlphaEar**, et intégration de **recherches web macro-économiques** dynamiques via DuckDuckGo Search.
 4.  **LLM Visuel (Gemma 4:e4b)** : Analyse directe des graphiques techniques (`enhanced_trading_chart.png`).
 5.  **Sentiment Analysis** : Analyse hybride combinant Alpha Vantage et les tendances "hot" d'**AlphaEar** (Weibo, WallstreetCN).
 
@@ -179,7 +179,7 @@ Le script va :
 2.  **Entraîner les modèles** d'IA (Ensemble RandomForest, GradientBoosting, etc.) sur l'historique complet.
 3.  **Générer une décision hybride** combinant :
     - Modèle quantitatif classique.
-    - Analyse de texte via **gemma3:4b** (Ollama).
+    - Analyse de texte via **gemma3:4b** (Ollama) enrichie par des recherches web macro-économiques.
     - Analyse visuelle des graphiques techniques.
     - Analyse de sentiment des actualités.
     - Prédiction de série temporelle via **TimesFM**.
