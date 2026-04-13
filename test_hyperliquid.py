@@ -1,6 +1,5 @@
 from hyperliquid.info import Info
 from hyperliquid.utils import constants
-import json
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -26,7 +25,7 @@ def test_hyperliquid_oil():
                     # Match context by index
                     if i < len(contexts):
                         ctx = contexts[i]
-                        print(f"\n--- OIL ASSET FOUND ---")
+                        print("\n--- OIL ASSET FOUND ---")
                         print(f"Name: {name}")
                         print(f"  Mark Price: {ctx.get('markPx')}")
                         funding = float(ctx.get('funding', 0)) * 100

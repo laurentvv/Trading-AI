@@ -4,7 +4,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
 
 from enhanced_decision_engine import EnhancedDecisionEngine
-from datetime import datetime
 
 def test_no_bullish_bias():
     """Verify that the decision engine doesn't add hardcoded bullish bias."""
@@ -38,7 +37,7 @@ def test_no_bullish_bias():
     )
 
     assert decision.final_signal == 'HOLD', f"Expected HOLD with neutral inputs, got {decision.final_signal}"
-    print(f"PASS: Neutral inputs produce HOLD (score would be near 0)")
+    print("PASS: Neutral inputs produce HOLD (score would be near 0)")
 
     # Test 4: Asymmetric test — equal BUY and SELL should NOT bias toward BUY
     decision2 = engine.make_enhanced_decision(

@@ -1,5 +1,4 @@
 """Test file locking for t212_portfolio_state.json."""
-import os
 import json
 import sys
 import time
@@ -8,8 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
 
 from t212_executor import (
-    load_portfolio_state, save_portfolio_state,
-    _atomic_json_write, _read_with_retry, STATE_FILE
+    _atomic_json_write, _read_with_retry
 )
 
 def test_atomic_write():
@@ -76,7 +74,7 @@ def test_concurrent_writes():
         final = _read_with_retry(test_path)
         assert final is not None, "File should exist after concurrent writes"
         assert "tickers" in final, "File should have valid structure"
-        print(f"PASS: Concurrent writes don't corrupt file")
+        print("PASS: Concurrent writes don't corrupt file")
 
         if errors:
             print(f"  Note: {len(errors)} errors during concurrent writes (expected with no locking)")

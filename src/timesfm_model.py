@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 # Tentative d'importation de l'API 2.5
 # (Elle doit être installée via setup_timesfm.py qui patche __init__.py)
 try:
-    import timesfm
+    # import timesfm
     from timesfm.timesfm_2p5.timesfm_2p5_torch import TimesFM_2p5_200M_torch
     from timesfm.configs import ForecastConfig
     TIMESFM_2P5_AVAILABLE = True
@@ -42,8 +42,6 @@ class TimesFMModel:
                 "google/timesfm-2.5-200m-pytorch"
             )
             
-            # Configuration et compilation obligatoire pour l'API 2.5
-            from timesfm.configs import ForecastConfig
             self.model.compile(
                 ForecastConfig(
                     max_context=1024,
@@ -69,7 +67,8 @@ class TimesFMModel:
 
         try:
             prices = df['Close'].values
-            if len(prices) > 1024: prices = prices[-1024:]
+            if len(prices) > 1024:
+                prices = prices[-1024:]
             
             # API 2.5: point_forecast est un numpy array de shape (batch_size, horizon)
             point_forecast, _ = self.model.forecast(horizon=horizon, inputs=[prices])

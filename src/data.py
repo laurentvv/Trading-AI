@@ -6,7 +6,8 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 import pandas_datareader.data as web
-import datetime
+from datetime import datetime, timedelta
+# import datetime
 
 # Load environment variables from .env file
 load_dotenv()
@@ -155,7 +156,7 @@ def get_etf_data(ticker: str, period: str = '5y', force_refresh: bool = False) -
                             etf = yf.Ticker(ticker)
                             try:
                                 info = etf.info
-                            except:
+                            except Exception:
                                 info = {}
                             logger.info(f"Using cached data: {len(hist_data)} days.")
                             break
@@ -499,7 +500,6 @@ def get_macro_data_multi_source(indicator: str, force_refresh: bool = False) -> 
     logger.warning(f"All external sources failed for {indicator}, creating realistic default data")
     
     try:
-        from datetime import datetime
         import numpy as np
         
         # Create 2 years of monthly data with the default value plus realistic variation
@@ -551,8 +551,8 @@ def get_fred_data_via_pdr(series_id: str, force_refresh: bool = False) -> pd.Dat
     logger.info(f"Fetching {series_id} from FRED via pandas-datareader...")
     try:
         # Fetch last 10 years of data
-        end_date = datetime.datetime.now()
-        start_date = end_date - datetime.timedelta(days=365 * 10)
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=365 * 10)
         
         data = web.DataReader(series_id, 'fred', start_date, end_date)
         if data.empty:

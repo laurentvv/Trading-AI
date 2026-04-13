@@ -231,9 +231,9 @@ class AdvancedRiskManager:
         total_return = (price_data.iloc[-1] / price_data.iloc[-lookback]) - 1
         
         # Trend strength
-        ma_short = price_data.tail(20).mean()
-        ma_long = price_data.tail(lookback).mean()
-        trend_strength = (ma_short / ma_long) - 1
+        # ma_short = price_data.tail(20).mean()
+        # ma_long = price_data.tail(lookback).mean()
+        # trend_strength = (ma_short / ma_long) - 1
         
         # Regime classification
         if total_return > self.market_regimes['bull_market']['threshold']:
@@ -364,7 +364,7 @@ class AdvancedRiskManager:
         risk_factor = max(0.2, risk_factor)  # Minimum 20% of base size
         
         # Market regime adjustment
-        regime_factor = 1.0  # Default, could be enhanced with regime detection
+        # regime_factor = 1.0  # Default, could be enhanced with regime detection
         
         # Kelly criterion if historical performance available
         kelly_size = 0.1  # Default
