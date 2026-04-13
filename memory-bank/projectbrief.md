@@ -1,13 +1,13 @@
 # Fiche Projet : Système de Trading IA Hybride
 
 ## 1. Objectif Principal
-L'objectif principal de ce projet est de développer un système de support à la décision de trading ultra-performant, combinant des modèles quantitatifs classiques, des modèles de fondation spécialisés (`TimesFM`) et des Large Language Models (`Gemma 3`). Il cible les actifs majeurs comme le NASDAQ (QQQ).
+L'objectif principal de ce projet est de développer un système de support à la décision de trading ultra-performant, combinant des modèles quantitatifs classiques, des modèles de fondation spécialisés (`TimesFM`) et des Large Language Models (**Gemma 4**). Il cible les actifs majeurs comme le NASDAQ (QQQ).
 
 ## 2. Exigences Clés
 Le système remplit les fonctions clés suivantes :
 - **Architecture Tri-Modale** : Fusion de signaux provenant de :
     1. Un ensemble de modèles **Scikit-learn** (RandomForest, GradientBoosting, LogisticRegression) validés par `TimeSeriesSplit`.
-    2. Une analyse contextuelle et visuelle via **Gemma 3 (4b)**.
+    2. Une analyse contextuelle et visuelle via **Gemma 4 (e4b)**.
     3. Une prédiction temporelle via **TimesFM (Google Research)**.
 - **Unified Interface** : Un point d'entrée unique (`main.py`) pour l'entraînement et l'analyse.
 - **Mode Simulation (Paper Trading)** : Un mode de test réaliste avec capital fictif de 1000 € et historique persistant dans une base de données SQLite.

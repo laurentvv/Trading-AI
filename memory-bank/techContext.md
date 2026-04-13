@@ -10,6 +10,7 @@
 - **Data Architecture**:
     - **yfinance**: Market data download.
     - **pandas-datareader**: Macroeconomic data (FRED).
+    - **hyperliquid-python-sdk**: Decentralized sentiment data (Funding, Open Interest).
     - **pyarrow (Parquet)**: Local multi-layer caching.
     - **SQLite**: Persistent storage for simulation transactions and portfolio states.
 
@@ -20,8 +21,8 @@
 
 ## 3. Technical Constraints & Assumptions
 - **Ollama**: Must be running locally with `gemma4:e4b`.
-- **Operating System**: win32 (optimized for Windows terminal with CP1252/UTF-8 handling).
-- **Network**: Required for initial API calls (Yahoo, FRED, Alpha Vantage).
+- **Operating System**: win32 (optimized for Windows terminal with **UTF-8 logging** to support emojis).
+- **Network**: Required for initial API calls (Yahoo, FRED, Alpha Vantage, Hyperliquid).
 
 ## 4. Key Components
 - `main.py`: CLI controller with `--simul` and `--ticker` flags.

@@ -18,6 +18,12 @@ Ordre importance avec surout 1. puis 2. puis 3. puis 4, puis les autes moins imp
 | **Nasdaq** | Franchissement de la moyenne mobile à 200 jours | — |
 | **Dow Jones** | Franchissement de la moyenne mobile à 200 jours | — |
 | **Secteur S\&P 500 Technologie** | Franchissement de la moyenne mobile à 200 jours | — |
-| **Dollar US (DXY)** | Sous résistance 100/101 points | — |
+| Dollar US (DXY) | Sous résistance 100/101 points | — |
+
+## **Enrichissement 2026 : Sentiment Décentralisé (Hyperliquid)**
+
+Pour affiner l'analyse de l'énergie (WTI), le système intègre désormais des données décentralisées provenant de la blockchain **Hyperliquid** :
+- **Funding Rate (OIL Perps)** : Permet de détecter les excès de positions Longs (taux positif élevé) ou Shorts (taux négatif). Un taux extrêmement négatif est utilisé comme signal contrarien pour valider un point bas (Short Squeeze potentiel).
+- **Open Interest** : Mesure la force de la conviction spéculative sur le pétrole.
 
 *Note : Ces données sont extraites d'une analyse technique portant sur la validation d'un point bas final sur les marchés financiers.*

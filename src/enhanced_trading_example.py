@@ -189,7 +189,7 @@ class EnhancedTradingSystem:
             logger.error(f"Erreur lors de l'entraînement du modèle: {e}")
             return None, None
     
-    def get_model_predictions(self, data_with_features, classic_model, scaler):
+    def get_model_predictions(self, data_with_features, classic_model, scaler, vg_indicators=None):
         """Obtient les prédictions de tous les modèles."""
         logger.info("Génération des prédictions des modèles...")
         
@@ -247,12 +247,12 @@ class EnhancedTradingSystem:
         
         # Web Research pour contexte Macro
         logger.info("Début de la recherche Web Macro...")
-        search_query = generate_search_query(self.index_ticker)
+        search_query = generate_search_query(self.analysis_ticker)
         web_context = get_web_context_sync(search_query)
         logger.info("Recherche Web Macro terminée.")
 
         # 4. Prédictions LLM (Maintenant avec le contexte des news et web)
-        text_llm_decision = get_llm_decision(latest_data, headlines=headlines, web_context=web_context)
+        text_llm_decision = get_llm_decision(latest_data, headlines=headlines, web_context=web_context, vg_indicators=vg_indicators)
         visual_llm_decision = get_visual_llm_decision(
             self.chart_output_path) if chart_generated else {
                 "signal": "HOLD", "confidence": 0.0, 
@@ -391,7 +391,7 @@ class EnhancedTradingSystem:
             
             # 3. Prédictions de tous les modèles
             model_predictions = self.get_model_predictions(
-                data_with_features, classic_model, scaler)
+                data_with_features, classic_model, scaler, vg_indicators=vg_indicators)
             
             # 4. Analyse améliorée
             analysis_results = self.perform_enhanced_analysis(

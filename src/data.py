@@ -7,6 +7,8 @@ import requests
 from dotenv import load_dotenv
 import pandas_datareader.data as web
 from datetime import datetime, timedelta
+from hyperliquid.info import Info
+from hyperliquid.utils import constants
 # import datetime
 
 # Load environment variables from .env file
@@ -454,7 +456,7 @@ def get_macro_data_multi_source(indicator: str, force_refresh: bool = False) -> 
             df = df.dropna()
             
             if len(df) > 0:
-                logger.info(f"✅ Successfully fetched {len(df)} points from FRED for {indicator}")
+                logger.info(f"[OK] Successfully fetched {len(df)} points from FRED for {indicator}")
                 _save_macro_data_to_cache(df, cache_filepath)
                 return df
                 
@@ -478,7 +480,7 @@ def get_macro_data_multi_source(indicator: str, force_refresh: bool = False) -> 
                 
                 df = df.dropna()
                 if len(df) > 0:
-                    logger.info(f"✅ Successfully fetched {len(df)} points from Yahoo Finance for {indicator}")
+                    logger.info(f"[OK] Successfully fetched {len(df)} points from Yahoo Finance for {indicator}")
                     _save_macro_data_to_cache(df, cache_filepath)
                     return df
                     
@@ -491,7 +493,7 @@ def get_macro_data_multi_source(indicator: str, force_refresh: bool = False) -> 
             logger.info(f"Trying Alpha Vantage for {config['av_function']}...")
             df = get_alpha_vantage_data(config['av_function'], config['av_symbol'])
             if not df.empty:
-                logger.info(f"✅ Successfully fetched {len(df)} points from Alpha Vantage for {indicator}")
+                logger.info(f"[OK] Successfully fetched {len(df)} points from Alpha Vantage for {indicator}")
                 return df
         except Exception as e:
             logger.warning(f"Alpha Vantage failed for {indicator}: {e}")
@@ -518,12 +520,12 @@ def get_macro_data_multi_source(indicator: str, force_refresh: bool = False) -> 
             'value': values
         })
         
-        logger.info(f"✅ Created {len(df)} realistic default data points for {indicator} (base: {base_value})")
+        logger.info(f"[OK] Created {len(df)} realistic default data points for {indicator} (base: {base_value})")
         _save_macro_data_to_cache(df, cache_filepath)
         return df
         
     except Exception as e:
-        logger.error(f"Failed to create default data for {indicator}: {e}")
+        logger.error(f"[ERROR] Failed to create default data for {indicator}: {e}")
         return pd.DataFrame()
 
 def get_fred_data_via_pdr(series_id: str, force_refresh: bool = False) -> pd.DataFrame:
@@ -587,6 +589,45 @@ def get_fred_data_via_pdr(series_id: str, force_refresh: bool = False) -> pd.Dat
 
     return pd.DataFrame()
 
+def get_hyperliquid_oil_data() -> dict:
+    """
+    Fetches decentralized OIL data from Hyperliquid.
+    Returns: mark_price, funding_rate (%), open_interest, daily_volume.
+    """
+    logger.info("Fetching data from Hyperliquid for OIL assets...")
+    try:
+        info = Info(constants.MAINNET_API_URL, skip_ws=True)
+        meta_data = info.meta_and_asset_ctxs()
+        
+        if meta_data and len(meta_data) == 2:
+            universe_dict, contexts = meta_data
+            universe = universe_dict.get('universe', [])
+            
+            for i, asset_meta in enumerate(universe):
+                name = asset_meta.get('name')
+                # Targeting specific USOIL perpetual on Hyperliquid
+                if name and ("OIL" in name.upper() or "WTI" in name.upper()):
+                    if i < len(contexts):
+                        ctx = contexts[i]
+                        funding = float(ctx.get('funding', 0)) * 100
+                        return {
+                            'HL_OIL_mark_price': float(ctx.get('markPx', 0)),
+                            'HL_OIL_funding': funding,
+                            'HL_OIL_oi': float(ctx.get('openInterest', 0)),
+                            'HL_OIL_volume': float(ctx.get('dayNtlVlm', 0))
+                        }
+        
+        # If not found in meta_and_asset_ctxs, try all_mids for at least a price
+        all_mids = info.all_mids()
+        for name, price in all_mids.items():
+            if "km:USOIL" in name or "flx:OIL" in name:
+                return {'HL_OIL_mark_price': float(price)}
+                
+    except Exception as e:
+        logger.warning(f"[WARN] Hyperliquid API error: {e}")
+    
+    return {}
+
 def get_vincent_ganne_indicators() -> dict:
     """
     Retrieves the specific indicators required for the Vincent Ganne decision model.
@@ -595,6 +636,10 @@ def get_vincent_ganne_indicators() -> dict:
     """
     logger.info("Fetching Vincent Ganne model indicators...")
     indicators = {}
+    
+    # 1. Fetch Hyperliquid Alternative Data
+    hl_data = get_hyperliquid_oil_data()
+    indicators.update(hl_data)
     
     tickers = {
         'WTI': 'CL=F',
@@ -612,20 +657,23 @@ def get_vincent_ganne_indicators() -> dict:
         try:
             data = yf.download(ticker, period="250d", progress=False) # 250d to calculate MA200
             if not data.empty:
-                current_price = float(data['Close'].iloc[-1])
+                # Extraire la valeur de clôture la plus récente proprement
+                last_close = data['Close'].iloc[-1]
+                current_price = float(last_close.iloc[0]) if hasattr(last_close, 'iloc') else float(last_close)
                 indicators[f'{name}_price'] = current_price
                 
                 # Calculate MA200
                 ma200_series = data['Close'].rolling(window=200).mean()
-                ma200 = float(ma200_series.iloc[-1])
+                ma200_val = ma200_series.iloc[-1]
+                ma200 = float(ma200_val.iloc[0]) if hasattr(ma200_val, 'iloc') else float(ma200_val)
                 indicators[f'{name}_ma200'] = ma200
                 indicators[f'{name}_above_ma200'] = bool(current_price > ma200)
                 logger.info(f"Checking {name}: Price {current_price:.2f} (MA200: {ma200:.2f})")
             else:
                 indicators[f'{name}_price'] = None
-                logger.warning(f"⚠️ No data found for {name} ({ticker})")
+                logger.warning(f"[WARN] No data found for {name} ({ticker})")
         except Exception as e:
-            logger.error(f"❌ Error fetching {name}: {e}")
+            logger.error(f"[ERROR] Error fetching {name}: {e}")
             indicators[f'{name}_price'] = None
 
     # Add Yields
@@ -637,7 +685,7 @@ def get_vincent_ganne_indicators() -> dict:
         if not fed_rate.empty:
             indicators['Fed_rate'] = float(fed_rate.iloc[-1]['value'])
     except Exception as e:
-        logger.error(f"❌ Error fetching yields: {e}")
+        logger.error(f"[ERROR] Error fetching yields: {e}")
 
     return indicators
 
@@ -684,7 +732,7 @@ def fetch_macro_data_for_date(date: pd.Timestamp, force_refresh: bool = False) -
                     # Use the most recent available data if nothing before analysis_date
                     latest_value = df.iloc[-1]['value']
                     macro_context[output_name] = float(latest_value)
-                    logger.info(f"⚠️ {output_name}: {latest_value:.2f} (using most recent available)")
+                    logger.info(f"[WARN] {output_name}: {latest_value:.2f} (using most recent available)")
             else:
                 # Fallback to old method for this indicator
                 logger.warning(f"Multi-source failed for {output_name}, trying legacy FRED method...")
@@ -705,7 +753,7 @@ def fetch_macro_data_for_date(date: pd.Timestamp, force_refresh: bool = False) -
                             if not df_before_date.empty:
                                 latest_value = df_before_date.iloc[-1]['value']
                                 macro_context[output_name] = float(latest_value)
-                                logger.info(f"✅ {output_name} (legacy): {latest_value:.2f}")
+                                logger.info(f"[OK] {output_name} (legacy): {latest_value:.2f}")
                             else:
                                 macro_context[output_name] = None
                         else:
@@ -717,7 +765,7 @@ def fetch_macro_data_for_date(date: pd.Timestamp, force_refresh: bool = False) -
                     macro_context[output_name] = None
                 
         except Exception as e:
-            logger.error(f"❌ Error fetching {output_name}: {e}")
+            logger.error(f"[ERROR] Error fetching {output_name}: {e}")
             macro_context[output_name] = None
     
     available_indicators = [k for k, v in macro_context.items() if v is not None]

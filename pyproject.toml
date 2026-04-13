@@ -28,6 +28,7 @@ dependencies = [
     "tqdm>=4.67.3",
     "yfinance>=1.2.1",
     "ddgs>=1.0.0",
+    "hyperliquid-python-sdk>=0.22.0",
 ]
 
 [tool.uv.sources]

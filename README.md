@@ -49,12 +49,13 @@ Le système utilise une approche innovante pour maximiser la précision des mod�
 - **Exécution sur ETF** : Les ordres réels sont passés sur les tickers correspondants sur **Trading 212** (`SXRV.DE`, `CRUDP.PA`), en utilisant les prix réels du marché pour le dimensionnement des positions.
 
 ### 🧠 Moteur IA Hybride
-Le système fusionne cinq signaux distincts :
+Le système fusionne six signaux distincts :
 1.  **Modèle Quantitatif Classique** : Ensemble RandomForest/GradientBoosting/LogisticRegression entraîné sur indicateurs techniques et macroéconomiques.
 2.  **TimesFM 2.5 (Google Research)** : Modèle de fondation de pointe pour la prévision de séries temporelles.
 3.  **LLM Textuel (Gemma 4:e4b)** : Analyse contextuelle des données brutes, des actualités en temps réel via le skill **AlphaEar**, et intégration de **recherches web macro-économiques** dynamiques via DuckDuckGo Search.
 4.  **LLM Visuel (Gemma 4:e4b)** : Analyse directe des graphiques techniques (`enhanced_trading_chart.png`).
 5.  **Sentiment Analysis** : Analyse hybride combinant Alpha Vantage et les tendances "hot" d'**AlphaEar** (Weibo, WallstreetCN).
+6.  **Données Décentralisées (Hyperliquid)** : Analyse du sentiment spéculatif sur le Pétrole (WTI) via le *Funding Rate* et l'*Open Interest* récupérés sur la blockchain Hyperliquid.
 
 L'objectif est de produire une décision finale (`ACHAT`, `VENTE`, `HOLD`) avec une priorité absolue sur la **justesse** (Accuracy First).
 
@@ -62,23 +63,23 @@ L'objectif est de produire une décision finale (`ACHAT`, `VENTE`, `HOLD`) avec 
 Contrairement aux algorithmes de trading classiques qui paniquent dès que la volatilité explose, ce système applique une approche d'investisseur averti :
 - **Consensus Fort Requis** : Un modèle quantitatif (Classic) peut crier au loup (`SELL`), mais si les modèles cognitifs (LLM Texte, Vision, TimesFM) restent neutres, le système privilégiera le `HOLD`.
 - **Filtre de Confiance** : Une décision de mouvement (Achat ou Vente) n'est validée que si la confiance globale dépasse un seuil de sécurité (généralement 40%). En dessous, le système considère le signal comme du "bruit" et reste en attente.
-- **Protection du Capital** : En mode `VERY_HIGH` risque, le `HOLD` sert de bouclier. Il empêche d'entrer sur un marché instable et évite de sortir prématurément sur une simple correction technique si les fondamentaux (News/Vision) ne confirment pas un crash imminent.
+- **Protection du Capital** : En mode `VERY_HIGH` risque, le `HOLD` sert de bouclier. Il empêche d'entrer sur un marché instable et évite de sortir prématurément sur une simple correction technique si les fondamentaux (News/Vision/Hyperliquid) ne confirment pas un crash imminent.
 
 ### ✨ Fonctionnalités Clés
 
 - **Approche Dual-Ticker** : Analyse l'indice, trade l'ETF.
 - **Cognition Avancée** : Utilisation de **Gemma 4** pour une meilleure synthèse technique/fondamentale.
-- **News en Temps Réel** : Intégration du skill **AlphaEar** pour capturer le sentiment social et macro.
-- **Scheduler Automatisé** : Nouveau script `schedule.py` pour une exécution continue (8h30-18h00) sur serveur.
+- **News & Sentiment Blockchain** : Intégration d'**AlphaEar** et d'**Hyperliquid** pour capturer le sentiment social et spéculatif.
+- **Scheduler Automatisé** : Script `schedule.py` pour une exécution continue (8h30-18h00) sur serveur.
 - **Gestion de Risque Avancée** : Ajustement automatique du signal en fonction de la volatilité et du régime de marché.
 
 ### 💻 Stack Technologique
 
-- **Langage** : `Python 3.10+`
-- **Calculs & Données** : `pandas`, `numpy`, `yfinance`, `pyarrow`, `pandas_datareader`
+- **Langage** : `Python 3.12+`
+- **Calculs & Données** : `pandas`, `numpy`, `yfinance`, `pyarrow`, `pandas_datareader`, `hyperliquid-python-sdk`
 - **Machine Learning** : `scikit-learn`, `shap`
 - **IA & LLM** : `requests`, `ollama`
-- **Web Scraping** : `beautifulsoup4`
+- **Web Scraping & Search** : `beautifulsoup4`, `duckduckgo_search`
 - **Visualisation** : `matplotlib`, `seaborn`, `mplfinance`
 - **Utilitaires** : `tqdm`, `rich`, `python-dotenv`, `schedule`
 
@@ -118,7 +119,7 @@ Suivez ces étapes pour mettre en place votre environnement de développement lo
 
 - Python 3.10 ou supérieur
 - [Ollama](https://ollama.com/) installé et en cours d'exécution localement.
-- Un modèle LLM téléchargé (ex: `ollama pull gemma3:4b`)
+- Un modèle LLM téléchargé (ex: `ollama pull gemma4:e4b`)
 
 ### ⚙️ Installation
 

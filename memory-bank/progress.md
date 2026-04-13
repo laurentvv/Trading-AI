@@ -40,6 +40,12 @@
   * Création de `schedule.py` pour remplacer l'ancien scheduler complexe.
   * Optimisation des seuils de décision dans `EnhancedDecisionEngine` et `AdvancedRiskManager`.
   * Amélioration du logging du backtester pour une transparence quotidienne.
+- **2026-04-13**: Optimisation et Robustesse du Système.
+  * Migration vers **Gemma 4 (e4b)** pour l'analyse textuelle et visuelle.
+  * Intégration d'**Hyperliquid** pour le sentiment décentralisé sur le pétrole (Funding Rate, Open Interest).
+  * Correction du cycle d'installation (TimesFM doit être patché avant `uv sync`).
+  * Support de l'encodage **UTF-8** pour les logs Windows (emojis).
+  * Correction de la robustesse des données (FutureWarnings Pandas, KeyErrors T212).
 - **2026-04-10**: Intégration de **TimesFM 2.5** (Google Research).
   * Automatisation de l'installation via `setup_timesfm.py` (à exécuter avant `uv sync`).
   * Patch de l'API 2.5 pour permettre l'importation directe de `TimesFM_2p5_200M_torch`.

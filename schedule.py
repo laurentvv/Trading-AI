@@ -16,11 +16,17 @@ END_HOUR = 18
 END_MINUTE = 0
 
 # Setup Logging
+if sys.stdout.encoding != 'utf-8':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except (AttributeError, Exception):
+        pass
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler("scheduler.log"),
+        logging.FileHandler("scheduler.log", encoding='utf-8'),
         logging.StreamHandler(sys.stdout)
     ]
 )

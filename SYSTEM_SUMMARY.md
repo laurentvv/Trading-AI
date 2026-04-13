@@ -19,9 +19,10 @@ graph TD
     B --> E[LLM Texte - Gemma 4]
     B --> F[LLM Visuel - Analyse Graphique]
     B --> G[Sentiment Analysis - News]
+    B --> HL[Hyperliquid - Sentiment Blockchain]
     end
     
-    C & D & E & F & G --> H{Moteur de Décision}
+    C & D & E & F & G & HL --> H{Moteur de Décision}
     
     H --> I[BUY / SELL / HOLD]
     I --> J[Position Sizing - Kelly Criterion]
@@ -37,17 +38,20 @@ graph TD
     *   **Sélection :** Le système teste les 3 modèles via `TimeSeriesSplit` et sélectionne automatiquement le plus performant pour la journée.
     *   **Features :** 45 indicateurs (RSI, MACD, Bollinger, Moyennes Mobiles, Yields Trésorerie US, PIB, Chômage).
 
-2.  **LLM (Gemma 3 : 4b) :**
-    *   **Texte :** Analyse les données brutes et les indicateurs. Intègre désormais les titres de presse en temps réel via le skill **AlphaEar** pour une synthèse technique et fondamentale.
+2.  **LLM (Gemma 4 : e4b) :**
+    *   **Texte :** Analyse les données brutes et les indicateurs. Intègre les titres de presse en temps réel via le skill **AlphaEar** et les métriques décentralisées d'**Hyperliquid** pour une synthèse technique et fondamentale.
     *   **Visuel :** Analyse directement l'image du graphique technique (`enhanced_trading_chart.png`) pour identifier des patterns chartistes complexes.
 
 3.  **TimesFM (Google Research) :**
     *   Modèle de fondation **TimesFM 2.5** spécialisé dans la prévision de séries temporelles.
 
-4.  **Sentiment Analysis (Hybride) :**
+4.  **Hyperliquid (Sentiment Blockchain) :**
+    *   Récupération en temps réel du *Funding Rate* et de l'*Open Interest* sur les contrats perpétuels Pétrole (WTI). Utilisé comme signal contrarien pour détecter les excès spéculatifs.
+
+5.  **Sentiment Analysis (Hybride) :**
     *   Combine les news d'Alpha Vantage avec les tendances "hot" d'**AlphaEar** (Weibo, WallstreetCN, etc.) pour une détection précoce des changements de sentiment.
 
-5.  **Modèle Vincent Ganne (Géopolitique & Cross-Asset) :**
+6.  **Modèle Vincent Ganne (Géopolitique & Cross-Asset) :**
     *   **Filtre Macroéconomique :** Valide les points bas de marché via l'analyse du Pétrole (WTI/Brent), du Gaz Naturel (TTF), de l'Urée et du Dollar (DXY).
     *   **Verrou de Sécurité :** Bloque systématiquement les achats d'indices si les prix de l'énergie (WTI > 94$) sont trop élevés, signalant une instabilité majeure.
 

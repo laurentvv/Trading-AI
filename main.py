@@ -27,11 +27,17 @@ from database import get_latest_portfolio_state, get_latest_transaction
 load_dotenv()
 
 # Setup logging
+if sys.stdout.encoding != 'utf-8':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except (AttributeError, Exception):
+        pass
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler("trading.log"),
+        logging.FileHandler("trading.log", encoding='utf-8'),
         logging.StreamHandler(sys.stdout)
     ]
 )
@@ -105,6 +111,7 @@ def run_trading_analysis(ticker: str, is_simulation: bool = False, is_t212: bool
 
             t212_ticker = ticker.split('.')[0]
             t212_state = load_t212_state(t212_ticker)
+            capital_val = t212_state.get('current_capital', 1000.0)
             
             writer.writerow([
                 datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -113,7 +120,7 @@ def run_trading_analysis(ticker: str, is_simulation: bool = False, is_t212: bool
                 f"{confidence:.2%}",
                 risk_level,
                 decision.individual_decisions[1].reasoning if len(decision.individual_decisions) > 1 else "N/A",
-                f"{t212_state['current_capital']:.2f} €"
+                f"{capital_val:.2f} €"
             ])
         # ------------------------------------------------
 
