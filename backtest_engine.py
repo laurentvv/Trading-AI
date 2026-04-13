@@ -78,7 +78,7 @@ class Backtester:
         
         # Initialisation des modèles
         self.classic_model = ClassicModelWrapper()
-        self.timesfm = TimesFMModel()
+        self.timesfm = TimesFMModel.get_instance()  # Use singleton to avoid loading model twice
         self.decision_engine = EnhancedDecisionEngine()
         self.risk_manager = AdvancedRiskManager()
         
