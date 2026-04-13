@@ -27,9 +27,13 @@ Le moteur fusionne un modèle quantitatif classique, un LLM textuel (Gemma 3), u
 1.  **Installer `uv`** : [astral.sh/uv](https://astral.sh/uv)
 2.  **Initialiser l'environnement et TimesFM 2.5** :
     ```bash
-    uv run setup
+    # IMPORTANT : Exécuter ce script en premier pour cloner et patcher TimesFM
+    python setup_timesfm.py
+    
+    # Ensuite, synchroniser l'environnement complet
+    uv sync
     ```
-    *Cette commande synchronise les dépendances, clone TimesFM, applique les correctifs d'API 2.5 et installe le tout.*
+    *Cette procédure clone TimesFM dans `vendor/`, applique les correctifs d'API 2.5 et synchronise toutes les dépendances.*
 3.  **Configurer l'API** : Créer un fichier `.env` avec `ALPHA_VANTAGE_API_KEY`.
 
 ### Running the System

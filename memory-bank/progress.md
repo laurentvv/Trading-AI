@@ -41,7 +41,7 @@
   * Optimisation des seuils de décision dans `EnhancedDecisionEngine` et `AdvancedRiskManager`.
   * Amélioration du logging du backtester pour une transparence quotidienne.
 - **2026-04-10**: Intégration de **TimesFM 2.5** (Google Research).
-  * Automatisation de l'installation via `setup_timesfm.py` et `uv run setup`.
+  * Automatisation de l'installation via `setup_timesfm.py` (à exécuter avant `uv sync`).
   * Patch de l'API 2.5 pour permettre l'importation directe de `TimesFM_2p5_200M_torch`.
   * Utilisation des fichiers `safetensors` pour le chargement du modèle.
   * Mise à jour du moteur de décision pour intégrer les signaux de TimesFM avec un poids de 15%.

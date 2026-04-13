@@ -33,4 +33,4 @@ dependencies = [
 [tool.uv.sources]
 timesfm = { path = "vendor/timesfm" }
 
-# Pour installer TimesFM, utilisez : uv run python setup_timesfm.py
+# Pour installer TimesFM, utilisez : python setup_timesfm.py (AVANT uv sync)

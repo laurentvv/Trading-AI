@@ -76,13 +76,14 @@ Trading-AI/
 
 ### Setup
 ```bash
-# Install dependencies
+# 1. Install and patch TimesFM 2.5 (CRITICAL STEP)
+# This must be done BEFORE uv sync because uv needs the vendor/timesfm path to exist
+python setup_timesfm.py
+
+# 2. Install dependencies
 uv sync
 
-# Install and patch TimesFM 2.5
-uv run python setup_timesfm.py
-
-# Configure API keys
+# 3. Configure API keys
 # Create .env with ALPHA_VANTAGE_API_KEY
 # Create .env.t212 with T212_API_KEY, T212_API_SECRET, T212_ENV
 ```

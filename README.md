@@ -130,15 +130,15 @@ Suivez ces étapes pour mettre en place votre environnement de développement lo
 2.  **Installez `uv` (si ce n'est pas déjà fait) :**
     Consultez [astral.sh/uv](https://astral.sh/uv) pour les instructions d'installation.
 
-3.  **Initialisez et synchronisez l'environnement :**
+3.  **Installez et Patchez TimesFM 2.5 (Étape CRUCIALE) :**
+    Lancez le script d'installation pour cloner le modèle dans `vendor/` et appliquer les patchs :
     ```bash
-    uv sync
+    python setup_timesfm.py
     ```
 
-4.  **Installez et Patchez TimesFM 2.5 (Requis pour les prévisions) :**
-    Lancez le script d'installation automatisé pour cloner et configurer le modèle :
+4.  **Initialisez et synchronisez l'environnement :**
     ```bash
-    uv run python setup_timesfm.py
+    uv sync
     ```
 
 5.  **Configurez votre clé API :**
