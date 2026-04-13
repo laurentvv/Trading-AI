@@ -9,8 +9,8 @@ import time
 logger = logging.getLogger(__name__)
 
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
-TEXT_LLM_MODEL = "gemma4:e4b"
-VISUAL_LLM_MODEL = "gemma4:e4b"
+TEXT_LLM_MODEL = "gemma3:4b"
+VISUAL_LLM_MODEL = "gemma3:4b"
 
 def construct_llm_prompt(latest_data: pd.DataFrame, headlines: list = None) -> str:
     """

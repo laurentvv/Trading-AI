@@ -81,89 +81,103 @@ class VincentGanneModel:
     def evaluate(self, indicators: dict) -> dict:
         """
         Evaluates the current indicators against Vincent Ganne's rules.
-        Returns a decision dict with signal and confidence.
+        CRITICAL: Oil prices (WTI/Brent) are the primary indicators for a market bottom.
         """
         score = 0
         max_score = 0
         reasons = []
+        
+        # 1 & 2. Oil Prices (CRITICAL - Priority 1 & 2)
+        wti = indicators.get('WTI_price')
+        brent = indicators.get('Brent_price')
+        
+        # Priority 1: WTI (Weight 10)
+        if wti:
+            max_score += 10
+            if wti < self.thresholds['WTI']['ideal']:
+                score += 10
+                reasons.append(f"WTI at IDEAL level ({wti:.2f})")
+            elif wti < self.thresholds['WTI']['max']:
+                score += 5
+                reasons.append(f"WTI below threshold ({wti:.2f})")
+            else:
+                reasons.append(f"WTI TOO HIGH ({wti:.2f} > 94$)")
 
-        # 1 & 2. Oil Prices (Weight 3 each)
-        for oil in ['WTI', 'Brent']:
-            price = indicators.get(f'{oil}_price')
-            if price:
-                max_score += 3
-                if price < self.thresholds[oil]['ideal']:
-                    score += 3
-                    reasons.append(f"{oil} at ideal level ({price:.2f})")
-                elif price < self.thresholds[oil]['max']:
-                    score += 1.5
-                    reasons.append(f"{oil} below threshold ({price:.2f})")
+        # Priority 2: Brent (Weight 8)
+        if brent:
+            max_score += 8
+            if brent < self.thresholds['Brent']['ideal']:
+                score += 8
+                reasons.append(f"Brent at IDEAL level ({brent:.2f})")
+            elif brent < self.thresholds['Brent']['max']:
+                score += 4
+                reasons.append(f"Brent below threshold ({brent:.2f})")
+            else:
+                reasons.append(f"Brent TOO HIGH ({brent:.2f} > 95$)")
 
-        # 3. Natural Gas (Weight 2)
+        # HARD BLOCK: If Oil is too high, it's NOT a market bottom (Vincent Ganne rule)
+        oil_is_too_high = (wti and wti >= 94) or (brent and brent >= 95)
+
+        # 3. Natural Gas (Weight 5)
         gas = indicators.get('NaturalGas_price')
         if gas:
-            max_score += 2
+            max_score += 5
             if gas < self.thresholds['Gas']['ideal']:
-                score += 2
-                reasons.append(f"Natural Gas at ideal level ({gas:.2f})")
+                score += 5
+                reasons.append(f"Natural Gas IDEAL ({gas:.2f})")
             elif gas < self.thresholds['Gas']['max']:
-                score += 1
+                score += 2.5
                 reasons.append(f"Natural Gas below threshold ({gas:.2f})")
 
-        # 4. Urea Fertilizer (Weight 1) - If available
+        # 4. Urea Fertilizer (Weight 4)
         urea = indicators.get('Urea_price')
         if urea:
-            max_score += 1
+            max_score += 4
             if urea < self.thresholds['Urea']['max']:
-                score += 1
-                reasons.append(f"Urea Fertilizer below threshold ({urea:.2f})")
+                score += 4
+                reasons.append(f"Urea below threshold")
 
-        # US 2Y vs Fed Rate (Weight 2)
+        # US 2Y vs Fed Rate (Weight 3)
         yield_2y = indicators.get('US2Y_yield')
         fed_rate = indicators.get('Fed_rate')
         if yield_2y and fed_rate:
-            max_score += 2
-            # Around Fed rate means difference < 0.25%
+            max_score += 3
             if abs(yield_2y - fed_rate) < 0.25:
-                score += 2
-                reasons.append(f"US2Y yield ({yield_2y:.2f}) around Fed rate ({fed_rate:.2f})")
-            elif yield_2y < fed_rate: # Lower is also positive for market bottom
-                score += 1
-                reasons.append(f"US2Y yield ({yield_2y:.2f}) below Fed rate ({fed_rate:.2f})")
+                score += 3
+                reasons.append(f"Yields normalized")
 
-        # Indices Above MA200 (Weight 1 each)
-        indices = ['SP500', 'Nasdaq', 'DowJones', 'TechSector']
-        for idx in indices:
+        # US Dollar DXY (Weight 3)
+        dxy = indicators.get('DXY_price')
+        if dxy:
+            max_score += 3
+            if dxy < self.thresholds['DXY']['max']:
+                score += 3
+                reasons.append(f"Dollar weak ({dxy:.2f})")
+
+        # Indices MA200 (Weight 1 each - Confirmation only)
+        for idx in ['SP500', 'Nasdaq', 'DowJones', 'TechSector']:
             if indicators.get(f'{idx}_above_ma200'):
                 max_score += 1
                 score += 1
-                reasons.append(f"{idx} above MA200")
 
-        # US Dollar DXY (Weight 2)
-        dxy = indicators.get('DXY_price')
-        if dxy:
-            max_score += 2
-            if dxy < self.thresholds['DXY']['ideal']:
-                score += 2
-                reasons.append(f"DXY at ideal level ({dxy:.2f})")
-            elif dxy < self.thresholds['DXY']['max']:
-                score += 1
-                reasons.append(f"DXY below resistance ({dxy:.2f})")
-
-        # Final Decision
+        # FINAL DECISION LOGIC
         confidence = score / max_score if max_score > 0 else 0
-        signal = "HOLD"
-        if confidence > 0.7:
-            signal = "STRONG_BUY"
-        elif confidence > 0.4:
-            signal = "BUY"
-        elif confidence < 0.2:
-            signal = "SELL" # Too much geopolitical pressure
+        
+        if oil_is_too_high:
+            signal = "SELL" if confidence < 0.3 else "HOLD"
+            reasons.insert(0, "GEO-POLITICAL PRESSURE (OIL TOO HIGH)")
+        else:
+            if confidence > 0.75:
+                signal = "STRONG_BUY"
+            elif confidence > 0.5:
+                signal = "BUY"
+            else:
+                signal = "HOLD"
 
         return {
             'signal': signal,
             'confidence': confidence,
-            'analysis': " | ".join(reasons) if reasons else "No specific signals"
+            'analysis': " | ".join(reasons)
         }
 
 class EnhancedDecisionEngine:
@@ -197,11 +211,13 @@ class EnhancedDecisionEngine:
         """
         self.base_weights = base_weights or {
             'classic': 0.15,
-            'llm_text': 0.25,
-            'llm_visual': 0.20,
-            'sentiment': 0.15,
-            'timesfm': 0.25
+            'llm_text': 0.20,
+            'llm_visual': 0.15,
+            'sentiment': 0.10,
+            'timesfm': 0.20,
+            'vincent_ganne': 0.20  # Significant weight for geopolitical/cross-asset model
         }
+        self.vincent_ganne_model = VincentGanneModel()
         
         # Adaptive thresholds (Balanced for Index trading)
         self.adaptive_thresholds = {
@@ -342,6 +358,7 @@ class EnhancedDecisionEngine:
         visual_llm_decision: Dict,
         sentiment_decision: Dict,
         timesfm_decision: Dict = None,
+        vincent_ganne_indicators: Dict = None,
         market_data: Dict = None,
         adaptive_weights: Dict[str, float] = None
     ) -> HybridDecision:
@@ -354,6 +371,8 @@ class EnhancedDecisionEngine:
             text_llm_decision: Text LLM decision dict
             visual_llm_decision: Visual LLM decision dict
             sentiment_decision: Sentiment analysis decision dict
+            timesfm_decision: TimesFM forecasting decision dict
+            vincent_ganne_indicators: Indicators for Vincent Ganne model
             market_data: Current market indicators
             adaptive_weights: Optional adaptive weights for models
             
@@ -411,6 +430,19 @@ class EnhancedDecisionEngine:
                     timestamp=timestamp,
                     model_name='timesfm',
                     reasoning=timesfm_decision.get('analysis', 'TimesFM time series forecasting')
+                )
+            )
+
+        if vincent_ganne_indicators:
+            vg_decision = self.vincent_ganne_model.evaluate(vincent_ganne_indicators)
+            decisions.append(
+                ModelDecision(
+                    signal=vg_decision['signal'],
+                    confidence=vg_decision['confidence'],
+                    strength=self._normalize_signal(vg_decision['signal']),
+                    timestamp=timestamp,
+                    model_name='vincent_ganne',
+                    reasoning=vg_decision['analysis']
                 )
             )
 

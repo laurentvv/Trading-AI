@@ -15,7 +15,7 @@ import os
 from dotenv import load_dotenv
 
 # Imports des modules existants
-from data import get_etf_data, fetch_macro_data_for_date
+from data import get_etf_data, fetch_macro_data_for_date, get_vincent_ganne_indicators
 from features import create_technical_indicators, create_features, select_features
 from classic_model import train_ensemble_model, get_classic_prediction
 from llm_client import get_llm_decision, get_visual_llm_decision
@@ -136,6 +136,9 @@ class EnhancedTradingSystem:
             analysis_date = data_with_indicators.index[-1]
             macro_context = fetch_macro_data_for_date(analysis_date)
             
+            # Indicateurs Vincent Ganne (Nouveau)
+            vg_indicators = get_vincent_ganne_indicators()
+            
             # Création des features avec contexte macro
             data_with_features = create_features(data_with_indicators, macro_context)
             
@@ -146,7 +149,7 @@ class EnhancedTradingSystem:
             logger.info(f"Final data with features: {len(data_with_features)} rows, {len(data_with_features.columns)} columns")
             
             # On retourne aussi le prix de l'ETF pour les calculs de trading
-            return data_with_features, hist_data, macro_context, current_etf_price
+            return data_with_features, hist_data, macro_context, vg_indicators, current_etf_price
             
         except Exception as e:
             logger.error(f"Error in data preparation: {e}")
@@ -260,7 +263,7 @@ class EnhancedTradingSystem:
             'timesfm': timesfm_decision
         }
     
-    def perform_enhanced_analysis(self, data_with_features, model_predictions, current_etf_price):
+    def perform_enhanced_analysis(self, data_with_features, model_predictions, current_etf_price, vg_indicators=None):
         """Effectue l'analyse améliorée avec tous les nouveaux composants."""
         logger.info("Analyse améliorée en cours...")
         
@@ -311,6 +314,10 @@ class EnhancedTradingSystem:
         }
         
         # 4. Décision hybride améliorée
+        # On désactive le modèle Vincent Ganne pour le Pétrole (absurde de l'utiliser sur lui-même)
+        is_oil = any(oil_ticker in self.analysis_ticker for oil_ticker in ['CL=F', 'BZ=F'])
+        effective_vg_indicators = None if is_oil else vg_indicators
+        
         enhanced_decision = self.decision_engine.make_enhanced_decision(
             classic_pred=model_predictions['classic']['prediction'],
             classic_conf=model_predictions['classic']['confidence'],
@@ -318,6 +325,7 @@ class EnhancedTradingSystem:
             visual_llm_decision=model_predictions['visual_llm'],
             sentiment_decision=model_predictions['sentiment'],
             timesfm_decision=model_predictions['timesfm'],
+            vincent_ganne_indicators=effective_vg_indicators,
             market_data=market_data,
             adaptive_weights=weight_adjustment.model_weights
         )
@@ -367,8 +375,8 @@ class EnhancedTradingSystem:
         logger.info(f"=== DÉMARRAGE DE L'ANALYSE {'SIMULÉE' if is_simulation else 'AMÉLIORÉE'} ===")
         
         try:
-            # 1. Préparation des données (avec current_etf_price)
-            data_with_features, hist_data, macro_context, current_etf_price = self.prepare_data_and_features()
+            # 1. Préparation des données (avec current_etf_price et vg_indicators)
+            data_with_features, hist_data, macro_context, vg_indicators, current_etf_price = self.prepare_data_and_features()
             
             # 2. Entraînement du modèle classique
             classic_model, scaler = self.train_classic_model(data_with_features)
@@ -379,7 +387,7 @@ class EnhancedTradingSystem:
             
             # 4. Analyse améliorée
             analysis_results = self.perform_enhanced_analysis(
-                data_with_features, model_predictions, current_etf_price)
+                data_with_features, model_predictions, current_etf_price, vg_indicators=vg_indicators)
 
             # 5. Execute trade (Simulation or Hypothetical)
             trades = self._execute_hypothetical_trade(analysis_results, current_etf_price, hist_data.index[-1], is_simulation=is_simulation)

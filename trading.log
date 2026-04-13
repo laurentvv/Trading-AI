@@ -1133,3 +1133,471 @@
 2026-04-13 11:04:23,007 - INFO - Performance monitoring updated: Portfolio $1,000.00, Daily Return: 0.00%, Alerts: 1
 2026-04-13 11:04:25,301 - INFO - Performance dashboard saved to enhanced_performance_dashboard.png
 2026-04-13 11:04:25,301 - INFO - === ANALYSE TERMINÉE ===
+2026-04-13 15:56:55,255 - INFO - Performance database initialized successfully
+2026-04-13 15:56:55,255 - INFO - Performance monitoring database initialized
+2026-04-13 15:56:55,255 - INFO - Database initialized at trading_history.db
+2026-04-13 15:56:55,255 - INFO - Loading data from cache: data_cache\SXRV_DE_max_with_vix.parquet
+2026-04-13 15:56:56,331 - INFO - Data loaded from cache: 3979 days.
+2026-04-13 15:56:56,333 - INFO - Final data period: 2010-05-07 00:00:00 to 2026-04-10 00:00:00
+2026-04-13 15:56:56,334 - INFO - Système de trading amélioré initialisé. Trading: SXRV.DE | Analyse: ^NDX
+2026-04-13 15:56:56,334 - INFO - === DÉMARRAGE DE L'ANALYSE SIMULÉE ===
+2026-04-13 15:56:56,334 - INFO - Récupération et préparation des données pour l'indice ^NDX...
+2026-04-13 15:56:56,335 - INFO - Loading data from cache: data_cache\^NDX_max_with_vix.parquet
+2026-04-13 15:56:56,675 - INFO - Data loaded from cache: 10209 days.
+2026-04-13 15:56:56,675 - INFO - Final data period: 1985-10-01 00:00:00 to 2026-04-09 00:00:00
+2026-04-13 15:56:56,676 - INFO - Loading data from cache: data_cache\SXRV_DE_max_with_vix.parquet
+2026-04-13 15:56:56,722 - INFO - Data loaded from cache: 3979 days.
+2026-04-13 15:56:56,722 - INFO - Final data period: 2010-05-07 00:00:00 to 2026-04-10 00:00:00
+2026-04-13 15:56:56,723 - INFO - Prix actuel de l'ETF (SXRV.DE): 1232.60
+2026-04-13 15:56:56,723 - INFO - Analysis Data retrieved: 10209 rows from 1985-10-01 00:00:00 to 2026-04-09 00:00:00
+2026-04-13 15:56:56,745 - INFO - Fetching macroeconomic data for context around 2026-04-09...
+2026-04-13 15:56:56,746 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_10y_monthly.parquet
+2026-04-13 15:56:56,749 - INFO - Using cached multi-source data for treasury_10y
+2026-04-13 15:56:56,752 - INFO - [SUCCESS] treasury_yield_10year: 4.33
+2026-04-13 15:56:56,752 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
+2026-04-13 15:56:56,752 - INFO - Using cached multi-source data for treasury_2y
+2026-04-13 15:56:56,758 - INFO - [SUCCESS] treasury_yield_2year: 3.79
+2026-04-13 15:56:56,758 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
+2026-04-13 15:56:56,760 - INFO - Using cached multi-source data for fed_funds
+2026-04-13 15:56:56,761 - INFO - [SUCCESS] federal_funds_rate: 4.33
+2026-04-13 15:56:56,762 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_cpi_monthly.parquet
+2026-04-13 15:56:56,763 - INFO - Using cached multi-source data for cpi
+2026-04-13 15:56:56,763 - INFO - [SUCCESS] cpi: 322.13
+2026-04-13 15:56:56,763 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_unemployment_monthly.parquet
+2026-04-13 15:56:56,767 - INFO - Using cached multi-source data for unemployment
+2026-04-13 15:56:56,767 - INFO - [SUCCESS] unemployment: 4.20
+2026-04-13 15:56:56,767 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_gdp_monthly.parquet
+2026-04-13 15:56:56,767 - INFO - Using cached multi-source data for gdp
+2026-04-13 15:56:56,767 - INFO - [SUCCESS] real_gdp: 23685.29
+2026-04-13 15:56:56,767 - INFO - Macro data fetch complete. Retrieved 6 indicators.
+2026-04-13 15:56:56,767 - INFO - Fetching Vincent Ganne model indicators...
+2026-04-13 15:56:58,608 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
+2026-04-13 15:56:58,611 - INFO - Using cached multi-source data for treasury_2y
+2026-04-13 15:56:58,611 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
+2026-04-13 15:56:58,612 - INFO - Using cached multi-source data for fed_funds
+2026-04-13 15:56:58,618 - INFO - Added 6 macroeconomic features: ['treasury_yield_10year', 'treasury_yield_2year', 'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp']
+2026-04-13 15:56:58,625 - INFO - Final data with features: 10009 rows, 68 columns
+2026-04-13 15:56:58,626 - INFO - Entraînement du modèle quantitatif...
+2026-04-13 15:56:58,627 - INFO - Core features available: 39/39
+2026-04-13 15:56:58,627 - INFO - All macroeconomic features available
+2026-04-13 15:56:58,631 - INFO - Selected 45 features for model training
+2026-04-13 15:56:58,632 - INFO - Initial data shape: X=(10009, 45), y=(10009,)
+2026-04-13 15:56:58,635 - INFO - After removing NaN targets: X=(10008, 45), y=(10008,)
+2026-04-13 15:56:58,636 - INFO - Filling NaN values in 6 features
+2026-04-13 15:56:58,642 - INFO - Final clean data: X=(10008, 45), y=(10008,)
+2026-04-13 15:56:58,643 - INFO - Target distribution: {0.0: 5209, 1.0: 4799}
+2026-04-13 15:56:58,644 - INFO - Features shape: (10008, 45)
+2026-04-13 15:56:58,644 - INFO - Target shape: (10008,)
+2026-04-13 15:56:58,645 - INFO - NaN in features: 0
+2026-04-13 15:56:58,646 - INFO - NaN in target: 0
+2026-04-13 15:56:58,646 - INFO - Unique target values: [0. 1.]
+2026-04-13 15:56:58,646 - INFO - Original data shape: (10008, 45)
+2026-04-13 15:56:58,649 - INFO - NaN values per column: 0 total
+2026-04-13 15:56:58,651 - INFO - After removing NaN targets: (10008, 45)
+2026-04-13 15:56:58,659 - INFO - Final clean data shape: (10008, 45)
+2026-04-13 15:57:07,999 - INFO - RandomForest - TimeSeries CV Score: 0.3182 (+/- 0.4091)
+2026-04-13 15:57:31,181 - INFO - GradientBoosting - TimeSeries CV Score: 0.4021 (+/- 0.3187)
+2026-04-13 15:57:31,328 - INFO - LogisticRegression - TimeSeries CV Score: 0.4319 (+/- 0.3330)
+2026-04-13 15:57:31,328 - INFO - Best model selected: LogisticRegression
+2026-04-13 15:57:31,360 - INFO - 
+=== LOGISTICREGRESSION MODEL RESULTS ===
+2026-04-13 15:57:31,361 - INFO - Accuracy: 0.5325
+2026-04-13 15:57:31,361 - INFO - Precision: 0.5275
+2026-04-13 15:57:31,361 - INFO - Recall: 0.3649
+2026-04-13 15:57:31,361 - INFO - F1: 0.4313
+2026-04-13 15:57:31,362 - INFO - Modèle classique entraîné avec succès
+2026-04-13 15:57:31,362 - INFO - Génération des prédictions des modèles...
+2026-04-13 15:57:31,363 - INFO - Features disponibles pour prédiction: 45
+2026-04-13 15:57:31,365 - INFO - NaN dans les features: 0
+2026-04-13 15:57:31,367 - INFO - Prédiction classique: 0.0, confiance: 0.834
+2026-04-13 15:57:31,369 - INFO - Generating chart image and saving to enhanced_trading_chart.png...
+2026-04-13 15:57:31,969 - INFO - Chart generated successfully.
+2026-04-13 15:57:31,969 - INFO - Fetching live news and sentiment...
+2026-04-13 15:57:32,566 - INFO - Successfully fetched 0 news headlines. Sentiment score: 0.00
+2026-04-13 15:57:32,566 - INFO - Querying textual LLM for a trading decision...
+2026-04-13 15:57:38,822 - WARNING - Attempt 1/3 failed for LLM (gemma4:e4b): 500 Server Error: Internal Server Error for url: http://localhost:11434/api/generate
+2026-04-13 15:57:46,531 - WARNING - Attempt 2/3 failed for LLM (gemma4:e4b): 500 Server Error: Internal Server Error for url: http://localhost:11434/api/generate
+2026-04-13 15:57:55,704 - WARNING - Attempt 3/3 failed for LLM (gemma4:e4b): 500 Server Error: Internal Server Error for url: http://localhost:11434/api/generate
+2026-04-13 15:57:55,704 - ERROR - All 3 attempts failed for LLM (gemma4:e4b).
+2026-04-13 15:57:55,704 - ERROR - Final raw response from LLM: {"error":"model requires more system memory (6.7 GiB) than is available (5.4 GiB)"}
+2026-04-13 15:57:55,705 - INFO - Querying visual LLM with image enhanced_trading_chart.png...
+2026-04-13 15:58:00,802 - WARNING - Attempt 1/3 failed for LLM (gemma4:e4b): 500 Server Error: Internal Server Error for url: http://localhost:11434/api/generate
+2026-04-13 15:58:07,447 - WARNING - Attempt 2/3 failed for LLM (gemma4:e4b): 500 Server Error: Internal Server Error for url: http://localhost:11434/api/generate
+2026-04-13 15:58:16,093 - WARNING - Attempt 3/3 failed for LLM (gemma4:e4b): 500 Server Error: Internal Server Error for url: http://localhost:11434/api/generate
+2026-04-13 15:58:16,093 - ERROR - All 3 attempts failed for LLM (gemma4:e4b).
+2026-04-13 15:58:16,094 - ERROR - Final raw response from LLM: {"error":"model requires more system memory (6.7 GiB) than is available (4.8 GiB)"}
+2026-04-13 15:58:16,094 - INFO - Génération de la prédiction TimesFM...
+2026-04-13 15:58:16,094 - INFO - Initialisation de TimesFM 2.5 (google/timesfm-2.5-200m-pytorch)...
+2026-04-13 15:58:17,840 - INFO - HTTP Request: HEAD https://huggingface.co/google/timesfm-2.5-200m-pytorch/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-04-13 15:58:17,864 - INFO - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/google/timesfm-2.5-200m-pytorch/1d952420fba87f3c6dee4f240de0f1a0fbc790e3/config.json "HTTP/1.1 200 OK"
+2026-04-13 15:58:17,871 - INFO - Downloading checkpoint from Hugging Face repo google/timesfm-2.5-200m-pytorch
+2026-04-13 15:58:17,990 - INFO - HTTP Request: HEAD https://huggingface.co/google/timesfm-2.5-200m-pytorch/resolve/main/model.safetensors "HTTP/1.1 302 Found"
+2026-04-13 15:58:18,909 - INFO - Loading checkpoint from: C:\Users\lvolff\.cache\huggingface\hub\models--google--timesfm-2.5-200m-pytorch\snapshots\1d952420fba87f3c6dee4f240de0f1a0fbc790e3\model.safetensors
+2026-04-13 15:58:19,796 - INFO - TimesFM 2.5 initialisé et compilé avec succès.
+2026-04-13 15:58:20,419 - INFO - TimesFM 2.5 prediction: HOLD (0.23)
+2026-04-13 15:58:20,419 - INFO - Analyse améliorée en cours...
+2026-04-13 15:58:20,420 - ERROR - Erreur lors de l'analyse: name 'market_data' is not defined
+2026-04-13 15:58:20,420 - ERROR - Analysis failed for SXRV.DE: name 'market_data' is not defined
+2026-04-13 15:58:57,098 - INFO - Performance database initialized successfully
+2026-04-13 15:58:57,099 - INFO - Performance monitoring database initialized
+2026-04-13 15:58:57,101 - INFO - Database initialized at trading_history.db
+2026-04-13 15:58:57,102 - INFO - Loading data from cache: data_cache\SXRV_DE_max_with_vix.parquet
+2026-04-13 15:58:57,904 - INFO - Data loaded from cache: 3979 days.
+2026-04-13 15:58:57,905 - INFO - Final data period: 2010-05-07 00:00:00 to 2026-04-10 00:00:00
+2026-04-13 15:58:57,905 - INFO - Système de trading amélioré initialisé. Trading: SXRV.DE | Analyse: ^NDX
+2026-04-13 15:58:57,906 - INFO - === DÉMARRAGE DE L'ANALYSE SIMULÉE ===
+2026-04-13 15:58:57,906 - INFO - Récupération et préparation des données pour l'indice ^NDX...
+2026-04-13 15:58:57,907 - INFO - Loading data from cache: data_cache\^NDX_max_with_vix.parquet
+2026-04-13 15:58:58,240 - INFO - Data loaded from cache: 10209 days.
+2026-04-13 15:58:58,240 - INFO - Final data period: 1985-10-01 00:00:00 to 2026-04-09 00:00:00
+2026-04-13 15:58:58,241 - INFO - Loading data from cache: data_cache\SXRV_DE_max_with_vix.parquet
+2026-04-13 15:58:58,288 - INFO - Data loaded from cache: 3979 days.
+2026-04-13 15:58:58,288 - INFO - Final data period: 2010-05-07 00:00:00 to 2026-04-10 00:00:00
+2026-04-13 15:58:58,288 - INFO - Prix actuel de l'ETF (SXRV.DE): 1232.60
+2026-04-13 15:58:58,289 - INFO - Analysis Data retrieved: 10209 rows from 1985-10-01 00:00:00 to 2026-04-09 00:00:00
+2026-04-13 15:58:58,310 - INFO - Fetching macroeconomic data for context around 2026-04-09...
+2026-04-13 15:58:58,311 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_10y_monthly.parquet
+2026-04-13 15:58:58,314 - INFO - Using cached multi-source data for treasury_10y
+2026-04-13 15:58:58,317 - INFO - [SUCCESS] treasury_yield_10year: 4.33
+2026-04-13 15:58:58,318 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
+2026-04-13 15:58:58,320 - INFO - Using cached multi-source data for treasury_2y
+2026-04-13 15:58:58,322 - INFO - [SUCCESS] treasury_yield_2year: 3.79
+2026-04-13 15:58:58,322 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
+2026-04-13 15:58:58,324 - INFO - Using cached multi-source data for fed_funds
+2026-04-13 15:58:58,325 - INFO - [SUCCESS] federal_funds_rate: 4.33
+2026-04-13 15:58:58,326 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_cpi_monthly.parquet
+2026-04-13 15:58:58,327 - INFO - Using cached multi-source data for cpi
+2026-04-13 15:58:58,328 - INFO - [SUCCESS] cpi: 322.13
+2026-04-13 15:58:58,328 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_unemployment_monthly.parquet
+2026-04-13 15:58:58,330 - INFO - Using cached multi-source data for unemployment
+2026-04-13 15:58:58,331 - INFO - [SUCCESS] unemployment: 4.20
+2026-04-13 15:58:58,331 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_gdp_monthly.parquet
+2026-04-13 15:58:58,333 - INFO - Using cached multi-source data for gdp
+2026-04-13 15:58:58,334 - INFO - [SUCCESS] real_gdp: 23685.29
+2026-04-13 15:58:58,335 - INFO - Macro data fetch complete. Retrieved 6 indicators.
+2026-04-13 15:58:58,335 - INFO - Fetching Vincent Ganne model indicators...
+2026-04-13 15:58:58,622 - INFO - Checking WTI: Price 102.86 (MA200: 67.01)
+2026-04-13 15:58:58,753 - INFO - Checking Brent: Price 101.34 (MA200: 71.12)
+2026-04-13 15:58:58,896 - INFO - Checking NaturalGas: Price 43.64 (MA200: 34.87)
+2026-04-13 15:58:59,004 - INFO - Checking DXY: Price 98.83 (MA200: 98.48)
+2026-04-13 15:58:59,126 - INFO - Checking SP500: Price 6815.42 (MA200: 6666.24)
+2026-04-13 15:58:59,287 - INFO - Checking Nasdaq: Price 22915.27 (MA200: 22425.84)
+2026-04-13 15:58:59,396 - INFO - Checking DowJones: Price 47696.15 (MA200: 46865.57)
+2026-04-13 15:58:59,610 - INFO - Checking TechSector: Price 142.96 (MA200: 138.69)
+2026-04-13 15:58:59,611 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
+2026-04-13 15:58:59,615 - INFO - Using cached multi-source data for treasury_2y
+2026-04-13 15:58:59,615 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
+2026-04-13 15:58:59,619 - INFO - Using cached multi-source data for fed_funds
+2026-04-13 15:58:59,629 - INFO - Added 6 macroeconomic features: ['treasury_yield_10year', 'treasury_yield_2year', 'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp']
+2026-04-13 15:58:59,639 - INFO - Final data with features: 10009 rows, 68 columns
+2026-04-13 15:58:59,640 - INFO - Entraînement du modèle quantitatif...
+2026-04-13 15:58:59,640 - INFO - Core features available: 39/39
+2026-04-13 15:58:59,641 - INFO - All macroeconomic features available
+2026-04-13 15:58:59,647 - INFO - Selected 45 features for model training
+2026-04-13 15:58:59,648 - INFO - Initial data shape: X=(10009, 45), y=(10009,)
+2026-04-13 15:58:59,652 - INFO - After removing NaN targets: X=(10008, 45), y=(10008,)
+2026-04-13 15:58:59,654 - INFO - Filling NaN values in 6 features
+2026-04-13 15:58:59,661 - INFO - Final clean data: X=(10008, 45), y=(10008,)
+2026-04-13 15:58:59,662 - INFO - Target distribution: {0.0: 5209, 1.0: 4799}
+2026-04-13 15:58:59,663 - INFO - Features shape: (10008, 45)
+2026-04-13 15:58:59,663 - INFO - Target shape: (10008,)
+2026-04-13 15:58:59,666 - INFO - NaN in features: 0
+2026-04-13 15:58:59,666 - INFO - NaN in target: 0
+2026-04-13 15:58:59,667 - INFO - Unique target values: [0. 1.]
+2026-04-13 15:58:59,667 - INFO - Original data shape: (10008, 45)
+2026-04-13 15:58:59,669 - INFO - NaN values per column: 0 total
+2026-04-13 15:58:59,671 - INFO - After removing NaN targets: (10008, 45)
+2026-04-13 15:58:59,682 - INFO - Final clean data shape: (10008, 45)
+2026-04-13 15:59:09,370 - INFO - RandomForest - TimeSeries CV Score: 0.3182 (+/- 0.4091)
+2026-04-13 15:59:32,299 - INFO - GradientBoosting - TimeSeries CV Score: 0.4021 (+/- 0.3187)
+2026-04-13 15:59:32,483 - INFO - LogisticRegression - TimeSeries CV Score: 0.4319 (+/- 0.3330)
+2026-04-13 15:59:32,484 - INFO - Best model selected: LogisticRegression
+2026-04-13 15:59:32,520 - INFO - 
+=== LOGISTICREGRESSION MODEL RESULTS ===
+2026-04-13 15:59:32,520 - INFO - Accuracy: 0.5325
+2026-04-13 15:59:32,520 - INFO - Precision: 0.5275
+2026-04-13 15:59:32,521 - INFO - Recall: 0.3649
+2026-04-13 15:59:32,521 - INFO - F1: 0.4313
+2026-04-13 15:59:32,522 - INFO - Modèle classique entraîné avec succès
+2026-04-13 15:59:32,523 - INFO - Génération des prédictions des modèles...
+2026-04-13 15:59:32,524 - INFO - Features disponibles pour prédiction: 45
+2026-04-13 15:59:32,525 - INFO - NaN dans les features: 0
+2026-04-13 15:59:32,528 - INFO - Prédiction classique: 0.0, confiance: 0.834
+2026-04-13 15:59:32,529 - INFO - Generating chart image and saving to enhanced_trading_chart.png...
+2026-04-13 15:59:33,263 - INFO - Chart generated successfully.
+2026-04-13 15:59:33,264 - INFO - Fetching live news and sentiment...
+2026-04-13 15:59:33,796 - INFO - Successfully fetched 0 news headlines. Sentiment score: 0.00
+2026-04-13 15:59:33,797 - INFO - Querying textual LLM for a trading decision...
+2026-04-13 15:59:43,000 - INFO - LLM decision (gemma3:4b) received and validated.
+2026-04-13 15:59:43,000 - INFO - Querying visual LLM with image enhanced_trading_chart.png...
+2026-04-13 15:59:48,172 - INFO - LLM decision (gemma3:4b) received and validated.
+2026-04-13 15:59:48,173 - INFO - Génération de la prédiction TimesFM...
+2026-04-13 15:59:48,173 - INFO - Initialisation de TimesFM 2.5 (google/timesfm-2.5-200m-pytorch)...
+2026-04-13 15:59:49,332 - INFO - HTTP Request: HEAD https://huggingface.co/google/timesfm-2.5-200m-pytorch/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-04-13 15:59:49,362 - INFO - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/google/timesfm-2.5-200m-pytorch/1d952420fba87f3c6dee4f240de0f1a0fbc790e3/config.json "HTTP/1.1 200 OK"
+2026-04-13 15:59:49,365 - INFO - Downloading checkpoint from Hugging Face repo google/timesfm-2.5-200m-pytorch
+2026-04-13 15:59:49,481 - INFO - HTTP Request: HEAD https://huggingface.co/google/timesfm-2.5-200m-pytorch/resolve/main/model.safetensors "HTTP/1.1 302 Found"
+2026-04-13 15:59:50,210 - INFO - Loading checkpoint from: C:\Users\lvolff\.cache\huggingface\hub\models--google--timesfm-2.5-200m-pytorch\snapshots\1d952420fba87f3c6dee4f240de0f1a0fbc790e3\model.safetensors
+2026-04-13 15:59:50,994 - INFO - TimesFM 2.5 initialisé et compilé avec succès.
+2026-04-13 15:59:51,552 - INFO - TimesFM 2.5 prediction: HOLD (0.23)
+2026-04-13 15:59:51,553 - INFO - Analyse améliorée en cours...
+2026-04-13 15:59:51,982 - INFO - Niveau de risque détecté: VERY_HIGH
+2026-04-13 15:59:51,983 - INFO - Score de risque: 0.448
+2026-04-13 15:59:51,986 - INFO - Poids adaptatifs calculés:
+2026-04-13 15:59:51,986 - INFO -   classic: 0.150
+2026-04-13 15:59:51,986 - INFO -   llm_text: 0.250
+2026-04-13 15:59:51,987 - INFO -   llm_visual: 0.200
+2026-04-13 15:59:51,987 - INFO -   sentiment: 0.150
+2026-04-13 15:59:51,987 - INFO -   timesfm: 0.250
+2026-04-13 15:59:51,988 - INFO - Décision hybride: HOLD
+2026-04-13 15:59:51,988 - INFO - Consensus: 0.76
+2026-04-13 15:59:51,988 - INFO - Confiance: 0.16
+2026-04-13 15:59:51,988 - INFO - Taille de position recommandée: $9.38 (ETF: 1232.60)
+2026-04-13 15:59:51,998 - INFO - Updated portfolio state for SXRV.DE on 2026-04-09 00:00:00
+2026-04-13 15:59:51,999 - INFO - Mise à jour du monitoring de performance...
+2026-04-13 15:59:52,005 - WARNING - ALERT [HIGH]: Win rate critically low: 0.00%
+2026-04-13 15:59:52,010 - INFO - Performance monitoring updated: Portfolio $1,000.00, Daily Return: 0.00%, Alerts: 1
+2026-04-13 15:59:53,550 - INFO - Performance dashboard saved to enhanced_performance_dashboard.png
+2026-04-13 15:59:53,572 - INFO - === ANALYSE TERMINÉE ===
+2026-04-13 16:02:33,790 - INFO - Performance database initialized successfully
+2026-04-13 16:02:33,791 - INFO - Performance monitoring database initialized
+2026-04-13 16:02:33,792 - INFO - Database initialized at trading_history.db
+2026-04-13 16:02:33,792 - INFO - Loading data from cache: data_cache\SXRV_DE_max_with_vix.parquet
+2026-04-13 16:02:35,046 - INFO - Data loaded from cache: 3979 days.
+2026-04-13 16:02:35,047 - INFO - Final data period: 2010-05-07 00:00:00 to 2026-04-10 00:00:00
+2026-04-13 16:02:35,049 - INFO - Système de trading amélioré initialisé. Trading: SXRV.DE | Analyse: ^NDX
+2026-04-13 16:02:35,050 - INFO - === DÉMARRAGE DE L'ANALYSE SIMULÉE ===
+2026-04-13 16:02:35,050 - INFO - Récupération et préparation des données pour l'indice ^NDX...
+2026-04-13 16:02:35,051 - INFO - Loading data from cache: data_cache\^NDX_max_with_vix.parquet
+2026-04-13 16:02:35,618 - INFO - Data loaded from cache: 10209 days.
+2026-04-13 16:02:35,619 - INFO - Final data period: 1985-10-01 00:00:00 to 2026-04-09 00:00:00
+2026-04-13 16:02:35,619 - INFO - Loading data from cache: data_cache\SXRV_DE_max_with_vix.parquet
+2026-04-13 16:02:35,779 - INFO - Data loaded from cache: 3979 days.
+2026-04-13 16:02:35,781 - INFO - Final data period: 2010-05-07 00:00:00 to 2026-04-10 00:00:00
+2026-04-13 16:02:35,782 - INFO - Prix actuel de l'ETF (SXRV.DE): 1232.60
+2026-04-13 16:02:35,782 - INFO - Analysis Data retrieved: 10209 rows from 1985-10-01 00:00:00 to 2026-04-09 00:00:00
+2026-04-13 16:02:35,823 - INFO - Fetching macroeconomic data for context around 2026-04-09...
+2026-04-13 16:02:35,824 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_10y_monthly.parquet
+2026-04-13 16:02:35,829 - INFO - Using cached multi-source data for treasury_10y
+2026-04-13 16:02:35,832 - INFO - [SUCCESS] treasury_yield_10year: 4.33
+2026-04-13 16:02:35,834 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
+2026-04-13 16:02:35,838 - INFO - Using cached multi-source data for treasury_2y
+2026-04-13 16:02:35,841 - INFO - [SUCCESS] treasury_yield_2year: 3.79
+2026-04-13 16:02:35,842 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
+2026-04-13 16:02:35,846 - INFO - Using cached multi-source data for fed_funds
+2026-04-13 16:02:35,848 - INFO - [SUCCESS] federal_funds_rate: 4.33
+2026-04-13 16:02:35,848 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_cpi_monthly.parquet
+2026-04-13 16:02:35,850 - INFO - Using cached multi-source data for cpi
+2026-04-13 16:02:35,852 - INFO - [SUCCESS] cpi: 322.13
+2026-04-13 16:02:35,853 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_unemployment_monthly.parquet
+2026-04-13 16:02:35,855 - INFO - Using cached multi-source data for unemployment
+2026-04-13 16:02:35,856 - INFO - [SUCCESS] unemployment: 4.20
+2026-04-13 16:02:35,856 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_gdp_monthly.parquet
+2026-04-13 16:02:35,859 - INFO - Using cached multi-source data for gdp
+2026-04-13 16:02:35,860 - INFO - [SUCCESS] real_gdp: 23685.29
+2026-04-13 16:02:35,861 - INFO - Macro data fetch complete. Retrieved 6 indicators.
+2026-04-13 16:02:35,861 - INFO - Fetching Vincent Ganne model indicators...
+2026-04-13 16:02:36,241 - INFO - Checking WTI: Price 101.56 (MA200: 67.00)
+2026-04-13 16:02:36,363 - INFO - Checking Brent: Price 100.27 (MA200: 71.12)
+2026-04-13 16:02:36,517 - INFO - Checking NaturalGas: Price 46.15 (MA200: 34.93)
+2026-04-13 16:02:36,763 - INFO - Checking DXY: Price 98.81 (MA200: 98.48)
+2026-04-13 16:02:36,984 - INFO - Checking SP500: Price 6815.09 (MA200: 6666.23)
+2026-04-13 16:02:37,188 - INFO - Checking Nasdaq: Price 22943.65 (MA200: 22425.98)
+2026-04-13 16:02:37,310 - INFO - Checking DowJones: Price 47662.78 (MA200: 46865.41)
+2026-04-13 16:02:37,512 - INFO - Checking TechSector: Price 143.10 (MA200: 138.69)
+2026-04-13 16:02:37,512 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
+2026-04-13 16:02:37,515 - INFO - Using cached multi-source data for treasury_2y
+2026-04-13 16:02:37,515 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
+2026-04-13 16:02:37,517 - INFO - Using cached multi-source data for fed_funds
+2026-04-13 16:02:37,517 - INFO - Added 6 macroeconomic features: ['treasury_yield_10year', 'treasury_yield_2year', 'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp']
+2026-04-13 16:02:37,530 - INFO - Final data with features: 10009 rows, 68 columns
+2026-04-13 16:02:37,530 - INFO - Entraînement du modèle quantitatif...
+2026-04-13 16:02:37,530 - INFO - Core features available: 39/39
+2026-04-13 16:02:37,532 - INFO - All macroeconomic features available
+2026-04-13 16:02:37,538 - INFO - Selected 45 features for model training
+2026-04-13 16:02:37,538 - INFO - Initial data shape: X=(10009, 45), y=(10009,)
+2026-04-13 16:02:37,543 - INFO - After removing NaN targets: X=(10008, 45), y=(10008,)
+2026-04-13 16:02:37,544 - INFO - Filling NaN values in 6 features
+2026-04-13 16:02:37,544 - INFO - Final clean data: X=(10008, 45), y=(10008,)
+2026-04-13 16:02:37,544 - INFO - Target distribution: {0.0: 5209, 1.0: 4799}
+2026-04-13 16:02:37,544 - INFO - Features shape: (10008, 45)
+2026-04-13 16:02:37,544 - INFO - Target shape: (10008,)
+2026-04-13 16:02:37,544 - INFO - NaN in features: 0
+2026-04-13 16:02:37,544 - INFO - NaN in target: 0
+2026-04-13 16:02:37,544 - INFO - Unique target values: [0. 1.]
+2026-04-13 16:02:37,544 - INFO - Original data shape: (10008, 45)
+2026-04-13 16:02:37,544 - INFO - NaN values per column: 0 total
+2026-04-13 16:02:37,560 - INFO - After removing NaN targets: (10008, 45)
+2026-04-13 16:02:37,560 - INFO - Final clean data shape: (10008, 45)
+2026-04-13 16:02:45,992 - INFO - RandomForest - TimeSeries CV Score: 0.3182 (+/- 0.4091)
+2026-04-13 16:03:06,542 - INFO - GradientBoosting - TimeSeries CV Score: 0.4021 (+/- 0.3187)
+2026-04-13 16:03:06,683 - INFO - LogisticRegression - TimeSeries CV Score: 0.4319 (+/- 0.3330)
+2026-04-13 16:03:06,683 - INFO - Best model selected: LogisticRegression
+2026-04-13 16:03:06,709 - INFO - 
+=== LOGISTICREGRESSION MODEL RESULTS ===
+2026-04-13 16:03:06,709 - INFO - Accuracy: 0.5325
+2026-04-13 16:03:06,709 - INFO - Precision: 0.5275
+2026-04-13 16:03:06,709 - INFO - Recall: 0.3649
+2026-04-13 16:03:06,709 - INFO - F1: 0.4313
+2026-04-13 16:03:06,709 - INFO - Modèle classique entraîné avec succès
+2026-04-13 16:03:06,709 - INFO - Génération des prédictions des modèles...
+2026-04-13 16:03:06,709 - INFO - Features disponibles pour prédiction: 45
+2026-04-13 16:03:06,709 - INFO - NaN dans les features: 0
+2026-04-13 16:03:06,719 - INFO - Prédiction classique: 0.0, confiance: 0.834
+2026-04-13 16:03:06,720 - INFO - Generating chart image and saving to enhanced_trading_chart.png...
+2026-04-13 16:03:07,312 - INFO - Chart generated successfully.
+2026-04-13 16:03:07,313 - INFO - Fetching live news and sentiment...
+2026-04-13 16:03:07,902 - INFO - Successfully fetched 0 news headlines. Sentiment score: 0.00
+2026-04-13 16:03:07,902 - INFO - Querying textual LLM for a trading decision...
+2026-04-13 16:03:12,732 - INFO - LLM decision (gemma3:4b) received and validated.
+2026-04-13 16:03:12,732 - INFO - Querying visual LLM with image enhanced_trading_chart.png...
+2026-04-13 16:03:18,481 - INFO - LLM decision (gemma3:4b) received and validated.
+2026-04-13 16:03:18,481 - INFO - Génération de la prédiction TimesFM...
+2026-04-13 16:03:18,481 - INFO - Initialisation de TimesFM 2.5 (google/timesfm-2.5-200m-pytorch)...
+2026-04-13 16:03:19,555 - INFO - HTTP Request: HEAD https://huggingface.co/google/timesfm-2.5-200m-pytorch/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-04-13 16:03:19,578 - INFO - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/google/timesfm-2.5-200m-pytorch/1d952420fba87f3c6dee4f240de0f1a0fbc790e3/config.json "HTTP/1.1 200 OK"
+2026-04-13 16:03:19,578 - INFO - Downloading checkpoint from Hugging Face repo google/timesfm-2.5-200m-pytorch
+2026-04-13 16:03:19,701 - INFO - HTTP Request: HEAD https://huggingface.co/google/timesfm-2.5-200m-pytorch/resolve/main/model.safetensors "HTTP/1.1 302 Found"
+2026-04-13 16:03:20,432 - INFO - Loading checkpoint from: C:\Users\lvolff\.cache\huggingface\hub\models--google--timesfm-2.5-200m-pytorch\snapshots\1d952420fba87f3c6dee4f240de0f1a0fbc790e3\model.safetensors
+2026-04-13 16:03:21,198 - INFO - TimesFM 2.5 initialisé et compilé avec succès.
+2026-04-13 16:03:21,725 - INFO - TimesFM 2.5 prediction: HOLD (0.23)
+2026-04-13 16:03:21,725 - INFO - Analyse améliorée en cours...
+2026-04-13 16:03:22,081 - INFO - Niveau de risque détecté: VERY_HIGH
+2026-04-13 16:03:22,081 - INFO - Score de risque: 0.448
+2026-04-13 16:03:22,100 - INFO - Poids adaptatifs calculés:
+2026-04-13 16:03:22,101 - INFO -   classic: 0.150
+2026-04-13 16:03:22,101 - INFO -   llm_text: 0.250
+2026-04-13 16:03:22,101 - INFO -   llm_visual: 0.200
+2026-04-13 16:03:22,102 - INFO -   sentiment: 0.150
+2026-04-13 16:03:22,102 - INFO -   timesfm: 0.250
+2026-04-13 16:03:22,102 - INFO - Décision hybride: SELL
+2026-04-13 16:03:22,102 - INFO - Consensus: 0.75
+2026-04-13 16:03:22,102 - INFO - Confiance: 0.30
+2026-04-13 16:03:22,102 - INFO - Taille de position recommandée: $10.00 (ETF: 1232.60)
+2026-04-13 16:03:22,102 - INFO - Updated portfolio state for SXRV.DE on 2026-04-09 00:00:00
+2026-04-13 16:03:22,102 - INFO - Mise à jour du monitoring de performance...
+2026-04-13 16:03:22,102 - WARNING - ALERT [HIGH]: Win rate critically low: 0.00%
+2026-04-13 16:03:22,125 - INFO - Performance monitoring updated: Portfolio $1,000.00, Daily Return: 0.00%, Alerts: 1
+2026-04-13 16:03:23,211 - INFO - Performance dashboard saved to enhanced_performance_dashboard.png
+2026-04-13 16:03:23,227 - INFO - === ANALYSE TERMINÉE ===
+2026-04-13 16:04:35,682 - INFO - Performance database initialized successfully
+2026-04-13 16:04:35,682 - INFO - Performance monitoring database initialized
+2026-04-13 16:04:35,684 - INFO - Database initialized at trading_history.db
+2026-04-13 16:04:35,684 - INFO - Loading data from cache: data_cache\CRUDP_PA_max_with_vix.parquet
+2026-04-13 16:04:36,468 - INFO - Data loaded from cache: 4672 days.
+2026-04-13 16:04:36,468 - INFO - Final data period: 2008-01-02 00:00:00 to 2026-04-10 00:00:00
+2026-04-13 16:04:36,469 - INFO - Système de trading amélioré initialisé. Trading: CRUDP.PA | Analyse: CL=F
+2026-04-13 16:04:36,469 - INFO - === DÉMARRAGE DE L'ANALYSE SIMULÉE ===
+2026-04-13 16:04:36,469 - INFO - Récupération et préparation des données pour l'indice CL=F...
+2026-04-13 16:04:36,470 - INFO - Loading data from cache: data_cache\CL=F_max_with_vix.parquet
+2026-04-13 16:04:36,816 - INFO - Data loaded from cache: 6435 days.
+2026-04-13 16:04:36,817 - INFO - Final data period: 2000-08-23 00:00:00 to 2026-04-10 00:00:00
+2026-04-13 16:04:36,818 - INFO - Loading data from cache: data_cache\CRUDP_PA_max_with_vix.parquet
+2026-04-13 16:04:36,864 - INFO - Data loaded from cache: 4672 days.
+2026-04-13 16:04:36,865 - INFO - Final data period: 2008-01-02 00:00:00 to 2026-04-10 00:00:00
+2026-04-13 16:04:36,865 - INFO - Prix actuel de l'ETF (CRUDP.PA): 12.03
+2026-04-13 16:04:36,867 - INFO - Analysis Data retrieved: 6435 rows from 2000-08-23 00:00:00 to 2026-04-10 00:00:00
+2026-04-13 16:04:36,884 - INFO - Fetching macroeconomic data for context around 2026-04-10...
+2026-04-13 16:04:36,885 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_10y_monthly.parquet
+2026-04-13 16:04:36,887 - INFO - Using cached multi-source data for treasury_10y
+2026-04-13 16:04:36,890 - INFO - [SUCCESS] treasury_yield_10year: 4.33
+2026-04-13 16:04:36,890 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
+2026-04-13 16:04:36,892 - INFO - Using cached multi-source data for treasury_2y
+2026-04-13 16:04:36,894 - INFO - [SUCCESS] treasury_yield_2year: 3.79
+2026-04-13 16:04:36,894 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
+2026-04-13 16:04:36,896 - INFO - Using cached multi-source data for fed_funds
+2026-04-13 16:04:36,897 - INFO - [SUCCESS] federal_funds_rate: 4.33
+2026-04-13 16:04:36,898 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_cpi_monthly.parquet
+2026-04-13 16:04:36,899 - INFO - Using cached multi-source data for cpi
+2026-04-13 16:04:36,899 - INFO - [SUCCESS] cpi: 322.13
+2026-04-13 16:04:36,900 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_unemployment_monthly.parquet
+2026-04-13 16:04:36,902 - INFO - Using cached multi-source data for unemployment
+2026-04-13 16:04:36,902 - INFO - [SUCCESS] unemployment: 4.20
+2026-04-13 16:04:36,902 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_gdp_monthly.parquet
+2026-04-13 16:04:36,902 - INFO - Using cached multi-source data for gdp
+2026-04-13 16:04:36,905 - INFO - [SUCCESS] real_gdp: 23685.29
+2026-04-13 16:04:36,905 - INFO - Macro data fetch complete. Retrieved 6 indicators.
+2026-04-13 16:04:36,905 - INFO - Fetching Vincent Ganne model indicators...
+2026-04-13 16:04:37,165 - INFO - Checking WTI: Price 101.75 (MA200: 67.00)
+2026-04-13 16:04:37,326 - INFO - Checking Brent: Price 100.32 (MA200: 71.12)
+2026-04-13 16:04:37,435 - INFO - Checking NaturalGas: Price 46.15 (MA200: 34.93)
+2026-04-13 16:04:37,545 - INFO - Checking DXY: Price 98.81 (MA200: 98.48)
+2026-04-13 16:04:37,677 - INFO - Checking SP500: Price 6817.88 (MA200: 6666.25)
+2026-04-13 16:04:37,836 - INFO - Checking Nasdaq: Price 22956.55 (MA200: 22426.04)
+2026-04-13 16:04:37,968 - INFO - Checking DowJones: Price 47670.22 (MA200: 46865.44)
+2026-04-13 16:04:38,122 - INFO - Checking TechSector: Price 143.23 (MA200: 138.69)
+2026-04-13 16:04:38,122 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_treasury_2y_monthly.parquet
+2026-04-13 16:04:38,124 - INFO - Using cached multi-source data for treasury_2y
+2026-04-13 16:04:38,125 - INFO - Loading macro data from cache: data_cache\macro\MULTI_MULTI_fed_funds_monthly.parquet
+2026-04-13 16:04:38,127 - INFO - Using cached multi-source data for fed_funds
+2026-04-13 16:04:38,132 - INFO - Added 6 macroeconomic features: ['treasury_yield_10year', 'treasury_yield_2year', 'federal_funds_rate', 'cpi', 'unemployment', 'real_gdp']
+2026-04-13 16:04:38,139 - INFO - Final data with features: 6233 rows, 68 columns
+2026-04-13 16:04:38,140 - INFO - Entraînement du modèle quantitatif...
+2026-04-13 16:04:38,140 - INFO - Core features available: 39/39
+2026-04-13 16:04:38,140 - INFO - All macroeconomic features available
+2026-04-13 16:04:38,143 - INFO - Selected 45 features for model training
+2026-04-13 16:04:38,143 - INFO - Initial data shape: X=(6233, 45), y=(6233,)
+2026-04-13 16:04:38,143 - INFO - After removing NaN targets: X=(6232, 45), y=(6232,)
+2026-04-13 16:04:38,146 - INFO - Filling NaN values in 6 features
+2026-04-13 16:04:38,146 - INFO - Final clean data: X=(6232, 45), y=(6232,)
+2026-04-13 16:04:38,146 - INFO - Target distribution: {0.0: 3315, 1.0: 2917}
+2026-04-13 16:04:38,146 - INFO - Features shape: (6232, 45)
+2026-04-13 16:04:38,146 - INFO - Target shape: (6232,)
+2026-04-13 16:04:38,146 - INFO - NaN in features: 0
+2026-04-13 16:04:38,146 - INFO - NaN in target: 0
+2026-04-13 16:04:38,146 - INFO - Unique target values: [0. 1.]
+2026-04-13 16:04:38,152 - INFO - Original data shape: (6232, 45)
+2026-04-13 16:04:38,152 - INFO - NaN values per column: 0 total
+2026-04-13 16:04:38,152 - INFO - After removing NaN targets: (6232, 45)
+2026-04-13 16:04:38,156 - INFO - Final clean data shape: (6232, 45)
+2026-04-13 16:04:43,509 - INFO - RandomForest - TimeSeries CV Score: 0.4389 (+/- 0.1536)
+2026-04-13 16:04:56,433 - INFO - GradientBoosting - TimeSeries CV Score: 0.4035 (+/- 0.1100)
+2026-04-13 16:04:56,610 - INFO - LogisticRegression - TimeSeries CV Score: 0.5071 (+/- 0.1562)
+2026-04-13 16:04:56,610 - INFO - Best model selected: LogisticRegression
+2026-04-13 16:04:56,648 - INFO - 
+=== LOGISTICREGRESSION MODEL RESULTS ===
+2026-04-13 16:04:56,648 - INFO - Accuracy: 0.5028
+2026-04-13 16:04:56,648 - INFO - Precision: 0.4904
+2026-04-13 16:04:56,648 - INFO - Recall: 0.4598
+2026-04-13 16:04:56,648 - INFO - F1: 0.4746
+2026-04-13 16:04:56,648 - INFO - Modèle classique entraîné avec succès
+2026-04-13 16:04:56,653 - INFO - Génération des prédictions des modèles...
+2026-04-13 16:04:56,653 - INFO - Features disponibles pour prédiction: 45
+2026-04-13 16:04:56,655 - INFO - NaN dans les features: 0
+2026-04-13 16:04:56,655 - INFO - Prédiction classique: 1.0, confiance: 0.681
+2026-04-13 16:04:56,655 - INFO - Generating chart image and saving to enhanced_trading_chart.png...
+2026-04-13 16:04:57,299 - INFO - Chart generated successfully.
+2026-04-13 16:04:57,300 - INFO - Fetching live news and sentiment...
+2026-04-13 16:04:57,845 - INFO - Successfully fetched 0 news headlines. Sentiment score: 0.00
+2026-04-13 16:04:57,846 - INFO - Querying textual LLM for a trading decision...
+2026-04-13 16:05:02,658 - INFO - LLM decision (gemma3:4b) received and validated.
+2026-04-13 16:05:02,658 - INFO - Querying visual LLM with image enhanced_trading_chart.png...
+2026-04-13 16:05:08,219 - INFO - LLM decision (gemma3:4b) received and validated.
+2026-04-13 16:05:08,220 - INFO - Génération de la prédiction TimesFM...
+2026-04-13 16:05:08,220 - INFO - Initialisation de TimesFM 2.5 (google/timesfm-2.5-200m-pytorch)...
+2026-04-13 16:05:09,302 - INFO - HTTP Request: HEAD https://huggingface.co/google/timesfm-2.5-200m-pytorch/resolve/main/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-04-13 16:05:09,325 - INFO - HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/google/timesfm-2.5-200m-pytorch/1d952420fba87f3c6dee4f240de0f1a0fbc790e3/config.json "HTTP/1.1 200 OK"
+2026-04-13 16:05:09,325 - INFO - Downloading checkpoint from Hugging Face repo google/timesfm-2.5-200m-pytorch
+2026-04-13 16:05:09,454 - INFO - HTTP Request: HEAD https://huggingface.co/google/timesfm-2.5-200m-pytorch/resolve/main/model.safetensors "HTTP/1.1 302 Found"
+2026-04-13 16:05:10,247 - INFO - Loading checkpoint from: C:\Users\lvolff\.cache\huggingface\hub\models--google--timesfm-2.5-200m-pytorch\snapshots\1d952420fba87f3c6dee4f240de0f1a0fbc790e3\model.safetensors
+2026-04-13 16:05:10,597 - INFO - TimesFM 2.5 initialisé et compilé avec succès.
+2026-04-13 16:05:11,020 - INFO - TimesFM 2.5 prediction: SELL (0.58)
+2026-04-13 16:05:11,020 - INFO - Analyse améliorée en cours...
+2026-04-13 16:05:11,270 - INFO - Niveau de risque détecté: VERY_HIGH
+2026-04-13 16:05:11,270 - INFO - Score de risque: 0.638
+2026-04-13 16:05:11,273 - INFO - Poids adaptatifs calculés:
+2026-04-13 16:05:11,273 - INFO -   classic: 0.150
+2026-04-13 16:05:11,273 - INFO -   llm_text: 0.250
+2026-04-13 16:05:11,273 - INFO -   llm_visual: 0.200
+2026-04-13 16:05:11,274 - INFO -   sentiment: 0.150
+2026-04-13 16:05:11,274 - INFO -   timesfm: 0.250
+2026-04-13 16:05:11,275 - INFO - Décision hybride: HOLD
+2026-04-13 16:05:11,275 - INFO - Consensus: 0.74
+2026-04-13 16:05:11,275 - INFO - Confiance: 0.16
+2026-04-13 16:05:11,275 - INFO - Taille de position recommandée: $8.13 (ETF: 12.03)
+2026-04-13 16:05:11,281 - INFO - Updated portfolio state for CRUDP.PA on 2026-04-10 00:00:00
+2026-04-13 16:05:11,281 - INFO - Mise à jour du monitoring de performance...
+2026-04-13 16:05:11,287 - WARNING - ALERT [HIGH]: Win rate critically low: 0.00%
+2026-04-13 16:05:11,287 - INFO - Performance monitoring updated: Portfolio $1,000.00, Daily Return: 0.00%, Alerts: 1
+2026-04-13 16:05:12,197 - INFO - Performance dashboard saved to enhanced_performance_dashboard.png
+2026-04-13 16:05:12,207 - INFO - === ANALYSE TERMINÉE ===

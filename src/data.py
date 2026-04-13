@@ -600,6 +600,7 @@ def get_vincent_ganne_indicators() -> dict:
         'WTI': 'CL=F',
         'Brent': 'BZ=F',
         'NaturalGas': 'TTF=F', # European TTF
+        'Urea': 'UME=F',       # Urea Granular Middle East
         'DXY': 'DX-Y.NYB',
         'SP500': '^GSPC',
         'Nasdaq': '^IXIC',
@@ -611,14 +612,15 @@ def get_vincent_ganne_indicators() -> dict:
         try:
             data = yf.download(ticker, period="250d", progress=False) # 250d to calculate MA200
             if not data.empty:
-                current_price = data['Close'].iloc[-1]
-                indicators[f'{name}_price'] = float(current_price)
+                current_price = float(data['Close'].iloc[-1])
+                indicators[f'{name}_price'] = current_price
                 
                 # Calculate MA200
-                ma200 = data['Close'].rolling(window=200).mean().iloc[-1]
-                indicators[f'{name}_ma200'] = float(ma200)
-                indicators[f'{name}_above_ma200'] = current_price > ma200
-                logger.info(f"✅ {name}: {current_price:.2f} (MA200: {ma200:.2f})")
+                ma200_series = data['Close'].rolling(window=200).mean()
+                ma200 = float(ma200_series.iloc[-1])
+                indicators[f'{name}_ma200'] = ma200
+                indicators[f'{name}_above_ma200'] = bool(current_price > ma200)
+                logger.info(f"Checking {name}: Price {current_price:.2f} (MA200: {ma200:.2f})")
             else:
                 indicators[f'{name}_price'] = None
                 logger.warning(f"⚠️ No data found for {name} ({ticker})")
