@@ -210,11 +210,11 @@ class EnhancedDecisionEngine:
             base_weights: Base weights for each model type
         """
         self.base_weights = base_weights or {
-            'classic': 0.15,
+            'classic': 0.10,
             'llm_text': 0.25,
             'llm_visual': 0.10,
             'sentiment': 0.10,
-            'timesfm': 0.20,
+            'timesfm': 0.25,
             'vincent_ganne': 0.20  # Significant weight for geopolitical/cross-asset model
         }
         self.vincent_ganne_model = VincentGanneModel()
