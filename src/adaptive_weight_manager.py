@@ -83,11 +83,11 @@ class AdaptiveWeightManager:
         """
         self.db_path = db_path
         self.base_weights = base_weights or {
-            'classic': 0.25,
+            'classic': 0.15,
             'llm_text': 0.25,
             'llm_visual': 0.20,
             'sentiment': 0.15,
-            'timesfm': 0.15
+            'timesfm': 0.25
         }
         self.lookback_days = lookback_days
         self.min_observations = min_observations
