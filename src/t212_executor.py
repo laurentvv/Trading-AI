@@ -107,25 +107,35 @@ def save_portfolio_state(ticker_state, ticker):
         json.dump(full_state, f, indent=4)
 
 def get_real_price_eur(ticker_yahoo=None):
-    """Récupère le prix le plus frais possible via Alpha Vantage."""
+    """Récupère le prix le plus frais possible via Alpha Vantage, avec fallback yfinance."""
     target = ticker_yahoo if ticker_yahoo else "SXRV.DE"
     if MarketDataManager:
         try:
             # S'assurer que target est une chaîne de caractères
             if isinstance(target, list) or isinstance(target, tuple):
                 target = target[0]
-            
+
             dm = MarketDataManager(target)
             df = dm.get_price_data(force_refresh=True)
             if not df.empty:
                 return float(df['close'].iloc[-1])
         except Exception as e:
-            print(f"⚠️ Erreur récupération prix Alpha Vantage ({target}) : {e}")
-    
-    # Fallback estimations
-    if "SXRV" in target: return 1240.0
-    if "CRUD" in target: return 12.50
-    return 100.0 
+            logger.warning(f"Erreur récupération prix Alpha Vantage ({target}) : {e}")
+
+    # Fallback: use yfinance directly
+    try:
+        import yfinance as yf
+        ticker = yf.Ticker(target)
+        hist = ticker.history(period="5d")
+        if not hist.empty:
+            price = float(hist['Close'].iloc[-1])
+            logger.info(f"Using yfinance fallback price for {target}: {price:.2f}€")
+            return price
+    except Exception as e:
+        logger.error(f"yfinance fallback also failed for {target}: {e}")
+
+    # No hardcoded prices — raise error so caller knows price is unavailable
+    raise ValueError(f"Could not retrieve price for {target} from any source")
 
 def execute_t212_trade(signal, confidence, ticker=DEFAULT_TICKER):
     # Mapping du ticker Yahoo vers le ticker T212
@@ -185,7 +195,11 @@ def execute_t212_trade(signal, confidence, ticker=DEFAULT_TICKER):
             return
 
         # 1. Obtenir le prix le plus précis possible
-        current_price = get_real_price_eur(ticker)
+        try:
+            current_price = get_real_price_eur(ticker)
+        except ValueError as e:
+            print(f"❌ Impossible d'obtenir le prix : {e}")
+            return
         print(f"🔍 CALCUL DU PRIX DU MARCHÉ : {current_price} € / action")
 
         # 2. Calculer la quantité
