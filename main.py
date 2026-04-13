@@ -112,7 +112,7 @@ def run_trading_analysis(ticker: str, is_simulation: bool = False, is_t212: bool
                 signal,
                 f"{confidence:.2%}",
                 risk_level,
-                decision.individual_decisions[1].analysis if len(decision.individual_decisions) > 1 else "N/A",
+                decision.individual_decisions[1].reasoning if len(decision.individual_decisions) > 1 else "N/A",
                 f"{t212_state['current_capital']:.2f} €"
             ])
         # ------------------------------------------------
