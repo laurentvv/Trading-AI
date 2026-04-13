@@ -35,12 +35,13 @@ def init_db():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS portfolio_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT NOT NULL UNIQUE,
+            date TEXT NOT NULL,
             ticker TEXT NOT NULL,
             position REAL NOT NULL,
             cash REAL NOT NULL,
             total_value REAL NOT NULL,
-            benchmark_value REAL NOT NULL
+            benchmark_value REAL NOT NULL,
+            UNIQUE(date, ticker)
         )
     ''')
     
