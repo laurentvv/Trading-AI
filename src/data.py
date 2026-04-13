@@ -442,9 +442,7 @@ def get_macro_data_multi_source(indicator: str, force_refresh: bool = False) -> 
     # Method 1: Try pandas-datareader with FRED (current working method)
     try:
         logger.info(f"Trying FRED via pandas-datareader for {config['fred_symbol']}...")
-        import pandas_datareader.data as web
-        from datetime import datetime, timedelta
-        
+
         end_date = datetime.now()
         start_date = end_date - timedelta(days=3650)  # ~10 years
         
