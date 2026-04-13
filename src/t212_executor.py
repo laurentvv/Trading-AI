@@ -1,12 +1,15 @@
 import os
 import json
 import base64
+import logging
 import requests
 import datetime
 import time
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 # Ajouter le chemin pour importer les modules du projet
 sys.path.append(str(Path(__file__).parent.parent))
@@ -47,7 +50,8 @@ def load_portfolio_state(ticker=None):
     with open(STATE_FILE, 'r') as f:
         try:
             state = json.load(f)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            logger.warning(f"Corrupted state file {STATE_FILE}: {e}")
             state = {"tickers": {}}
             
     # Migration si c'est l'ancien format (format plat)
@@ -85,7 +89,8 @@ def save_portfolio_state(ticker_state, ticker):
         with open(STATE_FILE, 'r') as f:
             try:
                 full_state = json.load(f)
-            except:
+            except (json.JSONDecodeError, OSError) as e:
+                logger.warning(f"Failed to read state file: {e}")
                 full_state = {"tickers": {}}
     else:
         full_state = {"tickers": {}}
