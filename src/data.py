@@ -587,6 +587,58 @@ def get_fred_data_via_pdr(series_id: str, force_refresh: bool = False) -> pd.Dat
 
     return pd.DataFrame()
 
+def get_vincent_ganne_indicators() -> dict:
+    """
+    Retrieves the specific indicators required for the Vincent Ganne decision model.
+    Returns a dictionary with current prices/values for:
+    WTI, Brent, Natural Gas, DXY, and MA200 status for indices.
+    """
+    logger.info("Fetching Vincent Ganne model indicators...")
+    indicators = {}
+    
+    tickers = {
+        'WTI': 'CL=F',
+        'Brent': 'BZ=F',
+        'NaturalGas': 'TTF=F', # European TTF
+        'DXY': 'DX-Y.NYB',
+        'SP500': '^GSPC',
+        'Nasdaq': '^IXIC',
+        'DowJones': '^DJI',
+        'TechSector': 'XLK'
+    }
+    
+    for name, ticker in tickers.items():
+        try:
+            data = yf.download(ticker, period="250d", progress=False) # 250d to calculate MA200
+            if not data.empty:
+                current_price = data['Close'].iloc[-1]
+                indicators[f'{name}_price'] = float(current_price)
+                
+                # Calculate MA200
+                ma200 = data['Close'].rolling(window=200).mean().iloc[-1]
+                indicators[f'{name}_ma200'] = float(ma200)
+                indicators[f'{name}_above_ma200'] = current_price > ma200
+                logger.info(f"✅ {name}: {current_price:.2f} (MA200: {ma200:.2f})")
+            else:
+                indicators[f'{name}_price'] = None
+                logger.warning(f"⚠️ No data found for {name} ({ticker})")
+        except Exception as e:
+            logger.error(f"❌ Error fetching {name}: {e}")
+            indicators[f'{name}_price'] = None
+
+    # Add Yields
+    try:
+        yield_2y = get_macro_data_multi_source('treasury_2y')
+        fed_rate = get_macro_data_multi_source('fed_funds')
+        if not yield_2y.empty:
+            indicators['US2Y_yield'] = float(yield_2y.iloc[-1]['value'])
+        if not fed_rate.empty:
+            indicators['Fed_rate'] = float(fed_rate.iloc[-1]['value'])
+    except Exception as e:
+        logger.error(f"❌ Error fetching yields: {e}")
+
+    return indicators
+
 def fetch_macro_data_for_date(date: pd.Timestamp, force_refresh: bool = False) -> dict:
     """
     Enhanced macro data fetching with multiple sources and better error handling.

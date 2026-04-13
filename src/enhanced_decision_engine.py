@@ -64,6 +64,108 @@ class HybridDecision:
             'timestamp': self.timestamp.isoformat()
         }
 
+class VincentGanneModel:
+    """
+    Decision model based on Vincent Ganne's criteria for market bottoms.
+    Analyzes cross-asset indicators (Oil, Gas, Yields, DXY) and technicals (MA200).
+    """
+    def __init__(self):
+        self.thresholds = {
+            'WTI': {'max': 94, 'ideal': 80},
+            'Brent': {'max': 95, 'ideal': 83},
+            'Gas': {'max': 55, 'ideal': 38},
+            'Urea': {'max': 506},
+            'DXY': {'max': 101, 'ideal': 100}
+        }
+
+    def evaluate(self, indicators: dict) -> dict:
+        """
+        Evaluates the current indicators against Vincent Ganne's rules.
+        Returns a decision dict with signal and confidence.
+        """
+        score = 0
+        max_score = 0
+        reasons = []
+
+        # 1 & 2. Oil Prices (Weight 3 each)
+        for oil in ['WTI', 'Brent']:
+            price = indicators.get(f'{oil}_price')
+            if price:
+                max_score += 3
+                if price < self.thresholds[oil]['ideal']:
+                    score += 3
+                    reasons.append(f"{oil} at ideal level ({price:.2f})")
+                elif price < self.thresholds[oil]['max']:
+                    score += 1.5
+                    reasons.append(f"{oil} below threshold ({price:.2f})")
+
+        # 3. Natural Gas (Weight 2)
+        gas = indicators.get('NaturalGas_price')
+        if gas:
+            max_score += 2
+            if gas < self.thresholds['Gas']['ideal']:
+                score += 2
+                reasons.append(f"Natural Gas at ideal level ({gas:.2f})")
+            elif gas < self.thresholds['Gas']['max']:
+                score += 1
+                reasons.append(f"Natural Gas below threshold ({gas:.2f})")
+
+        # 4. Urea Fertilizer (Weight 1) - If available
+        urea = indicators.get('Urea_price')
+        if urea:
+            max_score += 1
+            if urea < self.thresholds['Urea']['max']:
+                score += 1
+                reasons.append(f"Urea Fertilizer below threshold ({urea:.2f})")
+
+        # US 2Y vs Fed Rate (Weight 2)
+        yield_2y = indicators.get('US2Y_yield')
+        fed_rate = indicators.get('Fed_rate')
+        if yield_2y and fed_rate:
+            max_score += 2
+            # Around Fed rate means difference < 0.25%
+            if abs(yield_2y - fed_rate) < 0.25:
+                score += 2
+                reasons.append(f"US2Y yield ({yield_2y:.2f}) around Fed rate ({fed_rate:.2f})")
+            elif yield_2y < fed_rate: # Lower is also positive for market bottom
+                score += 1
+                reasons.append(f"US2Y yield ({yield_2y:.2f}) below Fed rate ({fed_rate:.2f})")
+
+        # Indices Above MA200 (Weight 1 each)
+        indices = ['SP500', 'Nasdaq', 'DowJones', 'TechSector']
+        for idx in indices:
+            if indicators.get(f'{idx}_above_ma200'):
+                max_score += 1
+                score += 1
+                reasons.append(f"{idx} above MA200")
+
+        # US Dollar DXY (Weight 2)
+        dxy = indicators.get('DXY_price')
+        if dxy:
+            max_score += 2
+            if dxy < self.thresholds['DXY']['ideal']:
+                score += 2
+                reasons.append(f"DXY at ideal level ({dxy:.2f})")
+            elif dxy < self.thresholds['DXY']['max']:
+                score += 1
+                reasons.append(f"DXY below resistance ({dxy:.2f})")
+
+        # Final Decision
+        confidence = score / max_score if max_score > 0 else 0
+        signal = "HOLD"
+        if confidence > 0.7:
+            signal = "STRONG_BUY"
+        elif confidence > 0.4:
+            signal = "BUY"
+        elif confidence < 0.2:
+            signal = "SELL" # Too much geopolitical pressure
+
+        return {
+            'signal': signal,
+            'confidence': confidence,
+            'analysis': " | ".join(reasons) if reasons else "No specific signals"
+        }
+
 class EnhancedDecisionEngine:
     """
     Enhanced decision engine with consensus validation, adaptive thresholds,

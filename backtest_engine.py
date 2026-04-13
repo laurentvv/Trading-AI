@@ -191,7 +191,8 @@ class Backtester:
             final_signal, adjustment_reason = self.risk_manager.get_risk_adjusted_signal(
                 hybrid_decision.final_signal,
                 hybrid_decision.final_confidence,
-                risk_metrics
+                risk_metrics,
+                price_data=hist_index['Close']
             )
             
             # Logging des décisions (demandé par l'utilisateur)
@@ -212,31 +213,47 @@ class Backtester:
             self.temp_chart_path.unlink()
 
     def execute_trade(self, date, signal, price, hybrid_decision):
-        old_cash = self.cash
-        old_pos = self.position
-        
-        # Stratégie simple : Tout ou rien pour le backtest (ou sizing basé sur confidence)
-        if "BUY" in signal and self.cash > 1:
-            qty = self.cash / price
-            self.position += qty
-            self.cash = 0
-            trade_type = "BUY"
-        elif "SELL" in signal and self.position > 0:
-            self.cash = self.position * price
-            self.position = 0
-            trade_type = "SELL"
-        else:
-            trade_type = "HOLD"
-
         portfolio_value = self.cash + (self.position * price)
+        
+        # AGGRESSIVE Target exposure logic (0.0 to 1.0)
+        if "BUY" in signal:
+            # Plancher agressif à 75%, saturation rapide à 100%
+            target_exposure = min(1.0, 0.75 + (hybrid_decision.consensus_score * 0.5))
+        elif "SELL" in signal:
+            target_exposure = 0.0
+        else: # HOLD
+            # Stratégie "Trend following" plus collante
+            # On ne sort que si le consensus devient vraiment faible (< 0.15)
+            if self.position > 0 and hybrid_decision.consensus_score > 0.15:
+                target_exposure = (self.position * price) / portfolio_value
+            else:
+                target_exposure = 0.0
+
+        target_qty = (portfolio_value * target_exposure) / price
+        diff_qty = target_qty - self.position
+        
+        trade_type = "HOLD"
+        if diff_qty > 0.0001: # BUY adjustment
+            cost = diff_qty * price
+            if cost <= self.cash:
+                self.position += diff_qty
+                self.cash -= cost
+                trade_type = "BUY_ADJ"
+        elif diff_qty < -0.0001: # SELL adjustment
+            sell_qty = abs(diff_qty)
+            self.cash += sell_qty * price
+            self.position -= sell_qty
+            trade_type = "SELL_ADJ"
+
+        new_portfolio_value = self.cash + (self.position * price)
         
         self.history.append({
             "Date": date,
             "Type": trade_type,
             "Price": price,
-            "Qty": self.position if trade_type == "BUY" else (old_pos if trade_type == "SELL" else 0),
+            "Qty": self.position,
             "Cash": self.cash,
-            "Portfolio_Value": portfolio_value,
+            "Portfolio_Value": new_portfolio_value,
             "Decision": signal,
             "Conf": hybrid_decision.final_confidence,
             "Consensus": hybrid_decision.consensus_score
