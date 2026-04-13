@@ -6,10 +6,59 @@ import requests
 import datetime
 import time
 import sys
+import tempfile
 from pathlib import Path
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
+
+# File locking constants
+STATE_LOCK_TIMEOUT = 5  # seconds to wait for lock
+STATE_LOCK_RETRIES = 3
+STATE_LOCK_RETRY_DELAY = 0.5  # seconds between retries
+
+
+def _atomic_json_write(filepath: Path, data: dict):
+    """
+    Atomically write JSON data using temp file + rename pattern.
+    This prevents corruption if two processes write simultaneously.
+    On both Windows and POSIX, os.replace() is atomic.
+    """
+    dir_path = filepath.parent
+    fd, tmp_path = tempfile.mkstemp(suffix='.tmp', dir=str(dir_path))
+    try:
+        with os.fdopen(fd, 'w') as tmp_file:
+            json.dump(data, tmp_file, indent=4)
+            tmp_file.flush()
+            os.fsync(tmp_file.fileno())
+        # Atomic rename (os.replace is atomic on both Windows and POSIX)
+        os.replace(tmp_path, str(filepath))
+    except Exception:
+        # Clean up temp file on error
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+def _read_with_retry(filepath: Path, max_retries: int = STATE_LOCK_RETRIES):
+    """
+    Read JSON file with retry for robustness against concurrent writes.
+    """
+    for attempt in range(max_retries):
+        try:
+            with open(filepath, 'r') as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            # File might be in the middle of being written, retry
+            if attempt < max_retries - 1:
+                time.sleep(STATE_LOCK_RETRY_DELAY)
+                continue
+            raise
+        except FileNotFoundError:
+            return None
+    return None
 
 # Ajouter le chemin pour importer les modules du projet
 sys.path.append(str(Path(__file__).parent.parent))
@@ -46,14 +95,11 @@ def load_portfolio_state(ticker=None):
             "tickers": {}
         }
         return initial
-    
-    with open(STATE_FILE, 'r') as f:
-        try:
-            state = json.load(f)
-        except json.JSONDecodeError as e:
-            logger.warning(f"Corrupted state file {STATE_FILE}: {e}")
-            state = {"tickers": {}}
-            
+
+    state = _read_with_retry(Path(STATE_FILE))
+    if state is None:
+        state = {"tickers": {}}
+
     # Migration si c'est l'ancien format (format plat)
     if "current_capital" in state and "tickers" not in state:
         old_ticker = state.get("active_position", {}).get("ticker", DEFAULT_TICKER) if state.get("active_position") else DEFAULT_TICKER
@@ -63,38 +109,31 @@ def load_portfolio_state(ticker=None):
             }
         }
         # On sauvegarde immédiatement le nouveau format
-        with open(STATE_FILE, 'w') as f:
-            json.dump(state, f, indent=4)
+        _atomic_json_write(Path(STATE_FILE), state)
 
     if ticker:
         # Nettoyage du ticker pour la clé
         clean_ticker = ticker.split('.')[0]
         if clean_ticker not in state["tickers"]:
             state["tickers"][clean_ticker] = {
-                "initial_budget": 1000.0, 
-                "current_capital": 1000.0, 
-                "total_realized_pl": 0.0, 
+                "initial_budget": 1000.0,
+                "current_capital": 1000.0,
+                "total_realized_pl": 0.0,
                 "active_position": None
             }
         return state["tickers"][clean_ticker]
-    
+
     return state
 
 def save_portfolio_state(ticker_state, ticker):
     # Nettoyage du ticker pour la clé
     clean_ticker = ticker.split('.')[0]
-    
-    # Charger l'état complet
-    if os.path.exists(STATE_FILE):
-        with open(STATE_FILE, 'r') as f:
-            try:
-                full_state = json.load(f)
-            except (json.JSONDecodeError, OSError) as e:
-                logger.warning(f"Failed to read state file: {e}")
-                full_state = {"tickers": {}}
-    else:
+
+    # Charger l'état complet avec retry
+    full_state = _read_with_retry(Path(STATE_FILE))
+    if full_state is None:
         full_state = {"tickers": {}}
-    
+
     # S'assurer que la structure est correcte
     if "tickers" not in full_state:
         full_state = {"tickers": {}}
@@ -102,9 +141,9 @@ def save_portfolio_state(ticker_state, ticker):
     # Mettre à jour le ticker spécifique
     ticker_state["last_update"] = datetime.datetime.now().isoformat()
     full_state["tickers"][clean_ticker] = ticker_state
-    
-    with open(STATE_FILE, 'w') as f:
-        json.dump(full_state, f, indent=4)
+
+    # Atomic write to prevent corruption
+    _atomic_json_write(Path(STATE_FILE), full_state)
 
 def get_real_price_eur(ticker_yahoo=None):
     """Récupère le prix le plus frais possible via Alpha Vantage, avec fallback yfinance."""
