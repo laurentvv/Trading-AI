@@ -7,6 +7,8 @@ Usage: python main.py --ticker QQQ
 import logging
 import sys
 import argparse
+import csv
+from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
 from rich.console import Console
@@ -18,7 +20,7 @@ sys.path.append(str(Path(__file__).parent / 'src'))
 
 # Import system modules
 from enhanced_trading_example import EnhancedTradingSystem
-from t212_executor import execute_t212_trade
+from t212_executor import execute_t212_trade, load_portfolio_state as load_t212_state
 from database import get_latest_portfolio_state, get_latest_transaction
 
 # Load environment
@@ -93,18 +95,15 @@ def run_trading_analysis(ticker: str, is_simulation: bool = False, is_t212: bool
                 console.print(f"[bold blue]ℹ️ No trade executed (Signal is {signal})[/bold blue]")
 
         # --- AJOUT : Journalisation CSV pour débriefing ---
-        import csv
-        from datetime import datetime
         journal_file = "trading_journal.csv"
         file_exists = Path(journal_file).exists()
-        
+
         with open(journal_file, mode='a', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             if not file_exists:
                 writer.writerow(["Timestamp", "Ticker", "Signal", "Confidence", "Risk", "LLM_Analysis", "Capital_T212"])
-            
+
             t212_ticker = ticker.split('.')[0]
-            from t212_executor import load_portfolio_state as load_t212_state
             t212_state = load_t212_state(t212_ticker)
             
             writer.writerow([
@@ -144,7 +143,6 @@ def run_trading_analysis(ticker: str, is_simulation: bool = False, is_t212: bool
                 if last_tx:
                     summary_table.add_row("LAST TRADE", f"{last_tx[1]} on {last_tx[0]}")
         elif is_t212:
-            from t212_executor import load_portfolio_state as load_t212_state
             t212_ticker = ticker.split('.')[0]
             t212_state = load_t212_state(t212_ticker)
             summary_table.add_row("---", "---")
