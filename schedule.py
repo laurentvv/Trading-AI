@@ -1,7 +1,7 @@
 import time
 import subprocess
 import logging
-from datetime import datetime, datetime as dt
+from datetime import datetime, timedelta
 import sys
 from rich.console import Console
 from rich.panel import Panel
@@ -88,43 +88,34 @@ def get_dashboard(status_msg, last_run, next_run):
 
 def main():
     last_run_time = "Aucun"
-    next_run_dt = dt.now()
-    
+    next_run = datetime.now()
+
     console.clear()
     console.print(Panel("[bold green]Démarrage du Scheduler Trading AI[/bold green]\nMode: Trading 212 DEMO", border_style="green"))
 
     try:
         while True:
             open_status, msg = is_market_open()
-            now = dt.now()
+            now = datetime.now()
 
             if open_status:
-                if now >= next_run_dt:
+                if now >= next_run:
                     # C'est l'heure de bosser
                     run_trading_cycle()
                     last_run_time = now.strftime("%H:%M:%S")
-                    next_run_dt = now.replace(second=0, microsecond=0) + \
-                                  (dt.now() - now) + \
-                                  (dt.now() - dt.now()) # Reset
                     # On calcule le prochain créneau
-                    import datetime as dtime
-                    next_run_dt = now + dtime.timedelta(minutes=INTERVAL_MINUTES)
-                
+                    next_run = now + timedelta(minutes=INTERVAL_MINUTES)
+
                 status_display = f"[bold green]ACTIF[/bold green] - {msg}"
             else:
                 status_display = f"[bold yellow]VEILLE[/bold yellow] - {msg}"
-                # Si le marché est fermé, on checke toutes les minutes
-                # et on prévoit le prochain run à l'ouverture demain ou lundi
-                if now.hour >= END_HOUR:
-                    # On attend demain matin 8h30
-                    pass 
 
             # Affichage Dashboard
             console.clear()
             console.print(get_dashboard(
-                status_display, 
-                last_run_time, 
-                next_run_dt.strftime("%H:%M:%S") if open_status else "À l'ouverture"
+                status_display,
+                last_run_time,
+                next_run.strftime("%H:%M:%S") if open_status else "À l'ouverture"
             ))
             
             # Attendre 30 secondes avant de re-checker le scheduler
