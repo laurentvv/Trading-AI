@@ -6,7 +6,13 @@ Ce projet est un système expert d'aide à la décision pour le trading d'ETFs N
 - **Analyse sur Indices** : Le système télécharge et analyse les indices de référence (`^NDX`, `CL=F`) pour obtenir des signaux d'IA plus propres et robustes.
 - **Trading sur ETFs** : Les décisions sont appliquées aux ETFs correspondants sur Trading 212 (`SXRV.DE`, `CRUDP.PA`).
 
-Le moteur fusionne un modèle quantitatif classique, un LLM textuel (Gemma 3), un LLM visuel (analyse de graphiques), et le modèle de fondation **TimesFM 2.5** de Google Research.
+Le moteur fusionne un modèle quantitatif classique, un LLM textuel (Gemma 3), un LLM visuel (analyse de graphiques), le modèle de fondation **TimesFM 2.5** de Google Research, et le **Modèle Vincent Ganne** (Géopolitique & Cross-Asset).
+
+### Nouveautés majeures :
+- **Modèle Vincent Ganne :** Détection de points bas boursiers via l'analyse du Pétrole (WTI/Brent), du Gaz Naturel (TTF), de l'Urée, du Dollar (DXY) et des moyennes mobiles à 200 jours.
+- **Gestion des Risques "Trend-Aware" :** Le système adapte ses seuils de confiance selon la tendance du marché (plus agressif en Bull Market).
+- **Sizing Progressif :** Exposition dynamique du portefeuille (75% à 100%) basée sur le score de consensus de l'IA.
+- **Verrou Géopolitique :** Blocage automatique des achats si les prix de l'énergie (WTI/Brent) dépassent les seuils critiques de stabilité macroéconomique.
 
 ## Building and Running
 

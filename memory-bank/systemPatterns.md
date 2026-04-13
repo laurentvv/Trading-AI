@@ -8,9 +8,10 @@ The application follows a modular, ensemble-based architecture orchestrated by t
 3.  **Advanced Decision Logic (`src/enhanced_decision_engine.py`)**: Uses a consensus-based approach with adaptive weighting to combine signals from:
     - `ClassicModel` (Scikit-Learn)
     - `TimesFM` (Time-series Foundation Model)
-    - `LLM Client` (Textual & Visual analysis via Gemma 4)
+    - `LLM Client` (Textual & Visual analysis via Gemma 3)
     - `Sentiment Analysis` (Hybrid Alpha Vantage + AlphaEar)
-4.  **Risk & Sizing Layer (`src/advanced_risk_manager.py`)**: Adjusts the final signal based on market volatility and uses the Kelly Criterion for position sizing.
+    - `VincentGanneModel` (Geopolitical & Cross-asset filtering)
+4.  **Risk & Sizing Layer (`src/advanced_risk_manager.py`)**: Implements trend-aware confidence thresholds and progressive sizing logic.
 5.  **Persistence Layer (`src/database.py`)**: Manages the SQLite database for simulation state, transaction history, and model performance tracking.
 6.  **Monitoring Layer (`src/performance_monitor.py`)**: Generates real-time performance reports and visual dashboards.
 

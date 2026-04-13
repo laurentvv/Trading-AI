@@ -37,7 +37,7 @@ graph TD
     *   **Sélection :** Le système teste les 3 modèles via `TimeSeriesSplit` et sélectionne automatiquement le plus performant pour la journée.
     *   **Features :** 45 indicateurs (RSI, MACD, Bollinger, Moyennes Mobiles, Yields Trésorerie US, PIB, Chômage).
 
-2.  **LLM (Gemma 4 : e4b) :**
+2.  **LLM (Gemma 3 : 4b) :**
     *   **Texte :** Analyse les données brutes et les indicateurs. Intègre désormais les titres de presse en temps réel via le skill **AlphaEar** pour une synthèse technique et fondamentale.
     *   **Visuel :** Analyse directement l'image du graphique technique (`enhanced_trading_chart.png`) pour identifier des patterns chartistes complexes.
 
@@ -46,6 +46,20 @@ graph TD
 
 4.  **Sentiment Analysis (Hybride) :**
     *   Combine les news d'Alpha Vantage avec les tendances "hot" d'**AlphaEar** (Weibo, WallstreetCN, etc.) pour une détection précoce des changements de sentiment.
+
+5.  **Modèle Vincent Ganne (Géopolitique & Cross-Asset) :**
+    *   **Filtre Macroéconomique :** Valide les points bas de marché via l'analyse du Pétrole (WTI/Brent), du Gaz Naturel (TTF), de l'Urée et du Dollar (DXY).
+    *   **Verrou de Sécurité :** Bloque systématiquement les achats d'indices si les prix de l'énergie (WTI > 94$) sont trop élevés, signalant une instabilité majeure.
+
+---
+
+## 🛡️ Gestion des Risques & Sizing
+
+Le système intègre désormais un **Advanced Risk Manager** intelligent :
+
+1.  **Trend-Awareness :** Le système détecte la tendance de fond (Prix vs MM50). En marché haussier (Bull Market), il devient plus réactif en abaissant le seuil de confiance requis pour l'achat (0.20 au lieu de 0.35).
+2.  **Sizing Progressif :** L'exposition n'est plus binaire (0 ou 100%). Elle varie dynamiquement entre **75% et 100%** sur signal d'achat, selon la force du consensus de l'IA.
+3.  **Inertie "Sticky HOLD" :** En mode `HOLD`, le système maintient ses positions tant que le consensus reste positif (> 0.15), évitant les sorties prématurées sur simple "bruit" de marché.
 
 ---
 

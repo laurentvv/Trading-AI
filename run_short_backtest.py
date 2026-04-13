@@ -8,9 +8,9 @@ sys.path.append(str(Path(__file__).parent / 'src'))
 from backtest_engine import Backtester
 
 if __name__ == "__main__":
-    # Test sur 2 mois récents
+    # Test sur 1 mois récent
     end = datetime.now().strftime('%Y-%m-%d')
-    start = (datetime.now() - timedelta(days=60)).strftime('%Y-%m-%d')
+    start = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
     
     # Mode Fast pour ne pas attendre Ollama
     bt = Backtester(

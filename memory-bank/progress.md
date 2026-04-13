@@ -23,6 +23,13 @@
 - **Résolu (2025-09-12)**: Corrigé un bug de persistance où la transition de phase n'était pas sauvegardée immédiatement, causant une réinitialisation de la phase au redémarrage du planificateur.
 
 ## 5. Corrections Récentes
+- **2026-04-13**: Modèle Vincent Ganne et Stratégies Avancées
+  * Implémentation du **VincentGanneModel** : analyse géopolitique (WTI, Brent, Gaz, Urée, DXY) pour valider les points bas.
+  * Mise en place d'un **Verrou Géopolitique** : blocage du BUY si WTI > 94$ (Instabilité énergétique).
+  * Introduction du **Risk Management Trend-Aware** : adaptation dynamique des seuils de confiance selon la MM50.
+  * Implémentation du **Sizing Progressif** : exposition variable (75%-100%) basée sur le consensus AI.
+  * Migration vers **Gemma 3:4b** pour optimiser la consommation RAM tout en maintenant la précision.
+  * Automatisation de la désactivation du modèle Vincent Ganne pour le ticker Pétrole (évite l'auto-référence).
 - **2026-04-10**: Fiabilisation T212 et Risques
   * Correction du mapping des tickers Trading 212 : `SXRVd_EQ` et `CRUDl_EQ`.
   * Forçage de l'utilisation du signal filtré par le risk manager pour l'exécution réelle.
