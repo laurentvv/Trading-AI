@@ -33,6 +33,9 @@ Le moteur fusionne un modèle quantitatif classique, un LLM textuel (Gemma 4), u
     
     # Ensuite, synchroniser l'environnement complet
     uv sync
+
+    # Installer les navigateurs pour la recherche Web
+    uv run python -m playwright install chromium
     ```
     *Cette procédure clone TimesFM dans `vendor/`, applique les correctifs d'API 2.5 et synchronise toutes les dépendances.*
 3.  **Configurer l'API** : Créer un fichier `.env` avec `ALPHA_VANTAGE_API_KEY`.

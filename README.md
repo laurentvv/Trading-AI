@@ -140,7 +140,12 @@ Suivez ces étapes pour mettre en place votre environnement de développement lo
     uv sync
     ```
 
-5.  **Configurez votre clé API :**
+5.  **Installez les navigateurs pour la recherche Web (Crawl4AI) :**
+    ```bash
+    uv run python -m playwright install chromium
+    ```
+
+6.  **Configurez votre clé API :**
     Créez un fichier `.env` à la racine du projet et ajoutez votre clé API Alpha Vantage :
     ```
     ALPHA_VANTAGE_API_KEY="VOTRE_CLE_API_ICI"
