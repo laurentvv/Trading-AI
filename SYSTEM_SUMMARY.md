@@ -60,11 +60,12 @@ graph TD
 
 ## 🛡️ Gestion des Risques & Sizing
 
-Le système intègre désormais un **Advanced Risk Manager** intelligent :
+Le système intègre désormais un **Advanced Risk Manager** intelligent et conscient des spécificités des actifs :
 
-1.  **Trend-Awareness :** Le système détecte la tendance de fond (Prix vs MM50). En marché haussier (Bull Market), il devient plus réactif en abaissant le seuil de confiance requis pour l'achat (0.20 au lieu de 0.35).
-2.  **Sizing Progressif :** L'exposition n'est plus binaire (0 ou 100%). Elle varie dynamiquement entre **75% et 100%** sur signal d'achat, selon la force du consensus de l'IA.
-3.  **Inertie "Sticky HOLD" :** En mode `HOLD`, le système maintient ses positions tant que le consensus reste positif (> 0.15), évitant les sorties prématurées sur simple "bruit" de marché.
+1.  **Oil Special Risk Mode :** Contrairement aux actions, le Pétrole profite souvent de la volatilité et du risque géopolitique. Le Risk Manager abaisse automatiquement ses seuils de confiance pour le Pétrole en cas de risque `HIGH` ou `VERY_HIGH`, permettant de capturer des hausses impulsives là où le Nasdaq resterait en retrait.
+2.  **Inertie de Sortie (Sticky HOLD) :** Lorsqu'une position est active, le système devient plus exigeant pour vendre (`SELL`). Il compare le prix actuel à l'**indice de référence lors de l'achat** (ex: prix du WTI à l'entrée). Si la position est gagnante sur l'indice, il faut un signal de vente très fort (> 0.55 de conviction) pour sortir, protégeant ainsi la tendance haussière contre le bruit passager.
+3.  **Trend-Awareness :** Le système détecte la tendance de fond (Prix vs MM50). En marché haussier (Bull Market), il devient plus réactif en abaissant le seuil de confiance requis pour l'achat.
+4.  **Sizing Progressif :** L'exposition varie dynamiquement entre **75% et 100%** sur signal d'achat, selon la force du consensus de l'IA.
 
 ---
 
