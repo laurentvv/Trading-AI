@@ -1,29 +1,39 @@
-# Créatoin d'un Nouveau modèle de décision dans le système (Niveau BUY) - CRITIQUE - Modèle Vincent Ganne
+# Modèle de Décision Vincent Ganne (Point Bas Nasdaq)
 
-## **Géopolitique : Les signaux techniques minimum pour valider un point bas boursier final**
+## **Philosophie du Modèle**
+Ce modèle est un indicateur **cross-asset** et **macro-géopolitique** dont l'unique but est de valider des opportunités d'achat (**BUY**) sur le **Nasdaq-100**. 
 
-Ce tableau répertorie les indicateurs clés et les niveaux techniques nécessaires pour confirmer un creux de marché (point bas) selon l'analyse présentée.
+Il repose sur l'observation historique que les grands creux de marché sur les actions américaines coïncident souvent avec une stabilisation ou une baisse des prix de l'énergie et une détente sur le marché obligataire.
 
-Ordre importance avec surout 1. puis 2. puis 3. puis 4, puis les autes moins importants
+### **Règles Critiques d'Utilisation**
+1.  **Exclusivité Nasdaq** : Ce modèle n'est utilisé QUE pour l'analyse du Nasdaq (`SXRV.DE`, `QQQ`, `^NDX`). Il est désactivé pour le trading du Pétrole ou d'autres actifs.
+2.  **Signal Unidirectionnel (BUY Only)** : Le modèle ne génère **JAMAIS** de signal de vente (`SELL`). Son rôle est de dire "Oui, c'est un point bas" ou "Non, restez prudent". S'il n'est pas convaincu, il renvoie `HOLD`.
+3.  **Verrou Géopolitique** : Si les prix du pétrole dépassent les seuils critiques (WTI > 94$), le modèle considère que la pression inflationniste/géopolitique est trop forte pour un point bas boursier durable.
 
-| Actif / Indicateur par ordre importance | Niveau minimum technique | Niveau idéal / signal fort |
-| ----- | ----- | ----- |
-| **1\. Prix du pétrole brut US (WTI)** | \< 94 $ | ≈ 80$ |
-| **2\. Pétrole Brent** | \< 95 $ | ≈ 83$ |
-| **3\. Gaz naturel européen (TTF)** | \< 55 € | \< 38 € |
-| **4\. Engrais urée – UME1\!** | \< 506 $ | — |
-| **Engrais urée – Chine** | \< 1950 CNY | — |
-| **Taux obligataire US 2 ans** | Autour du taux actuel de la FED | — |
-| **S\&P 500** | Franchissement de la moyenne mobile à 200 jours | — |
-| **Nasdaq** | Franchissement de la moyenne mobile à 200 jours | — |
-| **Dow Jones** | Franchissement de la moyenne mobile à 200 jours | — |
-| **Secteur S\&P 500 Technologie** | Franchissement de la moyenne mobile à 200 jours | — |
-| Dollar US (DXY) | Sous résistance 100/101 points | — |
+---
 
-## **Enrichissement 2026 : Sentiment Décentralisé (Hyperliquid)**
+## **Indicateurs et Niveaux Techniques**
 
-Pour affiner l'analyse de l'énergie (WTI), le système intègre désormais des données décentralisées provenant de la blockchain **Hyperliquid** :
-- **Funding Rate (OIL Perps)** : Permet de détecter les excès de positions Longs (taux positif élevé) ou Shorts (taux négatif). Un taux extrêmement négatif est utilisé comme signal contrarien pour valider un point bas (Short Squeeze potentiel).
-- **Open Interest** : Mesure la force de la conviction spéculative sur le pétrole.
+Le score de confiance est calculé en distinguant le franchissement technique minimal et l'atteinte de la zone idéale.
 
-*Note : Ces données sont extraites d'une analyse technique portant sur la validation d'un point bas final sur les marchés financiers.*
+| Actif / Indicateur | Niveau Minimum Technique (50% pts) | Niveau Idéal / Signal Fort (100% pts) |
+| :--- | :--- | :--- |
+| **1. Pétrole WTI** | < 94 $ | ≈ 80 $ |
+| **2. Pétrole Brent** | < 95 $ | ≈ 83 $ |
+| **3. Gaz Naturel (TTF)** | < 55 € | < 38 € |
+| **4. Urée (Engrais)** | < 506 $ | — |
+| **5. Taux US 2 ans** | Écart avec taux FED < 0.25% | — |
+| **6. Dollar US (DXY)** | < 101 points | < 100 points |
+| **7. Confirmations** | Prix > MA200j (S&P500, Nasdaq, Dow Jones, Tech) | — |
+
+---
+
+## **Enrichissement : Sentiment Décentralisé (Hyperliquid)**
+Le système utilise les données de la blockchain **Hyperliquid** comme signal contrarien pour le Pétrole (qui sert d'indicateur macro pour le Nasdaq) :
+- **Funding Rate (OIL)** : Un taux **très négatif** (excess de shorts) est un bonus de confiance pour le modèle, signalant une capitulation des vendeurs et un point bas potentiel.
+- **Open Interest** : Utilisé pour valider la force de la conviction derrière le mouvement.
+
+---
+
+## **Logique de Fusion**
+Dans le moteur `EnhancedDecisionEngine`, ce modèle apporte un poids de **20%** à la décision finale du Nasdaq. Il agit comme un filtre de sécurité macroéconomique venant confirmer ou infirmer les signaux techniques purs du modèle classique et du TimesFM.

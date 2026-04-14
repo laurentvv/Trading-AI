@@ -252,7 +252,7 @@ class EnhancedTradingSystem:
         logger.info("Recherche Web Macro terminée.")
 
         # 4. Prédictions LLM (Maintenant avec le contexte des news et web)
-        text_llm_decision = get_llm_decision(latest_data, headlines=headlines, web_context=web_context, vg_indicators=vg_indicators)
+        text_llm_decision = get_llm_decision(latest_data, headlines=headlines, web_context=web_context, vg_indicators=vg_indicators, ticker=self.ticker)
         visual_llm_decision = get_visual_llm_decision(
             self.chart_output_path) if chart_generated else {
                 "signal": "HOLD", "confidence": 0.0, 
@@ -357,7 +357,9 @@ class EnhancedTradingSystem:
         risk_adjusted_signal, adjustment_reason = self.risk_manager.get_risk_adjusted_signal(
             enhanced_decision.final_signal,
             enhanced_decision.final_confidence,
-            risk_metrics
+            risk_metrics,
+            price_data=hist_data['Close'],
+            ticker=self.ticker
         )
         
         if risk_adjusted_signal != enhanced_decision.final_signal:

@@ -52,8 +52,9 @@ graph TD
     *   Combine les news d'Alpha Vantage avec les tendances "hot" d'**AlphaEar** (Weibo, WallstreetCN, etc.) pour une détection précoce des changements de sentiment.
 
 6.  **Modèle Vincent Ganne (Géopolitique & Cross-Asset) :**
-    *   **Filtre Macroéconomique :** Valide les points bas de marché via l'analyse du Pétrole (WTI/Brent), du Gaz Naturel (TTF), de l'Urée et du Dollar (DXY).
-    *   **Verrou de Sécurité :** Bloque systématiquement les achats d'indices si les prix de l'énergie (WTI > 94$) sont trop élevés, signalant une instabilité majeure.
+    *   **Validateur d'Achat Nasdaq :** Ce modèle est utilisé exclusivement pour valider des points bas sur le Nasdaq (`SXRV.DE`, `QQQ`). Il est désactivé pour le trading d'autres actifs.
+    *   **Signal Unidirectionnel :** Il ne génère que des signaux `BUY` ou `HOLD`. Son but est de confirmer la détente macroéconomique (Pétrole < 94$, Dollar faible, MA200 franchie) pour autoriser une entrée sur les actions.
+    *   **Filtre de Sécurité :** En cas de prix de l'énergie trop élevés (WTI > 94$), le modèle maintient un signal `HOLD` pour le Nasdaq, agissant comme un verrou de sécurité contre l'instabilité géopolitique.
 
 ---
 

@@ -96,7 +96,15 @@ def run_trading_analysis(ticker: str, is_simulation: bool = False, is_t212: bool
             
             if signal in ["BUY", "SELL"]:
                 console.print(f"[bold yellow]🚀 Execution of the signal on Trading 212 for {ticker}...[/bold yellow]")
-                execute_t212_trade(signal, confidence, ticker=ticker)
+                # Obtenir la date depuis les résultats pour la BDD
+                # Note: results['enhanced_decision'] est un objet EnhancedDecision
+                execute_t212_trade(
+                    signal, 
+                    confidence, 
+                    ticker=ticker,
+                    analysis_date=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    signal_source="IA_HYBRID_T212"
+                )
             else:
                 console.print(f"[bold blue]ℹ️ No trade executed (Signal is {signal})[/bold blue]")
 

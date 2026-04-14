@@ -414,11 +414,15 @@ class AdvancedRiskManager:
         )
     
     def should_override_signal(self, signal: str, confidence: float, 
-                             risk_metrics: RiskMetrics, price_data: pd.Series = None) -> Tuple[bool, str]:
+                             risk_metrics: RiskMetrics, price_data: pd.Series = None,
+                             ticker: str = "Unknown") -> Tuple[bool, str]:
         """
         Determine if signal should be overridden due to risk concerns.
+        SPECIAL LOGIC: Oil often performs well in high-risk/volatile environments.
         """
-        # TREND DETECTION (Optional but recommended)
+        is_oil = any(x in ticker.upper() for x in ["CL=F", "CRUDP", "WTI", "BZ=F"])
+        
+        # TREND DETECTION
         is_bull_trend = False
         if price_data is not None and len(price_data) > 50:
             ma50 = price_data.rolling(window=50).mean().iloc[-1]
@@ -430,11 +434,17 @@ class AdvancedRiskManager:
         if is_bull_trend:
             min_buy_confidence = 0.20 # More aggressive in bull markets
 
+        # SPECIAL FOR OIL: Be more lenient in high risk
+        if is_oil and risk_metrics.risk_level in [RiskLevel.HIGH, RiskLevel.VERY_HIGH]:
+            min_buy_confidence *= 0.6 # Reduce confidence requirement for Oil in "Risk-On" contexts
+            logger.info(f"OIL SPECIAL RISK MODE: Reducing buy confidence threshold to {min_buy_confidence:.2f}")
+
         # FORCED BYPASS FOR INDEX TRADING (Aggressive mode)
         if signal in ['BUY', 'STRONG_BUY']:
             if risk_metrics.risk_level == RiskLevel.VERY_HIGH and confidence < min_buy_confidence:
                 trend_msg = " (Bull trend detected)" if is_bull_trend else ""
-                return True, f"Extreme risk ({risk_metrics.risk_level.name}){trend_msg} still requires minimal confidence ({min_buy_confidence})"
+                oil_msg = " (Oil special handling)" if is_oil else ""
+                return True, f"Extreme risk ({risk_metrics.risk_level.name}){trend_msg}{oil_msg} still requires minimal confidence ({min_buy_confidence:.2f})"
             return False, "" # NO OVERRIDE for BUY in other risk levels
         
         # Extreme volatility override for SELL signals
@@ -445,21 +455,13 @@ class AdvancedRiskManager:
         return False, ""
     
     def get_risk_adjusted_signal(self, original_signal: str, confidence: float,
-                               risk_metrics: RiskMetrics, price_data: pd.Series = None) -> Tuple[str, str]:
+                               risk_metrics: RiskMetrics, price_data: pd.Series = None,
+                               ticker: str = "Unknown") -> Tuple[str, str]:
         """
         Get risk-adjusted trading signal.
-        
-        Args:
-            original_signal: Original trading signal
-            confidence: Signal confidence
-            risk_metrics: Current risk assessment
-            price_data: Optional historical price data for trend detection
-            
-        Returns:
-            Tuple of (adjusted_signal, adjustment_reason)
         """
         should_override, reason = self.should_override_signal(
-            original_signal, confidence, risk_metrics, price_data)
+            original_signal, confidence, risk_metrics, price_data, ticker=ticker)
         
         if should_override:
             # Override logic

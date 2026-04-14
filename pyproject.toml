@@ -29,6 +29,7 @@ dependencies = [
     "yfinance>=1.2.1",
     "ddgs>=1.0.0",
     "hyperliquid-python-sdk>=0.22.0",
+    "crawl4ai>=0.8.6",
 ]
 
 [tool.uv.sources]

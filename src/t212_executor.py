@@ -64,9 +64,12 @@ def _read_with_retry(filepath: Path, max_retries: int = STATE_LOCK_RETRIES):
 sys.path.append(str(Path(__file__).parent.parent))
 try:
     from src.data import MarketDataManager
+    from src.database import insert_transaction, insert_portfolio_state
 except ImportError:
     # Fallback si l'import échoue selon le contexte d'exécution
     MarketDataManager = None
+    insert_transaction = None
+    insert_portfolio_state = None
 
 load_dotenv(".env.t212")
 
@@ -178,9 +181,12 @@ def get_real_price_eur(ticker_yahoo=None):
     # No hardcoded prices — raise error so caller knows price is unavailable
     raise ValueError(f"Could not retrieve price for {target} from any source")
 
-def execute_t212_trade(signal, confidence, ticker=DEFAULT_TICKER):
+def execute_t212_trade(signal, confidence, ticker=DEFAULT_TICKER, analysis_date=None, signal_source="IA_HYBRID"):
     # Mapping du ticker Yahoo vers le ticker T212
     t212_ticker = TICKER_MAPPING_T212.get(ticker, ticker.split('.')[0])
+    
+    # Date pour la BDD (maintenant ou date d'analyse fournie)
+    db_date = analysis_date if analysis_date else datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
     # Charger l'état spécifique au ticker (on utilise le ticker T212 comme clé)
     state = load_portfolio_state(t212_ticker)
@@ -252,12 +258,14 @@ def execute_t212_trade(signal, confidence, ticker=DEFAULT_TICKER):
             # available_cash = portfolio['cash']
         
         target_budget = available_cash * 0.999 
-        quantity = round(target_budget / current_price, 4) 
+        # Déterminer la précision selon le ticker
+        precision = 2 if "CRUD" in t212_ticker.upper() else 4
+        quantity = round(target_budget / current_price, precision) 
         
         estimated_cost = quantity * current_price
         print("📊 CALCUL QUANTITÉ FRACTIONNÉE :")
         print(f"   - Budget cible : {available_cash:.2f} €")
-        print(f"   - Quantité calculée : {quantity} actions")
+        print(f"   - Quantité calculée : {quantity} actions (Precision: {precision})")
         print(f"   - Coût estimé : {estimated_cost:.2f} €")
 
         if quantity <= 0:
@@ -278,6 +286,19 @@ def execute_t212_trade(signal, confidence, ticker=DEFAULT_TICKER):
                 "entry_time": datetime.datetime.now().isoformat()
             }
             save_portfolio_state(state, t212_ticker)
+            
+            # --- Enregistrement SQLITE après confirmation ---
+            if insert_transaction:
+                insert_transaction(
+                    date=db_date,
+                    ticker=ticker,
+                    type='BUY',
+                    quantity=quantity,
+                    price=current_price,
+                    cost=estimated_cost,
+                    signal_source=signal_source,
+                    reason=f"T212 Confirmed Order (Conf: {confidence:.2%})"
+                )
         else:
             print(f"❌ Échec de l'achat : {resp.text}")
 
@@ -310,6 +331,19 @@ def execute_t212_trade(signal, confidence, ticker=DEFAULT_TICKER):
             state["active_position"] = None
             save_portfolio_state(state, t212_ticker)
             print(f"💰 Nouveau capital pour {t212_ticker} : {state['current_capital']:.2f} €")
+            
+            # --- Enregistrement SQLITE après confirmation ---
+            if insert_transaction:
+                insert_transaction(
+                    date=db_date,
+                    ticker=ticker,
+                    type='SELL',
+                    quantity=total_qty,
+                    price=current_value_eur / total_qty if total_qty > 0 else 0,
+                    cost=current_value_eur,
+                    signal_source=signal_source,
+                    reason=f"T212 Confirmed Sale (P&L: {(current_value_eur-buy_cost):+.2f}€)"
+                )
         else:
             print(f"❌ Erreur lors de la vente : {sell_resp.text}")
 

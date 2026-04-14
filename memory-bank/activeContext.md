@@ -1,22 +1,25 @@
 # Active Context
 
 ## Current Status
-The project has undergone a major simplification and optimization phase. The complex automated scheduler has been removed in favor of a powerful, unified CLI tool (`main.py`) that can be run on-demand or via simple OS-level scheduling (cron/Task Scheduler).
+The project is now in a **high-fidelity production/demo phase**. The decision engine has been refined for extreme accuracy, and the web research capabilities have been significantly upgraded. The system is operating under an "Accuracy First" (Justesse) mandate.
 
-## Recent Accomplishments
-- **Gemma 4 Migration**: Upgraded cognitive analysis to `gemma4:e4b` for superior reasoning and technical/fundamental synthesis.
-- **Hyperliquid Integration**: Added decentralized sentiment analysis (Funding Rate, Open Interest) for the Oil/WTI strategy, providing a unique on-chain contrarian signal.
-- **Robustness & Windows Compatibility**:
-    - Implemented **UTF-8 logging** to prevent `UnicodeEncodeError` with emojis on Windows terminals.
-    - Fixed Pandas `FutureWarning` in the Vincent Ganne model and `KeyError` in `main.py` state loading.
-- **T212 Ticker Certification**: Finalized and verified exact instrument identifiers for Trading 212 (`SXRVd_EQ` for Nasdaq EUR and `CRUDl_EQ` for WTI Oil).
-- **Risk-Adjusted Execution**: The system now strictly follows the `AdvancedRiskManager` filtered signal (Accuracy First).
+### Key Recent Changes
+- **Vincent Ganne Model Refinement**: Now explicitly exclusive to **Nasdaq** assets for market bottom validation. It only generates `BUY` signals and acts as a geopolitical safety lock (blocking Nasdaq buys if energy prices are > $94). It is disabled for Oil trading to avoid self-referential bias.
+- **Crawl4AI Integration**: Replaced simple DuckDuckGo snippets with full-page asynchronous crawling for macro research, providing the LLM with dense, high-quality context.
+- **Dynamic Prompt Engineering**: LLM prompts are now ticker-aware, include qualified indicators (e.g., RSI qualificators like 'Overbought'), and incorporate current temporal context (Month/Year) and 5-day price trends for search query generation.
+- **Trading 212 Dashboard**: Fixed display bugs and improved the detailed logging in `trading_journal.csv` to track each individual model's contribution (Classic, LLM, TimesFM, VG, Sentiment).
+- **Project Cleanup**: Root directory has been cleaned; all test scripts moved to `tests/`.
 
-## Next Steps
-- **Oil Strategy Validation**: Evaluate how Hyperliquid's *Funding Rate* influences Gemma 4's decisions during volatile Oil sessions.
-- **Demo Mode Monitoring**: Continuous execution via `schedule.py` on the T212 Demo account.
-- **Sentiment Refinement**: Further tune the weight between Alpha Vantage (ticker-specific) and AlphaEar (macro trends) sentiment scores.
+## Immediate Objectives
+- [x] Integrate Vincent Ganne geopolitical safety rules.
+- [x] Implement ticker-specific LLM prompts.
+- [x] Enable high-fidelity web crawling with Crawl4AI.
+- [x] Validate full cycle on Nasdaq and Oil tickers.
+- [x] Implement detailed per-model logging.
+- [ ] Monitor real-time performance in Demo Mode.
+- [ ] Add automated Stop-Loss rules in AdvancedRiskManager.
 
-## Active Decisions
-- **Manual Control**: Shifted from an "automated agent" philosophy to a "decision support tool" philosophy to give the user more control and reduce complexity.
-- **Local AI Priority**: Maintained the requirement for local Ollama/**Gemma 4** to ensure data privacy and zero cost.
+## Decision Log
+- **Nasdaq Exclusivity for VG**: Decided to restrict the Vincent Ganne model to Nasdaq because its energy-price-to-stock-bottom logic is fundamentally a cross-asset indicator for equities, not a directional signal for energy itself.
+- **BUY-Only Signal for VG**: Restricted VG model to BUY signals to prevent it from forcing exits on Nasdaq when energy prices spike, which might be noise rather than a structural top.
+- **Dynamic Search Queries**: Improved query generation by adding the current date to search queries, ensuring the LLM finds recent news instead of outdated macro reports.
