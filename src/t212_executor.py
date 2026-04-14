@@ -324,13 +324,24 @@ def execute_t212_trade(signal, confidence, ticker=DEFAULT_TICKER, analysis_date=
         
         if sell_resp.status_code in [200, 201, 202]:
             print("✅ Vente effectuée.")
-            # Calcul du profit/perte
+            # Calcul précis du nouveau capital en incluant le cash non-investi (résiduel)
             buy_cost = state["active_position"]["buy_budget"] if state.get("active_position") else current_value_eur
-            state["current_capital"] = current_value_eur
+            
+            # Nouveau capital = (Capital avant achat - Coût réel achat) + Valeur vente
+            # Cela préserve les centimes qui n'avaient pas pu être investis à cause des fractions
+            previous_capital = state.get("current_capital", buy_cost)
+            residual_cash = max(0, previous_capital - buy_cost)
+            
+            state["current_capital"] = current_value_eur + residual_cash
             state["total_realized_pl"] += (current_value_eur - buy_cost)
+            
+            print(f"💰 Détail capital {t212_ticker} :")
+            print(f"   - Produit vente : {current_value_eur:.2f} €")
+            print(f"   - Cash résiduel récupéré : {residual_cash:.2f} €")
+            print(f"   - Nouveau total : {state['current_capital']:.2f} €")
+            
             state["active_position"] = None
             save_portfolio_state(state, t212_ticker)
-            print(f"💰 Nouveau capital pour {t212_ticker} : {state['current_capital']:.2f} €")
             
             # --- Enregistrement SQLITE après confirmation ---
             if insert_transaction:
