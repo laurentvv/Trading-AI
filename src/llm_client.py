@@ -86,6 +86,10 @@ def get_visual_llm_decision(image_path: Path) -> dict:
     """
     Queries the visual LLM via Ollama with a chart image.
     """
+    if not image_path.exists():
+        logger.error(f"Chart image not found: {image_path}")
+        return {"signal": "HOLD", "confidence": 0.0, "analysis": "Chart image missing."}
+
     logger.info(f"Querying visual LLM with image {image_path}...")
 
     try:
@@ -96,19 +100,17 @@ def get_visual_llm_decision(image_path: Path) -> dict:
         return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Error reading image: {e}"}
 
     prompt = """
-    Analyze the provided financial chart focusing ONLY on Price Action and geometric patterns.
-    - Identify candlestick patterns (Hammers, Dojis, Engulfing).
-    - Locate visual Support and Resistance zones.
-    - Look for chart figures (Double Bottoms, Triangles, Channels).
-    - Identify visual divergences between price and indicator shapes.
-    
-    IMPORTANT: Do not attempt to read the exact mathematical values of indicators; another model handles the numbers. Your role is purely geometric and visual validation.
+    ACT AS A PROFESSIONAL CHART ANALYST. Analyze the attached price chart image.
+    1. Patterns: Identify visible geometric patterns (Head & Shoulders, Triangles, Channels).
+    2. Price Action: Note the recent candle behavior (rejection, momentum, gaps).
+    3. Indicators: Look at the visual shape of indicators (RSI divergences, MACD crossovers).
 
-    Provide your analysis in a valid JSON object:
+    IMPORTANT: Your role is purely geometric and visual validation. 
+    Output ONLY a valid JSON object exactly like this:
     {
       "signal": "BUY|SELL|HOLD",
-      "confidence": <float between 0.0 and 1.0>,
-      "analysis": "<your 2-3 sentence analysis of the visual/geometric patterns identified>"
+      "confidence": <float 0.0-1.0>,
+      "analysis": "2-3 sentence visual justification"
     }
     """
 
@@ -118,13 +120,15 @@ def get_visual_llm_decision(image_path: Path) -> dict:
         "images": [image_base64],
         "stream": False,
         "format": "json",
-        "system": "You are an expert Price Action analyst and Geometric Chartist. You specialize in identifying visual patterns on financial charts without relying on raw numerical data."
+        "options": {"temperature": 0.1},
+        "system": "You are a geometric chart analyst. Return ONLY JSON."
     }
     return _query_ollama(payload)
 
 def _query_ollama(payload: dict, max_retries: int = 3, expected_keys: list = None) -> dict:
     """
-    Helper function to send a request to the Ollama API and handle the response, with retries.
+    Enhanced helper function to send a request to the Ollama API.
+    Includes robust JSON extraction and error handling.
     """
     if expected_keys is None:
         expected_keys = ["signal", "confidence", "analysis"]
@@ -132,42 +136,52 @@ def _query_ollama(payload: dict, max_retries: int = 3, expected_keys: list = Non
     model_name = payload.get("model", "unknown")
     for attempt in range(max_retries):
         try:
-            response = requests.post(OLLAMA_API_URL, json=payload, timeout=600) # Extended timeout for CPU-based models (10 min)
+            response = requests.post(OLLAMA_API_URL, json=payload, timeout=600)
             response.raise_for_status()
 
             response_data = response.json()
-            llm_output_str = response_data.get('response', '{}')
+            raw_output = response_data.get('response', '').strip()
             
-            # Handle cases where the response is a string that needs to be parsed
-            if isinstance(llm_output_str, str):
-                llm_output = json.loads(llm_output_str)
-            else:
-                llm_output = llm_output_str
+            if not raw_output or raw_output == "{}":
+                logger.warning(f"Attempt {attempt + 1}: Empty or trivial response from LLM.")
+                continue
 
-            if not all(key in llm_output for key in expected_keys):
-                logger.warning(f"Attempt {attempt + 1}/{max_retries}: Response from LLM ({model_name}) is malformed: {llm_output}")
-                raise ValueError("Invalid or malformed LLM response.")
+            # Robust JSON extraction (in case of markdown or preamble)
+            json_str = raw_output
+            if "```json" in json_str:
+                json_str = json_str.split("```json")[1].split("```")[0].strip()
+            elif "```" in json_str:
+                json_str = json_str.split("```")[1].split("```")[0].strip()
+            
+            # Find first { and last } if still failing
+            if "{" in json_str and "}" in json_str:
+                start = json_str.find("{")
+                end = json_str.rfind("}") + 1
+                json_str = json_str[start:end]
+
+            try:
+                llm_output = json.loads(json_str)
+            except json.JSONDecodeError:
+                logger.error(f"Attempt {attempt + 1}: Could not parse JSON. Output: {raw_output[:100]}...")
+                continue
+
+            # Normalize keys to lowercase for robustness
+            llm_output = {k.lower(): v for k, v in llm_output.items()}
+
+            if not all(key.lower() in llm_output for key in expected_keys):
+                logger.warning(f"Attempt {attempt + 1}: Missing keys in {list(llm_output.keys())}")
+                continue
 
             logger.info(f"LLM decision ({model_name}) received and validated.")
             return llm_output
 
-        except (requests.exceptions.RequestException, json.JSONDecodeError, ValueError) as e:
-            logger.warning(f"Attempt {attempt + 1}/{max_retries} failed for LLM ({model_name}): {e}")
+        except Exception as e:
+            logger.warning(f"Attempt {attempt + 1} failed for LLM ({model_name}): {e}")
             if attempt < max_retries - 1:
-                time.sleep(2 * (attempt + 1)) # Exponential backoff
+                time.sleep(2 * (attempt + 1))
             else:
                 logger.error(f"All {max_retries} attempts failed for LLM ({model_name}).")
-                if 'response' in locals() and hasattr(response, 'text'):
-                    logger.error(f"Final raw response from LLM: {response.text}")
-
                 # Default response fallback
-                fallback = {k: "HOLD" if k == "signal" else 0.0 if k == "confidence" else f"LLM ({model_name}) failed after {max_retries} attempts: {e}" for k in expected_keys}
-                return fallback
-        except Exception as e:
-            logger.error(f"Unexpected error when querying the LLM ({model_name}): {e}")
-            fallback = {k: "HOLD" if k == "signal" else 0.0 if k == "confidence" else f"Unexpected error: {e}" for k in expected_keys}
-            return fallback
+                return {k: "HOLD" if k == "signal" else 0.0 if k == "confidence" else "Execution failed." for k in expected_keys}
     
-    # This part should be unreachable, but as a fallback
-    fallback = {k: "HOLD" if k == "signal" else 0.0 if k == "confidence" else "Fell through retry loop unexpectedly." for k in expected_keys}
-    return fallback
+    return {k: "HOLD" if k == "signal" else 0.0 if k == "confidence" else "Execution failed." for k in expected_keys}
