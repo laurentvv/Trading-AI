@@ -244,18 +244,21 @@ def execute_t212_trade(signal, confidence, ticker=DEFAULT_TICKER, analysis_date=
         # 1. Obtenir le prix le plus précis possible
         try:
             current_price = get_real_price_eur(ticker)
+            # --- AJOUT : Obtenir aussi le prix de l'INDICE de référence ---
+            index_ticker = "^NDX" if "SXRV" in t212_ticker.upper() else "CL=F" if "CRUD" in t212_ticker.upper() else ticker
+            try:
+                index_price = get_real_price_eur(index_ticker)
+            except:
+                index_price = current_price
         except ValueError as e:
             print(f"❌ Impossible d'obtenir le prix : {e}")
             return
-        print(f"🔍 CALCUL DU PRIX DU MARCHÉ : {current_price} € / action")
+        print(f"🔍 CALCUL DU PRIX DU MARCHÉ : {current_price} € / action (Indice {index_ticker}: {index_price:.2f})")
 
         # 2. Calculer la quantité
         available_cash = state.get("current_capital", 1000.0)
-        # On vérifie si on a assez de cash réel sur le compte T212
         if portfolio['cash'] < available_cash:
             print(f"⚠️ Pas assez de cash réel ({portfolio['cash']:.2f}€) pour le budget cible ({available_cash:.2f}€).")
-            # Option : Ajuster au cash réel disponible ?
-            # available_cash = portfolio['cash']
         
         target_budget = available_cash * 0.999 
         # Déterminer la précision selon le ticker
@@ -283,6 +286,8 @@ def execute_t212_trade(signal, confidence, ticker=DEFAULT_TICKER, analysis_date=
                 "ticker": t212_ticker,
                 "quantity": quantity,
                 "buy_budget": estimated_cost,
+                "entry_price_etf": current_price,
+                "entry_price_index": index_price,
                 "entry_time": datetime.datetime.now().isoformat()
             }
             save_portfolio_state(state, t212_ticker)
@@ -297,7 +302,7 @@ def execute_t212_trade(signal, confidence, ticker=DEFAULT_TICKER, analysis_date=
                     price=current_price,
                     cost=estimated_cost,
                     signal_source=signal_source,
-                    reason=f"T212 Confirmed Order (Conf: {confidence:.2%})"
+                    reason=f"T212 Order Confirmed (Index: {index_price:.2f})"
                 )
         else:
             print(f"❌ Échec de l'achat : {resp.text}")
@@ -327,8 +332,6 @@ def execute_t212_trade(signal, confidence, ticker=DEFAULT_TICKER, analysis_date=
             # Calcul précis du nouveau capital en incluant le cash non-investi (résiduel)
             buy_cost = state["active_position"]["buy_budget"] if state.get("active_position") else current_value_eur
             
-            # Nouveau capital = (Capital avant achat - Coût réel achat) + Valeur vente
-            # Cela préserve les centimes qui n'avaient pas pu être investis à cause des fractions
             previous_capital = state.get("current_capital", buy_cost)
             residual_cash = max(0, previous_capital - buy_cost)
             

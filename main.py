@@ -91,13 +91,32 @@ def run_trading_analysis(ticker: str, is_simulation: bool = False, is_t212: bool
         
         # T212 Execution
         if is_t212:
+            t212_ticker = ticker.split('.')[0]
+            t212_state = load_t212_state(t212_ticker)
+            
+            # --- AJOUT : Récupération de l'état de position pour le Risk Manager ---
+            is_holding = t212_state.get('active_position') is not None
+            entry_price_index = t212_state.get('active_position', {}).get('entry_price_index') if is_holding else None
+            
+            # Recalculer le signal avec la conscience de la position
+            # On ré-interroge le risk manager avec les infos de position
+            signal, adjustment_reason = system.risk_manager.get_risk_adjusted_signal(
+                decision.final_signal,
+                decision.final_confidence,
+                risk,
+                price_data=results['market_data'].get('price_series'), # Passé par system.perform_enhanced_analysis si on le modifie
+                ticker=ticker,
+                is_holding=is_holding,
+                entry_price_index=entry_price_index
+            )
+
             if signal != decision.final_signal:
                 console.print(f"[bold orange3]⚠️ Risk Management Override: {decision.final_signal} -> {signal}[/bold orange3]")
-            
+                if "INERTIA" in adjustment_reason:
+                    console.print(f"[bold cyan]ℹ️ {adjustment_reason}[/bold cyan]")
+
             if signal in ["BUY", "SELL"]:
                 console.print(f"[bold yellow]🚀 Execution of the signal on Trading 212 for {ticker}...[/bold yellow]")
-                # Obtenir la date depuis les résultats pour la BDD
-                # Note: results['enhanced_decision'] est un objet EnhancedDecision
                 execute_t212_trade(
                     signal, 
                     confidence, 

@@ -456,10 +456,28 @@ class AdvancedRiskManager:
     
     def get_risk_adjusted_signal(self, original_signal: str, confidence: float,
                                risk_metrics: RiskMetrics, price_data: pd.Series = None,
-                               ticker: str = "Unknown") -> Tuple[str, str]:
+                               ticker: str = "Unknown",
+                               is_holding: bool = False,
+                               entry_price_index: float = None) -> Tuple[str, str]:
         """
         Get risk-adjusted trading signal.
+        NEW: Position-aware logic (Inertia/Sticky HOLD).
         """
+        # 1. SPECIAL CASE: EXIT INERTIA (Sticky HOLD)
+        # If we are holding, we require stronger conviction to SELL
+        if is_holding and original_signal in ['SELL', 'STRONG_SELL']:
+            # Calculate current performance of the analysis index
+            if entry_price_index and price_data is not None:
+                current_index_price = price_data.iloc[-1]
+                index_perf = (current_index_price / entry_price_index) - 1
+                
+                # If we are in profit on the index, be even MORE sticky (protect the trend)
+                sell_threshold = 0.55 if index_perf > 0 else 0.45
+                
+                if confidence < sell_threshold:
+                    return 'HOLD', f"EXIT INERTIA: Protecting position. Signal conviction ({confidence:.2f}) < threshold ({sell_threshold:.2f}). Index Perf: {index_perf:+.2%}"
+
+        # 2. Standard Override Logic
         should_override, reason = self.should_override_signal(
             original_signal, confidence, risk_metrics, price_data, ticker=ticker)
         
