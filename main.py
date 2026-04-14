@@ -100,28 +100,44 @@ def run_trading_analysis(ticker: str, is_simulation: bool = False, is_t212: bool
             else:
                 console.print(f"[bold blue]ℹ️ No trade executed (Signal is {signal})[/bold blue]")
 
-        # --- AJOUT : Journalisation CSV pour débriefing ---
+        # --- AJOUT : Journalisation CSV pour débriefing détaillé ---
         journal_file = "trading_journal.csv"
         file_exists = Path(journal_file).exists()
 
         with open(journal_file, mode='a', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
+            
+            # Création de l'en-tête dynamique basé sur les modèles présents
+            header = ["Timestamp", "Ticker", "FINAL_SIGNAL", "Confidence", "Risk_Level", "Risk_Adjusted", "T212_Capital"]
+            # Ajouter des colonnes pour chaque modèle possible
+            model_names = ["classic", "llm_text", "llm_visual", "sentiment", "timesfm", "vincent_ganne"]
+            for m in model_names:
+                header.append(f"Model_{m}")
+
             if not file_exists:
-                writer.writerow(["Timestamp", "Ticker", "Signal", "Confidence", "Risk", "LLM_Analysis", "Capital_T212"])
+                writer.writerow(header)
 
             t212_ticker = ticker.split('.')[0]
             t212_state = load_t212_state(t212_ticker)
             capital_val = t212_state.get('current_capital', 1000.0)
             
-            writer.writerow([
+            # Préparation de la ligne de données
+            row = [
                 datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 ticker,
-                signal,
+                decision.final_signal,
                 f"{confidence:.2%}",
                 risk_level,
-                decision.individual_decisions[1].reasoning if len(decision.individual_decisions) > 1 else "N/A",
+                signal, # Le signal réellement exécuté (après risk management)
                 f"{capital_val:.2f} €"
-            ])
+            ]
+            
+            # Dictionnaire des décisions pour un mapping facile
+            dec_map = {d.model_name: f"{d.signal}({d.confidence:.2f})" for d in decision.individual_decisions}
+            for m in model_names:
+                row.append(dec_map.get(m, "N/A"))
+            
+            writer.writerow(row)
         # ------------------------------------------------
 
         # Color coding

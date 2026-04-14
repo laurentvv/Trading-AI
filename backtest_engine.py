@@ -96,6 +96,20 @@ class Backtester:
         df_index, _ = get_etf_data(self.ticker_index)
         df_etf, _ = get_etf_data(self.ticker_etf)
         
+        # --- NOUVEAU: Pré-chargement des indicateurs Vincent Ganne ---
+        logger.info("📡 Pré-chargement des indicateurs Vincent Ganne pour le backtest...")
+        vg_tickers = {
+            'WTI': 'CL=F', 'Brent': 'BZ=F', 'NaturalGas': 'TTF=F', 
+            'DXY': 'DX-Y.NYB', 'SP500': '^GSPC'
+        }
+        vg_data = {}
+        for name, tk in vg_tickers.items():
+            try:
+                data, _ = get_etf_data(tk)
+                vg_data[name] = data
+            except:
+                logger.warning(f"Impossible de charger {name} pour VG")
+
         # S'assurer que les index sont bien des datetime
         df_index.index = pd.to_datetime(df_index.index)
         df_etf.index = pd.to_datetime(df_etf.index)
@@ -120,6 +134,18 @@ class Backtester:
                 continue
                 
             current_price_etf = hist_etf['Close'].iloc[-1]
+            
+            # --- Préparation des indicateurs Vincent Ganne pour cette date ---
+            vg_indicators = {}
+            for name, data in vg_data.items():
+                day_data = data.loc[:current_date]
+                if not day_data.empty:
+                    price = day_data['Close'].iloc[-1]
+                    vg_indicators[f'{name}_price'] = float(price.iloc[0]) if hasattr(price, 'iloc') else float(price)
+                    if len(day_data) >= 200:
+                        ma200 = day_data['Close'].rolling(window=200).mean().iloc[-1]
+                        ma200_val = float(ma200.iloc[0]) if hasattr(ma200, 'iloc') else float(ma200)
+                        vg_indicators[f'{name}_above_ma200'] = bool(vg_indicators[f'{name}_price'] > ma200_val)
             
             # --- 2. Génération des Signaux ---
             # Modèle Classique
@@ -179,6 +205,7 @@ class Backtester:
                 visual_llm_decision=visual_llm_decision,
                 sentiment_decision={"signal": "HOLD", "confidence": 0.0}, # On simule sentiment neutre en backtest
                 timesfm_decision=tfm_decision,
+                vincent_ganne_indicators=vg_indicators,
                 market_data=market_data
             )
             
