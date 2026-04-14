@@ -83,6 +83,13 @@ TICKER_MAPPING_T212 = {
     "CRUDP": "CRUDl_EQ"
 }
 
+def get_t212_ticker(ticker_yahoo: str) -> str:
+    """Consistently maps a Yahoo ticker to a T212 instrument ticker."""
+    if not ticker_yahoo:
+        return DEFAULT_TICKER
+    # Use mapping if available, otherwise use prefix
+    return TICKER_MAPPING_T212.get(ticker_yahoo, ticker_yahoo.split('.')[0])
+
 def get_auth_header():
     api_key = os.getenv("T212_API_KEY")
     api_secret = os.getenv("T212_API_SECRET")
@@ -117,8 +124,8 @@ def load_portfolio_state(ticker=None):
         _atomic_json_write(Path(STATE_FILE), state)
 
     if ticker:
-        # Nettoyage du ticker pour la clé
-        clean_ticker = ticker.split('.')[0]
+        # Nettoyage du ticker pour la clé via le helper standard
+        clean_ticker = get_t212_ticker(ticker)
         if clean_ticker not in state["tickers"]:
             state["tickers"][clean_ticker] = {
                 "initial_budget": 1000.0,
@@ -126,13 +133,18 @@ def load_portfolio_state(ticker=None):
                 "total_realized_pl": 0.0,
                 "active_position": None
             }
+        
+        # Nettoyage récursif si la migration a foiré (évite le "tickers" dans "tickers")
+        if "tickers" in state["tickers"][clean_ticker]:
+            del state["tickers"][clean_ticker]["tickers"]
+            
         return state["tickers"][clean_ticker]
 
     return state
 
 def save_portfolio_state(ticker_state, ticker):
-    # Nettoyage du ticker pour la clé
-    clean_ticker = ticker.split('.')[0]
+    # Nettoyage du ticker pour la clé via le helper standard
+    clean_ticker = get_t212_ticker(ticker)
 
     # Charger l'état complet avec retry
     full_state = _read_with_retry(Path(STATE_FILE))
@@ -142,6 +154,10 @@ def save_portfolio_state(ticker_state, ticker):
     # S'assurer que la structure est correcte
     if "tickers" not in full_state:
         full_state = {"tickers": {}}
+        
+    # Nettoyage de sécurité avant sauvegarde
+    if "tickers" in ticker_state:
+        del ticker_state["tickers"]
 
     # Mettre à jour le ticker spécifique
     ticker_state["last_update"] = datetime.datetime.now().isoformat()
@@ -182,8 +198,8 @@ def get_real_price_eur(ticker_yahoo=None):
     raise ValueError(f"Could not retrieve price for {target} from any source")
 
 def execute_t212_trade(signal, confidence, ticker=DEFAULT_TICKER, analysis_date=None, signal_source="IA_HYBRID"):
-    # Mapping du ticker Yahoo vers le ticker T212
-    t212_ticker = TICKER_MAPPING_T212.get(ticker, ticker.split('.')[0])
+    # Mapping du ticker Yahoo vers le ticker T212 via helper
+    t212_ticker = get_t212_ticker(ticker)
     
     # Date pour la BDD (maintenant ou date d'analyse fournie)
     db_date = analysis_date if analysis_date else datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -237,8 +253,24 @@ def execute_t212_trade(signal, confidence, ticker=DEFAULT_TICKER, analysis_date=
         print(f"   - Aucune position ouverte sur {t212_ticker}")
 
     if signal == "BUY":
-        if state.get("active_position"):
-            print(f"⚠️ Position déjà active pour {t212_ticker} dans le suivi.")
+        # BLOCAGE CRITIQUE : Si une position existe sur T212 OU dans notre suivi
+        if current_pos or state.get("active_position"):
+            if current_pos:
+                print(f"⚠️ Position RÉELLE déjà active pour {t212_ticker} ({current_pos['quantity']} actions). Achat ignoré.")
+                # Resynchronisation du suivi si nécessaire
+                if not state.get("active_position"):
+                    print("🔄 Synchronisation du suivi local avec la position réelle...")
+                    state["active_position"] = {
+                        "ticker": t212_ticker,
+                        "quantity": current_pos["quantity"],
+                        "buy_budget": current_pos["walletImpact"]["currentValue"], # Approximation
+                        "entry_price_etf": current_pos["averagePrice"],
+                        "entry_price_index": current_pos["averagePrice"], # On ne connaît pas l'indice ici
+                        "entry_time": datetime.datetime.now().isoformat()
+                    }
+                    save_portfolio_state(state, t212_ticker)
+            else:
+                print(f"⚠️ Position déjà active pour {t212_ticker} dans le suivi. Achat ignoré.")
             return
 
         # 1. Obtenir le prix le plus précis possible
@@ -260,7 +292,7 @@ def execute_t212_trade(signal, confidence, ticker=DEFAULT_TICKER, analysis_date=
         if portfolio['cash'] < available_cash:
             print(f"⚠️ Pas assez de cash réel ({portfolio['cash']:.2f}€) pour le budget cible ({available_cash:.2f}€).")
         
-        target_budget = available_cash * 0.999 
+        target_budget = min(available_cash, portfolio['cash']) * 0.99 
         # Déterminer la précision selon le ticker
         precision = 2 if "CRUD" in t212_ticker.upper() else 4
         quantity = round(target_budget / current_price, precision) 
@@ -356,7 +388,7 @@ def execute_t212_trade(signal, confidence, ticker=DEFAULT_TICKER, analysis_date=
                     price=current_value_eur / total_qty if total_qty > 0 else 0,
                     cost=current_value_eur,
                     signal_source=signal_source,
-                    reason=f"T212 Confirmed Sale (P&L: {(current_value_eur-buy_cost):+.2f}€)"
+                    reason=f"T212 Confirmed Sale (P&L: {(current_value_eur-buy_cost):+.2f}€, {((current_value_eur/buy_cost)-1):+.2%})"
                 )
         else:
             print(f"❌ Erreur lors de la vente : {sell_resp.text}")

@@ -91,8 +91,9 @@ def run_trading_analysis(ticker: str, is_simulation: bool = False, is_t212: bool
         
         # T212 Execution
         if is_t212:
-            t212_ticker = ticker.split('.')[0]
-            t212_state = load_t212_state(t212_ticker)
+            from t212_executor import get_t212_ticker
+            t212_key = get_t212_ticker(ticker)
+            t212_state = load_t212_state(t212_key)
             
             # --- AJOUT : Récupération de l'état de position pour le Risk Manager ---
             is_holding = t212_state.get('active_position') is not None
@@ -144,8 +145,8 @@ def run_trading_analysis(ticker: str, is_simulation: bool = False, is_t212: bool
             if not file_exists:
                 writer.writerow(header)
 
-            t212_ticker = ticker.split('.')[0]
-            t212_state = load_t212_state(t212_ticker)
+            t212_key = get_t212_ticker(ticker) if is_t212 else ticker
+            t212_state = load_t212_state(t212_key)
             capital_val = t212_state.get('current_capital', 1000.0)
             
             # Préparation de la ligne de données
@@ -193,8 +194,9 @@ def run_trading_analysis(ticker: str, is_simulation: bool = False, is_t212: bool
                 if last_tx:
                     summary_table.add_row("LAST TRADE", f"{last_tx[1]} on {last_tx[0]}")
         elif is_t212:
-            t212_ticker = ticker.split('.')[0]
-            t212_state = load_t212_state(t212_ticker)
+            from t212_executor import get_t212_ticker
+            t212_key = get_t212_ticker(ticker)
+            t212_state = load_t212_state(t212_key)
             
             # Correction: s'assurer que les clés existent
             cap_val = t212_state.get('current_capital', 1000.0)
