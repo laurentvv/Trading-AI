@@ -1,6 +1,8 @@
 import asyncio
 from ddgs import DDGS
 import logging
+import pandas as pd
+from datetime import datetime
 from dotenv import load_dotenv
 from typing import List, Dict
 from llm_client import TEXT_LLM_MODEL, _query_ollama
@@ -17,30 +19,39 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 
-def generate_search_query(ticker: str) -> str:
+def generate_search_query(ticker: str, latest_data: pd.DataFrame = None) -> str:
     """
     Uses the LLM to generate the most relevant web search query for a given ticker.
+    Integrates current date and recent price action for temporal relevance.
     """
-    logger.info(f"Generating dynamic web search query for {ticker}...")
+    current_date = datetime.now().strftime("%B %Y")
+    logger.info(f"Generating dynamic web search query for {ticker} ({current_date})...")
+
+    price_context = ""
+    if latest_data is not None and not latest_data.empty:
+        last_price = latest_data['Close'].iloc[-1]
+        prev_price = latest_data['Close'].iloc[-5] if len(latest_data) > 5 else latest_data['Close'].iloc[0]
+        change = ((last_price / prev_price) - 1) * 100
+        trend = "upward" if change > 0.5 else "downward" if change < -0.5 else "sideways"
+        price_context = f"The current price is {last_price:.2f} with a 5-day {trend} trend ({change:+.2f}%)."
 
     # Specific instruction for Hyperliquid on Oil and NASDAQ
     extra_context = ""
     if any(x in ticker.upper() for x in ["CL=F", "OIL", "WTI", "CRUDP"]):
-        extra_context = "Specifically check for 'flx:OIL' or 'OIL-USDH' price action and sentiment on Hyperliquid (DEX) as a leading indicator."
+        extra_context = "Specifically focus on OPEC+ supply decisions, global inventory levels, and 'flx:OIL' sentiment on Hyperliquid."
     elif any(x in ticker.upper() for x in ["^NDX", "NASDAQ", "QQQ", "SXRV"]):
-        extra_context = "Specifically check for 'NDX' or tech index price action and sentiment on Hyperliquid (DEX) as a leading indicator for the US tech opening."
+        extra_context = "Specifically focus on Federal Reserve interest rate expectations, major tech earnings, and NDX speculative positioning."
 
     prompt = f"""
-    You are an expert macroeconomic analyst. I am preparing to analyze the financial asset '{ticker}'.
-    To gather the most relevant long-term context, I need to search the web for recent macroeconomic forecasts,
-    fundamental events, or policy decisions that directly impact this specific asset.
+    You are an expert macroeconomic research assistant. Today is {current_date}.
+    Target Asset: {ticker}
+    Current Context: {price_context}
     {extra_context}
 
-    Generate the single most effective web search query (in English, maximum 10 words) to find this information.
-    For example, if the asset is a tech index, you might search for Federal Reserve rates or semiconductor supply chain.
-    If it's oil, you might search for OPEC+ decisions and global demand.
-
-    Provide your response ONLY as a valid JSON object:
+    Your goal is to find the most impactful news or reports FROM THE LAST 30 DAYS that explain the current market regime.
+    Generate the single most effective Google/DuckDuckGo search query (maximum 10 words).
+    
+    Output ONLY a valid JSON object:
     {{
       "query": "<your optimized search query>"
     }}
@@ -51,7 +62,7 @@ def generate_search_query(ticker: str) -> str:
         "prompt": prompt.strip(),
         "stream": False,
         "format": "json",
-        "system": "You are a web research assistant. Output only a valid JSON object."
+        "system": "You are a professional financial researcher. Be precise and focus on current market catalysts."
     }
 
     try:

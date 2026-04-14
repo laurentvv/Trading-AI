@@ -247,7 +247,7 @@ class EnhancedTradingSystem:
         
         # Web Research pour contexte Macro
         logger.info("Début de la recherche Web Macro...")
-        search_query = generate_search_query(self.analysis_ticker)
+        search_query = generate_search_query(self.analysis_ticker, latest_data=data_with_features)
         web_context = get_web_context_sync(search_query)
         logger.info("Recherche Web Macro terminée.")
 

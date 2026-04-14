@@ -12,7 +12,7 @@ OLLAMA_API_URL = "http://localhost:11434/api/generate"
 TEXT_LLM_MODEL = "gemma4:e4b"
 VISUAL_LLM_MODEL = "gemma4:e4b"
 
-def construct_llm_prompt(latest_data: pd.DataFrame, headlines: list = None, web_context: str = None, vg_indicators: dict = None) -> str:
+def construct_llm_prompt(latest_data: pd.DataFrame, headlines: list = None, web_context: str = None, vg_indicators: dict = None, ticker: str = "Unknown") -> str:
     """
     Constructs a detailed prompt for the LLM from the latest market data and news.
     """
@@ -20,13 +20,16 @@ def construct_llm_prompt(latest_data: pd.DataFrame, headlines: list = None, web_
     news_text = "\n".join([f"- {h}" for h in headlines[:15]]) if headlines else "No recent news available."
     web_text = f"\n**Web Research / Macro Context:**\n{web_context}" if web_context else ""
     
+    # Déterminer le contexte de l'actif
+    asset_type = "OIL (WTI)" if "CRUD" in ticker.upper() or "CL=F" in ticker.upper() else "NASDAQ-100"
+    
     # Alternative Data / Speculative Sentiment (Hyperliquid)
     hl_text = ""
     if vg_indicators:
         hl_funding = vg_indicators.get('HL_OIL_funding')
         hl_oi = vg_indicators.get('HL_OIL_oi')
         if hl_funding is not None or hl_oi is not None:
-            hl_text = "\n**Speculative Sentiment (Hyperliquid OIL Perps):**\n"
+            hl_text = f"\n**Speculative Sentiment (Hyperliquid {asset_type} Perps):**\n"
             if hl_funding is not None:
                 hl_text += f"- Funding Rate: {hl_funding:.6f}% "
                 hl_text += "(Positive = Longs dominant, Negative = Shorts dominant)\n"
@@ -34,25 +37,26 @@ def construct_llm_prompt(latest_data: pd.DataFrame, headlines: list = None, web_
                 hl_text += f"- Open Interest: {hl_oi:.2f} (Trend strength indicator)\n"
 
     prompt = f"""
-    Analyze the following market data and news for a NASDAQ-100 or OIL ETF to provide a highly accurate trading decision.
+    Analyze the following market data and news for {ticker} ({asset_type}) to provide a highly accurate trading decision.
     Your priority is ACCURACY (justesse) over trading frequency.
 
-    **Current Market Data:**
+    **Current Market Data for {ticker}:**
     - Close Price: {data['Close']:.2f}
-    - RSI (14): {data['RSI']:.2f}
+    - RSI (14): {data['RSI']:.2f} ({'Overbought' if data['RSI'] > 70 else 'Oversold' if data['RSI'] < 30 else 'Neutral'})
     - MACD: {data['MACD']:.4f} | Signal: {data['MACD_Signal']:.4f}
-    - Bollinger Bands Position: {data['BB_Position']:.2f}
+    - Bollinger Bands Position: {data['BB_Position']:.2f} (0=Bottom, 1=Top)
     - Short-term Trend: {'Bullish' if data['Trend_Short'] == 1 else 'Bearish' if data['Trend_Short'] == -1 else 'Neutral'}
     - Long-term Trend: {'Bullish' if data['Trend_Long'] == 1 else 'Bearish' if data['Trend_Long'] == -1 else 'Neutral'}
     {hl_text}
     **Recent News Headlines:**
     {news_text}{web_text}
 
-    **Decision Rules:**
+    **Decision Rules for {asset_type}:**
     1. Priority: ACCURACY. If news contradict technicals or signals are weak/mixed, default to HOLD.
     2. Bullish trend + Positive news = High conviction BUY.
     3. Bearish trend + Negative news = High conviction SELL.
-    4. Speculative Sentiment (HL): Extreme funding can be a contrarian signal (e.g., very negative funding might signal a bottom/short squeeze).
+    4. {asset_type} Specific: Consider macroeconomic context (OPEC+ for Oil, Fed/Tech earnings for Nasdaq).
+    5. Speculative Sentiment (HL): Extreme negative funding is often a contrarian BUY signal (bottoming).
 
     Provide your analysis ONLY as a valid JSON object.
     {{
@@ -63,12 +67,12 @@ def construct_llm_prompt(latest_data: pd.DataFrame, headlines: list = None, web_
     """
     return prompt.strip()
 
-def get_llm_decision(latest_data: pd.DataFrame, headlines: list = None, web_context: str = None, vg_indicators: dict = None) -> dict:
+def get_llm_decision(latest_data: pd.DataFrame, headlines: list = None, web_context: str = None, vg_indicators: dict = None, ticker: str = "Unknown") -> dict:
     """
     Queries the textual LLM via Ollama to get a trading decision.
     """
-    logger.info("Querying textual LLM for a trading decision...")
-    prompt = construct_llm_prompt(latest_data, headlines, web_context, vg_indicators)
+    logger.info(f"Querying textual LLM for {ticker} decision...")
+    prompt = construct_llm_prompt(latest_data, headlines, web_context, vg_indicators, ticker)
     payload = {
         "model": TEXT_LLM_MODEL,
         "prompt": prompt,

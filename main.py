@@ -168,12 +168,17 @@ def run_trading_analysis(ticker: str, is_simulation: bool = False, is_t212: bool
         elif is_t212:
             t212_ticker = ticker.split('.')[0]
             t212_state = load_t212_state(t212_ticker)
+            
+            # Correction: s'assurer que les clés existent
+            cap_val = t212_state.get('current_capital', 1000.0)
+            pl_val = t212_state.get('total_realized_pl', 0.0)
+            active_pos = t212_state.get('active_position')
+            
             summary_table.add_row("---", "---")
-            summary_table.add_row("T212 CAPITAL", f"[bold]{t212_state['current_capital']:.2f} €[/bold]")
-            summary_table.add_row("T212 P/L", f"{t212_state['total_realized_pl']:.2f} €")
-            if t212_state['active_position']:
-                pos = t212_state['active_position']
-                summary_table.add_row("T212 POSITION", f"{pos['quantity']} shares")
+            summary_table.add_row("T212 CAPITAL", f"[bold]{cap_val:.2f} €[/bold]")
+            summary_table.add_row("T212 P/L", f"{pl_val:+.2f} €")
+            if active_pos:
+                summary_table.add_row("T212 POSITION", f"{active_pos['quantity']} shares")
         else:
             summary_table.add_row("REC. POSITION", f"${results['position_sizing'].recommended_size:,.2f}")
         
