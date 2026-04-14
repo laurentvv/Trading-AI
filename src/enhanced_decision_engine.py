@@ -81,95 +81,102 @@ class VincentGanneModel:
     def evaluate(self, indicators: dict) -> dict:
         """
         Evaluates the current indicators against Vincent Ganne's rules.
-        CRITICAL: Oil prices (WTI/Brent) are the primary indicators for a market bottom.
+        Distinguishes between Minimum Technical Level and Ideal/Strong Signal.
         """
         score = 0
         max_score = 0
         reasons = []
         
-        # 1 & 2. Oil Prices (CRITICAL - Priority 1 & 2)
+        # 1. WTI Oil (CRITICAL - Priority 1)
         wti = indicators.get('WTI_price')
-        brent = indicators.get('Brent_price')
-        
-        # Priority 1: WTI (Weight 10)
         if wti:
             max_score += 10
             if wti < self.thresholds['WTI']['ideal']:
-                score += 10
-                reasons.append(f"WTI at IDEAL level ({wti:.2f})")
+                score += 10 # FULL POINTS for IDEAL level
+                reasons.append(f"WTI STRONG SIGNAL: Ideal level reached ({wti:.2f} <= 80$)")
             elif wti < self.thresholds['WTI']['max']:
-                score += 5
-                reasons.append(f"WTI below threshold ({wti:.2f})")
+                score += 5 # HALF POINTS for Minimum Technical Level
+                reasons.append(f"WTI Minimum validation ({wti:.2f} < 94$)")
             else:
-                reasons.append(f"WTI TOO HIGH ({wti:.2f} > 94$)")
+                reasons.append(f"WTI TOO HIGH ({wti:.2f} >= 94$)")
 
-        # Priority 2: Brent (Weight 8)
+        # 2. Brent Oil (Priority 2)
+        brent = indicators.get('Brent_price')
         if brent:
             max_score += 8
             if brent < self.thresholds['Brent']['ideal']:
                 score += 8
-                reasons.append(f"Brent at IDEAL level ({brent:.2f})")
+                reasons.append(f"Brent STRONG SIGNAL: Ideal level reached ({brent:.2f} <= 83$)")
             elif brent < self.thresholds['Brent']['max']:
                 score += 4
-                reasons.append(f"Brent below threshold ({brent:.2f})")
-            else:
-                reasons.append(f"Brent TOO HIGH ({brent:.2f} > 95$)")
+                reasons.append(f"Brent Minimum validation ({brent:.2f} < 95$)")
 
-        # HARD BLOCK: If Oil is too high, it's NOT a market bottom (Vincent Ganne rule)
-        oil_is_too_high = (wti and wti >= 94) or (brent and brent >= 95)
-
-        # 3. Natural Gas (Weight 5)
+        # 3. Natural Gas TTF (Priority 3)
         gas = indicators.get('NaturalGas_price')
         if gas:
             max_score += 5
             if gas < self.thresholds['Gas']['ideal']:
                 score += 5
-                reasons.append(f"Natural Gas IDEAL ({gas:.2f})")
+                reasons.append(f"Gas STRONG SIGNAL: Ideal level reached ({gas:.2f} < 38€)")
             elif gas < self.thresholds['Gas']['max']:
                 score += 2.5
-                reasons.append(f"Natural Gas below threshold ({gas:.2f})")
+                reasons.append(f"Gas Minimum validation ({gas:.2f} < 55€)")
 
-        # 4. Urea Fertilizer (Weight 4)
+        # 4. Urea Fertilizer (Priority 4)
         urea = indicators.get('Urea_price')
         if urea:
             max_score += 4
             if urea < self.thresholds['Urea']['max']:
                 score += 4
-                reasons.append("Urea below threshold")
+                reasons.append("Urea Minimum validation (Supply chain relief)")
 
-        # US 2Y vs Fed Rate (Weight 3)
+        # US 2Y vs Fed Rate (Normalization)
         yield_2y = indicators.get('US2Y_yield')
         fed_rate = indicators.get('Fed_rate')
         if yield_2y and fed_rate:
             max_score += 3
             if abs(yield_2y - fed_rate) < 0.25:
                 score += 3
-                reasons.append("Yields normalized")
+                reasons.append("Yields normalized (Fed pivot context)")
 
-        # US Dollar DXY (Weight 3)
+        # US Dollar DXY
         dxy = indicators.get('DXY_price')
         if dxy:
             max_score += 3
-            if dxy < self.thresholds['DXY']['max']:
+            if dxy < self.thresholds['DXY']['ideal']:
                 score += 3
-                reasons.append(f"Dollar weak ({dxy:.2f})")
+                reasons.append(f"DXY STRONG SIGNAL: Dollar weak ({dxy:.2f})")
+            elif dxy < self.thresholds['DXY']['max']:
+                score += 1.5
+                reasons.append(f"DXY Minimum validation ({dxy:.2f})")
 
-        # Indices MA200 (Weight 1 each - Confirmation only)
+        # Confirmation Technicals (MA200)
         for idx in ['SP500', 'Nasdaq', 'DowJones', 'TechSector']:
             if indicators.get(f'{idx}_above_ma200'):
                 max_score += 1
                 score += 1
 
+        # ENRICHMENT 2026: Hyperliquid Contrarian Signal (Funding Rate)
+        funding = indicators.get('HL_OIL_funding')
+        if funding is not None:
+            # A very negative funding rate on OIL suggests extreme bearishness (Short Squeeze potential)
+            if funding < -0.05: # Extreme negative
+                score += 2
+                reasons.append(f"Hyperliquid Contrarian: Extreme negative funding ({funding:.2f}%)")
+
         # FINAL DECISION LOGIC
         confidence = score / max_score if max_score > 0 else 0
         
+        # HARD BLOCK: If Oil is too high, it's NOT a market bottom (Vincent Ganne rule)
+        oil_is_too_high = (wti and wti >= 94) or (brent and brent >= 95)
+        
         if oil_is_too_high:
             signal = "SELL" if confidence < 0.3 else "HOLD"
-            reasons.insert(0, "GEO-POLITICAL PRESSURE (OIL TOO HIGH)")
+            reasons.insert(0, "GEO-POLITICAL PRESSURE (OIL TOO HIGH - NO MARKET BOTTOM)")
         else:
-            if confidence > 0.75:
+            if confidence > 0.8: # Very high score required for strong buy
                 signal = "STRONG_BUY"
-            elif confidence > 0.5:
+            elif confidence > 0.45: # Moderate score for buy
                 signal = "BUY"
             else:
                 signal = "HOLD"
