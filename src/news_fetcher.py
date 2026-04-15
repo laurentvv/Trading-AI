@@ -4,55 +4,90 @@ import json
 import sys
 import os
 import logging
+import time
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 # Add AlphaEar skill scripts to path
 # Configurable via environment variable, defaults to relative path from project root
-ALPHA_EAR_PATH = Path(os.getenv(
-    "ALPHA_EAR_SCRIPTS_PATH",
-    str(Path(__file__).parent.parent / ".agents" / "skills" / "alphaear-news" / "scripts")
-))
+ALPHA_EAR_PATH = Path(
+    os.getenv(
+        "ALPHA_EAR_SCRIPTS_PATH",
+        str(
+            Path(__file__).parent.parent
+            / ".agents"
+            / "skills"
+            / "alphaear-news"
+            / "scripts"
+        ),
+    )
+)
 if ALPHA_EAR_PATH.exists():
     sys.path.append(str(ALPHA_EAR_PATH))
     try:
         from news_tools import NewsNowTools
+
         HAS_ALPHA_EAR = True
     except ImportError:
         HAS_ALPHA_EAR = False
 else:
     HAS_ALPHA_EAR = False
 
+
 def fetch_alpha_vantage_news(ticker: str, api_key: str):
     """
     Fetches news and sentiment from Alpha Vantage for a given ticker.
+    Tries the original ticker first, then falls back to broader topics.
     """
-    url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers={ticker}&apikey={api_key}"
+    topics_map = {
+        "CRUDP.PA": ["CRUDP", "oil", "crude oil", "WTI"],
+        "CL=F": ["crude oil", "WTI", "oil futures"],
+        "SXRV.DE": ["SXRV", "NASDAQ", "QQQ", "tech ETF"],
+        "^NDX": ["NASDAQ 100", "NDX", "tech stocks"],
+        "SXRV.FRK": ["SXRV", "NASDAQ", "QQQ", "tech ETF"],
+    }
 
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
+    queries = topics_map.get(ticker, [ticker])[
+        :2
+    ]  # Max 2 queries to respect rate limits
 
-        headlines = [item['title'] for item in data.get('feed', [])]
+    all_headlines = []
+    total_sentiment = 0
+    sentiment_count = 0
 
-        sentiment_score = 0
-        sentiment_count = 0
-        for item in data.get('feed', []):
-            for sentiment in item.get('ticker_sentiment', []):
-                if sentiment['ticker'] == ticker:
+    for query in queries:
+        url = f"https://www.alphavantage.co/query?function=NEWS_SENTIMENT&keywords={query}&apikey={api_key}"
+        try:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+
+            if "Information" in data and "limit" in data.get("Information", ""):
+                logger.warning("Limite Alpha Vantage atteinte, arret des requetes.")
+                break
+
+            for item in data.get("feed", []):
+                title = item.get("title", "")
+                if title and title not in all_headlines:
+                    all_headlines.append(title)
+                for sentiment in item.get("ticker_sentiment", []):
                     try:
-                        sentiment_score += float(sentiment['ticker_sentiment_score'])
+                        total_sentiment += float(
+                            sentiment.get("ticker_sentiment_score", 0)
+                        )
                         sentiment_count += 1
                     except (ValueError, TypeError):
                         continue
 
-        overall_sentiment = sentiment_score / sentiment_count if sentiment_count > 0 else 0
-        return headlines, overall_sentiment
+            time.sleep(12)  # Respect Alpha Vantage free tier rate limit (5/min)
 
-    except Exception:
-        return [], 0
+        except Exception:
+            continue
+
+    overall_sentiment = total_sentiment / sentiment_count if sentiment_count > 0 else 0
+    return all_headlines, overall_sentiment
+
 
 def fetch_alpha_ear_trends():
     """
@@ -68,10 +103,11 @@ def fetch_alpha_ear_trends():
 
         # Simple sentiment heuristic for AlphaEar (can be enhanced with another LLM call)
         # For now, we return the headlines and a neutral/positive default if trends exist
-        headlines = [t.get('title', '') for t in trends if t.get('title')]
+        headlines = [t.get("title", "") for t in trends if t.get("title")]
         return headlines, 0.1 if headlines else 0
     except Exception:
         return [], 0
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fetch news headlines and sentiment.")
@@ -89,8 +125,8 @@ if __name__ == "__main__":
     final_sentiment = (av_sentiment * 0.7) + (ae_sentiment * 0.3)
 
     output = {
-        "headlines": all_headlines[:20], # Limit to top 20 for LLM context
-        "sentiment": final_sentiment
+        "headlines": all_headlines[:20],  # Limit to top 20 for LLM context
+        "sentiment": final_sentiment,
     }
 
     print(json.dumps(output))

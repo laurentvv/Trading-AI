@@ -1,6 +1,10 @@
 import logging
+import os
 import pandas as pd
 from typing import Dict
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -10,11 +14,15 @@ try:
     # import timesfm
     from timesfm.timesfm_2p5.timesfm_2p5_torch import TimesFM_2p5_200M_torch
     from timesfm.configs import ForecastConfig
+
     TIMESFM_2P5_AVAILABLE = True
     logger.info("API TimesFM 2.5 (Torch) chargée avec succès.")
 except ImportError:
     TIMESFM_2P5_AVAILABLE = False
-    logger.error("API TimesFM 2.5 non trouvée. Veuillez lancer 'python setup_timesfm.py' pour l'installer.")
+    logger.error(
+        "API TimesFM 2.5 non trouvée. Veuillez lancer 'python setup_timesfm.py' pour l'installer."
+    )
+
 
 class TimesFMModel:
     """Wrapper pour le modèle TimesFM 2.5 de Google Research"""
@@ -30,18 +38,38 @@ class TimesFMModel:
     def __init__(self):
         self.model = None
         self.initialized = False
-        
+
         if not TIMESFM_2P5_AVAILABLE:
             return
 
         try:
-            logger.info("Initialisation de TimesFM 2.5 (google/timesfm-2.5-200m-pytorch)...")
-            
+            hf_token = os.getenv("HF_TOKEN")
+            if hf_token:
+                try:
+                    from huggingface_hub import login
+
+                    login(token=hf_token, add_to_git_credential=False)
+                    logger.info(
+                        "HF_TOKEN detecte — authentification HuggingFace effectuee."
+                    )
+                except Exception as hf_err:
+                    logger.warning(
+                        f"Authentification HF echouee (non bloquant): {hf_err}"
+                    )
+            else:
+                logger.info(
+                    "HF_TOKEN non defini — telechargements sans authentification."
+                )
+
+            logger.info(
+                "Initialisation de TimesFM 2.5 (google/timesfm-2.5-200m-pytorch)..."
+            )
+
             # Initialisation selon l'API 2.5 (sans torch_compile pour Windows)
             self.model = TimesFM_2p5_200M_torch(torch_compile=False).from_pretrained(
                 "google/timesfm-2.5-200m-pytorch"
             )
-            
+
             self.model.compile(
                 ForecastConfig(
                     max_context=1024,
@@ -63,20 +91,28 @@ class TimesFMModel:
     def predict(self, df: pd.DataFrame, horizon: int = 5) -> Dict:
         """Prédit les valeurs futures et génère une décision."""
         if not self.initialized or self.model is None:
-            return {"signal": "HOLD", "confidence": 0.0, "analysis": "Model not initialized."}
+            return {
+                "signal": "HOLD",
+                "confidence": 0.0,
+                "analysis": "Model not initialized.",
+            }
 
         try:
-            prices = df['Close'].values
+            prices = df["Close"].values
             if len(prices) > 1024:
                 prices = prices[-1024:]
-            
+
             # API 2.5: point_forecast est un numpy array de shape (batch_size, horizon)
             point_forecast, _ = self.model.forecast(horizon=horizon, inputs=[prices])
             predictions = point_forecast[0]
 
             current_price = prices[-1]
             last_pred = predictions[-1]
-            expected_return = (last_pred - current_price) / current_price if current_price != 0 else 0.0
+            expected_return = (
+                (last_pred - current_price) / current_price
+                if current_price != 0
+                else 0.0
+            )
 
             signal = "HOLD"
             # On scale la confiance : 1% de mouvement -> 0.5 de confiance, 2% -> 1.0
@@ -88,8 +124,10 @@ class TimesFMModel:
             elif expected_return < -threshold:
                 signal = "SELL"
 
-            analysis = (f"TimesFM 2.5 forecasts price move: {current_price:.2f} -> {last_pred:.2f} "
-                       f"({expected_return*100:+.2f}%) over {horizon} days.")
+            analysis = (
+                f"TimesFM 2.5 forecasts price move: {current_price:.2f} -> {last_pred:.2f} "
+                f"({expected_return * 100:+.2f}%) over {horizon} days."
+            )
 
             logger.info(f"TimesFM 2.5 prediction: {signal} ({confidence:.2f})")
 
@@ -97,12 +135,13 @@ class TimesFMModel:
                 "signal": signal,
                 "confidence": round(float(confidence), 2),
                 "analysis": analysis,
-                "predictions": predictions.tolist()
+                "predictions": predictions.tolist(),
             }
 
         except Exception as e:
             logger.error(f"Erreur prédiction TimesFM 2.5: {e}")
             return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Error: {e}"}
+
 
 def get_timesfm_prediction(df: pd.DataFrame) -> Dict:
     """

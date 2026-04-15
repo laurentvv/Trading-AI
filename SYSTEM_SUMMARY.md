@@ -132,12 +132,19 @@ Le système peut désormais passer des ordres réels sur un compte Trading 212 v
 
 ### Caractéristiques :
 - **Sécurité et Vérification** : Consulte le cash réel et les positions ouvertes **avant** toute action.
+- **Prix Temps Réel T212** : Récupère le prix live en EUR via l'API positions Trading 212 (`get_t212_price()`). Plus rapide et plus fiable que yfinance pour les ETFs cotés.
 - **Tickers Certifiés** : Utilisation des identifiants d'instruments exacts pour garantir l'exécution (`SXRVd_EQ` pour le Nasdaq EUR, `CRUDl_EQ` pour le Pétrole WTI).
 - **Logique de Signal Ajusté** : Le robot utilise le signal filtré par le `AdvancedRiskManager`. Si le risque est jugé trop élevé par rapport à la confiance, l'exécution est bloquée (conversion en `HOLD`).
 - **Budget Dédié :** Commence avec 1000 € (paramétrable dans `t212_portfolio_state.json`).
 - **Actions Fractionnées :** Le système calcule la quantité exacte pour respecter le budget au centime près.
 - **Vente Totale :** En cas de signal SELL, le robot liquide 100% de la position (incluant toutes les fractions).
 - **Gestion des API** : Retry automatique en cas de limite de requêtes API (Rate Limit).
+
+### Résilience Réseau :
+- **Circuit Breaker yfinance** : Deux trackers séparés (`info` vs `download`). Après 3 échecs consécutifs, les appels sont bloqués 120s. Empêche les cascades de timeouts.
+- **Hiérarchie de prix** : T212 live → yfinance → cache parquet.
+- **Timeout 10s** sur tous les appels réseau (yfinance, Alpha Vantage).
+- **Skip metadata** : `_yf_ticker_info()` ignoré quand le cache parquet existe (gain ~30-50s/cycle).
 
 ```bash
 # Lancer l'analyse avec exécution réelle (Mode Démo ou Live)

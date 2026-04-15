@@ -29,7 +29,8 @@
 ## 4. Key Components
 - `main.py`: CLI controller with `--simul`, `--t212` and `--ticker` flags.
 - `src/enhanced_trading_example.py`: Main engine orchestrating all models.
-- `src/t212_executor.py`: Real-world execution layer via Trading 212 API.
+- `src/t212_executor.py`: Real-world execution layer via Trading 212 API. Includes `get_t212_price()` for live ETF price retrieval.
+- `src/data.py`: Market data layer with yfinance circuit breaker (separate trackers for `info` vs `download`) and 10s timeouts.
 - `src/database.py`: DAO layer for SQLite persistence.
 - `src/read_simul.py`: Reporting tool for simulation performance.
 
@@ -37,3 +38,9 @@
 - **CSV Journal (`trading_journal.csv`)**: (Test Phase) Detailed audit trail of AI reasoning and decisions per individual model.
 - **SQLite DB**: Performance and simulation state history.
 - **Dashboard**: `enhanced_performance_dashboard.png`.
+
+## 6. Resilience Architecture
+- **yfinance Circuit Breakers** (`src/data.py`): Two independent trackers — `_yf_info_tracker` for metadata (non-critical) and `_yf_download_tracker` for data downloads. After 3 consecutive failures, calls are skipped for 120s.
+- **T212 Live Price Fallback** (`src/t212_executor.py`): `get_t212_price()` retrieves real-time EUR prices from Trading 212 positions when available (0.2s vs 10s+ yfinance timeout).
+- **Price Hierarchy**: T212 live → MarketDataManager (yfinance) → yfinance history → cache parquet last close.
+- **_yf_ticker_info() skipped when cache exists**: The `info` metadata call is bypassed when loading from parquet cache, saving ~30-50s per cycle.

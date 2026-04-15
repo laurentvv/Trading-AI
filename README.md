@@ -45,7 +45,7 @@ Ce projet est un système expert d'aide à la décision pour le trading d'ETFs, 
 ### 🚀 Stratégie Dual-Ticker (Analyse vs Trading)
 Le système utilise une approche innovante pour maximiser la précision des modèles :
 - **Analyse Haute Fidélité** : Les modèles IA analysent les **indices de référence mondiaux** (`^NDX` pour le Nasdaq, `CL=F` pour le pétrole WTI). Ces indices offrent un historique plus long et des tendances plus "pures", sans le bruit lié aux horaires de cotation ou aux frais des ETFs.
-- **Exécution sur ETF** : Les ordres réels sont passés sur les tickers correspondants sur **Trading 212** (`SXRV.DE`, `CRUDP.PA`), en utilisant les prix réels du marché pour le dimensionnement des positions.
+- **Exécution sur ETF** : Les ordres réels sont passés sur les tickers correspondants sur **Trading 212** (`SXRV.DE`, `CRUDP.PA`), en utilisant les **prix live T212** (via API positions) pour le dimensionnement des positions.
 
 ### 🧠 Moteur IA Hybride
 Le système fusionne sept signaux distincts :
@@ -68,6 +68,8 @@ Contrairement aux algorithmes de trading classiques qui paniquent dès que la vo
 ### ✨ Fonctionnalités Clés
 
 - **Approche Dual-Ticker** : Analyse l'indice, trade l'ETF.
+- **Prix Live T212** : Récupération temps réel des prix EUR via l'API Trading 212 (0.2s), avec fallback yfinance et cache parquet.
+- **Résilience Réseau** : Circuit breaker yfinance avec trackers séparés (info vs download), timeout 10s sur tous les appels réseau.
 - **Cognition Avancée** : Utilisation de **Gemma 4** pour une meilleure synthèse technique/fondamentale.
 - **News & Sentiment Blockchain** : Intégration d'**AlphaEar** et d'**Hyperliquid** pour capturer le sentiment social et spéculatif.
 - **Scheduler Automatisé** : Script `schedule.py` pour une exécution continue (8h30-18h00) sur serveur.

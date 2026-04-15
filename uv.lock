@@ -3967,7 +3967,7 @@ requires-dist = [
     { name = "timesfm", directory = "vendor/timesfm" },
     { name = "torch", specifier = ">=2.10.0" },
     { name = "tqdm", specifier = ">=4.67.3" },
-    { name = "yfinance", specifier = ">=1.2.1" },
+    { name = "yfinance" },
 ]
 
 [[package]]

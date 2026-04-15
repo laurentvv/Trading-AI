@@ -33,14 +33,28 @@ Le système gère nativement les fractions. Lors d'une vente (`SELL`), le script
 
 Le système suit un budget dédié défini dans `t212_portfolio_state.json`.
 
+### Hiérarchie de Récupération du Prix
+Le système utilise une cascade de sources pour obtenir le prix le plus précis possible :
+
+1. **Trading 212 Live** (`get_t212_price()`) : Interroge `GET /equity/positions` pour trouver le `currentPrice` de l'ETF en EUR. Instantané (~0.2s). Uniquement disponible si une position est ouverte sur le ticker.
+2. **MarketDataManager** (yfinance) : Télécharge les 5 derniers jours via `yf.download()` avec timeout 10s.
+3. **yfinance History** : `yf.Ticker().history(period="5d")` en dernier recours.
+4. **Erreur** : Aucune source disponible → l'exécution est annulée.
+
+### Flux de Décision
 1. **Signal BUY :**
-   - Récupère le prix actuel via Alpha Vantage (`SXRV.FRK`).
-   - Calcule la quantité pour un budget de **1000€** (avec une marge de sécurité de 0.5% pour éviter les rejets).
+   - Tente le prix T212 en priorité.
+   - Calcule la quantité pour un budget de **1000€** (avec une marge de sécurité de 1% pour éviter les rejets).
    - Envoie l'ordre `Market` à Trading 212.
 2. **Signal SELL :**
    - Identifie toutes les fractions d'actions possédées.
    - Liquide la position totale au prix du marché.
    - Met à jour le capital (Capital Initial + Profit/Perte).
+
+### Résilience Réseau
+- **Circuit breaker yfinance** : Les timeouts metadata (`info`) et données (`download`) sont gérés par des trackers séparés. Après 3 échecs consécutifs, les appels sont bloqués pendant 120s.
+- **Timeout 10s** sur tous les appels yfinance (avant : 30s+ sans limite).
+- **News API** (Alpha Vantage) : timeout 10s sur les requêtes HTTP.
 
 ---
 
@@ -62,4 +76,4 @@ Le système suit un budget dédié défini dans `t212_portfolio_state.json`.
 3. **Fichier de suivi :** `t212_portfolio_state.json` est le "journal de bord" de l'IA. Ne pas le supprimer manuellement si une position est active.
 
 ---
-*Dernière mise à jour : 9 avril 2026.*
+*Dernière mise à jour : 15 avril 2026.*

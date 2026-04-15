@@ -23,6 +23,15 @@
 - **Résolu (2025-09-12)**: Corrigé un bug de persistance où la transition de phase n'était pas sauvegardée immédiatement, causant une réinitialisation de la phase au redémarrage du planificateur.
 
 ## 5. Corrections Récentes
+- **2026-04-15**: Résilience Réseau et Prix Temps Réel
+  * Implémentation d'un **circuit breaker yfinance** avec deux trackers séparés (`_yf_info_tracker` pour metadata, `_yf_download_tracker` pour données). Après 3 échecs consécutifs, les appels sont bloqués pendant 120s.
+  * Ajout d'un **timeout 10s** sur tous les appels yfinance (avant : 30s+ sans limite). `_yf_ticker_info()` utilise un `ThreadPoolExecutor` avec timeout.
+  * **Skip `_yf_ticker_info()`** quand les données viennent du cache parquet — le `info` Yahoo (PEG ratio, etc.) n'est pas utilisé dans le pipeline d'analyse. Gain : ~30-50s par cycle.
+  * Nouvelle fonction **`get_t212_price()`** dans `t212_executor.py` : récupère le prix live EUR des ETFs via l'API Trading 212 positions (0.2s au lieu de 10s+ timeout yfinance).
+  * **Hiérarchie de prix** : T212 live → MarketDataManager (yfinance) → yfinance history → cache parquet.
+  * **`prepare_data_and_features()`** modifié pour utiliser le prix T212 pour les ETF, et le cache pour les indices (`^NDX`, `CL=F`).
+  * Séparation des **circuit breakers info vs download** : les timeouts de metadata ne bloquent plus les téléchargements Vincent Ganne.
+  * **Résultat** : cycle complet passé de ~7min à ~2min (dev) / ~5min (PROD). Plus aucun timeout yfinance bloquant.
 - **2026-04-13**: Modèle Vincent Ganne et Stratégies Avancées
   * Implémentation du **VincentGanneModel** : analyse géopolitique (WTI, Brent, Gaz, Urée, DXY) pour valider les points bas.
   * Mise en place d'un **Verrou Géopolitique** : blocage du BUY si WTI > 94$ (Instabilité énergétique).

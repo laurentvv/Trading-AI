@@ -30,4 +30,6 @@ The application follows a modular, ensemble-based architecture orchestrated by t
 - **Super-Consensus Boost**: Increases global confidence when objective quantitative models (Classic + TimesFM) agree on a strong directional signal.
 - **Strict Simulation (Paper Trading)**: A state-machine pattern that enforces valid trade sequences (cannot SELL if position is 0) and tracks persistent state across runs.
 - **Graceful Degradation**: The system is designed to continue functioning even if a complex component (like TimesFM or a specific API) fails, by falling back to the remaining reliable models.
+- **yfinance Circuit Breaker**: Separate failure trackers for `info` (metadata, non-critical) and `download` (data). After 3 consecutive failures, calls are blocked for 120s. Prevents cascading slowdowns when Yahoo Finance is down.
+- **T212 Live Price Priority**: ETF prices are first fetched from Trading 212 positions API (real-time EUR, <0.5s). Falls back to yfinance if no position exists. Index prices (`^NDX`, `CL=F`) always use yfinance/cache.
 - **Time-Series Integrity**: All training and validation steps use forward-looking-safe methods (`TimeSeriesSplit`, `ffill`) to prevent data leakage.
