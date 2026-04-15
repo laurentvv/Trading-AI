@@ -38,7 +38,7 @@ class TestLLMClient(unittest.TestCase):
 
         self.assertEqual(result["signal"], "HOLD")
         self.assertEqual(result["confidence"], 0.0)
-        self.assertTrue("failed after 3 attempts" in result.get("analysis", result.get("reason", "failed after 3 attempts")) or result.get("analysis") == "")
+        self.assertEqual(result["analysis"], "")
         self.assertEqual(mock_post.call_count, 3)
         # self.assertEqual(mock_sleep.call_count, 2)
 
@@ -56,7 +56,7 @@ class TestLLMClient(unittest.TestCase):
 
         self.assertEqual(result["signal"], "HOLD")
         self.assertEqual(result["confidence"], 0.0)
-        self.assertTrue("failed after 3 attempts" in result.get("analysis", result.get("reason", "failed after 3 attempts")) or result.get("analysis") == "")
+        self.assertEqual(result["analysis"], "")
         self.assertEqual(mock_post.call_count, 3)
         # self.assertEqual(mock_sleep.call_count, 2)
 
@@ -77,7 +77,7 @@ class TestLLMClient(unittest.TestCase):
 
         self.assertEqual(result["signal"], "HOLD")
         self.assertEqual(result["confidence"], 0.0)
-        self.assertTrue("failed after 3 attempts" in result.get("analysis", result.get("reason", "failed after 3 attempts")) or result.get("analysis") == "")
+        self.assertEqual(result["analysis"], "")
         self.assertEqual(mock_post.call_count, 3)
         # self.assertEqual(mock_sleep.call_count, 2)
 

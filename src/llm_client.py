@@ -234,11 +234,10 @@ def _query_ollama(
                     f"All {max_retries} attempts failed for LLM ({model_name})."
                 )
                 # Default response fallback
-                fallback = {
-                    k: "HOLD" if k == "signal" else 0.0 if k == "confidence" else "failed after 3 attempts"
+                return {
+                    k: "HOLD" if k == "signal" else 0.0 if k == "confidence" else ""
                     for k in expected_keys
                 }
-                return fallback
 
     return {
         k: "HOLD" if k == "signal" else 0.0 if k == "confidence" else ""
