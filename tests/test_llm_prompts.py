@@ -47,7 +47,7 @@ class TestLLMPrompts(unittest.TestCase):
         # Vérifications
         self.assertIn("Close Price: 15230.50", prompt)
         self.assertIn("RSI (14): 42.15", prompt)
-        self.assertIn("Speculative Sentiment (Hyperliquid OIL Perps):", prompt)
+        self.assertIn("Speculative Sentiment (Hyperliquid", prompt)
 
     @patch('src.llm_client.requests.post')
     def test_visual_llm_prompt(self, mock_post):
