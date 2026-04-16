@@ -1,6 +1,6 @@
 """
 Enhanced Decision Engine for Trading AI System
-Provides advanced decision logic with consensus validation, confidence scoring, 
+Provides advanced decision logic with consensus validation, confidence scoring,
 and adaptive thresholds.
 """
 
@@ -13,6 +13,7 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+
 class SignalStrength(Enum):
     STRONG_BUY = 2
     BUY = 1
@@ -20,29 +21,33 @@ class SignalStrength(Enum):
     SELL = -1
     STRONG_SELL = -2
 
+
 @dataclass
 class ModelDecision:
     """Structured representation of a model's decision"""
+
     signal: str
     confidence: float
     strength: SignalStrength
     timestamp: datetime
     model_name: str
     reasoning: Optional[str] = None
-    
+
     def to_dict(self) -> dict:
         return {
-            'signal': self.signal,
-            'confidence': self.confidence,
-            'strength': self.strength.value,
-            'timestamp': self.timestamp.isoformat(),
-            'model_name': self.model_name,
-            'reasoning': self.reasoning
+            "signal": self.signal,
+            "confidence": self.confidence,
+            "strength": self.strength.value,
+            "timestamp": self.timestamp.isoformat(),
+            "model_name": self.model_name,
+            "reasoning": self.reasoning,
         }
+
 
 @dataclass
 class HybridDecision:
     """Final hybrid decision with detailed metadata"""
+
     final_signal: str
     final_confidence: float
     consensus_score: float
@@ -51,31 +56,33 @@ class HybridDecision:
     individual_decisions: List[ModelDecision]
     reasoning: str
     timestamp: datetime
-    
+
     def to_dict(self) -> dict:
         return {
-            'final_signal': self.final_signal,
-            'final_confidence': self.final_confidence,
-            'consensus_score': self.consensus_score,
-            'disagreement_factor': self.disagreement_factor,
-            'risk_adjusted_signal': self.risk_adjusted_signal,
-            'individual_decisions': [d.to_dict() for d in self.individual_decisions],
-            'reasoning': self.reasoning,
-            'timestamp': self.timestamp.isoformat()
+            "final_signal": self.final_signal,
+            "final_confidence": self.final_confidence,
+            "consensus_score": self.consensus_score,
+            "disagreement_factor": self.disagreement_factor,
+            "risk_adjusted_signal": self.risk_adjusted_signal,
+            "individual_decisions": [d.to_dict() for d in self.individual_decisions],
+            "reasoning": self.reasoning,
+            "timestamp": self.timestamp.isoformat(),
         }
+
 
 class VincentGanneModel:
     """
     Decision model based on Vincent Ganne's criteria for market bottoms.
     Analyzes cross-asset indicators (Oil, Gas, Yields, DXY) and technicals (MA200).
     """
+
     def __init__(self):
         self.thresholds = {
-            'WTI': {'max': 94, 'ideal': 80},
-            'Brent': {'max': 95, 'ideal': 83},
-            'Gas': {'max': 55, 'ideal': 38},
-            'Urea': {'max': 506},
-            'DXY': {'max': 101, 'ideal': 100}
+            "WTI": {"max": 94, "ideal": 80},
+            "Brent": {"max": 95, "ideal": 83},
+            "Gas": {"max": 55, "ideal": 38},
+            "Urea": {"max": 506},
+            "DXY": {"max": 101, "ideal": 100},
         }
 
     def evaluate(self, indicators: dict) -> dict:
@@ -86,53 +93,59 @@ class VincentGanneModel:
         score = 0
         max_score = 0
         reasons = []
-        
+
         # 1. WTI Oil (CRITICAL - Priority 1)
-        wti = indicators.get('WTI_price')
+        wti = indicators.get("WTI_price")
         if wti:
             max_score += 10
-            if wti < self.thresholds['WTI']['ideal']:
-                score += 10 # FULL POINTS for IDEAL level
-                reasons.append(f"WTI STRONG SIGNAL: Ideal level reached ({wti:.2f} <= 80$)")
-            elif wti < self.thresholds['WTI']['max']:
-                score += 5 # HALF POINTS for Minimum Technical Level
+            if wti < self.thresholds["WTI"]["ideal"]:
+                score += 10  # FULL POINTS for IDEAL level
+                reasons.append(
+                    f"WTI STRONG SIGNAL: Ideal level reached ({wti:.2f} <= 80$)"
+                )
+            elif wti < self.thresholds["WTI"]["max"]:
+                score += 5  # HALF POINTS for Minimum Technical Level
                 reasons.append(f"WTI Minimum validation ({wti:.2f} < 94$)")
             else:
                 reasons.append(f"WTI TOO HIGH ({wti:.2f} >= 94$)")
 
         # 2. Brent Oil (Priority 2)
-        brent = indicators.get('Brent_price')
+        brent = indicators.get("Brent_price")
         if brent:
             max_score += 8
-            if brent < self.thresholds['Brent']['ideal']:
+            if brent < self.thresholds["Brent"]["ideal"]:
                 score += 8
-                reasons.append(f"Brent STRONG SIGNAL: Ideal level reached ({brent:.2f} <= 83$)")
-            elif brent < self.thresholds['Brent']['max']:
+                reasons.append(
+                    f"Brent STRONG SIGNAL: Ideal level reached ({brent:.2f} <= 83$)"
+                )
+            elif brent < self.thresholds["Brent"]["max"]:
                 score += 4
                 reasons.append(f"Brent Minimum validation ({brent:.2f} < 95$)")
 
         # 3. Natural Gas TTF (Priority 3)
-        gas = indicators.get('NaturalGas_price')
+        gas = indicators.get("NaturalGas_price")
         if gas:
             max_score += 5
-            if gas < self.thresholds['Gas']['ideal']:
+            if gas < self.thresholds["Gas"]["ideal"]:
                 score += 5
-                reasons.append(f"Gas STRONG SIGNAL: Ideal level reached ({gas:.2f} < 38€)")
-            elif gas < self.thresholds['Gas']['max']:
+                reasons.append(
+                    f"Gas STRONG SIGNAL: Ideal level reached ({gas:.2f} < 38€)"
+                )
+            elif gas < self.thresholds["Gas"]["max"]:
                 score += 2.5
                 reasons.append(f"Gas Minimum validation ({gas:.2f} < 55€)")
 
         # 4. Urea Fertilizer (Priority 4)
-        urea = indicators.get('Urea_price')
+        urea = indicators.get("Urea_price")
         if urea:
             max_score += 4
-            if urea < self.thresholds['Urea']['max']:
+            if urea < self.thresholds["Urea"]["max"]:
                 score += 4
                 reasons.append("Urea Minimum validation (Supply chain relief)")
 
         # US 2Y vs Fed Rate (Normalization)
-        yield_2y = indicators.get('US2Y_yield')
-        fed_rate = indicators.get('Fed_rate')
+        yield_2y = indicators.get("US2Y_yield")
+        fed_rate = indicators.get("Fed_rate")
         if yield_2y and fed_rate:
             max_score += 3
             if abs(yield_2y - fed_rate) < 0.25:
@@ -140,52 +153,57 @@ class VincentGanneModel:
                 reasons.append("Yields normalized (Fed pivot context)")
 
         # US Dollar DXY
-        dxy = indicators.get('DXY_price')
+        dxy = indicators.get("DXY_price")
         if dxy:
             max_score += 3
-            if dxy < self.thresholds['DXY']['ideal']:
+            if dxy < self.thresholds["DXY"]["ideal"]:
                 score += 3
                 reasons.append(f"DXY STRONG SIGNAL: Dollar weak ({dxy:.2f})")
-            elif dxy < self.thresholds['DXY']['max']:
+            elif dxy < self.thresholds["DXY"]["max"]:
                 score += 1.5
                 reasons.append(f"DXY Minimum validation ({dxy:.2f})")
 
         # Confirmation Technicals (MA200)
-        for idx in ['SP500', 'Nasdaq', 'DowJones', 'TechSector']:
-            if indicators.get(f'{idx}_above_ma200'):
+        for idx in ["SP500", "Nasdaq", "DowJones", "TechSector"]:
+            if indicators.get(f"{idx}_above_ma200"):
                 max_score += 1
                 score += 1
 
         # ENRICHMENT 2026: Hyperliquid Contrarian Signal (Funding Rate)
-        funding = indicators.get('HL_OIL_funding')
+        funding = indicators.get("HL_OIL_funding")
         if funding is not None:
             # A very negative funding rate on OIL suggests extreme bearishness (Short Squeeze potential)
-            if funding < -0.05: # Extreme negative
+            if funding < -0.05:  # Extreme negative
                 score += 2
-                reasons.append(f"Hyperliquid Contrarian: Extreme negative funding ({funding:.2f}%)")
+                reasons.append(
+                    f"Hyperliquid Contrarian: Extreme negative funding ({funding:.2f}%)"
+                )
 
         # FINAL DECISION LOGIC
         confidence = score / max_score if max_score > 0 else 0
-        
+
         # HARD BLOCK: If Oil is too high, it's NOT a market bottom (Vincent Ganne rule)
         oil_is_too_high = (wti and wti >= 94) or (brent and brent >= 95)
-        
+
         if oil_is_too_high:
             signal = "SELL" if confidence < 0.3 else "HOLD"
-            reasons.insert(0, "GEO-POLITICAL PRESSURE (OIL TOO HIGH - NO MARKET BOTTOM)")
+            reasons.insert(
+                0, "GEO-POLITICAL PRESSURE (OIL TOO HIGH - NO MARKET BOTTOM)"
+            )
         else:
-            if confidence > 0.8: # Very high score required for strong buy
+            if confidence > 0.8:  # Very high score required for strong buy
                 signal = "STRONG_BUY"
-            elif confidence > 0.45: # Moderate score for buy
+            elif confidence > 0.45:  # Moderate score for buy
                 signal = "BUY"
             else:
                 signal = "HOLD"
 
         return {
-            'signal': signal,
-            'confidence': confidence,
-            'analysis': " | ".join(reasons)
+            "signal": signal,
+            "confidence": confidence,
+            "analysis": " | ".join(reasons),
         }
+
 
 class EnhancedDecisionEngine:
     """
@@ -202,8 +220,10 @@ class EnhancedDecisionEngine:
     RSI_OVERSOLD_THRESHOLD = 25
     CLASSIC_BUY_BONUS_THRESHOLD = 0.4
     TIMESFM_BUY_BONUS_THRESHOLD = 0.2
-    QUANT_MODEL_BUY_BONUS = 0.0  # Removed: was +0.1 per quant model, creating structural bullish bias
-    SUPER_CONSENSUS_BOOST = 0.15
+    QUANT_MODEL_BUY_BONUS = (
+        0.0  # Removed: was +0.1 per quant model, creating structural bullish bias
+    )
+    SUPER_CONSENSUS_BOOST = 0.20
 
     # Confidence thresholds for risk management
     MIN_CONFIDENCE_FOR_ACTION = 0.20
@@ -212,28 +232,29 @@ class EnhancedDecisionEngine:
     def __init__(self, base_weights: Dict[str, float] = None):
         """
         Initialize the enhanced decision engine.
-        
+
         Args:
             base_weights: Base weights for each model type
         """
         self.base_weights = base_weights or {
-            'classic': 0.10,
-            'llm_text': 0.25,
-            'llm_visual': 0.10,
-            'sentiment': 0.10,
-            'timesfm': 0.25,
-            'vincent_ganne': 0.20  # Significant weight for geopolitical/cross-asset model
+            "classic": 0.10,
+            "llm_text": 0.20,
+            "llm_visual": 0.10,
+            "sentiment": 0.10,
+            "timesfm": 0.25,
+            "vincent_ganne": 0.15,
+            "oil_bench": 0.10,
         }
         self.vincent_ganne_model = VincentGanneModel()
-        
+
         # Adaptive thresholds (Balanced for Index trading)
         self.adaptive_thresholds = {
-            'strong_buy': 0.35,
-            'buy': 0.12,
-            'hold_upper': 0.05,
-            'hold_lower': -0.05,
-            'sell': -0.15,
-            'strong_sell': -0.45
+            "strong_buy": 0.35,
+            "buy": 0.12,
+            "hold_upper": 0.05,
+            "hold_lower": -0.05,
+            "sell": -0.15,
+            "strong_sell": -0.45,
         }
 
         # Track model performance for weight adjustment
@@ -242,27 +263,27 @@ class EnhancedDecisionEngine:
         # Market regime adaptation thresholds
         self.regime_volatility_high = 0.03
         self.trend_strength_threshold = 0.7
-        
+
     def _normalize_signal(self, signal: str) -> SignalStrength:
         """Convert signal string to SignalStrength enum"""
         if not signal:
             return SignalStrength.HOLD
-            
-        signal = signal.upper().replace(' ', '_')
-        if signal in ['STRONG_BUY', 'VERY_BULLISH']:
+
+        signal = signal.upper().replace(" ", "_")
+        if signal in ["STRONG_BUY", "VERY_BULLISH"]:
             return SignalStrength.STRONG_BUY
-        elif signal in ['BUY', 'BULLISH']:
+        elif signal in ["BUY", "BULLISH"]:
             return SignalStrength.BUY
-        elif signal in ['HOLD', 'NEUTRAL', 'STAY']:
+        elif signal in ["HOLD", "NEUTRAL", "STAY"]:
             return SignalStrength.HOLD
-        elif signal in ['SELL', 'BEARISH']:
+        elif signal in ["SELL", "BEARISH"]:
             return SignalStrength.SELL
-        elif signal in ['STRONG_SELL', 'VERY_BEARISH']:
+        elif signal in ["STRONG_SELL", "VERY_BEARISH"]:
             return SignalStrength.STRONG_SELL
         else:
             logger.warning(f"Unknown signal: {signal}, defaulting to HOLD")
             return SignalStrength.HOLD
-    
+
     def _calculate_consensus_score(self, decisions: List[ModelDecision]) -> float:
         """
         Calculate consensus score based on agreement between models.
@@ -270,26 +291,28 @@ class EnhancedDecisionEngine:
         """
         if len(decisions) < 2:
             return 1.0
-        
+
         signals = [d.strength.value for d in decisions]
         confidences = [d.confidence for d in decisions]
-        
+
         # Calculate signal agreement (how close are the signals)
         signal_variance = np.var(signals)
         max_variance = 4  # Maximum possible variance for signals (-2 to 2)
         signal_agreement = 1 - (signal_variance / max_variance)
-        
+
         # Calculate confidence alignment (do high confidence models agree?)
         if sum(confidences) == 0:
             weighted_signal = np.mean(signals)
         else:
             weighted_signal = np.average(signals, weights=confidences)
-        confidence_alignment = 1 - np.average([abs(s - weighted_signal) for s in signals])
-        
+        confidence_alignment = 1 - np.average(
+            [abs(s - weighted_signal) for s in signals]
+        )
+
         # Combined consensus score
         consensus = (signal_agreement + confidence_alignment) / 2
         return max(0, min(1, consensus))
-    
+
     def _calculate_disagreement_factor(self, decisions: List[ModelDecision]) -> float:
         """
         Calculate disagreement factor to identify conflicting signals.
@@ -297,26 +320,26 @@ class EnhancedDecisionEngine:
         """
         if len(decisions) < 2:
             return 0.0
-        
+
         signals = [d.strength.value for d in decisions]
-        
+
         # Count opposing signals (buy vs sell)
         buy_signals = sum(1 for s in signals if s > 0)
         sell_signals = sum(1 for s in signals if s < 0)
-        
+
         if buy_signals > 0 and sell_signals > 0:
             # There are conflicting signals
             conflict_ratio = min(buy_signals, sell_signals) / len(signals)
             return conflict_ratio * 2  # Scale to 0-1 range
-        
+
         return 0.0
-    
+
     def _adjust_for_market_regime(self, score: float, market_data: Dict) -> float:
         """
         Adjust decision score based on current market regime.
         """
-        volatility = market_data.get('volatility', 0.02)
-        rsi = market_data.get('rsi', 50)
+        volatility = market_data.get("volatility", 0.02)
+        rsi = market_data.get("rsi", 50)
 
         # Reduce signal strength in high volatility environments
         if volatility > self.VOLATILITY_HIGH_THRESHOLD:
@@ -331,47 +354,49 @@ class EnhancedDecisionEngine:
             score *= 0.7
 
         return score
-    
-    def _apply_risk_management(self, decision: str, confidence: float,
-                             market_data: Dict) -> str:
+
+    def _apply_risk_management(
+        self, decision: str, confidence: float, market_data: Dict
+    ) -> str:
         """
         Apply risk management rules to adjust the final decision.
         """
-        if decision in ['BUY', 'STRONG_BUY']:
+        if decision in ["BUY", "STRONG_BUY"]:
             if confidence < self.MIN_CONFIDENCE_FOR_ACTION:
-                return 'HOLD'
+                return "HOLD"
             return decision
 
         # Conservative adjustment for low confidence on SELL signals
         if confidence < self.MIN_CONFIDENCE_FOR_SELL:
-            if decision in ['STRONG_SELL']:
-                return 'SELL'
-            elif decision == 'SELL':
-                return 'HOLD'
+            if decision in ["STRONG_SELL"]:
+                return "SELL"
+            elif decision == "SELL":
+                return "HOLD"
 
         # Market regime-based adjustments
-        volatility = market_data.get('volatility', 0.02)
+        volatility = market_data.get("volatility", 0.02)
         if volatility > self.VOLATILITY_EXTREME_THRESHOLD:
-            if decision in ['BUY', 'SELL']:
-                return 'HOLD'
+            if decision in ["BUY", "SELL"]:
+                return "HOLD"
 
         return decision
-    
+
     def make_enhanced_decision(
-        self, 
-        classic_pred: int, 
+        self,
+        classic_pred: int,
         classic_conf: float,
         text_llm_decision: Dict,
         visual_llm_decision: Dict,
         sentiment_decision: Dict,
         timesfm_decision: Dict = None,
         vincent_ganne_indicators: Dict = None,
+        oil_bench_decision: Dict = None,
         market_data: Dict = None,
-        adaptive_weights: Dict[str, float] = None
+        adaptive_weights: Dict[str, float] = None,
     ) -> HybridDecision:
         """
         Enhanced decision making with consensus validation and risk management.
-        
+
         Args:
             classic_pred: Classic model prediction (0 or 1)
             classic_conf: Classic model confidence
@@ -382,61 +407,71 @@ class EnhancedDecisionEngine:
             vincent_ganne_indicators: Indicators for Vincent Ganne model
             market_data: Current market indicators
             adaptive_weights: Optional adaptive weights for models
-            
+
         Returns:
             HybridDecision object with detailed decision information
         """
         timestamp = datetime.now()
         market_data = market_data or {}
-        
+
         # Use adaptive weights if provided, otherwise use base weights
         weights = adaptive_weights or self.base_weights
-        
+
         # Create structured decisions for each model
         decisions = [
             ModelDecision(
-                signal='BUY' if classic_pred == 1 else 'SELL',
+                signal="BUY" if classic_pred == 1 else "SELL",
                 confidence=classic_conf,
-                strength=self._normalize_signal('BUY' if classic_pred == 1 else 'SELL'),
+                strength=self._normalize_signal("BUY" if classic_pred == 1 else "SELL"),
                 timestamp=timestamp,
-                model_name='classic',
-                reasoning='Quantitative model prediction'
+                model_name="classic",
+                reasoning="Quantitative model prediction",
             ),
             ModelDecision(
-                signal=text_llm_decision.get('signal', 'HOLD'),
-                confidence=text_llm_decision.get('confidence', 0.0),
-                strength=self._normalize_signal(text_llm_decision.get('signal', 'HOLD')),
+                signal=text_llm_decision.get("signal", "HOLD"),
+                confidence=text_llm_decision.get("confidence", 0.0),
+                strength=self._normalize_signal(
+                    text_llm_decision.get("signal", "HOLD")
+                ),
                 timestamp=timestamp,
-                model_name='llm_text',
-                reasoning=text_llm_decision.get('analysis', 'Text-based analysis')
+                model_name="llm_text",
+                reasoning=text_llm_decision.get("analysis", "Text-based analysis"),
             ),
             ModelDecision(
-                signal=visual_llm_decision.get('signal', 'HOLD'),
-                confidence=visual_llm_decision.get('confidence', 0.0),
-                strength=self._normalize_signal(visual_llm_decision.get('signal', 'HOLD')),
+                signal=visual_llm_decision.get("signal", "HOLD"),
+                confidence=visual_llm_decision.get("confidence", 0.0),
+                strength=self._normalize_signal(
+                    visual_llm_decision.get("signal", "HOLD")
+                ),
                 timestamp=timestamp,
-                model_name='llm_visual',
-                reasoning=visual_llm_decision.get('analysis', 'Visual chart analysis')
+                model_name="llm_visual",
+                reasoning=visual_llm_decision.get("analysis", "Visual chart analysis"),
             ),
             ModelDecision(
-                signal=sentiment_decision.get('signal', 'HOLD'),
-                confidence=sentiment_decision.get('confidence', 0.0),
-                strength=self._normalize_signal(sentiment_decision.get('signal', 'HOLD')),
+                signal=sentiment_decision.get("signal", "HOLD"),
+                confidence=sentiment_decision.get("confidence", 0.0),
+                strength=self._normalize_signal(
+                    sentiment_decision.get("signal", "HOLD")
+                ),
                 timestamp=timestamp,
-                model_name='sentiment',
-                reasoning='News sentiment analysis'
-            )
+                model_name="sentiment",
+                reasoning="News sentiment analysis",
+            ),
         ]
-        
+
         if timesfm_decision:
             decisions.append(
                 ModelDecision(
-                    signal=timesfm_decision.get('signal', 'HOLD'),
-                    confidence=timesfm_decision.get('confidence', 0.0),
-                    strength=self._normalize_signal(timesfm_decision.get('signal', 'HOLD')),
+                    signal=timesfm_decision.get("signal", "HOLD"),
+                    confidence=timesfm_decision.get("confidence", 0.0),
+                    strength=self._normalize_signal(
+                        timesfm_decision.get("signal", "HOLD")
+                    ),
                     timestamp=timestamp,
-                    model_name='timesfm',
-                    reasoning=timesfm_decision.get('analysis', 'TimesFM time series forecasting')
+                    model_name="timesfm",
+                    reasoning=timesfm_decision.get(
+                        "analysis", "TimesFM time series forecasting"
+                    ),
                 )
             )
 
@@ -444,12 +479,28 @@ class EnhancedDecisionEngine:
             vg_decision = self.vincent_ganne_model.evaluate(vincent_ganne_indicators)
             decisions.append(
                 ModelDecision(
-                    signal=vg_decision['signal'],
-                    confidence=vg_decision['confidence'],
-                    strength=self._normalize_signal(vg_decision['signal']),
+                    signal=vg_decision["signal"],
+                    confidence=vg_decision["confidence"],
+                    strength=self._normalize_signal(vg_decision["signal"]),
                     timestamp=timestamp,
-                    model_name='vincent_ganne',
-                    reasoning=vg_decision['analysis']
+                    model_name="vincent_ganne",
+                    reasoning=vg_decision["analysis"],
+                )
+            )
+
+        if oil_bench_decision:
+            decisions.append(
+                ModelDecision(
+                    signal=oil_bench_decision.get("signal", "HOLD"),
+                    confidence=oil_bench_decision.get("confidence", 0.0),
+                    strength=self._normalize_signal(
+                        oil_bench_decision.get("signal", "HOLD")
+                    ),
+                    timestamp=timestamp,
+                    model_name="oil_bench",
+                    reasoning=oil_bench_decision.get(
+                        "analysis", "Oil Bench commodity analysis"
+                    ),
                 )
             )
 
@@ -459,62 +510,79 @@ class EnhancedDecisionEngine:
             model_weight = weights.get(decision.model_name, 0.25)
             signal_value = decision.strength.value
             weighted_score += signal_value * decision.confidence * model_weight
-        
+
         # Adjust for market regime
         adjusted_score = self._adjust_for_market_regime(weighted_score, market_data)
 
         # Calculate consensus metrics
         consensus_score = self._calculate_consensus_score(decisions)
         disagreement_factor = self._calculate_disagreement_factor(decisions)
-        
+
         # Determine final signal based on adjusted score and adaptive thresholds
-        if adjusted_score >= self.adaptive_thresholds['strong_buy']:
-            final_signal = 'STRONG_BUY'
-        elif adjusted_score >= self.adaptive_thresholds['buy']:
-            final_signal = 'BUY'
-        elif adjusted_score <= self.adaptive_thresholds['strong_sell']:
-            final_signal = 'STRONG_SELL'
-        elif adjusted_score <= self.adaptive_thresholds['sell']:
-            final_signal = 'SELL'
+        if adjusted_score >= self.adaptive_thresholds["strong_buy"]:
+            final_signal = "STRONG_BUY"
+        elif adjusted_score >= self.adaptive_thresholds["buy"]:
+            final_signal = "BUY"
+        elif adjusted_score <= self.adaptive_thresholds["strong_sell"]:
+            final_signal = "STRONG_SELL"
+        elif adjusted_score <= self.adaptive_thresholds["sell"]:
+            final_signal = "SELL"
         else:
-            final_signal = 'HOLD'
-        
+            final_signal = "HOLD"
+
         # Calculate final confidence considering consensus
         base_confidence = abs(adjusted_score) / 2  # Normalize to 0-1
         consensus_adjustment = consensus_score * 0.3  # Boost confidence for consensus
-        disagreement_penalty = disagreement_factor * 0.2  # Reduce confidence for disagreement
-        
+        disagreement_penalty = (
+            disagreement_factor * 0.2
+        )  # Reduce confidence for disagreement
+
         # Super-Consensus Boost: if Classic and TimesFM agree on a non-HOLD signal
-        classic_decision = next((d for d in decisions if d.model_name == 'classic'), None)
-        timesfm_decision = next((d for d in decisions if d.model_name == 'timesfm'), None)
-        
+        classic_decision = next(
+            (d for d in decisions if d.model_name == "classic"), None
+        )
+        timesfm_decision = next(
+            (d for d in decisions if d.model_name == "timesfm"), None
+        )
+
         boost = 0.0
         if classic_decision and timesfm_decision:
             if (classic_decision.strength.value * timesfm_decision.strength.value) > 0:
                 # Both agree on BUY or both agree on SELL
-                if classic_decision.confidence > 0.5 and timesfm_decision.confidence > 0.3:
+                if (
+                    classic_decision.confidence > 0.5
+                    and timesfm_decision.confidence > 0.3
+                ):
                     boost = self.SUPER_CONSENSUS_BOOST
-        
-        final_confidence = min(1.0, max(0.0, 
-            base_confidence + consensus_adjustment - disagreement_penalty + boost))
-        
+
+        final_confidence = min(
+            1.0,
+            max(
+                0.0,
+                base_confidence + consensus_adjustment - disagreement_penalty + boost,
+            ),
+        )
+
         # Apply risk management
         risk_adjusted_signal = self._apply_risk_management(
-            final_signal, final_confidence, market_data)
-        
+            final_signal, final_confidence, market_data
+        )
+
         # Generate reasoning
         reasoning_parts = []
         reasoning_parts.append(f"Weighted score: {adjusted_score:.3f}")
         reasoning_parts.append(f"Consensus: {consensus_score:.2f}")
-        
+
         if disagreement_factor > 0.3:
-            reasoning_parts.append(f"High disagreement detected ({disagreement_factor:.2f})")
-        
+            reasoning_parts.append(
+                f"High disagreement detected ({disagreement_factor:.2f})"
+            )
+
         if risk_adjusted_signal != final_signal:
             reasoning_parts.append(f"Risk management adjusted from {final_signal}")
-        
+
         reasoning = "; ".join(reasoning_parts)
-        
+
         return HybridDecision(
             final_signal=final_signal,
             final_confidence=final_confidence,
@@ -523,10 +591,12 @@ class EnhancedDecisionEngine:
             risk_adjusted_signal=risk_adjusted_signal,
             individual_decisions=decisions,
             reasoning=reasoning,
-            timestamp=timestamp
+            timestamp=timestamp,
         )
-    
-    def update_adaptive_thresholds(self, market_volatility: float, trend_strength: float):
+
+    def update_adaptive_thresholds(
+        self, market_volatility: float, trend_strength: float
+    ):
         """
         Update adaptive thresholds based on market conditions.
 
@@ -538,34 +608,36 @@ class EnhancedDecisionEngine:
 
         # Widen thresholds in volatile markets (be more conservative)
         if market_volatility > self.regime_volatility_high:
-            self.adaptive_thresholds['strong_buy'] += base_adjustment
-            self.adaptive_thresholds['strong_sell'] -= base_adjustment
+            self.adaptive_thresholds["strong_buy"] += base_adjustment
+            self.adaptive_thresholds["strong_sell"] -= base_adjustment
 
         # Narrow thresholds in trending markets (be more responsive)
         if abs(trend_strength) > self.trend_strength_threshold:
             trend_adjustment = base_adjustment * 0.5
-            self.adaptive_thresholds['buy'] -= trend_adjustment
-            self.adaptive_thresholds['sell'] += trend_adjustment
-    
-    def get_model_weights_recommendation(self, performance_history: Dict) -> Dict[str, float]:
+            self.adaptive_thresholds["buy"] -= trend_adjustment
+            self.adaptive_thresholds["sell"] += trend_adjustment
+
+    def get_model_weights_recommendation(
+        self, performance_history: Dict
+    ) -> Dict[str, float]:
         """
         Recommend adaptive weights based on recent model performance.
-        
+
         Args:
             performance_history: Recent performance metrics for each model
-            
+
         Returns:
             Recommended weights for each model
         """
         if not performance_history:
             return self.base_weights
-        
+
         # Simple performance-based weighting
         # In practice, this could be more sophisticated
         total_performance = sum(performance_history.values())
         if total_performance <= 0:
             return self.base_weights
-        
+
         adaptive_weights = {}
         for model_name, performance in performance_history.items():
             # Performance-based weight with smoothing
@@ -573,5 +645,5 @@ class EnhancedDecisionEngine:
             base_weight = self.base_weights.get(model_name, 0.25)
             # Smooth transition: 70% current performance, 30% base weight
             adaptive_weights[model_name] = 0.7 * raw_weight + 0.3 * base_weight
-        
+
         return adaptive_weights
