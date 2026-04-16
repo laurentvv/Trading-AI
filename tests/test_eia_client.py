@@ -75,6 +75,27 @@ class TestEIAClientRequests(unittest.TestCase):
         self.assertFalse(df.empty)
         self.assertEqual(df["value"].iloc[0], 90.0)  # Average of 85 and 95
 
+    @patch("eia_client.requests.get")
+    def test_get_brent_spot_price(self, mock_get):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "response": {
+                "data": [
+                    {"period": "2026-04-15", "value": "117.0"},
+                    {"period": "2026-04-14", "value": "118.5"},
+                ]
+            }
+        }
+        mock_get.return_value = mock_response
+
+        with patch.object(self.client, "_get_from_cache", return_value=None):
+            with patch.object(self.client, "_save_to_cache"):
+                df = self.client.get_brent_spot_price(days=2)
+
+        self.assertFalse(df.empty)
+        self.assertEqual(df["value"].iloc[-1], 117.0)
+
 
 class TestFormatForLLM(unittest.TestCase):
     def test_format_complete_data(self):
@@ -84,11 +105,14 @@ class TestFormatForLLM(unittest.TestCase):
             "inventories": {"current": 460000, "wow_change": -1000},
             "imports": {"latest_value": 80000, "mom_change": 500},
             "refinery": {"current": 88.5, "wow_change": 1.2},
+            "brent_spot": {"current": 117.0, "wow_change": -2.5},
         }
         text = client.format_for_llm(data)
         self.assertIn("US Crude Inventories", text)
         self.assertIn("US Crude Imports", text)
         self.assertIn("US Refinery Utilization", text)
+        self.assertIn("Europe Brent Spot Price (Dated Brent)", text)
+        self.assertIn("$117.00/bbl", text)
 
 
 if __name__ == "__main__":

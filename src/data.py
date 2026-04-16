@@ -783,6 +783,18 @@ def get_vincent_ganne_indicators() -> dict:
     hl_data = get_hyperliquid_oil_data()
     indicators.update(hl_data)
 
+    # 1b. Fetch EIA Fundamental Data (Brent Spread)
+    try:
+        from eia_client import EIAClient
+        eia = EIAClient()
+        eia_context = eia.get_fundamental_context()
+        brent_spot = eia_context.get("brent_spot", {}).get("current")
+        if brent_spot:
+            indicators["Brent_spot"] = brent_spot
+            logger.info(f"Brent Spot added to indicators: ${brent_spot:.2f}")
+    except Exception as e:
+        logger.warning(f"[WARN] Failed to fetch Brent Spot from EIA: {e}")
+
     tickers = {
         "WTI": "CL=F",
         "Brent": "BZ=F",
@@ -823,6 +835,12 @@ def get_vincent_ganne_indicators() -> dict:
                 else float(last_close)
             )
             indicators[f"{name}_price"] = current_price
+
+            # If this is Brent, we can calculate the Dated Brent spread
+            if name == "Brent" and "Brent_spot" in indicators:
+                b_spot = indicators["Brent_spot"]
+                indicators["Brent_spread"] = b_spot - current_price
+                logger.info(f"Brent Spread (Dated vs Futs) calculated: ${indicators['Brent_spread']:.2f}")
 
             ma200_series = close_col.rolling(window=200).mean()
             ma200_val = ma200_series.iloc[-1]

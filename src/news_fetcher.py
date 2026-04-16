@@ -41,11 +41,11 @@ def fetch_alpha_vantage_news(ticker: str, api_key: str):
     Tries the original ticker first, then falls back to broader topics.
     """
     topics_map = {
-        "CRUDP.PA": ["CRUDP", "oil", "crude oil", "WTI"],
-        "CL=F": ["crude oil", "WTI", "oil futures"],
-        "SXRV.DE": ["SXRV", "NASDAQ", "QQQ", "tech ETF"],
-        "^NDX": ["NASDAQ 100", "NDX", "tech stocks"],
-        "SXRV.FRK": ["SXRV", "NASDAQ", "QQQ", "tech ETF"],
+        "CRUDP.PA": ["oil", "crude oil", "WTI", "OPEC", "energy"],
+        "CL=F": ["crude oil", "WTI", "oil futures", "OPEC"],
+        "SXRV.DE": ["NASDAQ", "QQQ", "tech stocks", "Fed", "earnings"],
+        "^NDX": ["NASDAQ 100", "NDX", "tech stocks", "Fed"],
+        "SXRV.FRK": ["NASDAQ", "QQQ", "tech stocks", "Fed"],
     }
 
     queries = topics_map.get(ticker, [ticker])[

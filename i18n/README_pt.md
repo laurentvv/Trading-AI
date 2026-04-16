@@ -86,8 +86,9 @@ Ao contrário dos algoritmos de trading clássicos que entram em pânico assim q
 
 ### ✨ Principais Características
 
-- **Abordagem de Ticker Duplo**: Analisa o índice, opera o ETF.
+- **Abordagem de Ticker Duplo**: Analiza o índice, opera o ETF.
 - **Preços ao Vivo T212**: Recuperação em tempo real de preços em EUR via API da Trading 212 (0.2s), com fallback do yfinance e cache parquet.
+- **Spread do Brent Dated**: Monitorização da tensão no mercado físico através do diferencial entre o Brent Spot (Dated) e os Futuros de Brent.
 - **Resiliência de Rede**: Interruptor automático do yfinance com rastreadores separados (informação vs. download), tempo limite de 10s em todas as chamadas de rede.
 - **Cognição Avançada**: Uso do **Gemma 4** para melhor síntese técnica/fundamental.
 - **Notícias e Sentimento Blockchain**: Integração do **AlphaEar** e **Hyperliquid** para capturar o sentimento social e especulativo.

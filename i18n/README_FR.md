@@ -88,6 +88,7 @@ Contrairement aux algorithmes de trading classiques qui paniquent dès que la vo
 
 - **Approche Dual-Ticker** : Analyse l'indice, trade l'ETF.
 - **Prix Live T212** : Récupération temps réel des prix EUR via l'API Trading 212 (0.2s), avec fallback yfinance et cache parquet.
+- **Spread Dated Brent** : Surveillance de la tension du marché physique via l'écart entre le Brent Spot (Dated) et le Brent Futures.
 - **Résilience Réseau** : Circuit breaker yfinance avec trackers séparés (info vs download), timeout 10s sur tous les appels réseau.
 - **Cognition Avancée** : Utilisation de **Gemma 4** pour une meilleure synthèse technique/fondamentale.
 - **News & Sentiment Blockchain** : Intégration d'**AlphaEar** et d'**Hyperliquid** pour capturer le sentiment social et spéculatif.

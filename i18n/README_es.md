@@ -88,6 +88,7 @@ A diferencia de los algoritmos de trading clásicos que entran en pánico en cua
 
 - **Enfoque de Ticker Dual**: Analiza el índice, opera el ETF.
 - **Precios en vivo de T212**: Recuperación en tiempo real de precios en EUR a través de la API de Trading 212 (0.2s), con respaldo de yfinance y caché parquet.
+- **Spread de Brent Dated**: Monitoreo de la tensión del mercado físico a través del diferencial entre el Brent Spot (Dated) y los Futuros de Brent.
 - **Resiliencia de Red**: Interruptor automático de yfinance con rastreadores separados (información vs. descarga), tiempo de espera de 10s en todas las llamadas de red.
 - **Cognición Avanzada**: Uso de **Gemma 4** para una mejor síntesis técnica/fundamental.
 - **Noticias y Sentimiento Blockchain**: Integración de **AlphaEar** y **Hyperliquid** para capturar el sentimiento social y especulativo.
