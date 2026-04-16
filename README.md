@@ -1,242 +1,221 @@
 <div align="center">
+  🌎 **English** | [Français](i18n/README_FR.md)
+</div>
+
+<p align="center">
+  <img src="assets/banner.png" alt="Hybrid AI Trading Banner" width="100%"/>
+</p>
+
+<div align="center">
   <br />
-  <h1>📈 Système de Trading IA Hybride 📈</h1>
+  <h1>📈 Hybrid AI Trading System 📈</h1>
   <p>
-    Un système expert d'aide à la décision pour le trading d'ETFs sur le NASDAQ, exploitant une intelligence artificielle hybride tri-modale pour des signaux de trading robustes et nuancés.
+    An expert decision-support system for NASDAQ and Oil (WTI) ETF trading, leveraging a tri-modal hybrid artificial intelligence for robust and nuanced trading signals.
   </p>
 </div>
 
 <div align="center">
 
-[![Statut du Projet](https://img.shields.io/badge/status-en--développement-green.svg)](https://github.com/laurentvv/Trading-AI)
+[![Project Status](https://img.shields.io/badge/status-in--development-green.svg)](https://github.com/laurentvv/Trading-AI)
 [![Python Version](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Licence](https://img.shields.io/badge/license-MIT-lightgrey.svg)](https://opensource.org/licenses/MIT)
+[![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)](https://opensource.org/licenses/MIT)
 
 </div>
 
 <p align="center">
-  <img src="enhanced_performance_dashboard.png" alt="Dashboard de Performance" width="800"/>
+  <img src="enhanced_performance_dashboard.png" alt="Performance Dashboard" width="800"/>
 </p>
 
 ---
 
-## 📚 Table des Matières
+## 📚 Table of Contents
 
-- [🌟 À Propos du Projet](#-à-propos-du-projet)
-  - [✨ Fonctionnalités Clés](#-fonctionnalités-clés)
-  - [💻 Stack Technologique](#-stack-technologique)
-- [📂 Structure du Projet](#-structure-du-projet)
-- [🚀 Démarrage Rapide](#-démarrage-rapide)
-  - [✅ Prérequis](#-prérequis)
+- [🌟 About the Project](#-about-the-project)
+  - [✨ Key Features](#-key-features)
+  - [💻 Tech Stack](#-tech-stack)
+  - [⚙️ Performance & Hardware](#️-performance--hardware)
+- [📂 Project Structure](#-project-structure)
+- [🚀 Quick Start](#-quick-start)
+  - [✅ Prerequisites](#-prerequisites)
   - [⚙️ Installation](#️-installation)
-- [🛠️ Utilisation](#️-utilisation)
-  - [Analyse Manuelle](#-analyse-manuelle)
-  - [Analyse Automatisée avec le Planificateur Intelligent](#-analyse-automatisée-avec-le-planificateur-intelligent)
-- [🤝 Contribuer](#-contribuer)
-- [📜 Licence](#-licence)
+- [🛠️ Usage](#️-usage)
+  - [Manual Analysis](#-manual-analysis)
+  - [Automated Analysis with Intelligent Scheduler](#-automated-analysis-with-intelligent-scheduler)
+- [🤝 Contributing](#-contributing)
+- [📜 License](#-license)
 - [📧 Contact](#-contact)
 
 ---
 
-## 🌟 À Propos du Projet
+## 🌟 About the Project
 
-Ce projet est un système expert d'aide à la décision pour le trading d'ETFs, utilisant une approche d'IA hybride tri-modale. Il est conçu pour fournir une analyse complète et robuste en combinant plusieurs perspectives d'IA.
+This project is an expert decision-support system for ETF trading, using a tri-modal hybrid AI approach. It is designed to provide a comprehensive and robust analysis by combining several AI perspectives.
 
-### 🚀 Stratégie Dual-Ticker (Analyse vs Trading)
-Le système utilise une approche innovante pour maximiser la précision des modèles :
-- **Analyse Haute Fidélité** : Les modèles IA analysent les **indices de référence mondiaux** (`^NDX` pour le Nasdaq, `CL=F` pour le pétrole WTI). Ces indices offrent un historique plus long et des tendances plus "pures", sans le bruit lié aux horaires de cotation ou aux frais des ETFs.
-- **Exécution sur ETF** : Les ordres réels sont passés sur les tickers correspondants sur **Trading 212** (`SXRV.DE`, `CRUDP.PA`), en utilisant les **prix live T212** (via API positions) pour le dimensionnement des positions.
+### 🚀 Dual-Ticker Strategy (Analysis vs. Trading)
+The system uses an innovative approach to maximize model accuracy:
+- **High-Fidelity Analysis**: AI models analyze **global reference indices** (`^NDX` for Nasdaq, `CL=F` for WTI Crude Oil). These indices offer longer history and "purer" trends, without the noise related to trading hours or ETF fees.
+- **ETF Execution**: Real orders are placed on the corresponding tickers on **Trading 212** (`SXRV.DE`, `CRUDP.PA`), using **T212 live prices** (via positions API) for position sizing.
 
-### 🧠 Moteur IA Hybride
-Le système fusionne huit signaux distincts :
-1.  **Modèle Quantitatif Classique** : Ensemble RandomForest/GradientBoosting/LogisticRegression entraîné sur indicateurs techniques et macroéconomiques.
-2.  **TimesFM 2.5 (Google Research)** : Modèle de fondation de pointe pour la prévision de séries temporelles.
-3.  **Modèle Oil-Bench (Gemma 4:e4b)** : Modèle spécialisé dans l'énergie fusionnant les données fondamentales de l'**EIA** (Stocks, Imports, Raffineries) et le sentiment pour le trading du WTI.
-4.  **LLM Textuel (Gemma 4:e4b)** : Analyse contextuelle des données brutes, des actualités en temps réel via le skill **AlphaEar**, et intégration de **recherches web macro-économiques** dynamiques.
-5.  **LLM Visuel (Gemma 4:e4b)** : Analyse directe des graphiques techniques (`enhanced_trading_chart.png`).
-6.  **Sentiment Analysis** : Analyse hybride combinant Alpha Vantage et les tendances "hot" d'**AlphaEar** (Weibo, WallstreetCN).
-7.  **Données Décentralisées (Hyperliquid)** : Analyse du sentiment spéculatif sur le Pétrole (WTI) via le *Funding Rate* et l'*Open Interest*.
-8.  **Modèle Vincent Ganne** : Analyse géopolitique et cross-asset (WTI, Brent, Gaz, DXY, MA200) pour la détection de points bas macroéconomiques.
+### 🧠 Hybrid AI Engine
+The system merges eight distinct signals:
+1.  **Classic Quantitative Model**: RandomForest/GradientBoosting/LogisticRegression ensemble trained on technical and macroeconomic indicators.
+2.  **TimesFM 2.5 (Google Research)**: State-of-the-art foundation model for time-series forecasting.
+3.  **Oil-Bench Model (Gemma 4:e4b)**: Energy-specialized model merging **EIA** fundamental data (Stocks, Imports, Refinery utilization) and sentiment for WTI trading.
+4.  **Textual LLM (Gemma 4:e4b)**: Contextual analysis of raw data, real-time news via the **AlphaEar** skill, and integration of dynamic **macro-economic web research**.
+5.  **Visual LLM (Gemma 4:e4b)**: Direct analysis of technical charts (`enhanced_trading_chart.png`).
+6.  **Sentiment Analysis**: Hybrid analysis combining Alpha Vantage and "hot" trends from **AlphaEar** (Weibo, WallstreetCN).
+7.  **Decentralized Data (Hyperliquid)**: Analysis of speculative sentiment on Oil (WTI) via *Funding Rate* and *Open Interest*.
+8.  **Vincent Ganne Model**: Geopolitical and cross-asset analysis (WTI, Brent, Gas, DXY, MA200) for detecting macroeconomic bottoms.
 
-L'objectif est de produire une décision finale (`ACHAT`, `VENTE`, `HOLD`) avec une priorité absolue sur la **justesse** (Accuracy First).
+The goal is to produce a final decision (`BUY`, `SELL`, `HOLD`) with an absolute priority on **Accuracy First**.
 
-### 🧘 Philosophie de Décision : "La Prudence Cognitive"
-Contrairement aux algorithmes de trading classiques qui paniquent dès que la volatilité explose, ce système applique une approche d'investisseur averti :
-- **Consensus Fort Requis** : Un modèle quantitatif (Classic) peut crier au loup (`SELL`), mais si les modèles cognitifs (LLM Texte, Vision, TimesFM) restent neutres, le système privilégiera le `HOLD`.
-- **Filtre de Confiance** : Une décision de mouvement (Achat ou Vente) n'est validée que si la confiance globale dépasse un seuil de sécurité (généralement 40%). En dessous, le système considère le signal comme du "bruit" et reste en attente.
-- **Protection du Capital** : En mode `VERY_HIGH` risque, le `HOLD` serv de bouclier. Il empêche d'entrer sur un marché instable et évite de sortir prématurément sur une simple correction technique si les fondamentaux (News/Vision/Hyperliquid) ne confirment pas un crash imminent.
+### 🧘 Decision Philosophy: "Cognitive Prudence"
+Unlike classic trading algorithms that panic as soon as volatility explodes, this system applies an informed investor approach:
+- **Strong Consensus Required**: A quantitative model (Classic) may cry wolf (`SELL`), but if cognitive models (Text LLM, Vision, TimesFM) remain neutral, the system will prefer `HOLD`.
+- **Confidence Filter**: A movement decision (Buy or Sell) is only validated if the global confidence exceeds a safety threshold (generally 40%). Below this, the system considers the signal as "noise" and remains on standby.
+- **Capital Protection**: In `VERY_HIGH` risk mode, `HOLD` serves as a shield. It prevents entering an unstable market and avoids exiting prematurely on a simple technical correction if fundamentals (News/Vision/Hyperliquid) do not confirm an imminent crash.
 
-### ✨ Fonctionnalités Clés
+### ✨ Key Features
 
-- **Approche Dual-Ticker** : Analyse l'indice, trade l'ETF.
-- **Prix Live T212** : Récupération temps réel des prix EUR via l'API Trading 212 (0.2s), avec fallback yfinance et cache parquet.
-- **Résilience Réseau** : Circuit breaker yfinance avec trackers séparés (info vs download), timeout 10s sur tous les appels réseau.
-- **Cognition Avancée** : Utilisation de **Gemma 4** pour une meilleure synthèse technique/fondamentale.
-- **News & Sentiment Blockchain** : Intégration d'**AlphaEar** et d'**Hyperliquid** pour capturer le sentiment social et spéculatif.
-- **Scheduler Automatisé** : Script `schedule.py` pour une exécution continue (8h30-18h00) sur serveur.
-- **Gestion de Risque Avancée** : Ajustement automatique du signal en fonction de la volatilité et du régime de marché.
+- **Dual-Ticker Approach**: Analyze the index, trade the ETF.
+- **T212 Live Prices**: Real-time recovery of EUR prices via the Trading 212 API (0.2s), with yfinance fallback and parquet cache.
+- **Network Resilience**: yfinance circuit breaker with separate trackers (info vs. download), 10s timeout on all network calls.
+- **Advanced Cognition**: Use of **Gemma 4** for better technical/fundamental synthesis.
+- **News & Blockchain Sentiment**: Integration of **AlphaEar** and **Hyperliquid** to capture social and speculative sentiment.
+- **Automated Scheduler**: `schedule.py` script for continuous execution (8:30 AM - 6:00 PM) on a server.
+- **Advanced Risk Management**: Automatic signal adjustment based on volatility and market regime.
 
-### 💻 Stack Technologique
+### 💻 Tech Stack
 
-- **Langage** : `Python 3.12+`
-- **Calculs & Données** : `pandas`, `numpy`, `yfinance`, `pyarrow`, `pandas_datareader`, `hyperliquid-python-sdk`
-- **Machine Learning** : `scikit-learn`, `shap`
-- **IA & LLM** : `requests`, `ollama`
-- **Web Scraping & Search** : `beautifulsoup4`, `duckduckgo_search`
-- **Visualisation** : `matplotlib`, `seaborn`, `mplfinance`
-- **Utilitaires** : `tqdm`, `rich`, `python-dotenv`, `schedule`
+- **Language**: `Python 3.12+`
+- **Calculations & Data**: `pandas`, `numpy`, `yfinance`, `pyarrow`, `pandas_datareader`, `hyperliquid-python-sdk`
+- **Machine Learning**: `scikit-learn`, `shap`
+- **AI & LLM**: `requests`, `ollama`
+- **Web Scraping & Search**: `beautifulsoup4`, `duckduckgo_search`, `crawl4ai`
+- **Visualization**: `matplotlib`, `seaborn`, `mplfinance`
+- **Utilities**: `tqdm`, `rich`, `python-dotenv`, `schedule`
 
 ### ⚙️ Performance & Hardware
-Le système est conçu pour être **performant sur du matériel grand public** sans nécessiter de GPU dédié.
-- **CPU Only** : L'inférence LLM (Gemma 4 via Ollama) et TimesFM sont optimisés pour une exécution CPU rapide si suffisamment de RAM est disponible.
-- **RAM Recommandée** : 16 Go minimum (32 Go conseillés pour faire tourner Gemma 4 confortablement).
-- **Temps d'exécution** : ~2 à 5 minutes pour un cycle complet (incluant crawling web, entraînement ML, prédictions TimesFM et 3 analyses LLM).
-- **Vitesse API** : Intégration Trading 212 ultra-rapide (<1s pour la récupération des prix live).
+The system is designed to be **performant on consumer hardware** without requiring a dedicated GPU.
+- **CPU Only**: LLM inference (Gemma 4 via Ollama) and TimesFM are optimized for fast CPU execution if enough RAM is available.
+- **Recommended RAM**: 16 GB minimum (32 GB suggested to run Gemma 4 comfortably).
+- **Execution Time**: ~2 to 5 minutes for a full cycle (including web crawling, ML training, TimesFM predictions, and 3 LLM analyses).
+- **API Speed**: Ultra-fast Trading 212 integration (<1s for live price recovery).
 
 ---
 
-## 📂 Structure du Projet
+## 📂 Project Structure
 
-Le projet est organisé de manière modulaire pour une meilleure maintenabilité.
+The project is organized modularly for better maintainability.
 
 ```
 Trading-AI/
-├── src/                     # Modules coeurs
-│   ├── enhanced_decision_engine.py # Moteur de fusion et Modèle Vincent Ganne
-│   ├── advanced_risk_manager.py    # Gestion des risques Trend-Aware
-│   ├── adaptive_weight_manager.py  # Pondération dynamique des modèles
-│   ├── t212_executor.py            # Exécution réelle sur Trading 212
-│   ├── timesfm_model.py            # Intégration TimesFM 2.5
+├── src/                     # Core modules
+│   ├── eia_client.py               # Energy fundamental data client
+│   ├── oil_bench_model.py          # Energy specialized model
+│   ├── enhanced_decision_engine.py # Fusion engine and Vincent Ganne model
+│   ├── advanced_risk_manager.py    # Trend-Aware risk management
+│   ├── adaptive_weight_manager.py  # Dynamic model weighting
+│   ├── t212_executor.py            # Real execution on Trading 212
+│   ├── timesfm_model.py            # TimesFM 2.5 integration
 │   └── ...                         # Data, Features, LLM Client
-├── tests/                   # Scripts de tests et validation
-├── data_cache/              # Données de marché et macro (Parquet)
-├── main.py                  # Point d'entrée unique (Analyse & Trading)
-├── schedule.py              # Scheduler live (8h30-18h00)
-├── backtest_engine.py       # Moteur de backtesting historique
-├── .env                     # Clés API (Alpha Vantage, T212)
-└── README.md                # Cette documentation
+├── tests/                   # Test and validation scripts
+├── data_cache/              # Market and macro data (Parquet)
+├── main.py                  # Single entry point (Analysis & Trading)
+├── schedule.py              # Live scheduler (8:30 AM - 6:00 PM)
+├── backtest_engine.py       # Historical backtesting engine
+├── .env                     # API Keys (Alpha Vantage, T212, EIA)
+└── README.md                # This documentation
 ```
 
 ---
 
-## 🚀 Démarrage Rapide
+## 🚀 Quick Start
 
-Suivez ces étapes pour mettre en place votre environnement de développement local.
+Follow these steps to set up your local development environment.
 
-### ✅ Prérequis
+### ✅ Prerequisites
 
 - Python 3.12+ (via `uv`)
-- [Ollama](https://ollama.com/) installé et en cours d'exécution localement.
-- Un modèle LLM téléchargé : `ollama pull gemma4:e4b`
+- [Ollama](https://ollama.com/) installed and running locally.
+- Downloaded LLM model: `ollama pull gemma4:e4b`
 
 ### ⚙️ Installation
 
-1.  **Clonez le dépôt :**
+1.  **Clone the repository:**
     ```sh
     git clone https://github.com/laurentvv/Trading-AI.git
     cd Trading-AI
     ```
-2.  **Installez `uv` (si ce n'est pas déjà fait) :**
-    Consultez [astral.sh/uv](https://astral.sh/uv) pour les instructions d'installation.
+2.  **Install `uv` (if not already done):**
+    See [astral.sh/uv](https://astral.sh/uv) for installation instructions.
 
-3.  **Installez et Patchez TimesFM 2.5 (Étape CRUCIALE) :**
-    Lancez le script d'installation pour cloner le modèle dans `vendor/` et appliquer les patchs :
+3.  **Install and Patch TimesFM 2.5 (CRUCIAL Step):**
+    Run the installation script to clone the model into `vendor/` and apply patches:
     ```bash
     python setup_timesfm.py
     ```
 
-4.  **Initialisez et synchronisez l'environnement :**
+4.  **Initialize and synchronize the environment:**
     ```bash
     uv sync
     ```
 
-5.  **Installez les navigateurs pour la recherche Web (Crawl4AI) :**
+5.  **Install browsers for Web research (Crawl4AI):**
     ```bash
     uv run python -m playwright install chromium
     ```
 
-6.  **Configurez votre clé API :**
-    Créez un fichier `.env` à la racine du projet et ajoutez votre clé API Alpha Vantage :
+6.  **Configure your API keys:**
+    Create a `.env` file in the project root:
     ```
-    ALPHA_VANTAGE_API_KEY="VOTRE_CLE_API_ICI"
+    ALPHA_VANTAGE_API_KEY="YOUR_KEY"
+    EIA_API_KEY="YOUR_KEY"
     ```
 
 ---
 
-## 🛠️ Utilisation
+## 🛠️ Usage
 
-Le système est conçu pour être simple et puissant. Il entraîne ses modèles sur les données les plus récentes à chaque exécution avant de donner une décision.
+The system trains its models on the most recent data at each execution before giving a decision.
 
-### Mode Simulation (Paper Trading)
+### Simulation Mode (Paper Trading)
 
-Pour tester le système sans risque avec un capital fictif de 1000 €, utilisez le flag `--simul`. Le système gérera un historique strict d'achats et de ventes.
+To test the system without risk with a fictitious capital of €1000, use the `--simul` flag. The system will manage a strict history of buys and sells.
 
 ```sh
-# Lancer une analyse simulée (Défaut: SXRV.DE - Nasdaq 100 EUR)
+# Run a simulated analysis (Default: SXRV.DE - Nasdaq 100 EUR)
 uv run main.py --simul
 
-# Lancer une exécution réelle sur Trading 212 (Demo ou Real selon .env)
+# Run on Oil (WTI)
+uv run main.py --ticker CRUDP.PA --simul
+```
+
+### Real Execution (Trading 212)
+
+The system is now **fully integrated** with Trading 212:
+- **Portfolio Verification**: Before any action, the robot consults your real cash and positions.
+- **API Management**: Includes automatic retry mechanisms against request limits (Rate Limiting).
+
+```sh
+# Run analysis with real execution (Demo or Real according to .env)
 uv run main.py --t212
 ```
 
-### Exécution Réelle (Trading 212)
+---
 
-Le système est désormais **pleinement intégré** avec Trading 212 :
-- **Vérification du Portefeuille** : Avant toute action, le robot consulte votre cash réel et vos positions.
-- **Calcul Précis des Fractions** : Calcule le nombre d'actions exact pour atteindre votre budget cible.
-- **Tickers Certifiés** : Utilisation des identifiants exacts (`SXRVd_EQ` pour le Nasdaq EUR, `CRUDl_EQ` pour le Pétrole WTI).
-- **Sécurité de Risque** : Le signal final est systématiquement filtré par le gestionnaire de risques avant l'envoi de l'ordre (Accuracy First).
-- **Gestion des API** : Inclut des mécanismes de retry automatique contre les limites de requêtes (Rate Limiting).
+## 🤝 Contributing
 
-Le script va :
-1.  **Récupérer les données** de marché en temps réel.
-2.  **Entraîner les modèles** d'IA (Ensemble RandomForest, GradientBoosting, etc.) sur l'historique complet.
-3.  **Générer une décision hybride** combinant :
-    - Modèle quantitatif classique.
-    - Analyse de texte via **gemma4:e4b** (Ollama) enrichie par des recherches web macro-économiques.
-    - Analyse visuelle des graphiques techniques.
-    - Analyse de sentiment des actualités.
-    - Prédiction de série temporelle via **TimesFM**.
-4.  **Afficher un signal clair** avec le niveau de confiance et la taille de position recommandée.
-
-### 📝 Journal de Bord
-Le système génère un fichier **`trading_journal.csv`** ultra-détaillé à chaque exécution.
-- **Transparence totale** : Enregistre le signal et la confiance de **chaque modèle individuel** (Classic, LLM, TimesFM, Vincent Ganne).
-- **Audit de Risque** : Permet de vérifier si le Risk Manager a modifié le signal initial de l'IA.
-
-### Sortie attendue
-
-L'analyse produit un tableau récapitulatif directement dans votre terminal :
-- **FINAL DECISION**: BUY / SELL / HOLD
-- **CONFIDENCE**: Pourcentage de certitude
-- **RISK LEVEL**: Évaluation du risque actuel du marché
-- **REC. POSITION**: Montant suggéré pour l'investissement
-
-Les graphiques d'analyse sont sauvegardés sous `enhanced_trading_chart.png`.
-
+Contributions are welcome! Feel free to fork the project and open a Pull Request.
 
 ---
 
-## 🤝 Contribuer
+## 📜 License
 
-Les contributions sont ce qui fait de la communauté open source un endroit extraordinaire pour apprendre, inspirer et créer. Toutes les contributions que vous faites sont **grandement appréciées**.
-
-Si vous avez une suggestion pour améliorer ce projet, veuillez forker le dépôt et créer une pull request. Vous pouvez aussi simplement ouvrir une issue avec le tag "enhancement".
-
-1.  Forkez le Projet
-2.  Créez votre branche de fonctionnalité (`git checkout -b feature/AmazingFeature`)
-3.  Commitez vos changements (`git commit -m 'Add some AmazingFeature'`)
-4.  Poussez vers la branche (`git push origin feature/AmazingFeature`)
-5.  Ouvrez une Pull Request
-
----
-
-## 📜 Licence
-
-Distribué sous la licence MIT. Voir `LICENSE` pour plus d'informations (fichier à ajouter si non présent).
+Distributed under the MIT License.
 
 ---
 
 ## 📧 Contact
 
-Lien du projet : [https://github.com/laurentvv/Trading-AI](https://github.com/laurentvv/Trading-AI)
+Project Link: [https://github.com/laurentvv/Trading-AI](https://github.com/laurentvv/Trading-AI)
