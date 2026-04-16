@@ -88,6 +88,7 @@ Berbeda dengan algoritma perdagangan klasik yang panik segera setelah volatilita
 
 - **Pendekatan Dual-Ticker**: Analisis indeks, perdagangkan ETF.
 - **Harga Live T212**: Pemulihan harga EUR real-time melalui API Trading 212 (0,2 detik), dengan fallback yfinance dan cache parquet.
+- **Dated Brent Spread**: Pemantauan ketegangan pasar fisik melalui selisih antara Brent Spot (Dated) dan Brent Futures.
 - **Ketahanan Jaringan**: Pemutus arus (circuit breaker) yfinance dengan pelacak terpisah (info vs download), timeout 10 detik pada semua panggilan jaringan.
 - **Kognisi Tingkat Lanjut**: Penggunaan **Gemma 4** untuk sintesis teknis/fundamental yang lebih baik.
 - **Sentimen Berita & Blockchain**: Integrasi **AlphaEar** dan **Hyperliquid** untuk menangkap sentimen sosial dan spekulatif.

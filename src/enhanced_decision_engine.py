@@ -122,6 +122,20 @@ class VincentGanneModel:
                 score += 4
                 reasons.append(f"Brent Minimum validation ({brent:.2f} < 95$)")
 
+        # 2b. Brent Spread (Dated Brent - Futures) - Physical Tension
+        brent_spread = indicators.get("Brent_spread")
+        if brent_spread is not None:
+            max_score += 5
+            if brent_spread < 3:
+                score += 5
+                reasons.append(f"Brent Spread IDEAL: Physical market easing (${brent_spread:.2f})")
+            elif brent_spread < 7:
+                score += 2.5
+                reasons.append(f"Brent Spread NORMAL: Moderate tension (${brent_spread:.2f})")
+            elif brent_spread > 15:
+                # No points, just a reason
+                reasons.append(f"Brent Spread EXTREME: Physical Scarcity (${brent_spread:.2f})")
+
         # 3. Natural Gas TTF (Priority 3)
         gas = indicators.get("NaturalGas_price")
         if gas:

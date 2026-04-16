@@ -43,6 +43,11 @@ class OilBenchModel:
         try:
             eia_context = self.eia_client.get_fundamental_context()
             eia_text = self.eia_client.format_for_llm(eia_context)
+            
+            # Extract Brent Spot Price for spread calculation
+            brent_spot = eia_context.get("brent_spot", {}).get("current")
+            if brent_spot:
+                price_data["brent_spot"] = brent_spot
         except Exception as e:
             logger.error(f"OilBench EIA context failed: {e}")
             eia_text = "EIA fundamental data unavailable."
@@ -87,6 +92,7 @@ class OilBenchModel:
         wti = price_data.get("wti", {})
         brent = price_data.get("brent", {})
         dxy = price_data.get("dxy", {})
+        brent_spot_price = price_data.get("brent_spot")
 
         wti_price = wti.get("price")
         wti_change = wti.get("change_pct", 0)
@@ -96,9 +102,20 @@ class OilBenchModel:
 
         wti_str = f"${wti_price:.2f} ({wti_change:+.2f}% 5d)" if wti_price else "N/A"
         brent_str = f"${brent_price:.2f}" if brent_price else "N/A"
-        spread_str = ""
+        
+        # Dated Brent Spread Analysis
+        spread_text = ""
         if wti_price and brent_price:
-            spread_str = f" (Spread: ${brent_price - wti_price:.2f})"
+            spread_text += f" (WTI-Brent Spread: ${brent_price - wti_price:.2f})"
+        
+        if brent_spot_price and brent_price:
+            dated_spread = brent_spot_price - brent_price
+            spread_text += f"\n- Dated Brent Spread (Spot vs Futures): ${dated_spread:.2f}"
+            if dated_spread > 10:
+                spread_text += " [EXTREME PHYSICAL TENSION]"
+            elif dated_spread < 3:
+                spread_text += " [MARKET EASING/NORMAL]"
+
         dxy_str = f"{dxy_price:.2f} ({dxy_change:+.2f}% 5d)" if dxy_price else "N/A"
 
         headlines_text = "No recent oil-specific news available."
@@ -110,7 +127,8 @@ Analyze the following data to determine your recommended portfolio allocation (0
 
 **Price Context:**
 - WTI Spot: {wti_str}
-- Brent Spot: {brent_str}{spread_str}
+- Brent Futures: {brent_str}{spread_text}
+- Brent Spot (Dated): ${brent_spot_price:.2f} if available
 - DXY: {dxy_str}
 
 **EIA Fundamental Data:**
@@ -121,10 +139,10 @@ Analyze the following data to determine your recommended portfolio allocation (0
 
 **Analysis Framework:**
 1. Inventory Analysis: Compare current stocks to 5-year average. Builds > expected = bearish.
-2. Supply/Demand Balance: Production trends, import levels, and REFINERY UTILIZATION (high = strong crude demand).
-3. DXY Impact: Stronger dollar = downward pressure on oil prices.
-4. Brent-WTI Spread: Widening spread signals supply chain dynamics.
-5. Forward Guidance: STEO outlook for price trajectory.
+2. Supply/Demand Balance: Production trends, import levels, and REFINERY UTILIZATION.
+3. Dated Brent Spread: Historical norm is $1-$2. High values (>$10) signal extreme physical scarcity. A NARROWING spread signals easing tension (Bullish for Stocks, Bearish for Oil).
+4. DXY Impact: Stronger dollar = downward pressure on oil prices.
+5. Brent-WTI Spread: Widening spread signals supply chain dynamics.
 
 Return ONLY a JSON object:
 {{"allocation": <float 0-100>, "reasoning": "<2-sentence analysis>"}}"""

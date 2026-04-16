@@ -36,5 +36,30 @@ class TestOilBenchSignalTranslation(unittest.TestCase):
         self.assertGreater(result["confidence"], 0.5)
 
 
+class TestOilBenchPrompt(unittest.TestCase):
+    def setUp(self):
+        self.model = OilBenchModel.__new__(OilBenchModel)
+        self.model.config = OilBenchConfig()
+
+    def test_construct_prompt_with_spread(self):
+        price_data = {
+            "wti": {"price": 80.0, "change_pct": 2.0},
+            "brent": {"price": 85.0, "change_pct": 1.5},
+            "dxy": {"price": 105.0, "change_pct": 0.5},
+            "brent_spot": 95.0,
+        }
+        eia_text = "EIA Data Test"
+        headlines = ["News 1", "News 2"]
+        
+        prompt = self.model._construct_prompt(price_data, eia_text, headlines)
+        
+        self.assertIn("Dated Brent Spread (Spot vs Futures): $10.00", prompt)
+        self.assertIn("EIA Data Test", prompt)
+        self.assertIn("WTI Spot: $80.00", prompt)
+        self.assertIn("Brent Futures: $85.00", prompt)
+        self.assertIn("Dated Brent Spread", prompt)
+        self.assertIn("Historical norm is $1-$2", prompt)
+
+
 if __name__ == "__main__":
     unittest.main()

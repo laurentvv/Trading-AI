@@ -71,6 +71,11 @@ class EIAClient:
         if not refinery_df.empty:
             result["refinery"] = self._parse_refinery(refinery_df)
 
+        # New: Brent Spot Price (Dated Brent)
+        spot_df = self.get_brent_spot_price(days=30)
+        if not spot_df.empty:
+            result["brent_spot"] = self._parse_spot_price(spot_df)
+
         steo_data = {}
         for label, series_id in [
             ("wti_price", "WTIPUUS"),
@@ -181,6 +186,32 @@ class EIAClient:
             return df_avg
         return self._load_disk_cache_fallback(cache_key)
 
+    def get_brent_spot_price(self, days: int = 30) -> pd.DataFrame:
+        """Fetches Europe Brent Spot Price FOB (Dated Brent) from EIA v2."""
+        cache_key = "brent_spot"
+        cached = self._get_from_cache(cache_key, 6)  # 6h TTL
+        if cached is not None:
+            return cached
+
+        params = {
+            "facets[series][]": "RBRTE",
+            "frequency": "daily",
+            "sort[0][column]": "period",
+            "sort[0][direction]": "desc",
+            "length": str(days),
+            "data[]": "value",
+        }
+        data = self._make_request("/petroleum/pri/spt/data", params)
+        if data:
+            df = pd.DataFrame(data)
+            if "value" in df.columns:
+                df["value"] = pd.to_numeric(df["value"], errors="coerce")
+            df["period"] = pd.to_datetime(df["period"])
+            df = df.sort_values("period").reset_index(drop=True)
+            self._save_to_cache(cache_key, df, 6)
+            return df
+        return self._load_disk_cache_fallback(cache_key)
+
     def _get_steo_series(self, series_id: str, periods: int = 3) -> pd.DataFrame:
         cache_key = f"steo_{series_id}"
         ttl = self.TTL_HOURS.get(cache_key, 24)
@@ -279,6 +310,15 @@ class EIAClient:
                     f"- STEO US Crude Net Imports: {imports['latest_value']:.2f} M bbl/day"
                 )
 
+        spot = data.get("brent_spot")
+        if spot and spot.get("current") is not None:
+            current = spot["current"]
+            wow = spot.get("wow_change", 0)
+            lines.append(
+                f"- Europe Brent Spot Price (Dated Brent): ${current:.2f}/bbl "
+                f"({wow:+.2f} WoW)"
+            )
+
         return "\n".join(lines)
 
     def _parse_inventory(self, df: pd.DataFrame) -> dict:
@@ -322,6 +362,20 @@ class EIAClient:
         }
 
     def _parse_refinery(self, df: pd.DataFrame) -> dict:
+        if df.empty or "value" not in df.columns:
+            return {}
+        current = float(df.iloc[-1]["value"])
+        previous = float(df.iloc[-2]["value"]) if len(df) > 1 else current
+        wow_change = current - previous
+
+        return {
+            "current": round(current, 2),
+            "previous": round(previous, 2),
+            "wow_change": round(wow_change, 2),
+            "history_periods": len(df),
+        }
+
+    def _parse_spot_price(self, df: pd.DataFrame) -> dict:
         if df.empty or "value" not in df.columns:
             return {}
         current = float(df.iloc[-1]["value"])
