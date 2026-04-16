@@ -37,6 +37,8 @@ from database import (
     get_latest_portfolio_state,
 )
 from timesfm_model import get_timesfm_prediction
+from eia_client import EIAClient
+from oil_bench_model import OilBenchModel
 
 # Imports des nouveaux modules d'amélioration
 from enhanced_decision_engine import EnhancedDecisionEngine
@@ -418,6 +420,21 @@ class EnhancedTradingSystem:
         )
         effective_vg_indicators = None if is_oil else vg_indicators
 
+        oil_bench_decision = None
+        if EIAClient.is_oil_ticker(self.analysis_ticker):
+            try:
+                oil_model = OilBenchModel()
+                oil_bench_decision = oil_model.analyze(
+                    ticker=self.analysis_ticker, headlines=None
+                )
+                logger.info(
+                    f"OilBench signal: {oil_bench_decision['signal']} "
+                    f"(conf={oil_bench_decision['confidence']:.2f})"
+                )
+            except Exception as e:
+                logger.error(f"OilBench model failed (isolated): {e}")
+                oil_bench_decision = None
+
         enhanced_decision = self.decision_engine.make_enhanced_decision(
             classic_pred=model_predictions["classic"]["prediction"],
             classic_conf=model_predictions["classic"]["confidence"],
@@ -426,6 +443,7 @@ class EnhancedTradingSystem:
             sentiment_decision=model_predictions["sentiment"],
             timesfm_decision=model_predictions["timesfm"],
             vincent_ganne_indicators=effective_vg_indicators,
+            oil_bench_decision=oil_bench_decision,
             market_data=market_data,
             adaptive_weights=weight_adjustment.model_weights,
         )

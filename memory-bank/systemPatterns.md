@@ -23,6 +23,7 @@ The application follows a modular, ensemble-based architecture orchestrated by t
 - **High-Fidelity Web Crawling (Crawl4AI)**: Replaces simple search snippets with a full-page asynchronous crawling pattern, allowing the LLM to analyze dense macro reports and deep financial insights.
 - **Oil Risk-On Resilience**: A specialized risk management pattern that recognizes Oil as a hedge or "risk-on" asset during volatility. It automatically lowers buy confidence thresholds for energy assets during HIGH/VERY_HIGH risk regimes to capture geopolitical spikes.
 - **Cognitive Majority Weighting**: Cognitive models hold 75% of the decision weight, ensuring that qualitative context tempers the 25% weight of the aggressive quantitative Classic model.
+- **Physical Supply/Demand Analysis**: Uses the `EIAClient` and `OilBenchModel` to inject real-world physical constraints (US crude inventories, refinery utilization, STEO forecasts) into the energy asset decision process.
 - **Sentiment Décentralisé (Blockchain)**: Pattern utilisant les données on-chain (perps Hyperliquid) pour détecter les excès spéculatifs (Funding Rates) comme indicateurs contrariens.
 - **Dual-Ticker Analysis**: Decouples the asset being analyzed from the asset being traded. AI models analyze high-fidelity global indices (`^NDX`, `CL=F`) while trades are executed on specific exchange-listed ETFs (`SXRV.DE`, `CRUDP.PA`).
 - **Ensemble Hybrid AI**: Leverages the "wisdom of the crowd" by combining traditional ML, specialized foundation models (TimesFM 2.5), and generative AI.

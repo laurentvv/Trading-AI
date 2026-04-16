@@ -23,6 +23,13 @@
 - **Résolu (2025-09-12)**: Corrigé un bug de persistance où la transition de phase n'était pas sauvegardée immédiatement, causant une réinitialisation de la phase au redémarrage du planificateur.
 
 ## 5. Corrections Récentes
+- **2026-04-16**: Intégration EIA et Modèle OilBench
+  * Développement du **`EIAClient`** : analyse automatisée des données de l'Energy Information Administration (v2 API).
+  * Métriques fondamentales exploitées : Stocks hebdomadaires de brut (WSTK), Importations mensuelles US, et **Taux d'utilisation des raffineries** (moyenne nationale agrégée par PADD).
+  * Intégration des prévisions **STEO** (Short-Term Energy Outlook) pour le WTI, le Brent et la demande mondiale.
+  * Création du **`OilBenchModel`** : modèle cognitif spécialisé (Gemma 4) pour le trading du WTI, fusionnant indicateurs techniques, fondamentaux EIA et sentiment.
+  * Alignement des signaux : introduction de `STRONG_BUY` et `STRONG_SELL` pour une meilleure granularité décisionnelle.
+  * Validation réussie via simulation sur le ticker `CRUDP.PA`.
 - **2026-04-15**: Résilience Réseau et Prix Temps Réel
   * Implémentation d'un **circuit breaker yfinance** avec deux trackers séparés (`_yf_info_tracker` pour metadata, `_yf_download_tracker` pour données). Après 3 échecs consécutifs, les appels sont bloqués pendant 120s.
   * Ajout d'un **timeout 10s** sur tous les appels yfinance (avant : 30s+ sans limite). `_yf_ticker_info()` utilise un `ThreadPoolExecutor` avec timeout.

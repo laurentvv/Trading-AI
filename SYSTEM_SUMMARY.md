@@ -45,7 +45,12 @@ graph TD
 3.  **TimesFM (Google Research) :**
     *   Modèle de fondation **TimesFM 2.5** spécialisé dans la prévision de séries temporelles.
 
-4.  **Hyperliquid (Sentiment Blockchain) :**
+4.  **Modèle Oil-Bench (Gemma 4 : e4b) :**
+    *   **Expert Fondamental :** Modèle spécialisé activé uniquement pour le pétrole (`CL=F`, `CRUDP.PA`).
+    *   **Données EIA :** Analyse automatisée des stocks US, des importations mensuelles et du taux d'utilisation des raffineries.
+    *   **Synthèse :** Produit une allocation cible (0-100%) basée sur la dynamique offre/demande physique.
+
+5.  **Hyperliquid (Sentiment Blockchain) :**
     *   Récupération en temps réel du *Funding Rate* et de l'*Open Interest* sur les contrats perpétuels Pétrole (WTI). Utilisé comme signal contrarien pour détecter les excès spéculatifs.
 
 5.  **Sentiment Analysis (Hybride) :**

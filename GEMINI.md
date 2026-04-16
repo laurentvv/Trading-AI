@@ -9,6 +9,8 @@ Ce projet est un système expert d'aide à la décision pour le trading d'ETFs N
 Le moteur fusionne un modèle quantitatif classique, un LLM textuel (Gemma 4), un LLM visuel (analyse de graphiques), le modèle de fondation **TimesFM 2.5** de Google Research, et le **Modèle Vincent Ganne** (Géopolitique & Cross-Asset).
 
 ### Nouveautés majeures :
+- **Intégration EIA (Energy Information Administration) :** Analyse automatisée des données fondamentales américaines (Stocks de brut, Importations, Taux d'utilisation des raffineries) et des prévisions STEO.
+- **Modèle Oil-Bench (Gemma 4) :** Nouveau modèle spécialisé dans le pétrole, fusionnant les données EIA et le sentiment de marché pour une analyse fondamentale profonde.
 - **Modèle Vincent Ganne :** Détection de points bas boursiers via l'analyse du Pétrole (WTI/Brent), du Gaz Naturel (TTF), de l'Urée, du Dollar (DXY) et des moyennes mobiles à 200 jours.
 - **Intégration Hyperliquid :** Capture du sentiment spéculatif sur le Pétrole via les données blockchain (*Funding Rate*, *Open Interest*).
 - **Gestion des Risques "Trend-Aware" :** Le système adapte ses seuils de confiance selon la tendance du marché (plus agressif en Bull Market).
@@ -38,7 +40,7 @@ Le moteur fusionne un modèle quantitatif classique, un LLM textuel (Gemma 4), u
     uv run python -m playwright install chromium
     ```
     *Cette procédure clone TimesFM dans `vendor/`, applique les correctifs d'API 2.5 et synchronise toutes les dépendances.*
-3.  **Configurer l'API** : Créer un fichier `.env` avec `ALPHA_VANTAGE_API_KEY`.
+3.  **Configurer l'API** : Créer un fichier `.env` avec `ALPHA_VANTAGE_API_KEY` et `EIA_API_KEY`.
 
 ### Running the System
 
