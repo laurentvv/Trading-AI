@@ -86,6 +86,13 @@ Contrairement aux algorithmes de trading classiques qui paniquent dès que la vo
 - **Visualisation** : `matplotlib`, `seaborn`, `mplfinance`
 - **Utilitaires** : `tqdm`, `rich`, `python-dotenv`, `schedule`
 
+### ⚙️ Performance & Hardware
+Le système est conçu pour être **performant sur du matériel grand public** sans nécessiter de GPU dédié.
+- **CPU Only** : L'inférence LLM (Gemma 4 via Ollama) et TimesFM sont optimisés pour une exécution CPU rapide si suffisamment de RAM est disponible.
+- **RAM Recommandée** : 16 Go minimum (32 Go conseillés pour faire tourner Gemma 4 confortablement).
+- **Temps d'exécution** : ~2 à 5 minutes pour un cycle complet (incluant crawling web, entraînement ML, prédictions TimesFM et 3 analyses LLM).
+- **Vitesse API** : Intégration Trading 212 ultra-rapide (<1s pour la récupération des prix live).
+
 ---
 
 ## 📂 Structure du Projet
