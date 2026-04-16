@@ -6,6 +6,8 @@ dans le système de trading AI existant.
 
 import logging
 import numpy as np
+import pandas as pd
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 import subprocess
@@ -659,9 +661,21 @@ class EnhancedTradingSystem:
         latest_portfolio_state = get_latest_portfolio_state(self.ticker)
         _, _, total_value, _ = latest_portfolio_state
 
-        # Note: accurate daily return for monitoring would need the ETF history
-        # For simplicity, we use 0 or a placeholder if only current price is available
+        # Calculate daily return from monitoring history
         daily_return = 0.0
+        try:
+            conn = sqlite3.connect(self.performance_monitor.db_path)
+            last_val_df = pd.read_sql_query(
+                "SELECT portfolio_value FROM realtime_metrics ORDER BY timestamp DESC LIMIT 1", 
+                conn
+            )
+            conn.close()
+            if not last_val_df.empty:
+                last_value = last_val_df.iloc[0]["portfolio_value"]
+                if last_value > 0:
+                    daily_return = (total_value / last_value) - 1
+        except Exception as e:
+            logger.warning(f"Could not calculate daily return from history: {e}")
 
         # Model accuracy (can't be calculated in real time without knowing the future)
         model_accuracy = {

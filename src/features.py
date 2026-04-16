@@ -22,8 +22,11 @@ def create_technical_indicators(data: pd.DataFrame) -> pd.DataFrame:
 
     # Returns
     df['Returns'] = df['Close'].pct_change()
-    df['Log_Returns'] = np.log(df['Close'] / df['Close'].shift(1))
-
+    
+    # Safe Log_Returns calculation
+    ratio = df['Close'] / df['Close'].shift(1)
+    df['Log_Returns'] = np.log(ratio.where(ratio > 0))
+    
     # Multiple moving averages
     for window in [5, 10, 20, 50, 100, 200]:
         df[f'MA_{window}'] = df['Close'].rolling(window=window).mean()
