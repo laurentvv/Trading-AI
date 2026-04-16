@@ -31,10 +31,6 @@
 
 </div>
 
-<p align="center">
-  <img src="enhanced_performance_dashboard.png" alt="Performance Dashboard" width="800"/>
-</p>
-
 ---
 
 ## 📚 Table of Contents
