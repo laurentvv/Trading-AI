@@ -1,6 +1,15 @@
-<div align="center">
-  🌎 [English](../README.md) | **Français**
-</div>
+<p align="center">
+  <a href="../README.md">English</a> | 
+  <a href="README_zh.md">中文</a> | 
+  <a href="README_hi.md">हिंदी</a> | 
+  <a href="README_es.md">Español</a> | 
+  <a href="README_fr.md">Français</a> | 
+  <a href="README_ar.md">العربية</a> | 
+  <a href="README_bn.md">বাংলা</a> | 
+  <a href="README_ru.md">Русский</a> | 
+  <a href="README_pt.md">Português</a> | 
+  <a href="README_id.md">Bahasa Indonesia</a>
+</p>
 
 <p align="center">
   <img src="../assets/banner.png" alt="Bannière Trading AI" width="100%"/>
@@ -36,7 +45,7 @@
   - [⚙️ Performance & Hardware](#️-performance--hardware)
 - [📂 Structure du Projet](#-structure-du-projet)
 - [🚀 Démarrage Rapide](#-démarrage-rapide)
-  - [✅ Prérequis](#-prerequisites)
+  - [✅ Prérequis](#-prérequis)
   - [⚙️ Installation](#️-installation)
 - [🛠️ Utilisation](#️-utilisation)
   - [Analyse Manuelle](#-analyse-manuelle)

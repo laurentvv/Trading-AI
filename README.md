@@ -1,6 +1,15 @@
-<div align="center">
-  🌎 **English** | [Français](./i18n/README_FR.md)
-</div>
+<p align="center">
+  <a href="README.md">English</a> | 
+  <a href="i18n/README_zh.md">中文</a> | 
+  <a href="i18n/README_hi.md">हिंदी</a> | 
+  <a href="i18n/README_es.md">Español</a> | 
+  <a href="i18n/README_fr.md">Français</a> | 
+  <a href="i18n/README_ar.md">العربية</a> | 
+  <a href="i18n/README_bn.md">বাংলা</a> | 
+  <a href="i18n/README_ru.md">Русский</a> | 
+  <a href="i18n/README_pt.md">Português</a> | 
+  <a href="i18n/README_id.md">Bahasa Indonesia</a>
+</p>
 
 <p align="center">
   <img src="assets/banner.png" alt="Hybrid AI Trading Banner" width="100%"/>
