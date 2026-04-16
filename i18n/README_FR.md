@@ -36,7 +36,7 @@
   - [⚙️ Performance & Hardware](#️-performance--hardware)
 - [📂 Structure du Projet](#-structure-du-projet)
 - [🚀 Démarrage Rapide](#-démarrage-rapide)
-  - [✅ Prérequis](#-prérequis)
+  - [✅ Prérequis](#-prerequisites)
   - [⚙️ Installation](#️-installation)
 - [🛠️ Utilisation](#️-utilisation)
   - [Analyse Manuelle](#-analyse-manuelle)

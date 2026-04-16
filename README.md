@@ -1,5 +1,5 @@
 <div align="center">
-  🌎 **English** | [Français](i18n/README_FR.md)
+  🌎 **English** | [Français](./i18n/README_FR.md)
 </div>
 
 <p align="center">
