@@ -350,7 +350,7 @@ def execute_t212_trade(
             )
             try:
                 index_price = get_real_price_eur(index_ticker)
-            except Exception as e:
+            except (ValueError, requests.RequestException, RuntimeError) as e:
                 print(
                     f"⚠️ Impossible de récupérer le prix de l'indice {index_ticker}, utilisation du prix de l'ETF : {e}"
                 )
