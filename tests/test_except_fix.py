@@ -2,9 +2,9 @@
 import os
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent / 'src'))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from t212_executor import load_portfolio_state, save_portfolio_state, STATE_FILE
+from src.t212_executor import load_portfolio_state, save_portfolio_state, STATE_FILE
 
 def test_except_handling():
     """Test that corrupted state file is handled gracefully."""
