@@ -89,7 +89,11 @@ class EIAClient:
             if not df.empty:
                 latest = df.iloc[-1]
                 prev = df.iloc[-2] if len(df) > 1 else latest
-                unit = str(df.iloc[0].get("unit", "")) if "unit" in df.columns or not df.empty else ""
+                unit = (
+                    str(df.iloc[0].get("unit", ""))
+                    if "unit" in df.columns or not df.empty
+                    else ""
+                )
                 steo_data[label] = {
                     "latest_value": float(latest["value"]),
                     "latest_period": str(latest["period"]),
@@ -265,7 +269,9 @@ class EIAClient:
         if imp and imp.get("latest_value") is not None:
             latest = imp["latest_value"]
             mom = imp.get("mom_change", 0)
-            direction = "increase (bearish supply)" if mom > 0 else "decrease (bullish supply)"
+            direction = (
+                "increase (bearish supply)" if mom > 0 else "decrease (bullish supply)"
+            )
             lines.append(
                 f"- US Crude Imports: {latest:,.0f} thousand barrels "
                 f"({mom:+,.0f} MoM, {direction})"
@@ -275,7 +281,11 @@ class EIAClient:
         if ref and ref.get("current") is not None:
             current = ref["current"]
             wow = ref.get("wow_change", 0)
-            direction = "increase (bullish for crude demand)" if wow > 0 else "decrease (bearish for crude demand)"
+            direction = (
+                "increase (bullish for crude demand)"
+                if wow > 0
+                else "decrease (bearish for crude demand)"
+            )
             lines.append(
                 f"- US Refinery Utilization: {current:.1f}% "
                 f"({wow:+.1f}% WoW, {direction})"

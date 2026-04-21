@@ -1,5 +1,6 @@
 import yfinance as yf
 import pandas as pd
+import numpy as np
 import logging
 import os
 import time as _time
@@ -786,6 +787,7 @@ def get_vincent_ganne_indicators() -> dict:
     # 1b. Fetch EIA Fundamental Data (Brent Spread)
     try:
         from eia_client import EIAClient
+
         eia = EIAClient()
         eia_context = eia.get_fundamental_context()
         brent_spot = eia_context.get("brent_spot", {}).get("current")
@@ -840,7 +842,9 @@ def get_vincent_ganne_indicators() -> dict:
             if name == "Brent" and "Brent_spot" in indicators:
                 b_spot = indicators["Brent_spot"]
                 indicators["Brent_spread"] = b_spot - current_price
-                logger.info(f"Brent Spread (Dated vs Futs) calculated: ${indicators['Brent_spread']:.2f}")
+                logger.info(
+                    f"Brent Spread (Dated vs Futs) calculated: ${indicators['Brent_spread']:.2f}"
+                )
 
             ma200_series = close_col.rolling(window=200).mean()
             ma200_val = ma200_series.iloc[-1]
