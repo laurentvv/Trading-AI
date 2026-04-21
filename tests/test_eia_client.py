@@ -1,17 +1,13 @@
 import unittest
-import tempfile
 import os
-import shutil
 import sys
 from pathlib import Path
-from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
 
-import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from eia_client import EIAClient, EIACacheEntry, EIA_CACHE_DIR
+from eia_client import EIAClient
 
 
 class TestIsOilTicker(unittest.TestCase):

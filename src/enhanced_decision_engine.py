@@ -128,13 +128,19 @@ class VincentGanneModel:
             max_score += 5
             if brent_spread < 3:
                 score += 5
-                reasons.append(f"Brent Spread IDEAL: Physical market easing (${brent_spread:.2f})")
+                reasons.append(
+                    f"Brent Spread IDEAL: Physical market easing (${brent_spread:.2f})"
+                )
             elif brent_spread < 7:
                 score += 2.5
-                reasons.append(f"Brent Spread NORMAL: Moderate tension (${brent_spread:.2f})")
+                reasons.append(
+                    f"Brent Spread NORMAL: Moderate tension (${brent_spread:.2f})"
+                )
             elif brent_spread > 15:
                 # No points, just a reason
-                reasons.append(f"Brent Spread EXTREME: Physical Scarcity (${brent_spread:.2f})")
+                reasons.append(
+                    f"Brent Spread EXTREME: Physical Scarcity (${brent_spread:.2f})"
+                )
 
         # 3. Natural Gas TTF (Priority 3)
         gas = indicators.get("NaturalGas_price")
@@ -252,12 +258,13 @@ class EnhancedDecisionEngine:
         """
         self.base_weights = base_weights or {
             "classic": 0.10,
-            "llm_text": 0.20,
+            "llm_text": 0.15,
             "llm_visual": 0.10,
             "sentiment": 0.10,
-            "timesfm": 0.25,
+            "timesfm": 0.20,
             "vincent_ganne": 0.15,
             "oil_bench": 0.10,
+            "tensortrade": 0.10,
         }
         self.vincent_ganne_model = VincentGanneModel()
 
@@ -403,6 +410,7 @@ class EnhancedDecisionEngine:
         visual_llm_decision: Dict,
         sentiment_decision: Dict,
         timesfm_decision: Dict = None,
+        tensortrade_decision: Dict = None,
         vincent_ganne_indicators: Dict = None,
         oil_bench_decision: Dict = None,
         market_data: Dict = None,
@@ -485,6 +493,21 @@ class EnhancedDecisionEngine:
                     model_name="timesfm",
                     reasoning=timesfm_decision.get(
                         "analysis", "TimesFM time series forecasting"
+                    ),
+                )
+            )
+        if tensortrade_decision:
+            decisions.append(
+                ModelDecision(
+                    signal=tensortrade_decision.get("signal", "HOLD"),
+                    confidence=tensortrade_decision.get("confidence", 0.0),
+                    strength=self._normalize_signal(
+                        tensortrade_decision.get("signal", "HOLD")
+                    ),
+                    timestamp=timestamp,
+                    model_name="tensortrade",
+                    reasoning=tensortrade_decision.get(
+                        "analysis", "TensorTrade RL policy output"
                     ),
                 )
             )

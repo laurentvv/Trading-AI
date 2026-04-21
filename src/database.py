@@ -22,7 +22,7 @@ def init_db():
     VALID_SIGNALS = "'BUY', 'SELL', 'HOLD', 'STRONG_BUY', 'STRONG_SELL'"
 
     # Create transactions table
-    cursor.execute(f"""
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             date TEXT NOT NULL,

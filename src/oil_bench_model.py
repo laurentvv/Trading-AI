@@ -43,7 +43,7 @@ class OilBenchModel:
         try:
             eia_context = self.eia_client.get_fundamental_context()
             eia_text = self.eia_client.format_for_llm(eia_context)
-            
+
             # Extract Brent Spot Price for spread calculation
             brent_spot = eia_context.get("brent_spot", {}).get("current")
             if brent_spot:
@@ -102,15 +102,17 @@ class OilBenchModel:
 
         wti_str = f"${wti_price:.2f} ({wti_change:+.2f}% 5d)" if wti_price else "N/A"
         brent_str = f"${brent_price:.2f}" if brent_price else "N/A"
-        
+
         # Dated Brent Spread Analysis
         spread_text = ""
         if wti_price and brent_price:
             spread_text += f" (WTI-Brent Spread: ${brent_price - wti_price:.2f})"
-        
+
         if brent_spot_price and brent_price:
             dated_spread = brent_spot_price - brent_price
-            spread_text += f"\n- Dated Brent Spread (Spot vs Futures): ${dated_spread:.2f}"
+            spread_text += (
+                f"\n- Dated Brent Spread (Spot vs Futures): ${dated_spread:.2f}"
+            )
             if dated_spread > 10:
                 spread_text += " [EXTREME PHYSICAL TENSION]"
             elif dated_spread < 3:
@@ -184,6 +186,7 @@ Return ONLY a JSON object:
             signal = "HOLD"
             # Add small jitter to 0.3 for visibility in dashboard
             import random
+
             confidence = 0.3 + (random.random() * 0.05)
 
         return {
