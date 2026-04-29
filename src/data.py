@@ -848,23 +848,36 @@ def get_vincent_ganne_indicators() -> dict:
 
             ma200_series = close_col.rolling(window=200).mean()
             ma200_val = ma200_series.iloc[-1]
+            
+            # Fallback for MA200 if insufficient data (common for Urea/UME=F)
+            if ma200_val is None or (isinstance(ma200_val, float) and np.isnan(ma200_val)):
+                logger.info(f"MA200 not available for {name}, trying MA50 fallback...")
+                ma50_series = close_col.rolling(window=50).mean()
+                ma200_val = ma50_series.iloc[-1]
+                fallback_name = "MA50"
+            else:
+                fallback_name = "MA200"
+
             if ma200_val is not None and not (
                 isinstance(ma200_val, float) and np.isnan(ma200_val)
             ):
-                ma200 = (
+                ma_val = (
                     float(ma200_val.iloc[0])
                     if hasattr(ma200_val, "iloc")
                     else float(ma200_val)
                 )
-                indicators[f"{name}_ma200"] = ma200
-                indicators[f"{name}_above_ma200"] = bool(current_price > ma200)
+                indicators[f"{name}_ma200"] = ma_val
+                indicators[f"{name}_above_ma200"] = bool(current_price > ma_val)
                 logger.info(
-                    f"Checking {name}: Price {current_price:.2f} (MA200: {ma200:.2f})"
+                    f"Checking {name}: Price {current_price:.2f} ({fallback_name}: {ma_val:.2f})"
                 )
             else:
+                # Ultimate fallback: use the first available price point as a reference or None
                 indicators[f"{name}_ma200"] = None
+                # If we really need a boolean for 'above_ma200', we can assume True if price exists
+                indicators[f"{name}_above_ma200"] = True if current_price else False
                 logger.warning(
-                    f"[WARN] MA200 not available for {name} ({ticker}) — insufficient data"
+                    f"[WARN] Neither MA200 nor MA50 available for {name} ({ticker}) — using price fallback"
                 )
         except TypeError as e:
             logger.error(f"[ERROR] TypeError fetching {name} ({ticker}): {e}")
