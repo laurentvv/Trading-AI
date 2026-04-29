@@ -30,7 +30,7 @@ def _make_other_decision(signal="HOLD", confidence=0.5):
 
 
 class TestTensorTradeIntegration(unittest.TestCase):
-    @patch("tensortrade_model.PPO")
+    @patch("stable_baselines3.PPO", create=True)
     def test_full_chain_creates_model_decision(self, mock_ppo_cls):
         mock_model = MagicMock()
         mock_model.predict.return_value = (np.array(1), None)
@@ -81,7 +81,7 @@ class TestTensorTradeIntegration(unittest.TestCase):
         self.assertIn("tensortrade", engine.base_weights)
         self.assertEqual(engine.base_weights["tensortrade"], 0.10)
 
-    @patch("tensortrade_model.PPO")
+    @patch("stable_baselines3.PPO", create=True)
     def test_consensus_score_includes_tensortrade(self, mock_ppo_cls):
         mock_model = MagicMock()
         mock_model.predict.return_value = (np.array(1), None)
@@ -113,7 +113,7 @@ class TestTensorTradeIntegration(unittest.TestCase):
         score = engine._calculate_consensus_score([decision])
         self.assertTrue(0 <= score <= 1.0)
 
-    @patch("tensortrade_model.PPO")
+    @patch("stable_baselines3.PPO", create=True)
     def test_analysis_key_fallback(self, mock_ppo_cls):
         mock_model = MagicMock()
         mock_model.predict.return_value = (np.array(0), None)

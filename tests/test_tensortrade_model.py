@@ -5,7 +5,7 @@ import gymnasium as gym
 import numpy as np
 import pandas as pd
 
-from tensortrade_model import get_tensortrade_prediction
+from src.tensortrade_model import get_tensortrade_prediction
 
 
 def _make_df(n=100, close_col="Close"):
@@ -67,7 +67,7 @@ class TestMissingCloseColumn(unittest.TestCase):
 
 
 class TestLowercaseCloseColumn(unittest.TestCase):
-    @patch("tensortrade_model.PPO")
+    @patch("stable_baselines3.PPO", create=True)
     def test_works_with_lowercase_close(self, mock_ppo_cls):
         mock_model = MagicMock()
         mock_model.predict.return_value = (np.array(1), None)
@@ -88,7 +88,7 @@ class TestLowercaseCloseColumn(unittest.TestCase):
 
 
 class TestSuccessfulPrediction(unittest.TestCase):
-    @patch("tensortrade_model.PPO")
+    @patch("stable_baselines3.PPO", create=True)
     def test_returns_valid_signal_and_confidence(self, mock_ppo_cls):
         mock_model = MagicMock()
         mock_model.predict.return_value = (np.array(2), None)
@@ -146,7 +146,7 @@ class TestEnvReset(unittest.TestCase):
 
 
 class TestExceptionHandling(unittest.TestCase):
-    @patch("tensortrade_model.PPO", side_effect=RuntimeError("PPO crash"))
+    @patch("stable_baselines3.PPO", side_effect=RuntimeError("PPO crash"))
     def test_returns_hold_on_exception(self, mock_ppo_cls):
         df = _make_df(n=100)
         result = get_tensortrade_prediction(df)
