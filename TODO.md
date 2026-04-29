@@ -16,5 +16,15 @@
 - [ ] Sentiment 0 headlines en PROD (Alpha Vantage quota ou config)
 - [ ] LLM inference lent (~60s/call) - bottleneck principal du cycle
 - [ ] Web recherche retourne parfois des articles obsolètes (ex: CNBC 2015)
-- [ ] Urea (UME=F) MA200 = nan (historique insuffisant)
+- [x] Urea (UME=F) MA200 = nan (résolu par MA50 fallback dans `src/data.py`)
 - [ ] HF_TOKEN non défini sur PROD
+
+# TensorTrade et Cache (2026-04-28/29)
+~~Intégrer TensorTrade / PPO comme 9ème signal~~ [FAIT]
+~~Cache auto-invalidation si > 2 jours~~ [FAIT]
+~~Fallback MA50 quand MA200 insuffisant~~ [FAIT]
+~~Script `refresh_cache.py` pour forcer le rafraîchissement~~ [FAIT]
+~~Supprimer DB files du tracking git~~ [FAIT]
+- [ ] Optimiser le temps d'entraînement PPO (actuel ~500 timesteps)
+- [ ] Evaluer la corrélation TensorTrade vs Classic sur backtest long
+- [ ] Synchroniser les 9 traductions i18n avec les mises à jour README (TensorTrade, cache)

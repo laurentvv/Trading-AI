@@ -4,7 +4,7 @@ Ce document résume l'architecture, les capacités et les performances du systè
 
 ## 🚀 Architecture Globale
 
-Le système repose sur une approche **tri-modale hybride**. Au lieu de faire confiance à un seul algorithme, il combine trois types d'intelligence pour prendre une décision finale.
+Le système repose sur une approche **multi-modale hybride**. Au lieu de faire confiance à un seul algorithme, il combine neuf types d'intelligence pour prendre une décision finale.
 
 ```mermaid
 graph TD
@@ -13,6 +13,7 @@ graph TD
     subgraph "Analyse Technique"
     B --> C[Modèle Classique - Scikit-Learn]
     B --> D[TimesFM - Google Research]
+    B --> TT[TensorTrade / PPO - RL]
     end
     
     subgraph "Analyse Contextuelle"
@@ -20,9 +21,11 @@ graph TD
     B --> F[LLM Visuel - Analyse Graphique]
     B --> G[Sentiment Analysis - News]
     B --> HL[Hyperliquid - Sentiment Blockchain]
+    B --> OB[Oil-Bench - EIA Fondamentaux]
+    B --> VG[Vincent Ganne - Géopolitique]
     end
     
-    C & D & E & F & G & HL --> H{Moteur de Décision}
+    C & D & TT & E & F & G & HL & OB & VG --> H{Moteur de Décision}
     
     H --> I[BUY / SELL / HOLD]
     I --> J[Position Sizing - Kelly Criterion]
@@ -45,18 +48,23 @@ graph TD
 3.  **TimesFM (Google Research) :**
     *   Modèle de fondation **TimesFM 2.5** spécialisé dans la prévision de séries temporelles.
 
-4.  **Modèle Oil-Bench (Gemma 4 : e4b) :**
-    *   **Expert Fondamental :** Modèle spécialisé activé uniquement pour le pétrole (`CL=F`, `CRUDP.PA`).
-    *   **Données EIA :** Analyse automatisée des stocks US, des importations mensuelles et du taux d'utilisation des raffineries.
-    *   **Synthèse :** Produit une allocation cible (0-100%) basée sur la dynamique offre/demande physique.
+4.  **TensorTrade / PPO (Reinforcement Learning) :**
+    *   Agent **PPO** (stable-baselines3) entraîné à chaque cycle dans un environnement **Gymnasium** custom (`SimpleTradingEnv`).
+    *   Apprend une politique d'achat/vente/conservation basée sur les variations de prix récentes.
+    *   Poids de **10%** dans le moteur de décision. Ajoute un signal non-corrélé basé sur le comportement.
 
-5.  **Hyperliquid (Sentiment Blockchain) :**
+5.  **Modèle Oil-Bench (Gemma 4 : e4b) :**
+    *   **Expert Fondamental :** Modèle spécialisé activé uniquement pour le pétrole (`CL=F`, `CRUDP.PA`).
+    * **Données EIA :** Analyse automatisée des stocks US, des importations mensuelles et du taux d'utilisation des raffineries.
+    * **Synthèse :** Produit une allocation cible (0-100%) basée sur la dynamique offre/demande physique.
+
+6.  **Hyperliquid (Sentiment Blockchain) :**
     *   Récupération en temps réel du *Funding Rate* et de l'*Open Interest* sur les contrats perpétuels Pétrole (WTI). Utilisé comme signal contrarien pour détecter les excès spéculatifs.
 
-5.  **Sentiment Analysis (Hybride) :**
+7.  **Sentiment Analysis (Hybride) :**
     *   Combine les news d'Alpha Vantage avec les tendances "hot" d'**AlphaEar** (Weibo, WallstreetCN, etc.) pour une détection précoce des changements de sentiment.
 
-6.  **Modèle Vincent Ganne (Géopolitique & Cross-Asset) :**
+8.  **Modèle Vincent Ganne (Géopolitique & Cross-Asset) :**
     *   **Validateur d'Achat Nasdaq :** Ce modèle est utilisé exclusivement pour valider des points bas sur le Nasdaq (`SXRV.DE`, `QQQ`). Il est désactivé pour le trading d'autres actifs.
     *   **Signal Unidirectionnel :** Il ne génère que des signaux `BUY` ou `HOLD`. Son but est de confirmer la détente macroéconomique (Pétrole < 94$, Dollar faible, MA200 franchie) pour autoriser une entrée sur les actions.
     *   **Filtre de Sécurité :** En cas de prix de l'énergie trop élevés (WTI > 94$), le modèle maintient un signal `HOLD` pour le Nasdaq, agissant comme un verrou de sécurité contre l'instabilité géopolitique.
@@ -121,7 +129,7 @@ Le système inclut un mode simulation persistant pour tester les performances en
 
 ### Caractéristiques :
 - **Capital Initial :** 1000 € (fixe).
-- **Persistance :** L'état du portefeuille et l'historique des trades sont sauvegardés dans `trading_history.db`.
+- **Persistance :** L'état du portefeuille et l'historique des trades sont sauvegardés dans une base de données SQLite locale (non trackée dans git).
 - **Logique Strict :** Le mode simulation impose une alternance Achat -> Vente. Il est impossible d'acheter si le capital est déjà engagé, ou de vendre si aucune action n'est détenue.
 
 ```bash
@@ -150,6 +158,8 @@ Le système peut désormais passer des ordres réels sur un compte Trading 212 v
 - **Hiérarchie de prix** : T212 live → yfinance → cache parquet.
 - **Timeout 10s** sur tous les appels réseau (yfinance, Alpha Vantage).
 - **Skip metadata** : `_yf_ticker_info()` ignoré quand le cache parquet existe (gain ~30-50s/cycle).
+- **Cache Auto-Invalidation** : Si la dernière donnée du cache Parquet date de > 2 jours, un téléchargement forcé est déclenché automatiquement (`src/data.py`). Utilitaire `refresh_cache.py` pour forcer le rafraîchissement manuel de tous les tickers.
+- **MA50 Fallback** : Quand MA200 est indisponible (historique insuffisant, ex: Urée/UME=F), le système utilise MA50 comme référence mobile pour les indicateurs cross-asset du modèle Vincent Ganne.
 
 ```bash
 # Lancer l'analyse avec exécution réelle (Mode Démo ou Live)

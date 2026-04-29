@@ -4,10 +4,15 @@
 The project is now in a **high-fidelity production/demo phase**. The decision engine has been refined for extreme accuracy, and the web research capabilities have been significantly upgraded. The system is operating under an "Accuracy First" (Justesse) mandate.
 
 ### Key Recent Changes
+- **TensorTrade / PPO Integration**: Added a 9th signal — a Reinforcement Learning agent (PPO via stable-baselines3, Gymnasium environment) that learns buy/sell/hold policies from price history. Weight: 10% in the decision engine.
+- **Cache Auto-Invalidation**: Parquet cache files now auto-detect staleness — if `last_date` is > 2 days old, a force refresh is triggered automatically (`src/data.py` lines 148-154).
+- **MA50 Fallback**: When MA200 is NaN (insufficient history, e.g. Urea/UME=F), the system falls back to MA50 for the cross-asset indicators used by the Vincent Ganne model.
+- **Cache Utility Script**: `refresh_cache.py` forces refresh of all 4 tickers (`^NDX`, `CL=F`, `SXRV.DE`, `CRUDP.PA`).
+- **DB Files Removed from Git**: `performance_monitor.db` and `trading_history.db` are no longer tracked — generated locally only.
 - **Vincent Ganne Model Refinement**: Now explicitly exclusive to **Nasdaq** assets for market bottom validation. It only generates `BUY` signals and acts as a geopolitical safety lock (blocking Nasdaq buys if energy prices are > $94). It is disabled for Oil trading to avoid self-referential bias.
 - **Crawl4AI Integration**: Replaced simple DuckDuckGo snippets with full-page asynchronous crawling for macro research, providing the LLM with dense, high-quality context.
 - **Dynamic Prompt Engineering**: LLM prompts are now ticker-aware, include qualified indicators (e.g., RSI qualificators like 'Overbought'), and incorporate current temporal context (Month/Year) and 5-day price trends for search query generation.
-- **Trading 212 Dashboard**: Fixed display bugs and improved the detailed logging in `trading_journal.csv` to track each individual model's contribution (Classic, LLM, TimesFM, VG, Sentiment).
+- **Trading 212 Dashboard**: Fixed display bugs and improved the detailed logging in `trading_journal.csv` to track each individual model's contribution (Classic, LLM, TimesFM, VG, Sentiment, TensorTrade).
 - **Project Cleanup**: Root directory has been cleaned; all test scripts moved to `tests/`.
 
 ## Immediate Objectives
@@ -16,8 +21,12 @@ The project is now in a **high-fidelity production/demo phase**. The decision en
 - [x] Enable high-fidelity web crawling with Crawl4AI.
 - [x] Validate full cycle on Nasdaq and Oil tickers.
 - [x] Implement detailed per-model logging.
+- [x] Integrate TensorTrade / PPO RL agent as 9th signal.
+- [x] Implement cache auto-invalidation (stale > 2 days).
+- [x] Implement MA50 fallback for insufficient MA200 data.
 - [ ] Monitor real-time performance in Demo Mode.
 - [ ] Add automated Stop-Loss rules in AdvancedRiskManager.
+- [ ] Synchronize i18n translations (9 languages) with README.md updates.
 
 ## Decision Log
 - **Nasdaq Exclusivity for VG**: Decided to restrict the Vincent Ganne model to Nasdaq because its energy-price-to-stock-bottom logic is fundamentally a cross-asset indicator for equities, not a directional signal for energy itself.

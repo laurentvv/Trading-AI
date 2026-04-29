@@ -10,12 +10,15 @@
 - **Nouveau Scheduler Autonome**: Script `schedule.py` gérant les horaires de marché (8h30-18h00) et l'intervalle de 30 minutes avec dashboard live.
 - **Logique de Justesse**: Moteur de décision et gestionnaire de risques calibrés pour prioriser la conservation du capital.
 - **TimesFM 2.5**: Prédictions probabilistes de pointe intégrées et stables.
+- **TensorTrade / PPO**: Agent RL (stable-baselines3) intégré comme 9ème signal avec poids 10% dans le moteur de décision.
 - **Trading 212**: Exécution complète (achat/vente) testée et validée en mode démo.
 - **Modèle Quantitatif Classique**: Sélection automatique du meilleur modèle (LR, RF, GB) avec intégration macroéconomique.
+- **Cache Auto-Invalidation**: Les données Parquet sont automatiquement rafraîchies si le dernier datapoint date de > 2 jours.
+- **MA50 Fallback**: Quand MA200 n'est pas disponible (données insuffisantes, ex: Urea/UME=F), le système utilise MA50 comme référence.
 
 ## 3. Ce Qui Reste à Construire
-- **Phase 3 : Optimisation** - Le système transitionnera automatiquement vers cette phase le 22 septembre 2025.
-- **Phase 4 : Maturité** - Transition prévue pour le 22 octobre 2025.
+- **Phase 3 : Optimisation** - Optimisation continue des poids modèles et des seuils de confiance.
+- **Phase 4 : Maturité** - Déploiement en conditions réelles avec monitoring long terme.
 
 ## 4. Problèmes Connus
 - **Résolu**: Le planificateur précédent était non fonctionnel et provoquait l'échec de l'analyse quotidienne. Ceci a été résolu avec le nouveau `src/intelligent_scheduler.py`.
@@ -23,6 +26,19 @@
 - **Résolu (2025-09-12)**: Corrigé un bug de persistance où la transition de phase n'était pas sauvegardée immédiatement, causant une réinitialisation de la phase au redémarrage du planificateur.
 
 ## 5. Corrections Récentes
+- **2026-04-29**: Cache Auto-Invalidation et Fix Données Périmées
+  * Implémentation du **cache stale detection** dans `src/data.py` (lignes 148-154) : si `last_date` du cache Parquet est > 2 jours dans le passé, un `force_refresh` est déclenché automatiquement.
+  * Création de **`refresh_cache.py`** : utilitaire CLI pour forcer le rafraîchissement de tous les tickers (`^NDX`, `CL=F`, `SXRV.DE`, `CRUDP.PA`).
+  * Scripts d'intégration **`update_decision_engine.py`** et **`update_enhanced_trading.py`** pour injecter TensorTrade dans le pipeline existant.
+  * **Suppression des fichiers DB** du tracking git (`performance_monitor.db`, `trading_history.db`) — générés localement uniquement.
+- **2026-04-28**: Modèle TensorTrade et Tests
+  * Création de **`src/tensortrade_model.py`** : agent RL (PPO via stable-baselines3) dans un environnement Gymnasium custom (SimpleTradingEnv).
+  * Ajout de **3 fichiers de tests** : `tests/test_tensortrade_model.py` (158 lignes), `tests/test_tensortrade_integration.py` (139 lignes), `tests/bench_tensortrade.py` (98 lignes).
+  * Intégration au moteur de décision avec poids **10%** (réduit llm_text 20%→15%, timesfm 25%→20%).
+  * Ajout de `tensortrade>=1.0.4` et `stable-baselines3` dans `pyproject.toml`.
+- **2026-04-27**: Fallback MA50 et Robustesse des Données
+  * Implémentation du **MA50 fallback** dans `src/data.py` : quand `MA200` est `nan` (historique insuffisant, ex: Urea/UME=F), le système utilise `MA50` comme référence mobile.
+  * Résout le problème `Urea (UME=F) MA200 = nan` mentionné dans `TODO.md`.
 - **2026-04-16**: Intégration EIA et Modèle OilBench
   * Développement du **`EIAClient`** : analyse automatisée des données de l'Energy Information Administration (v2 API).
   * Métriques fondamentales exploitées : Stocks hebdomadaires de brut (WSTK), Importations mensuelles US, et **Taux d'utilisation des raffineries** (moyenne nationale agrégée par PADD).

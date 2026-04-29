@@ -8,6 +8,7 @@ The application follows a modular, ensemble-based architecture orchestrated by t
 3.  **Advanced Decision Logic (`src/enhanced_decision_engine.py`)**: Uses a consensus-based approach with adaptive weighting to combine signals from:
     - `ClassicModel` (Scikit-Learn)
     - `TimesFM` (Time-series Foundation Model)
+    - `TensorTrade / PPO` (Reinforcement Learning via stable-baselines3)
     - `LLM Client` (Textual & Visual analysis via **Gemma 4**, enriched by **Crawl4AI** high-fidelity research)
     - `Sentiment Analysis` (Hybrid Alpha Vantage + AlphaEar)
     - **`Hyperliquid`** (Sentiment Décentralisé : Funding Rate, Open Interest)
@@ -34,3 +35,6 @@ The application follows a modular, ensemble-based architecture orchestrated by t
 - **yfinance Circuit Breaker**: Separate failure trackers for `info` (metadata, non-critical) and `download` (data). After 3 consecutive failures, calls are blocked for 120s. Prevents cascading slowdowns when Yahoo Finance is down.
 - **T212 Live Price Priority**: ETF prices are first fetched from Trading 212 positions API (real-time EUR, <0.5s). Falls back to yfinance if no position exists. Index prices (`^NDX`, `CL=F`) always use yfinance/cache.
 - **Time-Series Integrity**: All training and validation steps use forward-looking-safe methods (`TimeSeriesSplit`, `ffill`) to prevent data leakage.
+- **Reinforcement Learning Signal (TensorTrade)**: A PPO agent trains on price history within a custom Gymnasium environment (SimpleTradingEnv) at each run. The learned policy outputs BUY/SELL/HOLD with a confidence derived from the action probability distribution. Adds a non-correlated, behavior-based signal to the ensemble.
+- **Stale Cache Auto-Invalidation**: Parquet cache files are checked for staleness at load time. If the last data point is > 2 days old (`pd.Timestamp.now() - last_date > 2 days`), the cache is bypassed and fresh data is downloaded. Prevents decisions based on outdated market data in PROD.
+- **MA50 Fallback for Insufficient History**: When computing the MA200 cross-asset indicator (used by Vincent Ganne), if the 200-day moving average is NaN due to insufficient history (common for commodities like Urea/UME=F), the system falls back to MA50. Ensures all cross-asset checks have a valid reference point.
