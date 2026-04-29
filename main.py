@@ -200,6 +200,7 @@ def run_trading_analysis(
                 "llm_visual",
                 "sentiment",
                 "timesfm",
+                "tensortrade",
                 "vincent_ganne",
             ]
             for m in model_names:
