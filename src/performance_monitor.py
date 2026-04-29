@@ -476,7 +476,7 @@ class PerformanceMonitor:
 
             # Trading activity
             total_trades = latest_metrics["total_trades"]
-            
+
             # Filter out -1.0 sentinel values from win_rate average
             valid_win_rates = df[df["win_rate"] >= 0]["win_rate"]
             avg_win_rate = valid_win_rates.mean() if not valid_win_rates.empty else 0.0

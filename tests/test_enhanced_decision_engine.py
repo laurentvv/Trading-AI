@@ -5,7 +5,12 @@ from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from enhanced_decision_engine import EnhancedDecisionEngine, ModelDecision, SignalStrength
+from enhanced_decision_engine import (
+    EnhancedDecisionEngine,
+    ModelDecision,
+    SignalStrength,
+)
+
 
 class TestEnhancedDecisionEngine(unittest.TestCase):
     def setUp(self):
@@ -18,14 +23,14 @@ class TestEnhancedDecisionEngine(unittest.TestCase):
             1: SignalStrength.BUY,
             0: SignalStrength.HOLD,
             -1: SignalStrength.SELL,
-            -2: SignalStrength.STRONG_SELL
+            -2: SignalStrength.STRONG_SELL,
         }
         return ModelDecision(
             signal=signal,
             confidence=confidence,
             strength=strength_map[strength_val],
             timestamp=datetime.now(),
-            model_name="test_model"
+            model_name="test_model",
         )
 
     def test_calculate_consensus_score_empty(self):
@@ -42,7 +47,7 @@ class TestEnhancedDecisionEngine(unittest.TestCase):
         decisions = [
             self.create_decision("BUY", 0.0, 1),
             self.create_decision("HOLD", 0.0, 0),
-            self.create_decision("SELL", 0.0, -1)
+            self.create_decision("SELL", 0.0, -1),
         ]
         score = self.engine._calculate_consensus_score(decisions)
         self.assertTrue(0 <= score <= 1)
@@ -52,7 +57,7 @@ class TestEnhancedDecisionEngine(unittest.TestCase):
         decisions = [
             self.create_decision("STRONG_BUY", 0.9, 2),
             self.create_decision("STRONG_BUY", 0.9, 2),
-            self.create_decision("STRONG_BUY", 0.9, 2)
+            self.create_decision("STRONG_BUY", 0.9, 2),
         ]
         score = self.engine._calculate_consensus_score(decisions)
         self.assertEqual(score, 1.0)
@@ -61,7 +66,7 @@ class TestEnhancedDecisionEngine(unittest.TestCase):
         """Test with decisions that are polar opposites"""
         decisions = [
             self.create_decision("STRONG_BUY", 1.0, 2),
-            self.create_decision("STRONG_SELL", 1.0, -2)
+            self.create_decision("STRONG_SELL", 1.0, -2),
         ]
         score = self.engine._calculate_consensus_score(decisions)
         # Variance of [2, -2] is 4, max_variance is 4, signal_agreement = 0
@@ -74,14 +79,16 @@ class TestEnhancedDecisionEngine(unittest.TestCase):
         decisions = [
             self.create_decision("BUY", 0.8, 1),
             self.create_decision("STRONG_BUY", 0.6, 2),
-            self.create_decision("HOLD", 0.4, 0)
+            self.create_decision("HOLD", 0.4, 0),
         ]
         score = self.engine._calculate_consensus_score(decisions)
         self.assertTrue(0 < score < 1.0)
 
+
 class TestVincentGanneModel(unittest.TestCase):
     def setUp(self):
         from enhanced_decision_engine import VincentGanneModel
+
         self.model = VincentGanneModel()
 
     def test_evaluate_with_brent_spread(self):
@@ -89,7 +96,7 @@ class TestVincentGanneModel(unittest.TestCase):
             "WTI_price": 75.0,
             "Brent_price": 78.0,
             "Brent_spread": 2.0,  # Ideal
-            "Nasdaq_above_ma200": True
+            "Nasdaq_above_ma200": True,
         }
         result = self.model.evaluate(indicators)
         self.assertIn("Brent Spread IDEAL", result["analysis"])
@@ -104,5 +111,6 @@ class TestVincentGanneModel(unittest.TestCase):
         result = self.model.evaluate(indicators)
         self.assertIn("Brent Spread EXTREME", result["analysis"])
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

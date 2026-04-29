@@ -200,6 +200,7 @@ def run_trading_analysis(
                 "llm_visual",
                 "sentiment",
                 "timesfm",
+                "tensortrade",
                 "vincent_ganne",
             ]
             for m in model_names:
@@ -328,10 +329,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     import time
+
     start_time = time.time()
-    
+
     for t in args.ticker:
         run_trading_analysis(t, args.simul, args.t212)
-        
+
     duration = time.time() - start_time
-    logging.info(f"Total execution time: {duration:.2f} seconds ({duration/60:.2f} minutes)")
+    logging.info(
+        f"Total execution time: {duration:.2f} seconds ({duration / 60:.2f} minutes)"
+    )

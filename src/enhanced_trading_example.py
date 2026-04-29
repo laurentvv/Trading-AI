@@ -39,6 +39,7 @@ from database import (
     get_latest_portfolio_state,
 )
 from timesfm_model import get_timesfm_prediction
+from tensortrade_model import get_tensortrade_prediction
 from eia_client import EIAClient
 from oil_bench_model import OilBenchModel
 
@@ -348,6 +349,7 @@ class EnhancedTradingSystem:
         # 5. Prédictions TimesFM
         logger.info("Génération de la prédiction TimesFM...")
         timesfm_decision = get_timesfm_prediction(data_with_features)
+        tensortrade_decision = get_tensortrade_prediction(data_with_features)
 
         return {
             "classic": {"prediction": classic_pred, "confidence": classic_conf},
@@ -355,6 +357,7 @@ class EnhancedTradingSystem:
             "visual_llm": visual_llm_decision,
             "sentiment": sentiment_decision,
             "timesfm": timesfm_decision,
+            "tensortrade": tensortrade_decision,
         }
 
     def perform_enhanced_analysis(
@@ -444,6 +447,7 @@ class EnhancedTradingSystem:
             visual_llm_decision=model_predictions["visual_llm"],
             sentiment_decision=model_predictions["sentiment"],
             timesfm_decision=model_predictions["timesfm"],
+            tensortrade_decision=model_predictions["tensortrade"],
             vincent_ganne_indicators=effective_vg_indicators,
             oil_bench_decision=oil_bench_decision,
             market_data=market_data,
@@ -666,8 +670,8 @@ class EnhancedTradingSystem:
         try:
             conn = sqlite3.connect(self.performance_monitor.db_path)
             last_val_df = pd.read_sql_query(
-                "SELECT portfolio_value FROM realtime_metrics ORDER BY timestamp DESC LIMIT 1", 
-                conn
+                "SELECT portfolio_value FROM realtime_metrics ORDER BY timestamp DESC LIMIT 1",
+                conn,
             )
             conn.close()
             if not last_val_df.empty:

@@ -62,15 +62,16 @@ The system uses an innovative approach to maximize model accuracy:
 - **ETF Execution**: Real orders are placed on the corresponding tickers on **Trading 212** (`SXRV.DE`, `CRUDP.PA`), using **T212 live prices** (via positions API) for position sizing.
 
 ### 🧠 Hybrid AI Engine
-The system merges eight distinct signals:
+The system merges nine distinct signals:
 1.  **Classic Quantitative Model**: RandomForest/GradientBoosting/LogisticRegression ensemble trained on technical and macroeconomic indicators.
 2.  **TimesFM 2.5 (Google Research)**: State-of-the-art foundation model for time-series forecasting.
-3.  **Oil-Bench Model (Gemma 4:e4b)**: Energy-specialized model merging **EIA** fundamental data (Stocks, Imports, Refinery utilization) and sentiment for WTI trading.
-4.  **Textual LLM (Gemma 4:e4b)**: Contextual analysis of raw data, real-time news via the **AlphaEar** skill, and integration of dynamic **macro-economic web research**.
-5.  **Visual LLM (Gemma 4:e4b)**: Direct analysis of technical charts (`enhanced_trading_chart.png`).
-6.  **Sentiment Analysis**: Hybrid analysis combining Alpha Vantage and "hot" trends from **AlphaEar** (Weibo, WallstreetCN).
-7.  **Decentralized Data (Hyperliquid)**: Analysis of speculative sentiment on Oil (WTI) via *Funding Rate* and *Open Interest*.
-8.  **Vincent Ganne Model**: Geopolitical and cross-asset analysis (WTI, Brent, Gas, DXY, MA200) for detecting macroeconomic bottoms.
+3.  **TensorTrade / PPO (Reinforcement Learning)**: RL agent (stable-baselines3) training a PPO policy in a custom Gymnasium trading environment at each run.
+4.  **Oil-Bench Model (Gemma 4:e4b)**: Energy-specialized model merging **EIA** fundamental data (Stocks, Imports, Refinery utilization) and sentiment for WTI trading.
+5.  **Textual LLM (Gemma 4:e4b)**: Contextual analysis of raw data, real-time news via the **AlphaEar** skill, and integration of dynamic **macro-economic web research**.
+6.  **Visual LLM (Gemma 4:e4b)**: Direct analysis of technical charts (`enhanced_trading_chart.png`).
+7.  **Sentiment Analysis**: Hybrid analysis combining Alpha Vantage and "hot" trends from **AlphaEar** (Weibo, WallstreetCN).
+8.  **Decentralized Data (Hyperliquid)**: Analysis of speculative sentiment on Oil (WTI) via *Funding Rate* and *Open Interest*.
+9.  **Vincent Ganne Model**: Geopolitical and cross-asset analysis (WTI, Brent, Gas, DXY, MA200) for detecting macroeconomic bottoms.
 
 The goal is to produce a final decision (`BUY`, `SELL`, `HOLD`) with an absolute priority on **Accuracy First**.
 
@@ -86,6 +87,7 @@ Unlike classic trading algorithms that panic as soon as volatility explodes, thi
 - **T212 Live Prices**: Real-time recovery of EUR prices via the Trading 212 API (0.2s), with yfinance fallback and parquet cache.
 - **Dated Brent Spread**: Monitoring of physical market tension via the spread between Brent Spot (Dated) and Brent Futures.
 - **Network Resilience**: yfinance circuit breaker with separate trackers (info vs. download), 10s timeout on all network calls.
+- **Cache Auto-Invalidation**: Parquet cache auto-detects staleness (> 2 days) and forces a refresh. Use `refresh_cache.py` for manual cache clearing.
 - **Advanced Cognition**: Use of **Gemma 4** for better technical/fundamental synthesis.
 - **News & Blockchain Sentiment**: Integration of **AlphaEar** and **Hyperliquid** to capture social and speculative sentiment.
 - **Automated Scheduler**: `schedule.py` script for continuous execution (8:30 AM - 6:00 PM) on a server.
@@ -119,6 +121,7 @@ Trading-AI/
 ├── src/                     # Core modules
 │   ├── eia_client.py               # Energy fundamental data client
 │   ├── oil_bench_model.py          # Energy specialized model
+│   ├── tensortrade_model.py        # Reinforcement Learning signal (PPO/SB3)
 │   ├── enhanced_decision_engine.py # Fusion engine and Vincent Ganne model
 │   ├── advanced_risk_manager.py    # Trend-Aware risk management
 │   ├── adaptive_weight_manager.py  # Dynamic model weighting
@@ -129,6 +132,7 @@ Trading-AI/
 ├── data_cache/              # Market and macro data (Parquet)
 ├── main.py                  # Single entry point (Analysis & Trading)
 ├── schedule.py              # Live scheduler (8:30 AM - 6:00 PM)
+├── refresh_cache.py         # CLI utility to force-refresh Parquet cache
 ├── backtest_engine.py       # Historical backtesting engine
 ├── .env                     # API Keys (Alpha Vantage, T212, EIA)
 └── README.md                # This documentation

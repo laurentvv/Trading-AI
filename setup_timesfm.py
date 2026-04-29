@@ -5,6 +5,7 @@ import shutil
 import stat
 from pathlib import Path
 
+
 def on_rm_error(func, path, exc_info):
     """
     Handler for shutil.rmtree error on Windows (Read-only files).
@@ -12,6 +13,7 @@ def on_rm_error(func, path, exc_info):
     # Force permissions to writeable
     os.chmod(path, stat.S_IWRITE)
     func(path)
+
 
 def run_command(command, description):
     print(f"[*] {description}...")
@@ -25,13 +27,14 @@ def run_command(command, description):
         print(f"[!] Error: {e}")
         sys.exit(1)
 
+
 def main():
     print("=== TimesFM 2.5 Setup Script for Trading AI ===")
-    
+
     project_root = Path(__file__).parent
     vendor_dir = project_root / "vendor"
     timesfm_dir = vendor_dir / "timesfm"
-    
+
     # 1. Nettoyage des anciennes installations
     if timesfm_dir.exists():
         print(f"[*] Removing existing TimesFM source at {timesfm_dir}...")
@@ -47,7 +50,7 @@ def main():
             except Exception:
                 print(f"[!] CRITICAL: Path {timesfm_dir} is locked.")
                 sys.exit(1)
-    
+
     if not vendor_dir.exists():
         vendor_dir.mkdir()
 
@@ -59,16 +62,19 @@ def main():
     patch_path = timesfm_dir / "src" / "timesfm" / "timesfm_2p5" / "__init__.py"
     print("[*] Applying API 2.5 patch (__init__.py)...")
     patch_content = "from . import timesfm_2p5_torch\nfrom . import timesfm_2p5_base\n"
-    
+
     with open(patch_path, "w", encoding="utf-8") as f:
         f.write(patch_content)
 
     # 4. Installation via uv en mode éditable
     # Cela permet d'avoir la lib dans le venv tout en gardant nos patchs locaux
-    run_command(f"uv pip install -e {timesfm_dir}", "Installing TimesFM in editable mode via uv")
+    run_command(
+        f"uv pip install -e {timesfm_dir}", "Installing TimesFM in editable mode via uv"
+    )
 
     print("\n[V] TimesFM 2.5 is now correctly installed and patched!")
     print("[*] You can now run the analysis with 'uv run main.py'")
+
 
 if __name__ == "__main__":
     main()

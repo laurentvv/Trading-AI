@@ -1,5 +1,6 @@
 import yfinance as yf
 import pandas as pd
+import numpy as np
 import logging
 import os
 import time as _time
@@ -144,6 +145,13 @@ def get_etf_data(
             hist_data = pd.read_parquet(cache_filepath)
             info = {}
             logger.info(f"Data loaded from cache: {len(hist_data)} days.")
+            last_date = pd.Timestamp(hist_data.index[-1])
+            if (pd.Timestamp.now() - last_date) > pd.Timedelta(days=2):
+                logger.warning(
+                    f"Cache stale: last data date is {last_date.date()}, refreshing..."
+                )
+                hist_data = None
+                force_refresh = True
         except Exception as e:
             logger.warning(
                 f"Could not read cache file {cache_filepath}: {e}. Forcing refresh."
@@ -786,6 +794,7 @@ def get_vincent_ganne_indicators() -> dict:
     # 1b. Fetch EIA Fundamental Data (Brent Spread)
     try:
         from eia_client import EIAClient
+
         eia = EIAClient()
         eia_context = eia.get_fundamental_context()
         brent_spot = eia_context.get("brent_spot", {}).get("current")
@@ -840,7 +849,9 @@ def get_vincent_ganne_indicators() -> dict:
             if name == "Brent" and "Brent_spot" in indicators:
                 b_spot = indicators["Brent_spot"]
                 indicators["Brent_spread"] = b_spot - current_price
-                logger.info(f"Brent Spread (Dated vs Futs) calculated: ${indicators['Brent_spread']:.2f}")
+                logger.info(
+                    f"Brent Spread (Dated vs Futs) calculated: ${indicators['Brent_spread']:.2f}"
+                )
 
             ma200_series = close_col.rolling(window=200).mean()
             ma200_val = ma200_series.iloc[-1]

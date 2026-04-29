@@ -7,30 +7,34 @@ from dotenv import load_dotenv
 # Charger les variables d'environnement
 load_dotenv(".env.t212")
 
+
 def get_auth_header(api_key, api_secret):
     auth_str = f"{api_key}:{api_secret}"
     auth_bytes = auth_str.encode("ascii")
     base64_auth = base64.b64encode(auth_bytes).decode("ascii")
     return f"Basic {base64_auth}"
 
+
 def test_connection():
     api_key = os.getenv("T212_API_KEY")
     api_secret = os.getenv("T212_API_SECRET")
     env = os.getenv("T212_ENV", "demo").lower()
-    
+
     if not api_key or not api_secret:
-        print("❌ Erreur : T212_API_KEY ou T212_API_SECRET non trouvés dans l'environnement.")
+        print(
+            "❌ Erreur : T212_API_KEY ou T212_API_SECRET non trouvés dans l'environnement."
+        )
         print("Assurez-vous d'avoir créé un fichier .env.t212 avec vos identifiants.")
         return
 
     base_url = f"https://{env}.trading212.com/api/v0"
     headers = {
         "Authorization": get_auth_header(api_key, api_secret),
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
 
     print(f"--- Test de connexion (Environnement: {env.upper()}) ---")
-    
+
     # 1. Résumé du compte
     print("\n1. Récupération du résumé du compte...")
     try:
@@ -55,8 +59,10 @@ def test_connection():
             print(f"✅ Succès ! ({len(positions)} position(s) trouvée(s))")
             if positions:
                 for pos in positions:
-                    instr = pos.get('instrument', {})
-                    print(f"  - {instr.get('name')} ({instr.get('ticker')}): {pos.get('quantity')} actions")
+                    instr = pos.get("instrument", {})
+                    print(
+                        f"  - {instr.get('name')} ({instr.get('ticker')}): {pos.get('quantity')} actions"
+                    )
             else:
                 print("  Aucune position ouverte.")
         else:
@@ -64,6 +70,7 @@ def test_connection():
             print(response.text)
     except Exception as e:
         print(f"❌ Erreur lors de l'appel : {str(e)}")
+
 
 if __name__ == "__main__":
     test_connection()
