@@ -197,14 +197,11 @@ async def get_web_research_context_async(query: str) -> str:
 
     data = await fetch_and_clean(search_results)
 
-    context_parts = []
-    for page in data:
-        # Limit to 1200 chars per page to avoid context overflow
-        content = page.get("content", "")
-        snippet = content[:1200] if content else "No content available."
-        context_parts.append(f"Source: {page['url']}\nContent Excerpt:\n{snippet}...\n")
-
-    return "\n---\n".join(context_parts)
+    # Limit to 1200 chars per page to avoid context overflow
+    return "\n---\n".join([
+        f"Source: {page['url']}\nContent Excerpt:\n{c[:1200] if (c := page.get('content')) else 'No content available.'}...\n"
+        for page in data
+    ])
 
 
 def get_web_context_sync(query: str) -> str:
