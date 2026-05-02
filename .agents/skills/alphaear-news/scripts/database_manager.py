@@ -56,21 +56,16 @@ class DatabaseManager:
     def save_daily_news(self, news_list: List[Dict]) -> int:
         """Save hot news items"""
         cursor = self.conn.cursor()
-        count = 0
         crawl_time = datetime.now().isoformat()
 
+        data_to_insert = []
         for news in news_list:
             try:
                 news_id = (
                     news.get("id")
                     or f"{news.get('source')}_{news.get('rank')}_{crawl_time[:10]}"
                 )
-                cursor.execute(
-                    """
-                    INSERT OR REPLACE INTO daily_news 
-                    (id, source, rank, title, url, content, publish_time, crawl_time, sentiment_score, meta_data)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+                data_to_insert.append(
                     (
                         news_id,
                         news.get("source"),
@@ -82,14 +77,29 @@ class DatabaseManager:
                         crawl_time,
                         news.get("sentiment_score"),
                         json.dumps(news.get("meta_data", {})),
-                    ),
+                    )
                 )
-                count += 1
             except Exception as e:
-                logger.error(f"Error saving news item {news.get('title')}: {e}")
+                logger.error(f"Error processing news item {news.get('title', 'Unknown')}: {e}")
 
-        self.conn.commit()
-        return count
+        if not data_to_insert:
+            return 0
+
+        try:
+            cursor.executemany(
+                """
+                INSERT OR REPLACE INTO daily_news
+                (id, source, rank, title, url, content, publish_time, crawl_time, sentiment_score, meta_data)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+                data_to_insert,
+            )
+            self.conn.commit()
+            return len(data_to_insert)
+        except Exception as e:
+            logger.error(f"Error saving batch news items: {e}")
+            self.conn.rollback()
+            return 0
 
     def get_daily_news(
         self, source: Optional[str] = None, limit: int = 100, days: int = 1
