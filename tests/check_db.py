@@ -1,4 +1,7 @@
 import sqlite3
+from pathlib import Path
+
+logs_dir = Path(__file__).resolve().parent.parent / "logs_prod"
 
 def check_db(path, name):
     print(f"\n{'='*60}")
@@ -22,5 +25,5 @@ def check_db(path, name):
         print(f"Total rows: {total}")
     conn.close()
 
-check_db(r"D:\GIT\fork\Trading-AI\logs_prod\trading_history.db", "trading_history.db")
-check_db(r"D:\GIT\fork\Trading-AI\logs_prod\performance_monitor.db", "performance_monitor.db")
+check_db(logs_dir / "trading_history.db", "trading_history.db")
+check_db(logs_dir / "performance_monitor.db", "performance_monitor.db")

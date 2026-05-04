@@ -26,6 +26,7 @@ Le système gère nativement les fractions. Lors d'une vente (`SELL`), le script
 ### Sécurité et Robustesse
 - **Vérification du Portefeuille** : Le système interroge systématiquement votre cash disponible et vos positions ouvertes **avant** d'envoyer un ordre d'achat ou de vente.
 - **Gestion des Erreurs API** : Un mécanisme de **Retry automatique** est implémenté pour gérer les erreurs `TooManyRequests` (Code 429), garantissant que les ordres passent même en cas de congestion de l'API.
+- **Résilience des champs API** : L'API T212 peut omettre certains champs (ex: `averagePrice`) dans les réponses positions. Le système utilise un fallback défensif (`currentValue / quantity`) pour calculer le prix d'entrée lors de la synchronisation du portefeuille local.
 
 ---
 
@@ -76,4 +77,4 @@ Le système utilise une cascade de sources pour obtenir le prix le plus précis 
 3. **Fichier de suivi :** `t212_portfolio_state.json` est le "journal de bord" de l'IA. Ne pas le supprimer manuellement si une position est active.
 
 ---
-*Dernière mise à jour : 15 avril 2026.*
+*Dernière mise à jour : 4 mai 2026.*

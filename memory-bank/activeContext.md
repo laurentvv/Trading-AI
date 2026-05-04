@@ -4,6 +4,8 @@
 The project is now in a **high-fidelity production/demo phase**. The decision engine has been refined for extreme accuracy, and the web research capabilities have been significantly upgraded. The system is operating under an "Accuracy First" (Justesse) mandate.
 
 ### Key Recent Changes
+- **T212 API Resilience Fix**: Fixed `KeyError: 'averagePrice'` crash in `t212_executor.py` when the Trading 212 positions API omits the `averagePrice` field. Now uses defensive `.get()` with fallback calculation.
+- **Diagnostic Scripts**: Moved `check_cache.py`, `check_db.py`, `check_live.py` from `logs_prod/` to `tests/` with relative paths for reusability.
 - **TensorTrade / PPO Integration**: Added a 9th signal — a Reinforcement Learning agent (PPO via stable-baselines3, Gymnasium environment) that learns buy/sell/hold policies from price history. Weight: 10% in the decision engine.
 - **Cache Auto-Invalidation**: Parquet cache files now auto-detect staleness — if `last_date` is > 2 days old, a force refresh is triggered automatically (`src/data.py` lines 148-154).
 - **MA50 Fallback**: When MA200 is NaN (insufficient history, e.g. Urea/UME=F), the system falls back to MA50 for the cross-asset indicators used by the Vincent Ganne model.

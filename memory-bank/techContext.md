@@ -23,7 +23,7 @@
 
 ## 3. Technical Constraints & Assumptions
 - **Ollama**: Must be running locally with `gemma4:e4b`.
-- **Trading 212 API**: Specific quantity precision required per instrument (e.g., 2 decimals for CRUDl_EQ, 4 for SXRVd_EQ).
+- **Trading 212 API**: Specific quantity precision required per instrument (e.g., 2 decimals for CRUDl_EQ, 4 for SXRVd_EQ). API response structure may omit `averagePrice` — code uses fallback calculation (`currentValue / quantity`).
 - **Operating System**: win32 (optimized for Windows terminal with **UTF-8 logging** to support emojis).
 - **Network**: Required for initial API calls (Yahoo, FRED, Alpha Vantage, Hyperliquid).
 
@@ -41,6 +41,10 @@
 - **CSV Journal (`trading_journal.csv`)**: (Test Phase) Detailed audit trail of AI reasoning and decisions per individual model.
 - **SQLite DB**: Performance and simulation state history (generated locally, **not tracked in git** — `performance_monitor.db`, `trading_history.db`).
 - **Dashboard**: `enhanced_performance_dashboard.png`.
+- **Diagnostic Scripts (`tests/`)**:
+  - `check_cache.py`: Lists Parquet cache files with modification dates and sizes.
+  - `check_db.py`: Inspects SQLite tables, columns, and latest rows for `trading_history.db` and `performance_monitor.db`.
+  - `check_live.py`: Fetches live prices via yfinance for all traded tickers.
 
 ## 6. Resilience Architecture
 - **yfinance Circuit Breakers** (`src/data.py`): Two independent trackers — `_yf_info_tracker` for metadata (non-critical) and `_yf_download_tracker` for data downloads. After 3 consecutive failures, calls are skipped for 120s.

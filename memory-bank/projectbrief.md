@@ -20,5 +20,4 @@ Le système remplit les fonctions clés suivantes :
     - Mode simulation strict (alternance Achat/Vente).
     - Documentation via la Memory Bank.
 - **Hors Périmètre** :
-    - Connexion directe aux APIs de courtiers pour l'exécution réelle (envisagé pour Trading 212 plus tard).
     - Interface graphique lourde (focus CLI et rapports images).

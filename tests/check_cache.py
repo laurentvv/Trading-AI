@@ -1,6 +1,7 @@
 import os, datetime
+from pathlib import Path
 
-cache_dir = r"D:\GIT\fork\Trading-AI\data_cache"
+cache_dir = Path(__file__).resolve().parent.parent / "data_cache"
 for f in sorted(os.listdir(cache_dir)):
     fp = os.path.join(cache_dir, f)
     if os.path.isfile(fp):

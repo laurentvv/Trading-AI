@@ -129,6 +129,11 @@ Trading-AI/
 │   ├── timesfm_model.py            # TimesFM 2.5 integration
 │   └── ...                         # Data, Features, LLM Client
 ├── tests/                   # Test and validation scripts
+│   ├── check_cache.py               # Inspect Parquet cache files (dates, sizes)
+│   ├── check_db.py                  # Inspect SQLite databases (tables, rows)
+│   ├── check_live.py                # Live market prices via yfinance
+│   ├── test_full_cycle.py           # End-to-end T212 buy/wait/sell test
+│   └── ...                          # Unit & integration tests
 ├── data_cache/              # Market and macro data (Parquet)
 ├── main.py                  # Single entry point (Analysis & Trading)
 ├── schedule.py              # Live scheduler (8:30 AM - 6:00 PM)

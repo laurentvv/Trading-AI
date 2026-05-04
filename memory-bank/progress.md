@@ -26,6 +26,13 @@
 - **Résolu (2025-09-12)**: Corrigé un bug de persistance où la transition de phase n'était pas sauvegardée immédiatement, causant une réinitialisation de la phase au redémarrage du planificateur.
 
 ## 5. Corrections Récentes
+- **2026-05-04**: Bugfix T212 API et Outils de Diagnostic
+  * Correction d'un **`KeyError: 'averagePrice'`** dans `t212_executor.py:327` : l'API T212 peut omettre le champ `averagePrice` dans les réponses positions. Le code utilise désormais un fallback défensif (`currentValue / quantity`).
+  * Déplacement des scripts de diagnostic de `logs_prod/` vers `tests/` avec chemins relatifs (`Path(__file__).parent.parent`) :
+    - `tests/check_cache.py` : inspection des fichiers Parquet (dates, tailles).
+    - `tests/check_db.py` : inspection des bases SQLite (tables, colonnes, dernières lignes).
+    - `tests/check_live.py` : prix live via yfinance pour les tickers suivis.
+  * Validation d'un cycle complet de trading T212 : CRUDP.PA (HOLD) et SXRV.DE (BUY, position existante synchronisée).
 - **2026-04-29**: Cache Auto-Invalidation et Fix Données Périmées
   * Implémentation du **cache stale detection** dans `src/data.py` (lignes 148-154) : si `last_date` du cache Parquet est > 2 jours dans le passé, un `force_refresh` est déclenché automatiquement.
   * Création de **`refresh_cache.py`** : utilitaire CLI pour forcer le rafraîchissement de tous les tickers (`^NDX`, `CL=F`, `SXRV.DE`, `CRUDP.PA`).
