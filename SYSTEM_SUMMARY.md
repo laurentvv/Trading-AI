@@ -168,6 +168,70 @@ uv run main.py --t212
 
 ---
 
+## 🧪 Backtesting Institutionnel (QuantConnect Lean)
+
+Le système intègre une **couche additive de backtesting institutionnel** basée sur [QuantConnect Lean](https://github.com/QuantConnect/Lean). Cette couche est **totalement séparée** du pipeline de production et ne modifie aucun code existant.
+
+### Pourquoi ?
+
+Le backtest intégré (`+221.95%` sur 10 ans) ne tient pas compte du slippage, du spread bid-ask, ni de la simulation de remplissage réelle. Lean apporte :
+- **Exécution réaliste** : Simulation de remplissage avec slippage volume-share et modèle de frais T212 (0,1% par trade).
+- **Validation par modèle** : Chacun des 9 modèles IA peut être testé indépendamment comme un Alpha Model Lean.
+- **Métriques institutionnelles** : Sharpe Ratio, Sortino, Maximum Drawdown, Alpha/Beta, Tracking Error.
+- **Optimisation des paramètres** : Grid search ou optimisation bayésienne sur les poids des modèles et les seuils de confiance.
+
+### Architecture
+
+```
+Trading-AI (Production)                    Lean Engine (Backtesting)
+┌─────────────────────┐                    ┌──────────────────────────┐
+│ 9 IA Models →       │                    │ Lean CLI (Docker)        │
+│ Decision Engine →   │                    │ Alpha Models (proxies)   │
+│ T212 Executor       │                    │ Fill/Slippage simulation │
+│ trading_journal.csv │── LeanSignalBridge─→│ Sharpe/MaxDD/Sortino     │
+└─────────────────────┘                    └──────────────────────────┘
+```
+
+Le pont est **unidirectionnel** : Trading-AI produit les signaux en production, le `LeanSignalBridge` (`src/lean_bridge.py`) les convertit en format Lean, et le moteur Lean les backteste avec des conditions de marché réalistes.
+
+### Utilisation
+
+```bash
+# Exporter les signaux du journal vers le format Lean
+python run_lean_backtest.py --export-signals
+
+# Lancer le backtest baseline (buy-and-hold QQQ/USO)
+cd TradingAI-Lean && lean backtest
+
+# Lancer le framework complet avec Alpha Models
+cd TradingAI-Lean && lean backtest --algorithm TradingAIFrameworkAlgorithm
+
+# Valider les changements contre des seuils (style CI/CD)
+python run_lean_backtest.py --validate
+
+# Comparer baseline vs framework
+python run_lean_backtest.py --compare
+```
+
+### Fichiers clés
+
+| Fichier | Rôle |
+|---|---|
+| `src/lean_bridge.py` | Convertit `trading_journal.csv` en signaux Lean (CSV + JSON). Gère les 2 formats historiques du journal (7 et 13 colonnes). Mappe les tickers EUR→US. |
+| `src/lean_validator.py` | Lance un `lean backtest`, extrait les métriques (Sharpe, MaxDD, Return, Win Rate), valide contre des seuils configurables. |
+| `run_lean_backtest.py` | CLI unifié : `--export-signals`, `--validate`, `--compare`. |
+| `TradingAI-Lean/main.py` | Algo baseline buy-and-hold avec frais T212 (0,1%) et slippage volume-share. |
+| `TradingAI-Lean/TradingAIFrameworkAlgorithm.py` | Framework complet Alpha→Portfolio→Risk→Execution avec `MaximumDrawdownPercentPerSecurity(15%)`. |
+| `TradingAI-Lean/AlphaModels/` | 5 Alpha Models (Classic, TimesFM, Sentiment, RiskMomentum, VincentGanne) + composite avec les mêmes poids que l'`EnhancedDecisionEngine`. |
+
+### Limitations connues
+
+- **Tickers proxy** : Les ETFs européens sont mappés vers des équivalents US (SXRV.DE→QQQ, CRUDP.PA→USO). Les résultats ne reflètent pas exactement les performances des ETFs EUR.
+- **Alpha Models approximatifs** : Les modèles Lean utilisent des signaux momentum/volatilité, pas les vrais modèles IA (TimesFM, LLM, etc.). Pour exploiter le plein potentiel, il faut injecter les signaux réels via le bridge.
+- **Pas de support T212 dans Lean** : L'exécution réelle reste via `t212_executor.py`. Lean est utilisé uniquement pour le backtesting.
+
+---
+
 ## 🛠️ Comment utiliser ?
 
 Pour lancer une analyse complète sur un actif (Défaut: SXRV.FRK - Nasdaq 100 EUR) :

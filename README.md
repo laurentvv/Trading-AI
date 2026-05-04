@@ -92,6 +92,7 @@ Unlike classic trading algorithms that panic as soon as volatility explodes, thi
 - **News & Blockchain Sentiment**: Integration of **AlphaEar** and **Hyperliquid** to capture social and speculative sentiment.
 - **Automated Scheduler**: `schedule.py` script for continuous execution (8:30 AM - 6:00 PM) on a server.
 - **Advanced Risk Management**: Automatic signal adjustment based on volatility and market regime.
+- **Institutional Backtesting (QuantConnect Lean)**: Backtesting engine with realistic fill simulation, slippage, T212 fee model, and Sharpe/Sortino/MaxDD reporting — without modifying the production pipeline.
 
 ### 💻 Tech Stack
 
@@ -128,6 +129,12 @@ Trading-AI/
 │   ├── t212_executor.py            # Real execution on Trading 212
 │   ├── timesfm_model.py            # TimesFM 2.5 integration
 │   └── ...                         # Data, Features, LLM Client
+├── TradingAI-Lean/           # QuantConnect Lean backtesting (Docker-based)
+│   ├── main.py                       # Baseline buy-and-hold algorithm (benchmark)
+│   ├── TradingAIFrameworkAlgorithm.py # Full Alpha/Portfolio/Risk/Execution framework
+│   ├── AlphaModels/                  # Trading-AI models encapsulated as Lean Alpha Models
+│   ├── CustomData/                   # Custom data feeds (EIA macro)
+│   └── lean_config.json              # Lean CLI configuration
 ├── tests/                   # Test and validation scripts
 │   ├── check_cache.py               # Inspect Parquet cache files (dates, sizes)
 │   ├── check_db.py                  # Inspect SQLite databases (tables, rows)
@@ -135,10 +142,14 @@ Trading-AI/
 │   ├── test_full_cycle.py           # End-to-end T212 buy/wait/sell test
 │   └── ...                          # Unit & integration tests
 ├── data_cache/              # Market and macro data (Parquet)
+├── src/
+│   ├── lean_bridge.py                # Converts trading_journal.csv → Lean signal format
+│   ├── lean_validator.py             # Automated validation via Lean backtest
+│   └── ...                           # Core modules (decision engine, risk, T212, etc.)
 ├── main.py                  # Single entry point (Analysis & Trading)
+├── run_lean_backtest.py     # Lean backtest launcher (--validate, --compare)
 ├── schedule.py              # Live scheduler (8:30 AM - 6:00 PM)
 ├── refresh_cache.py         # CLI utility to force-refresh Parquet cache
-├── backtest_engine.py       # Historical backtesting engine
 ├── .env                     # API Keys (Alpha Vantage, T212, EIA)
 └── README.md                # This documentation
 ```
@@ -216,6 +227,73 @@ The system is now **fully integrated** with Trading 212:
 # Run analysis with real execution (Demo or Real according to .env)
 uv run main.py --t212
 ```
+
+---
+
+## 🧪 Institutional Backtesting with QuantConnect Lean
+
+The system includes an **additive backtesting layer** based on [QuantConnect Lean](https://github.com/QuantConnect/Lean) — an open-source institutional-grade algorithmic trading engine. This module is **completely separate** from the production pipeline and does not modify any existing code.
+
+### Why?
+
+The built-in backtest (`+221.95%` over 10 years) does not account for slippage, bid-ask spread, or realistic fill simulation. Lean provides:
+- **Realistic execution**: Fill simulation with volume-share slippage and T212 fee model (0.1% per trade).
+- **Per-model validation**: Each of the 9 AI models can be tested independently as a Lean Alpha Model.
+- **Institutional metrics**: Sharpe Ratio, Sortino, Maximum Drawdown, Alpha/Beta, Tracking Error.
+- **Parameter optimization**: Grid search or Bayesian optimization on model weights and confidence thresholds.
+
+### Architecture
+
+```
+Trading-AI (Production)                    Lean Engine (Backtesting)
+┌─────────────────────┐                    ┌──────────────────────────┐
+│ 9 IA Models →       │                    │ Lean CLI (Docker)        │
+│ Decision Engine →   │                    │ Alpha Models (proxies)   │
+│ T212 Executor       │                    │ Fill/Slippage simulation │
+│ trading_journal.csv │── LeanSignalBridge─→│ Sharpe/MaxDD/Sortino     │
+└─────────────────────┘                    └──────────────────────────┘
+```
+
+### Usage
+
+```sh
+# 1. Export Trading-AI signals to Lean format
+python run_lean_backtest.py --export-signals
+
+# 2. Run baseline backtest (buy-and-hold QQQ/USO)
+cd TradingAI-Lean && lean backtest
+
+# 3. Run full framework with Alpha Models
+cd TradingAI-Lean && lean backtest --algorithm TradingAIFrameworkAlgorithm
+
+# 4. Validate changes against thresholds (CI/CD style)
+python run_lean_backtest.py --validate
+
+# 5. Compare baseline vs framework algorithms
+python run_lean_backtest.py --compare
+```
+
+### Ticker Proxies
+
+Lean uses US market data (free via QuantConnect). European ETFs are mapped to US equivalents:
+
+| Trading-AI Ticker | Lean Proxy | Asset |
+|---|---|---|
+| SXRV.DE | QQQ | Nasdaq 100 ETF |
+| CRUDP.PA | USO | Oil ETF |
+| ^NDX | QQQ | Nasdaq Index |
+| CL=F | USO | WTI Crude Futures |
+
+### Key Files
+
+| File | Role |
+|---|---|
+| `src/lean_bridge.py` | Converts `trading_journal.csv` → Lean-compatible signals (CSV + JSON) |
+| `src/lean_validator.py` | Runs Lean backtest, validates Sharpe/MaxDD/Return against thresholds |
+| `run_lean_backtest.py` | CLI launcher (`--export-signals`, `--validate`, `--compare`) |
+| `TradingAI-Lean/main.py` | Baseline buy-and-hold algorithm with T212 fee model |
+| `TradingAI-Lean/TradingAIFrameworkAlgorithm.py` | Full Alpha/Portfolio/Risk/Execution framework |
+| `TradingAI-Lean/AlphaModels/` | Individual and composite Alpha Models (Classic, TimesFM, VG, etc.) |
 
 ---
 

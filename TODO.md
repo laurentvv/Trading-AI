@@ -12,6 +12,17 @@
 ~~Skip `_yf_ticker_info()` quand cache parquet existe~~ [FAIT]
 ~~Séparer circuit breakers info/download pour ne pas bloquer Vincent Ganne~~ [FAIT]
 
+# Backtesting Institutionnel Lean (2026-05-04)
+~~Intégration QuantConnect Lean comme couche de backtesting additive~~ [FAIT]
+~~`src/lean_bridge.py` — Conversion trading_journal.csv → signaux Lean~~ [FAIT]
+~~`src/lean_validator.py` — Validation automatisée via backtest Lean~~ [FAIT]
+~~`TradingAI-Lean/` — Projet Lean avec baseline + framework + Alpha Models~~ [FAIT]
+~~T212 fee model (0.1%) + slippage volume-share dans les algos Lean~~ [FAIT]
+- [ ] Injecter les signaux réels du journal dans les backtests Lean (via insights.json)
+- [ ] Porter les 9 modèles IA comme vrais Alpha Models Lean (actuellement approximations momentum)
+- [ ] Optimisation des poids via Lean Optimizer (grid search)
+- [ ] Générer un premier rapport institutionnel complet
+
 # Problèmes restants
 - [ ] Sentiment 0 headlines en PROD (Alpha Vantage quota ou config)
 - [ ] LLM inference lent (~60s/call) - bottleneck principal du cycle

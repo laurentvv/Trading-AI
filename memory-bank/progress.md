@@ -26,6 +26,17 @@
 - **Résolu (2025-09-12)**: Corrigé un bug de persistance où la transition de phase n'était pas sauvegardée immédiatement, causant une réinitialisation de la phase au redémarrage du planificateur.
 
 ## 5. Corrections Récentes
+- **2026-05-04**: Intégration QuantConnect Lean (Backtesting Institutionnel)
+  * Création de **`src/lean_bridge.py`** : convertit `trading_journal.csv` en signaux Lean (CSV + JSON). Gère les 2 formats historiques (7 et 13 colonnes). Mappe les tickers EUR→US (SXRV.DE→QQQ, CRUDP.PA→USO).
+  * Création de **`src/lean_validator.py`** : validation automatisée des changements via backtest Lean avec seuils configurables (Sharpe > 0.5, MaxDD < 25%, Return > -10%).
+  * Création de **`run_lean_backtest.py`** : CLI unifié pour exporter les signaux (`--export-signals`), valider (`--validate`), et comparer les algorithmes (`--compare`).
+  * Création du projet **`TradingAI-Lean/`** avec :
+    - `main.py` : baseline buy-and-hold avec frais T212 (0,1%) et slippage volume-share.
+    - `TradingAIFrameworkAlgorithm.py` : framework Alpha→Portfolio→Risk→Execution complet.
+    - `AlphaModels/TradingAICompositeAlpha.py` : 5 Alpha Models (Classic, TimesFM, Sentiment, RiskMomentum, VincentGanne) + composite avec les mêmes poids que l'`EnhancedDecisionEngine`.
+    - `CustomData/EIAMacroData.py` : data feed personnalisé pour l'API EIA.
+  * **Zéro impact sur la production** : le bridge lit uniquement le journal, les fichiers sont additifs.
+  * Documentation mise à jour : `README.md`, `SYSTEM_SUMMARY.md`, `TODO.md`, `memory-bank/`.
 - **2026-05-04**: Bugfix T212 API et Outils de Diagnostic
   * Correction d'un **`KeyError: 'averagePrice'`** dans `t212_executor.py:327` : l'API T212 peut omettre le champ `averagePrice` dans les réponses positions. Le code utilise désormais un fallback défensif (`currentValue / quantity`).
   * Déplacement des scripts de diagnostic de `logs_prod/` vers `tests/` avec chemins relatifs (`Path(__file__).parent.parent`) :
