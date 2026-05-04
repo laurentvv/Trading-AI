@@ -318,16 +318,22 @@ def execute_t212_trade(
                     print(
                         "🔄 Synchronisation du suivi local avec la position réelle..."
                     )
+                    entry_price = (
+                        current_pos.get("averagePrice")
+                        or current_pos.get("avgPrice")
+                        or (
+                            current_pos["walletImpact"]["currentValue"]
+                            / current_pos["quantity"]
+                            if current_pos["quantity"] > 0
+                            else 0.0
+                        )
+                    )
                     state["active_position"] = {
                         "ticker": t212_ticker,
                         "quantity": current_pos["quantity"],
-                        "buy_budget": current_pos["walletImpact"][
-                            "currentValue"
-                        ],  # Approximation
-                        "entry_price_etf": current_pos["averagePrice"],
-                        "entry_price_index": current_pos[
-                            "averagePrice"
-                        ],  # On ne connaît pas l'indice ici
+                        "buy_budget": current_pos["walletImpact"]["currentValue"],
+                        "entry_price_etf": entry_price,
+                        "entry_price_index": entry_price,
                         "entry_time": datetime.datetime.now().isoformat(),
                     }
                     save_portfolio_state(state, t212_ticker)
