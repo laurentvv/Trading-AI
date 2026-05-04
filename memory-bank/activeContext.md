@@ -1,9 +1,10 @@
 # Active Context
 
 ## Current Status
-The project is now in a **high-fidelity production/demo phase**. The decision engine has been refined for extreme accuracy, and the web research capabilities have been significantly upgraded. The system is operating under an "Accuracy First" (Justesse) mandate.
+The project is now in a **high-fidelity production/demo phase** with an **additive institutional backtesting layer**. The decision engine has been refined for extreme accuracy, and the web research capabilities have been significantly upgraded. The system is operating under an "Accuracy First" (Justesse) mandate. A QuantConnect Lean integration provides independent backtesting validation without touching the production pipeline.
 
 ### Key Recent Changes
+- **QuantConnect Lean Integration (2026-05-04)**: Added an additive backtesting layer based on QuantConnect Lean (Docker-based). The `LeanSignalBridge` (`src/lean_bridge.py`) converts `trading_journal.csv` into Lean-compatible signals. The `LeanValidator` (`src/lean_validator.py`) provides CI/CD-style validation. 5 Alpha Models (Classic, TimesFM, Sentiment, RiskMomentum, VincentGanne) with the same weights as the `EnhancedDecisionEngine`. T212 fee model (0.1%) and volume-share slippage included. Zero impact on production code.
 - **T212 API Resilience Fix**: Fixed `KeyError: 'averagePrice'` crash in `t212_executor.py` when the Trading 212 positions API omits the `averagePrice` field. Now uses defensive `.get()` with fallback calculation.
 - **Diagnostic Scripts**: Moved `check_cache.py`, `check_db.py`, `check_live.py` from `logs_prod/` to `tests/` with relative paths for reusability.
 - **TensorTrade / PPO Integration**: Added a 9th signal — a Reinforcement Learning agent (PPO via stable-baselines3, Gymnasium environment) that learns buy/sell/hold policies from price history. Weight: 10% in the decision engine.
@@ -29,6 +30,8 @@ The project is now in a **high-fidelity production/demo phase**. The decision en
 - [ ] Monitor real-time performance in Demo Mode.
 - [ ] Add automated Stop-Loss rules in AdvancedRiskManager.
 - [ ] Synchronize i18n translations (9 languages) with README.md updates.
+- [ ] Inject real journal signals into Lean backtests (via insights.json).
+- [ ] Optimize model weights via Lean Optimizer (grid search).
 
 ## Decision Log
 - **Nasdaq Exclusivity for VG**: Decided to restrict the Vincent Ganne model to Nasdaq because its energy-price-to-stock-bottom logic is fundamentally a cross-asset indicator for equities, not a directional signal for energy itself.

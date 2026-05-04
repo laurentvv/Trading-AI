@@ -33,9 +33,13 @@
 - `src/t212_executor.py`: Real-world execution layer via Trading 212 API. Includes `get_t212_price()` for live ETF price retrieval.
 - `src/data.py`: Market data layer with yfinance circuit breaker (separate trackers for `info` vs `download`), 10s timeouts, and cache auto-invalidation (stale > 2 days).
 - `src/tensortrade_model.py`: Reinforcement Learning signal using PPO (stable-baselines3) in a Gymnasium trading environment.
+- `src/lean_bridge.py`: Converts `trading_journal.csv` into Lean-compatible signal formats (CSV per ticker + JSON insights). Handles mixed journal formats and EUR→US ticker proxy mapping.
+- `src/lean_validator.py`: Runs Lean backtests via CLI and validates results against configurable thresholds (Sharpe, MaxDD, Return, Win Rate).
 - `src/database.py`: DAO layer for SQLite persistence.
 - `src/read_simul.py`: Reporting tool for simulation performance.
 - `refresh_cache.py`: CLI utility to force-refresh Parquet cache for all tickers (`^NDX`, `CL=F`, `SXRV.DE`, `CRUDP.PA`).
+- `run_lean_backtest.py`: CLI launcher for Lean backtesting operations (`--export-signals`, `--validate`, `--compare`).
+- `TradingAI-Lean/`: Standalone Lean CLI project with baseline algorithm, Alpha Models (Classic, TimesFM, Sentiment, RiskMomentum, VincentGanne), and framework algorithm with T212 fee/slippage models. Runs in Docker via `lean` CLI.
 
 ## 5. Monitoring & Diagnostic
 - **CSV Journal (`trading_journal.csv`)**: (Test Phase) Detailed audit trail of AI reasoning and decisions per individual model.
