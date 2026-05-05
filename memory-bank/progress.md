@@ -26,7 +26,13 @@
 - **Résolu (2025-09-12)**: Corrigé un bug de persistance où la transition de phase n'était pas sauvegardée immédiatement, causant une réinitialisation de la phase au redémarrage du planificateur.
 
 ## 5. Corrections Récentes
-- **2026-05-04**: Intégration QuantConnect Lean (Backtesting Institutionnel)
+- **2026-05-05**: Remplacement Lean par Backtest Prod Autonome
+  * Suppression de **`TradingAI-Lean/`**, **`src/lean_bridge.py`**, **`src/lean_validator.py`**, **`run_lean_backtest.py`** — la dependance Docker/Lean etait trop lourde et les signaux n'etaient pas injectes.
+  * Creation de **`backtest_prod.py`** : moteur de backtest autonome qui replaye les signaux reels de `logs_prod/trading_journal.csv` contre les prix parquet de `data_cache/` avec frais T212 (0.1%).
+  * Compare strategie signaux vs buy-and-hold : Sharpe, MaxDD, Win Rate, Alpha par ticker.
+  * Genere `logs_prod/backtest_report.json` et courbes d'equity en CSV.
+  * **Zero dependance externe** : pas de Docker, pas de Lean CLI, pas de QuantConnect.
+- **2026-05-04**: Intégration QuantConnect Lean (Backtesting Institutionnel) — *(supprimé le 2026-05-05, remplacé par backtest_prod.py)*
   * Création de **`src/lean_bridge.py`** : convertit `trading_journal.csv` en signaux Lean (CSV + JSON). Gère les 2 formats historiques (7 et 13 colonnes). Mappe les tickers EUR→US (SXRV.DE→QQQ, CRUDP.PA→USO).
   * Création de **`src/lean_validator.py`** : validation automatisée des changements via backtest Lean avec seuils configurables (Sharpe > 0.5, MaxDD < 25%, Return > -10%).
   * Création de **`run_lean_backtest.py`** : CLI unifié pour exporter les signaux (`--export-signals`), valider (`--validate`), et comparer les algorithmes (`--compare`).
