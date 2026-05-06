@@ -1,24 +1,29 @@
-
 ## 1. Statut Actuel
-- **Progression Globale**: Phase de Validation en mode "Justesse" (Accuracy First).
-- **Dernière Étape Complétée**: Migration vers Gemma 4 et intégration du skill AlphaEar pour le sentiment temps réel.
-- **Étape Actuelle**: Exécution autonome via `schedule.py` sur compte démo T212.
+- **Progression Globale**: Phase 3 : Optimisation Architecturale & Extensibilité.
+- **Dernière Étape Complétée**: Refactoring structurel complet (BaseModel) et centralisation de la configuration.
+- **Étape Actuelle**: Validation de la stabilité en production avec la nouvelle architecture modulaire.
 
 ## 2. Ce Qui Fonctionne
+- **Architecture Modulaire (BaseModel)**: Interface standardisée pour tous les modèles IA, permettant un ajout facile de nouveaux signaux sans modifier le moteur de décision.
+- **Configuration Centralisée (`scheduler_config.json`)**: Tous les seuils techniques, de risque et les poids sont désormais pilotables via JSON, sans toucher au code.
+- **Logging Standardisé**: Remplacement des `print()` par `logging` dans tout le pipeline d'exécution Trading 212.
 - **Moteur Hybride Gemma 4**: Utilisation de `gemma4:e4b` pour une analyse tri-modale (texte, vision, news) plus fine.
 - **Skill AlphaEar News**: Récupération des tendances financières "hot" (Weibo, WallstreetCN) intégrée au flux décisionnel.
 - **Nouveau Scheduler Autonome**: Script `schedule.py` gérant les horaires de marché (8h30-18h00) et l'intervalle de 30 minutes avec dashboard live.
-- **Logique de Justesse**: Moteur de décision et gestionnaire de risques calibrés pour prioriser la conservation du capital.
-- **TimesFM 2.5**: Prédictions probabilistes de pointe intégrées et stables.
-- **TensorTrade / PPO**: Agent RL (stable-baselines3) intégré comme 9ème signal avec poids 10% dans le moteur de décision.
-- **Trading 212**: Exécution complète (achat/vente) testée et validée en mode démo.
-- **Modèle Quantitatif Classique**: Sélection automatique du meilleur modèle (LR, RF, GB) avec intégration macroéconomique.
-- **Cache Auto-Invalidation**: Les données Parquet sont automatiquement rafraîchies si le dernier datapoint date de > 2 jours.
-- **MA50 Fallback**: Quand MA200 n'est pas disponible (données insuffisantes, ex: Urea/UME=F), le système utilise MA50 comme référence.
 
-## 3. Ce Qui Reste à Construire
-- **Phase 3 : Optimisation** - Optimisation continue des poids modèles et des seuils de confiance.
-- **Phase 4 : Maturité** - Déploiement en conditions réelles avec monitoring long terme.
+...
+
+## 5. Corrections Récentes
+- **2026-05-06**: Refactoring Architectural Majeur
+  * **Découplage des Modèles** : Introduction de la classe abstraite `BaseModel` et standardisation des prédictions via `ModelResult`. `VincentGanneModel` est le premier migré nativement.
+  * **Moteur de Décision Générique** : `EnhancedDecisionEngine` supporte désormais une liste dynamique de modèles, simplifiant l'ajout de futurs signaux IA.
+  * **Source de Vérité Unique** : Création de `scheduler_config.json` centralisant tous les "Magic Numbers" (seuils WTI/Brent/DXY, limites de drawdown, seuils de volatilité).
+  * **Injection de Dépendance** : L'orchestrateur injecte la configuration dans tous les composants subordonnés.
+  * **Logging de Production** : Standardisation complète des logs dans `t212_executor.py` pour un meilleur suivi via le scheduler.
+  * **Robustesse JSON** : Correction de la gestion des fichiers d'état corrompus dans l'exécuteur T212.
+  * **Migration PROD** : Mise à jour réussie de l'état du portefeuille en production (`logs_prod/`) vers le nouveau format multi-ticker.
+- **2026-05-05**: Remplacement Lean par Backtest Prod Autonome
+
 
 ## 4. Problèmes Connus
 - **Résolu**: Le planificateur précédent était non fonctionnel et provoquait l'échec de l'analyse quotidienne. Ceci a été résolu avec le nouveau `src/intelligent_scheduler.py`.
