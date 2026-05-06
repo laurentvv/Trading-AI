@@ -768,7 +768,7 @@ class PerformanceMonitor:
                         cumulative_return = (portfolio_value / initial_value) - 1 if initial_value > 0 else 0.0
                     else:
                         cumulative_return = 0.0
-                except:
+                except Exception:
                     cumulative_return = 0.0
 
             # Calculate Sharpe ratio (simplified, 30-day rolling for specific ticker)

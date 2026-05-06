@@ -9,10 +9,9 @@ Usage:
     uv run python backtest_prod.py
 """
 
-import re
 import sqlite3
 import json
-from datetime import datetime, date
+from datetime import date
 from pathlib import Path
 
 import pandas as pd
@@ -71,7 +70,6 @@ def load_prices(ticker: str) -> pd.Series:
 def aggregate_daily_signals(journal: pd.DataFrame) -> pd.DataFrame:
     daily = []
     for (ticker, d), grp in journal.groupby(["Ticker", "date"]):
-        last = grp.iloc[-1]
         avg_signal = grp["signal_value"].mean()
         if avg_signal > 0.5:
             final = "BUY"
