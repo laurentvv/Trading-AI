@@ -74,6 +74,7 @@ class AdvancedRiskManager:
         max_portfolio_risk: float = 0.02,
         max_position_risk: float = 0.01,
         lookback_period: int = 252,
+        config: Dict = None,
     ):
         """
         Initialize the risk manager.
@@ -82,10 +83,12 @@ class AdvancedRiskManager:
             max_portfolio_risk: Maximum daily portfolio risk (as fraction)
             max_position_risk: Maximum risk per position (as fraction)
             lookback_period: Period for risk calculations (trading days)
+            config: Optional configuration dictionary
         """
         self.max_portfolio_risk = max_portfolio_risk
         self.max_position_risk = max_position_risk
         self.lookback_period = lookback_period
+        self.config = config or {}
 
         # Risk thresholds
         self.volatility_thresholds = {
@@ -95,6 +98,15 @@ class AdvancedRiskManager:
             RiskLevel.HIGH: 0.04,
             RiskLevel.VERY_HIGH: float("inf"),
         }
+
+        # Override with config if available
+        risk_params = self.config.get("risk_parameters", {})
+        if risk_params:
+            self.max_drawdown_warning = risk_params.get("max_drawdown_warning", 0.05)
+            self.max_drawdown_critical = risk_params.get("max_drawdown_critical", 0.1)
+        else:
+            self.max_drawdown_warning = 0.05
+            self.max_drawdown_critical = 0.1
 
         # Market regime indicators
         self.market_regimes = {

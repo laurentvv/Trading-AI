@@ -2,6 +2,7 @@ import logging
 import pandas as pd
 import numpy as np
 import gymnasium as gym
+from stable_baselines3 import PPO
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,6 @@ def get_tensortrade_prediction(df: pd.DataFrame) -> dict:
 
         # As tensortrade 1.0.4 has a known bug with newer python/pandas ('Instrument' object has no attribute 'balance')
         # We fallback to a generic stable-baselines3 model simulating a basic trading environment
-        from stable_baselines3 import PPO
 
         class SimpleTradingEnv(gym.Env):
             def __init__(self, prices):

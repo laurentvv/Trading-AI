@@ -64,57 +64,39 @@ The scheduler will run in the background, perform periodic analysis (every 30 mi
 
 ## Configuration
 
-The behavior of the Intelligent Scheduler can be customized via a `scheduler_config.json` file placed in the root directory of the project. If this file is not present, the scheduler will use a default configuration.
+The behavior of the Intelligent Scheduler and all trading components (Decision Engine, Risk Manager, Weight Manager) is now centralized in a `scheduler_config.json` file. This file serves as the single source of truth for thresholds, risks, and model parameters, allowing for tuning without code changes.
 
-Creating this file allows you to control parameters such as phase durations, performance targets, and the project's start date.
+### Centralized Configuration (`scheduler_config.json`)
 
-### Example `scheduler_config.json`
+The system uses an **Injection de Dépendance** pattern where the orchestrator loads the configuration and passes it to all sub-components.
 
 ```json
 {
     "project_start_date": "2025-08-25T18:05:27.149745",
     "trading_ticker": "QQQ",
-    "daily_execution_time": "18:00",
-    "weekly_report_day": "friday",
-    "monthly_report_day": 28,
-    "phase_transitions": {
-        "phase_1_duration_days": 7,
-        "phase_2_duration_days": 21,
-        "phase_3_duration_days": 30,
-        "phase_4_duration_days": 120
-    },
-    "performance_targets": {
-        "phase_2": {
-            "sharpe_ratio": 0.5,
-            "max_drawdown": 0.05,
-            "win_rate": 0.45
-        },
-        "phase_3": {
-            "sharpe_ratio": 1.0,
-            "max_drawdown": 0.03,
-            "win_rate": 0.55
-        },
-        "phase_4": {
-            "sharpe_ratio": 1.5,
-            "max_drawdown": 0.02,
-            "win_rate": 0.60
+    "model_thresholds": {
+        "vincent_ganne": {
+            "WTI": {"max": 94, "ideal": 80},
+            "Brent": {"max": 95, "ideal": 83},
+            "Gas": {"max": 55, "ideal": 38}
         }
     },
-    "alerts": {
-        "email_notifications": false,
-        "performance_alerts": true,
-        "phase_completion_alerts": true
+    "risk_parameters": {
+        "max_drawdown_warning": 0.05,
+        "max_drawdown_critical": 0.1
+    },
+    "weight_manager": {
+        "regime_thresholds": {
+            "high_vol": 0.30
+        }
     }
 }
 ```
 
-### Key Parameters
-
-*   `project_start_date`: The official start date of the project. This is crucial for calculating phase transitions.
-*   `phase_transitions`: Allows you to define the duration (in days) for each of the four project phases. This is the primary way to control the automatic transition between phases.
-
 ## Development Conventions
 
+*   **Architecture Découplée :** Utilisation d'une interface `BaseModel` pour tous les modèles IA, permettant d'ajouter de nouveaux signaux sans modifier le moteur de décision.
+*   **Standardized Logging :** Remplacement systématique des `print()` par le module `logging` pour une meilleure traçabilité en production.
 *   **Modularity:** The codebase is organized into a clean, modular structure with a clear separation of concerns.
 *   **Logging:** The project uses the `logging` module with **UTF-8 encoding** to support emojis and special characters on Windows.
 *   **Data Caching:** Market data is cached locally in Parquet files to speed up subsequent runs.

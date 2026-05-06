@@ -78,6 +78,7 @@ class AdaptiveWeightManager:
         base_weights: Dict[str, float] = None,
         lookback_days: int = 30,
         min_observations: int = 10,
+        config: Dict = None,
     ):
         """
         Initialize the adaptive weight manager.
@@ -87,16 +88,19 @@ class AdaptiveWeightManager:
             base_weights: Base weights for models
             lookback_days: Days to look back for performance calculation
             min_observations: Minimum observations needed for weight adjustment
+            config: Optional configuration dictionary
         """
         self.db_path = db_path
+        self.config = config or {}
         self.base_weights = base_weights or {
             "classic": 0.15,
-            "llm_text": 0.20,
-            "llm_visual": 0.15,
-            "sentiment": 0.10,
-            "timesfm": 0.20,
-            "oil_bench": 0.10,
-            "vincent_ganne": 0.10,
+            "llm_text": 0.25,
+            "llm_visual": 0.20,
+            "sentiment": 0.15,
+            "timesfm": 0.25,
+            "vincent_ganne": 0.0,
+            "oil_bench": 0.0,
+            "tensortrade": 0.0,
         }
         self.lookback_days = lookback_days
         self.min_observations = min_observations
@@ -465,8 +469,10 @@ class AdaptiveWeightManager:
         # Calculate trend strength
         recent_return = (market_data.iloc[-1] / market_data.iloc[-20]) - 1
 
-        # Volatility thresholds
-        high_vol_threshold = 0.03
+        # Volatility thresholds from config
+        wm_config = self.config.get("weight_manager", {})
+        regime_thresholds = wm_config.get("regime_thresholds", {})
+        high_vol_threshold = regime_thresholds.get("high_vol", 0.03)
 
         # Trend thresholds
         strong_trend_threshold = 0.05

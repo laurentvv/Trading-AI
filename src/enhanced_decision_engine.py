@@ -6,12 +6,39 @@ and adaptive thresholds.
 
 import logging
 import numpy as np
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from enum import Enum
 from datetime import datetime
+from abc import ABC, abstractmethod
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ModelResult:
+    """Standardized output from any model"""
+    signal: str
+    confidence: float
+    reasoning: str
+    metadata: Dict[str, Any] = None
+
+
+class BaseModel(ABC):
+    """Abstract base class for all trading models"""
+
+    @abstractmethod
+    def predict(self, data: Dict[str, Any]) -> ModelResult:
+        """
+        Generate a prediction based on input data.
+        
+        Args:
+            data: Dictionary containing necessary features, indicators, or market data.
+            
+        Returns:
+            ModelResult object with signal and confidence.
+        """
+        pass
 
 
 class SignalStrength(Enum):
@@ -70,20 +97,32 @@ class HybridDecision:
         }
 
 
-class VincentGanneModel:
+class VincentGanneModel(BaseModel):
     """
     Decision model based on Vincent Ganne's criteria for market bottoms.
     Analyzes cross-asset indicators (Oil, Gas, Yields, DXY) and technicals (MA200).
     """
 
-    def __init__(self):
-        self.thresholds = {
+    def __init__(self, thresholds: Dict = None):
+        self.thresholds = thresholds or {
             "WTI": {"max": 94, "ideal": 80},
             "Brent": {"max": 95, "ideal": 83},
             "Gas": {"max": 55, "ideal": 38},
             "Urea": {"max": 506},
             "DXY": {"max": 101, "ideal": 100},
         }
+
+    def predict(self, data: Dict[str, Any]) -> ModelResult:
+        """
+        Implementation of BaseModel predict interface.
+        """
+        eval_result = self.evaluate(data)
+        return ModelResult(
+            signal=eval_result["signal"],
+            confidence=eval_result["confidence"],
+            reasoning=eval_result["analysis"],
+            metadata=eval_result
+        )
 
     def evaluate(self, indicators: dict) -> dict:
         """
@@ -249,24 +288,29 @@ class EnhancedDecisionEngine:
     MIN_CONFIDENCE_FOR_ACTION = 0.20
     MIN_CONFIDENCE_FOR_SELL = 0.40
 
-    def __init__(self, base_weights: Dict[str, float] = None):
+    def __init__(self, base_weights: Dict[str, float] = None, config: Dict = None):
         """
         Initialize the enhanced decision engine.
 
         Args:
             base_weights: Base weights for each model type
+            config: Optional configuration dictionary
         """
+        self.config = config or {}
         self.base_weights = base_weights or {
-            "classic": 0.10,
-            "llm_text": 0.15,
-            "llm_visual": 0.10,
-            "sentiment": 0.10,
-            "timesfm": 0.20,
-            "vincent_ganne": 0.15,
-            "oil_bench": 0.10,
-            "tensortrade": 0.10,
+            "classic": 0.15,
+            "llm_text": 0.25,
+            "llm_visual": 0.20,
+            "sentiment": 0.15,
+            "timesfm": 0.25,
+            "vincent_ganne": 0.0,
+            "oil_bench": 0.0,
+            "tensortrade": 0.0,
         }
-        self.vincent_ganne_model = VincentGanneModel()
+
+        # Initialize models with config thresholds
+        vg_thresholds = self.config.get("model_thresholds", {}).get("vincent_ganne")
+        self.vincent_ganne_model = VincentGanneModel(thresholds=vg_thresholds)
 
         # Adaptive thresholds (Balanced for Index trading)
         self.adaptive_thresholds = {
@@ -404,20 +448,22 @@ class EnhancedDecisionEngine:
 
     def make_enhanced_decision(
         self,
-        classic_pred: int,
-        classic_conf: float,
-        text_llm_decision: Dict,
-        visual_llm_decision: Dict,
-        sentiment_decision: Dict,
+        classic_pred: int = None,
+        classic_conf: float = 0.0,
+        text_llm_decision: Dict = None,
+        visual_llm_decision: Dict = None,
+        sentiment_decision: Dict = None,
         timesfm_decision: Dict = None,
         tensortrade_decision: Dict = None,
         vincent_ganne_indicators: Dict = None,
         oil_bench_decision: Dict = None,
         market_data: Dict = None,
         adaptive_weights: Dict[str, float] = None,
+        generic_model_results: List[ModelDecision] = None,
     ) -> HybridDecision:
         """
         Enhanced decision making with consensus validation and risk management.
+        Supports both legacy explicit parameters and new generic model results list.
 
         Args:
             classic_pred: Classic model prediction (0 or 1)
@@ -427,8 +473,10 @@ class EnhancedDecisionEngine:
             sentiment_decision: Sentiment analysis decision dict
             timesfm_decision: TimesFM forecasting decision dict
             vincent_ganne_indicators: Indicators for Vincent Ganne model
+            oil_bench_decision: Oil Bench model decision dict
             market_data: Current market indicators
             adaptive_weights: Optional adaptive weights for models
+            generic_model_results: List of ModelDecision objects (New API)
 
         Returns:
             HybridDecision object with detailed decision information
@@ -439,106 +487,69 @@ class EnhancedDecisionEngine:
         # Use adaptive weights if provided, otherwise use base weights
         weights = adaptive_weights or self.base_weights
 
-        # Create structured decisions for each model
-        decisions = [
-            ModelDecision(
-                signal="BUY" if classic_pred == 1 else "SELL",
-                confidence=classic_conf,
-                strength=self._normalize_signal("BUY" if classic_pred == 1 else "SELL"),
-                timestamp=timestamp,
-                model_name="classic",
-                reasoning="Quantitative model prediction",
-            ),
-            ModelDecision(
-                signal=text_llm_decision.get("signal", "HOLD"),
-                confidence=text_llm_decision.get("confidence", 0.0),
-                strength=self._normalize_signal(
-                    text_llm_decision.get("signal", "HOLD")
-                ),
-                timestamp=timestamp,
-                model_name="llm_text",
-                reasoning=text_llm_decision.get("analysis", "Text-based analysis"),
-            ),
-            ModelDecision(
-                signal=visual_llm_decision.get("signal", "HOLD"),
-                confidence=visual_llm_decision.get("confidence", 0.0),
-                strength=self._normalize_signal(
-                    visual_llm_decision.get("signal", "HOLD")
-                ),
-                timestamp=timestamp,
-                model_name="llm_visual",
-                reasoning=visual_llm_decision.get("analysis", "Visual chart analysis"),
-            ),
-            ModelDecision(
-                signal=sentiment_decision.get("signal", "HOLD"),
-                confidence=sentiment_decision.get("confidence", 0.0),
-                strength=self._normalize_signal(
-                    sentiment_decision.get("signal", "HOLD")
-                ),
-                timestamp=timestamp,
-                model_name="sentiment",
-                reasoning="News sentiment analysis",
-            ),
-        ]
+        # Start with generic results if provided
+        decisions = generic_model_results or []
 
-        if timesfm_decision:
-            decisions.append(
-                ModelDecision(
-                    signal=timesfm_decision.get("signal", "HOLD"),
-                    confidence=timesfm_decision.get("confidence", 0.0),
-                    strength=self._normalize_signal(
-                        timesfm_decision.get("signal", "HOLD")
-                    ),
-                    timestamp=timestamp,
-                    model_name="timesfm",
-                    reasoning=timesfm_decision.get(
-                        "analysis", "TimesFM time series forecasting"
-                    ),
+        # If we have legacy parameters, convert them and add to decisions
+        if not generic_model_results:
+            if classic_pred is not None:
+                decisions.append(
+                    ModelDecision(
+                        signal="BUY" if classic_pred == 1 else "SELL",
+                        confidence=classic_conf,
+                        strength=self._normalize_signal("BUY" if classic_pred == 1 else "SELL"),
+                        timestamp=timestamp,
+                        model_name="classic",
+                        reasoning="Quantitative model prediction",
+                    )
                 )
-            )
-        if tensortrade_decision:
-            decisions.append(
-                ModelDecision(
-                    signal=tensortrade_decision.get("signal", "HOLD"),
-                    confidence=tensortrade_decision.get("confidence", 0.0),
-                    strength=self._normalize_signal(
-                        tensortrade_decision.get("signal", "HOLD")
-                    ),
-                    timestamp=timestamp,
-                    model_name="tensortrade",
-                    reasoning=tensortrade_decision.get(
-                        "analysis", "TensorTrade RL policy output"
-                    ),
-                )
-            )
 
-        if vincent_ganne_indicators:
-            vg_decision = self.vincent_ganne_model.evaluate(vincent_ganne_indicators)
-            decisions.append(
-                ModelDecision(
-                    signal=vg_decision["signal"],
-                    confidence=vg_decision["confidence"],
-                    strength=self._normalize_signal(vg_decision["signal"]),
-                    timestamp=timestamp,
-                    model_name="vincent_ganne",
-                    reasoning=vg_decision["analysis"],
-                )
-            )
+            legacy_models = {
+                "llm_text": text_llm_decision,
+                "llm_visual": visual_llm_decision,
+                "sentiment": sentiment_decision,
+                "timesfm": timesfm_decision,
+                "tensortrade": tensortrade_decision,
+                "oil_bench": oil_bench_decision,
+            }
 
-        if oil_bench_decision:
-            decisions.append(
-                ModelDecision(
-                    signal=oil_bench_decision.get("signal", "HOLD"),
-                    confidence=oil_bench_decision.get("confidence", 0.0),
-                    strength=self._normalize_signal(
-                        oil_bench_decision.get("signal", "HOLD")
-                    ),
-                    timestamp=timestamp,
-                    model_name="oil_bench",
-                    reasoning=oil_bench_decision.get(
-                        "analysis", "Oil Bench commodity analysis"
-                    ),
+            for model_name, dec in legacy_models.items():
+                if dec:
+                    decisions.append(
+                        ModelDecision(
+                            signal=dec.get("signal", "HOLD"),
+                            confidence=dec.get("confidence", 0.0),
+                            strength=self._normalize_signal(dec.get("signal", "HOLD")),
+                            timestamp=timestamp,
+                            model_name=model_name,
+                            reasoning=dec.get("analysis", f"{model_name} analysis"),
+                        )
+                    )
+
+            if vincent_ganne_indicators:
+                vg_decision = self.vincent_ganne_model.evaluate(vincent_ganne_indicators)
+                decisions.append(
+                    ModelDecision(
+                        signal=vg_decision["signal"],
+                        confidence=vg_decision["confidence"],
+                        strength=self._normalize_signal(vg_decision["signal"]),
+                        timestamp=timestamp,
+                        model_name="vincent_ganne",
+                        reasoning=vg_decision["analysis"],
+                    )
                 )
+
+        if not decisions:
+            logger.warning("No model decisions provided to EnhancedDecisionEngine")
+            return HybridDecision(
+                final_signal="HOLD",
+                final_confidence=0.0,
+                consensus_score=0.0,
+                disagreement_factor=0.0,
+                risk_adjusted_signal="HOLD",
+                individual_decisions=[],
+                reasoning="No input signals",
+                timestamp=timestamp,
             )
 
         # Calculate weighted score

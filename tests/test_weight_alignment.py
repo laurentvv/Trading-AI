@@ -20,7 +20,15 @@ def test_weight_alignment():
         "llm_visual": 0.20,
         "sentiment": 0.15,
         "timesfm": 0.25,
+        "vincent_ganne": 0.0,
+        "oil_bench": 0.0,
+        "tensortrade": 0.0,
     }
+
+    # Verify weights sum to 1.0 (some might be 0)
+    total = sum(expected.values())
+    assert abs(total - 1.0) < 1e-6, f"Weights should sum to 1.0, got {total}"
+    print(f"PASS: Weights sum to {total}")
 
     for model_name, expected_weight in expected.items():
         eng_weight = engine.base_weights.get(model_name)
@@ -32,11 +40,6 @@ def test_weight_alignment():
             f"Manager {model_name}: expected {expected_weight}, got {mgr_weight}"
         )
         print(f"PASS: {model_name} = {expected_weight} (both modules aligned)")
-
-    # Verify weights sum to 1.0
-    total = sum(expected.values())
-    assert total == 1.0, f"Weights should sum to 1.0, got {total}"
-    print(f"PASS: Weights sum to {total}")
 
     print("\nAll weight alignment tests passed!")
 

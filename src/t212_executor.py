@@ -55,7 +55,7 @@ def _read_with_retry(filepath: Path, max_retries: int = STATE_LOCK_RETRIES):
             if attempt < max_retries - 1:
                 time.sleep(STATE_LOCK_RETRY_DELAY)
                 continue
-            raise
+            return None
         except FileNotFoundError:
             return None
     return None
@@ -273,7 +273,7 @@ def execute_t212_trade(
                 resp.status_code == 400 and "TooManyRequests" in resp.text
             ):
                 wait = (attempt + 1) * 2
-                print(f"⚠️ Rate limit atteint, attente de {wait}s...")
+                logger.warning(f"⚠️ Rate limit atteint, attente de {wait}s...")
                 time.sleep(wait)
                 continue
             return resp
@@ -293,12 +293,12 @@ def execute_t212_trade(
             info["positions"] = positions.json()
         return info
 
-    print(f"\n--- 🤖 EXÉCUTION IA TRADING 212 ({env.upper()}) POUR {t212_ticker} ---")
+    logger.info(f"\n--- 🤖 EXÉCUTION IA TRADING 212 ({env.upper()}) POUR {t212_ticker} ---")
 
     # Vérification systématique avant action
     portfolio = get_portfolio_info()
-    print("📊 VÉRIFICATION PORTEFEUILLE RÉEL :")
-    print(f"   - Cash total disponible : {portfolio['cash']:.2f} €")
+    logger.info("📊 VÉRIFICATION PORTEFEUILLE RÉEL :")
+    logger.info(f"   - Cash total disponible : {portfolio['cash']:.2f} €")
 
     # Trouver la position spécifique si elle existe
     current_pos = next(
@@ -307,22 +307,22 @@ def execute_t212_trade(
     )
 
     if current_pos:
-        print(
+        logger.info(
             f"   - Position détectée : {current_pos['quantity']} actions de {t212_ticker}"
         )
     else:
-        print(f"   - Aucune position ouverte sur {t212_ticker}")
+        logger.info(f"   - Aucune position ouverte sur {t212_ticker}")
 
     if signal == "BUY":
         # BLOCAGE CRITIQUE : Si une position existe sur T212 OU dans notre suivi
         if current_pos or state.get("active_position"):
             if current_pos:
-                print(
+                logger.warning(
                     f"⚠️ Position RÉELLE déjà active pour {t212_ticker} ({current_pos['quantity']} actions). Achat ignoré."
                 )
                 # Resynchronisation du suivi si nécessaire
                 if not state.get("active_position"):
-                    print(
+                    logger.info(
                         "🔄 Synchronisation du suivi local avec la position réelle..."
                     )
                     entry_price = (
@@ -345,7 +345,7 @@ def execute_t212_trade(
                     }
                     save_portfolio_state(state, t212_ticker)
             else:
-                print(
+                logger.warning(
                     f"⚠️ Position déjà active pour {t212_ticker} dans le suivi. Achat ignoré."
                 )
             return
@@ -364,21 +364,21 @@ def execute_t212_trade(
             try:
                 index_price = get_real_price_eur(index_ticker)
             except (ValueError, requests.RequestException, RuntimeError) as e:
-                print(
+                logger.warning(
                     f"⚠️ Impossible de récupérer le prix de l'indice {index_ticker}, utilisation du prix de l'ETF : {e}"
                 )
                 index_price = current_price
         except ValueError as e:
-            print(f"❌ Impossible d'obtenir le prix : {e}")
+            logger.error(f"❌ Impossible d'obtenir le prix : {e}")
             return
-        print(
+        logger.info(
             f"🔍 CALCUL DU PRIX DU MARCHÉ : {current_price} € / action (Indice {index_ticker}: {index_price:.2f})"
         )
 
         # 2. Calculer la quantité
         available_cash = state.get("current_capital", 1000.0)
         if portfolio["cash"] < available_cash:
-            print(
+            logger.warning(
                 f"⚠️ Pas assez de cash réel ({portfolio['cash']:.2f}€) pour le budget cible ({available_cash:.2f}€)."
             )
 
@@ -388,24 +388,24 @@ def execute_t212_trade(
         quantity = round(target_budget / current_price, precision)
 
         estimated_cost = quantity * current_price
-        print("📊 CALCUL QUANTITÉ FRACTIONNÉE :")
-        print(f"   - Budget cible : {available_cash:.2f} €")
-        print(f"   - Quantité calculée : {quantity} actions (Precision: {precision})")
-        print(f"   - Coût estimé : {estimated_cost:.2f} €")
+        logger.info("📊 CALCUL QUANTITÉ FRACTIONNÉE :")
+        logger.info(f"   - Budget cible : {available_cash:.2f} €")
+        logger.info(f"   - Quantité calculée : {quantity} actions (Precision: {precision})")
+        logger.info(f"   - Coût estimé : {estimated_cost:.2f} €")
 
         if quantity <= 0:
-            print("❌ Quantité nulle ou négative, abandon.")
+            logger.error("❌ Quantité nulle ou négative, abandon.")
             return
 
         # 3. Passage de l'ordre
-        print(f"🚀 Envoi de l'ordre d'achat de {quantity} {t212_ticker}...")
+        logger.info(f"🚀 Envoi de l'ordre d'achat de {quantity} {t212_ticker}...")
         order_data = {"ticker": t212_ticker, "quantity": quantity}
         resp = safe_request(
             "POST", f"{base_url}/equity/orders/market", headers=headers, json=order_data
         )
 
         if resp.status_code in [200, 201, 202]:
-            print(f"✅ Ordre placé ! Quantité : {quantity}")
+            logger.info(f"✅ Ordre placé ! Quantité : {quantity}")
             state["active_position"] = {
                 "ticker": t212_ticker,
                 "quantity": quantity,
@@ -429,15 +429,15 @@ def execute_t212_trade(
                     reason=f"T212 Order Confirmed (Index: {index_price:.2f})",
                 )
         else:
-            print(f"❌ Échec de l'achat : {resp.text}")
+            logger.error(f"❌ Échec de l'achat : {resp.text}")
 
     elif signal == "SELL":
         if not state.get("active_position") and not current_pos:
-            print(f"⚠️ Pas de position active pour {t212_ticker}.")
+            logger.warning(f"⚠️ Pas de position active pour {t212_ticker}.")
             return
 
         if not current_pos:
-            print(
+            logger.warning(
                 "⚠️ Position présente dans le suivi mais INTROUVABLE sur T212. Reset du suivi."
             )
             state["active_position"] = None
@@ -448,7 +448,7 @@ def execute_t212_trade(
         total_qty = current_pos["quantityAvailableForTrading"]
         current_value_eur = current_pos["walletImpact"]["currentValue"]
 
-        print(f"📉 Vente de TOUTE la position sur {t212_ticker} ({total_qty} actions)")
+        logger.info(f"📉 Vente de TOUTE la position sur {t212_ticker} ({total_qty} actions)")
 
         order_data = {"ticker": t212_ticker, "quantity": -total_qty}
         sell_resp = safe_request(
@@ -456,7 +456,7 @@ def execute_t212_trade(
         )
 
         if sell_resp.status_code in [200, 201, 202]:
-            print("✅ Vente effectuée.")
+            logger.info("✅ Vente effectuée.")
             # Calcul précis du nouveau capital en incluant le cash non-investi (résiduel)
             buy_cost = (
                 state["active_position"]["buy_budget"]
@@ -470,10 +470,10 @@ def execute_t212_trade(
             state["current_capital"] = current_value_eur + residual_cash
             state["total_realized_pl"] += current_value_eur - buy_cost
 
-            print(f"💰 Détail capital {t212_ticker} :")
-            print(f"   - Produit vente : {current_value_eur:.2f} €")
-            print(f"   - Cash résiduel récupéré : {residual_cash:.2f} €")
-            print(f"   - Nouveau total : {state['current_capital']:.2f} €")
+            logger.info(f"💰 Détail capital {t212_ticker} :")
+            logger.info(f"   - Produit vente : {current_value_eur:.2f} €")
+            logger.info(f"   - Cash résiduel récupéré : {residual_cash:.2f} €")
+            logger.info(f"   - Nouveau total : {state['current_capital']:.2f} €")
 
             state["active_position"] = None
             save_portfolio_state(state, t212_ticker)
@@ -491,7 +491,7 @@ def execute_t212_trade(
                     reason=f"T212 Confirmed Sale (P&L: {(current_value_eur - buy_cost):+.2f}€, {((current_value_eur / buy_cost) - 1):+.2%})",
                 )
         else:
-            print(f"❌ Erreur lors de la vente : {sell_resp.text}")
+            logger.error(f"❌ Erreur lors de la vente : {sell_resp.text}")
 
 
 if __name__ == "__main__":

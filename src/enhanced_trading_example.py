@@ -8,6 +8,7 @@ import logging
 import numpy as np
 import pandas as pd
 import sqlite3
+from typing import Dict, List, Optional
 from datetime import datetime
 from pathlib import Path
 import subprocess
@@ -95,10 +96,13 @@ class EnhancedTradingSystem:
         )  # Ticker d'ANALYSE (ex: ^NDX)
         self.initial_portfolio_value = initial_portfolio_value
 
-        # Initialisation des composants améliorés
-        self.decision_engine = EnhancedDecisionEngine()
-        self.risk_manager = AdvancedRiskManager()
-        self.weight_manager = AdaptiveWeightManager()
+        # Load centralized configuration
+        self.config = self._load_config()
+
+        # Initialisation des composants améliorés avec injection de config
+        self.decision_engine = EnhancedDecisionEngine(config=self.config)
+        self.risk_manager = AdvancedRiskManager(config=self.config)
+        self.weight_manager = AdaptiveWeightManager(config=self.config)
         self.performance_monitor = PerformanceMonitor(ticker=self.ticker)
 
         # Configuration du système
@@ -112,6 +116,17 @@ class EnhancedTradingSystem:
         logger.info(
             f"Système de trading amélioré initialisé. Trading: {self.ticker} | Analyse: {self.analysis_ticker}"
         )
+
+    def _load_config(self) -> Dict:
+        """Loads the scheduler_config.json file."""
+        config_path = Path("scheduler_config.json")
+        if config_path.exists():
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.error(f"Failed to load scheduler_config.json: {e}")
+        return {}
 
     def _initialize_portfolio(self, hist_data):
         """Initializes the portfolio if it doesn't exist."""
