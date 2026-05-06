@@ -137,6 +137,13 @@ def load_portfolio_state(ticker=None):
                 "total_realized_pl": 0.0,
                 "active_position": None,
             }
+        else:
+            # S'assurer que les clés minimales existent pour un ticker déjà présent
+            t_state = state["tickers"][clean_ticker]
+            t_state.setdefault("initial_budget", 1000.0)
+            t_state.setdefault("current_capital", 1000.0)
+            t_state.setdefault("total_realized_pl", 0.0)
+            t_state.setdefault("active_position", None)
 
         # Nettoyage récursif si la migration a foiré (évite le "tickers" dans "tickers")
         if "tickers" in state["tickers"][clean_ticker]:
