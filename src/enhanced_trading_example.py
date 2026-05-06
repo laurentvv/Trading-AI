@@ -99,7 +99,7 @@ class EnhancedTradingSystem:
         self.decision_engine = EnhancedDecisionEngine()
         self.risk_manager = AdvancedRiskManager()
         self.weight_manager = AdaptiveWeightManager()
-        self.performance_monitor = PerformanceMonitor()
+        self.performance_monitor = PerformanceMonitor(ticker=self.ticker)
 
         # Configuration du système
         self.chart_output_path = Path("enhanced_trading_chart.png")
@@ -670,8 +670,8 @@ class EnhancedTradingSystem:
         try:
             conn = sqlite3.connect(self.performance_monitor.db_path)
             last_val_df = pd.read_sql_query(
-                "SELECT portfolio_value FROM realtime_metrics ORDER BY timestamp DESC LIMIT 1",
-                conn,
+                "SELECT portfolio_value FROM realtime_metrics WHERE ticker = ? ORDER BY timestamp DESC LIMIT 1",
+                conn, params=(self.ticker,)
             )
             conn.close()
             if not last_val_df.empty:
@@ -702,7 +702,7 @@ class EnhancedTradingSystem:
 
         # Génération du dashboard
         self.performance_monitor.create_performance_dashboard(
-            "enhanced_performance_dashboard.png"
+            f"enhanced_performance_dashboard_{self.ticker}.png"
         )
 
         # Génération du rapport

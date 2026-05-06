@@ -48,6 +48,7 @@ class RealTimeMetrics:
     """Real-time performance metrics"""
 
     timestamp: datetime
+    ticker: str
     portfolio_value: float
     daily_return: float
     cumulative_return: float
@@ -63,6 +64,7 @@ class RealTimeMetrics:
     def to_dict(self) -> dict:
         return {
             "timestamp": self.timestamp.isoformat(),
+            "ticker": self.ticker,
             "portfolio_value": self.portfolio_value,
             "daily_return": self.daily_return,
             "cumulative_return": self.cumulative_return,
@@ -84,6 +86,7 @@ class PerformanceMonitor:
 
     def __init__(
         self,
+        ticker: str = "UNKNOWN",
         db_path: str = "performance_monitor.db",
         alert_thresholds: Dict = None,
         email_config: Dict = None,
@@ -92,10 +95,12 @@ class PerformanceMonitor:
         Initialize the performance monitor.
 
         Args:
+            ticker: Ticker symbol being monitored
             db_path: Database path for storing metrics
             alert_thresholds: Custom alert thresholds
             email_config: Email configuration for alerts
         """
+        self.ticker = ticker
         self.db_path = db_path
         self.email_config = email_config
 
@@ -131,6 +136,7 @@ class PerformanceMonitor:
                 CREATE TABLE IF NOT EXISTS realtime_metrics (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp TEXT NOT NULL,
+                    ticker TEXT,
                     portfolio_value REAL,
                     daily_return REAL,
                     cumulative_return REAL,
@@ -145,11 +151,19 @@ class PerformanceMonitor:
                 )
             """)
 
+            # Migration: check if ticker column exists
+            cursor.execute("PRAGMA table_info(realtime_metrics)")
+            columns = [info[1] for info in cursor.fetchall()]
+            if "ticker" not in columns:
+                logger.info("Migrating performance database to add ticker column...")
+                cursor.execute("ALTER TABLE realtime_metrics ADD COLUMN ticker TEXT DEFAULT 'UNKNOWN'")
+
             # Alerts table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS performance_alerts (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp TEXT NOT NULL,
+                    ticker TEXT,
                     alert_type TEXT,
                     severity TEXT,
                     message TEXT,
@@ -159,11 +173,18 @@ class PerformanceMonitor:
                     acknowledged BOOLEAN DEFAULT FALSE
                 )
             """)
+            
+            # Migration for alerts table
+            cursor.execute("PRAGMA table_info(performance_alerts)")
+            columns = [info[1] for info in cursor.fetchall()]
+            if "ticker" not in columns:
+                cursor.execute("ALTER TABLE performance_alerts ADD COLUMN ticker TEXT DEFAULT 'UNKNOWN'")
 
             # Daily performance summary
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS daily_performance (
-                    date TEXT PRIMARY KEY,
+                    date TEXT,
+                    ticker TEXT,
                     starting_value REAL,
                     ending_value REAL,
                     daily_return REAL,
@@ -172,13 +193,14 @@ class PerformanceMonitor:
                     wins INTEGER,
                     losses INTEGER,
                     max_intraday_drawdown REAL,
-                    volatility REAL
+                    volatility REAL,
+                    PRIMARY KEY (date, ticker)
                 )
             """)
 
             conn.commit()
             conn.close()
-            logger.info("Performance monitoring database initialized")
+            logger.info(f"Performance monitoring database initialized for {self.ticker}")
 
         except Exception as e:
             logger.error(f"Failed to initialize monitoring database: {e}")
@@ -192,13 +214,14 @@ class PerformanceMonitor:
             cursor.execute(
                 """
                 INSERT INTO realtime_metrics 
-                (timestamp, portfolio_value, daily_return, cumulative_return,
+                (timestamp, ticker, portfolio_value, daily_return, cumulative_return,
                  sharpe_ratio, max_drawdown, win_rate, total_trades,
                  active_positions, cash_balance, model_accuracy, risk_metrics)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     metrics.timestamp.isoformat(),
+                    metrics.ticker,
                     metrics.portfolio_value,
                     metrics.daily_return,
                     metrics.cumulative_return,
@@ -244,7 +267,7 @@ class PerformanceMonitor:
             alert = PerformanceAlert(
                 alert_type="max_drawdown",
                 severity="CRITICAL",
-                message=f"Critical drawdown detected: {metrics.max_drawdown:.2%}",
+                message=f"[{metrics.ticker}] Critical drawdown detected: {metrics.max_drawdown:.2%}",
                 timestamp=current_time,
                 metric_value=metrics.max_drawdown,
                 threshold=self.alert_thresholds["max_drawdown"]["critical"],
@@ -254,7 +277,7 @@ class PerformanceMonitor:
             alert = PerformanceAlert(
                 alert_type="max_drawdown",
                 severity="MEDIUM",
-                message=f"High drawdown warning: {metrics.max_drawdown:.2%}",
+                message=f"[{metrics.ticker}] High drawdown warning: {metrics.max_drawdown:.2%}",
                 timestamp=current_time,
                 metric_value=metrics.max_drawdown,
                 threshold=self.alert_thresholds["max_drawdown"]["warning"],
@@ -266,7 +289,7 @@ class PerformanceMonitor:
             alert = PerformanceAlert(
                 alert_type="daily_loss",
                 severity="CRITICAL",
-                message=f"Critical daily loss: {metrics.daily_return:.2%}",
+                message=f"[{metrics.ticker}] Critical daily loss: {metrics.daily_return:.2%}",
                 timestamp=current_time,
                 metric_value=metrics.daily_return,
                 threshold=self.alert_thresholds["daily_loss"]["critical"],
@@ -276,7 +299,7 @@ class PerformanceMonitor:
             alert = PerformanceAlert(
                 alert_type="daily_loss",
                 severity="MEDIUM",
-                message=f"Significant daily loss: {metrics.daily_return:.2%}",
+                message=f"[{metrics.ticker}] Significant daily loss: {metrics.daily_return:.2%}",
                 timestamp=current_time,
                 metric_value=metrics.daily_return,
                 threshold=self.alert_thresholds["daily_loss"]["warning"],
@@ -288,7 +311,7 @@ class PerformanceMonitor:
             alert = PerformanceAlert(
                 alert_type="sharpe_ratio",
                 severity="HIGH",
-                message=f"Poor risk-adjusted performance: Sharpe {metrics.sharpe_ratio:.2f}",
+                message=f"[{metrics.ticker}] Poor risk-adjusted performance: Sharpe {metrics.sharpe_ratio:.2f}",
                 timestamp=current_time,
                 metric_value=metrics.sharpe_ratio,
                 threshold=self.alert_thresholds["sharpe_ratio"]["critical"],
@@ -301,7 +324,7 @@ class PerformanceMonitor:
                 alert = PerformanceAlert(
                     alert_type="model_accuracy",
                     severity="HIGH",
-                    message=f"Model {model_name} accuracy critically low: {accuracy:.2%}",
+                    message=f"[{metrics.ticker}] Model {model_name} accuracy critically low: {accuracy:.2%}",
                     timestamp=current_time,
                     model_name=model_name,
                     metric_value=accuracy,
@@ -317,7 +340,7 @@ class PerformanceMonitor:
             alert = PerformanceAlert(
                 alert_type="win_rate",
                 severity="HIGH",
-                message=f"Win rate critically low: {metrics.win_rate:.2%}",
+                message=f"[{metrics.ticker}] Win rate critically low: {metrics.win_rate:.2%}",
                 timestamp=current_time,
                 metric_value=metrics.win_rate,
                 threshold=self.alert_thresholds["win_rate"]["critical"],
@@ -332,7 +355,7 @@ class PerformanceMonitor:
 
         for alert in alerts:
             # Check cooldown
-            alert_key = f"{alert.alert_type}_{alert.severity}"
+            alert_key = f"{self.ticker}_{alert.alert_type}_{alert.severity}"
             if alert_key in self.alert_cooldown:
                 time_since_last = datetime.now() - self.alert_cooldown[alert_key]
                 if time_since_last < self.cooldown_period:
@@ -361,6 +384,7 @@ class PerformanceMonitor:
             records = [
                 (
                     alert.timestamp.isoformat(),
+                    self.ticker,
                     alert.alert_type,
                     alert.severity,
                     alert.message,
@@ -374,8 +398,8 @@ class PerformanceMonitor:
             cursor.executemany(
                 """
                 INSERT INTO performance_alerts 
-                (timestamp, alert_type, severity, message, model_name, metric_value, threshold)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                (timestamp, ticker, alert_type, severity, message, model_name, metric_value, threshold)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 records,
             )
@@ -405,10 +429,10 @@ class PerformanceMonitor:
             msg = MIMEMultipart()
             msg["From"] = username
             msg["To"] = to_email
-            msg["Subject"] = f"Trading AI Alert [{alert.severity}]: {alert.alert_type}"
+            msg["Subject"] = f"Trading AI Alert [{alert.severity}]: {alert.alert_type} ({self.ticker})"
 
             body = f"""
-            Trading AI Performance Alert
+            Trading AI Performance Alert for {self.ticker}
             
             Alert Type: {alert.alert_type}
             Severity: {alert.severity}
@@ -431,7 +455,7 @@ class PerformanceMonitor:
             server.send_message(msg)
             server.quit()
 
-            logger.info(f"Email alert sent for {alert.alert_type}")
+            logger.info(f"Email alert sent for {alert.alert_type} ({self.ticker})")
 
         except Exception as e:
             logger.error(f"Failed to send email alert: {e}")
@@ -451,17 +475,17 @@ class PerformanceMonitor:
         try:
             conn = sqlite3.connect(self.db_path)
 
-            # Get recent metrics
+            # Get recent metrics for specific ticker
             query = """
                 SELECT * FROM realtime_metrics 
-                WHERE timestamp >= ? 
+                WHERE timestamp >= ? AND ticker = ?
                 ORDER BY timestamp DESC
             """
 
-            df = pd.read_sql_query(query, conn, params=(cutoff_date.isoformat(),))
+            df = pd.read_sql_query(query, conn, params=(cutoff_date.isoformat(), self.ticker))
 
             if df.empty:
-                return {"error": "No data available for the specified period"}
+                return {"error": f"No data available for ticker {self.ticker} in the specified period"}
 
             # Calculate report metrics
             latest_metrics = df.iloc[0]
@@ -488,18 +512,19 @@ class PerformanceMonitor:
             alert_query = """
                 SELECT alert_type, severity, COUNT(*) as count
                 FROM performance_alerts 
-                WHERE timestamp >= ? 
+                WHERE timestamp >= ? AND ticker = ?
                 GROUP BY alert_type, severity
                 ORDER BY count DESC
             """
 
             alerts_df = pd.read_sql_query(
-                alert_query, conn, params=(cutoff_date.isoformat(),)
+                alert_query, conn, params=(cutoff_date.isoformat(), self.ticker)
             )
 
             conn.close()
 
             report = {
+                "ticker": self.ticker,
                 "report_period": f"{days_back} days",
                 "generated_at": datetime.now().isoformat(),
                 "performance_summary": {
@@ -525,7 +550,7 @@ class PerformanceMonitor:
             return report
 
         except Exception as e:
-            logger.error(f"Failed to generate performance report: {e}")
+            logger.error(f"Failed to generate performance report for {self.ticker}: {e}")
             return {"error": str(e)}
 
     def _assess_current_risk(self, df: pd.DataFrame) -> Dict:
@@ -597,7 +622,7 @@ class PerformanceMonitor:
     ):
         """Create visual performance dashboard"""
         try:
-            # Get recent data
+            # Get recent data for specific ticker
             cutoff_date = datetime.now() - timedelta(days=30)
             conn = sqlite3.connect(self.db_path)
 
@@ -606,17 +631,17 @@ class PerformanceMonitor:
                 SELECT timestamp, portfolio_value, daily_return, cumulative_return,
                        sharpe_ratio, max_drawdown, win_rate
                 FROM realtime_metrics 
-                WHERE timestamp >= ? 
+                WHERE timestamp >= ? AND ticker = ?
                 ORDER BY timestamp
             """,
                 conn,
-                params=(cutoff_date.isoformat(),),
+                params=(cutoff_date.isoformat(), self.ticker),
             )
 
             conn.close()
 
             if df.empty:
-                logger.warning("No data available for dashboard")
+                logger.warning(f"No data available for dashboard ({self.ticker})")
                 return
 
             df["timestamp"] = pd.to_datetime(df["timestamp"])
@@ -624,7 +649,7 @@ class PerformanceMonitor:
             # Create dashboard
             fig, axes = plt.subplots(2, 3, figsize=(20, 12))
             fig.suptitle(
-                "Trading AI Performance Dashboard", fontsize=16, fontweight="bold"
+                f"Trading AI Performance Dashboard - {self.ticker}", fontsize=16, fontweight="bold"
             )
 
             # Portfolio value
@@ -699,10 +724,10 @@ class PerformanceMonitor:
             plt.savefig(output_path, dpi=300, bbox_inches="tight")
             plt.close()
 
-            logger.info(f"Performance dashboard saved to {output_path}")
+            logger.info(f"Performance dashboard saved to {output_path} for {self.ticker}")
 
         except Exception as e:
-            logger.error(f"Failed to create dashboard: {e}")
+            logger.error(f"Failed to create dashboard for {self.ticker}: {e}")
 
     def update_monitoring(
         self,
@@ -724,17 +749,32 @@ class PerformanceMonitor:
             # Calculate metrics
             timestamp = datetime.now()
 
-            # Calculate cumulative return (simplified)
-            if len(self.performance_history) > 0:
-                initial_value = self.performance_history[0].portfolio_value
-                cumulative_return = (portfolio_value / initial_value) - 1
+            # Calculate cumulative return (ticker specific)
+            ticker_history = [m for m in self.performance_history if m.ticker == self.ticker]
+            if len(ticker_history) > 0:
+                initial_value = ticker_history[0].portfolio_value
+                cumulative_return = (portfolio_value / initial_value) - 1 if initial_value > 0 else 0.0
             else:
-                cumulative_return = 0.0
+                # Fallback to database if memory history is empty
+                try:
+                    conn = sqlite3.connect(self.db_path)
+                    first_val_df = pd.read_sql_query(
+                        "SELECT portfolio_value FROM realtime_metrics WHERE ticker = ? ORDER BY timestamp ASC LIMIT 1",
+                        conn, params=(self.ticker,)
+                    )
+                    conn.close()
+                    if not first_val_df.empty:
+                        initial_value = first_val_df.iloc[0]["portfolio_value"]
+                        cumulative_return = (portfolio_value / initial_value) - 1 if initial_value > 0 else 0.0
+                    else:
+                        cumulative_return = 0.0
+                except:
+                    cumulative_return = 0.0
 
-            # Calculate Sharpe ratio (simplified, 30-day rolling)
-            if len(self.performance_history) >= 30:
+            # Calculate Sharpe ratio (simplified, 30-day rolling for specific ticker)
+            if len(ticker_history) >= 30:
                 recent_returns = [
-                    m.daily_return for m in self.performance_history[-30:]
+                    m.daily_return for m in ticker_history[-30:]
                 ]
                 mean_return = np.mean(recent_returns)
                 std_return = np.std(recent_returns)
@@ -745,13 +785,13 @@ class PerformanceMonitor:
                 sharpe_ratio = 0.0
 
             # Calculate max drawdown
-            if len(self.performance_history) > 0:
-                peak_value = max(m.portfolio_value for m in self.performance_history)
-                max_drawdown = (peak_value - portfolio_value) / peak_value
+            if len(ticker_history) > 0:
+                peak_value = max(m.portfolio_value for m in ticker_history)
+                max_drawdown = (peak_value - portfolio_value) / peak_value if peak_value > 0 else 0.0
             else:
                 max_drawdown = 0.0
 
-            # Calculate win rate from historical trades
+            # Calculate win rate from historical trades (ticker specific)
             win_rate = self._calculate_win_rate()
 
             # Model accuracy
@@ -767,6 +807,7 @@ class PerformanceMonitor:
             # Create metrics object
             metrics = RealTimeMetrics(
                 timestamp=timestamp,
+                ticker=self.ticker,
                 portfolio_value=portfolio_value,
                 daily_return=daily_return,
                 cumulative_return=cumulative_return,
@@ -791,18 +832,21 @@ class PerformanceMonitor:
                 self.process_alerts(alerts)
 
             logger.info(
-                f"Performance monitoring updated: Portfolio ${portfolio_value:,.2f}, "
+                f"Performance monitoring updated for {self.ticker}: Portfolio ${portfolio_value:,.2f}, "
                 f"Daily Return: {daily_return:.2%}, Alerts: {len(alerts)}"
             )
 
         except Exception as e:
-            logger.error(f"Failed to update monitoring: {e}")
+            logger.error(f"Failed to update monitoring for {self.ticker}: {e}")
 
     def _calculate_win_rate(self) -> float:
-        """Calculates the win rate based on the transaction history."""
+        """Calculates the win rate based on the transaction history for specific ticker."""
         try:
             conn = sqlite3.connect("trading_history.db")
-            df = pd.read_sql_query("SELECT * FROM transactions ORDER BY date ASC", conn)
+            df = pd.read_sql_query(
+                "SELECT * FROM transactions WHERE ticker = ? ORDER BY date ASC", 
+                conn, params=(self.ticker,)
+            )
             conn.close()
 
             if df.empty:
@@ -825,10 +869,10 @@ class PerformanceMonitor:
             total_closed_trades = wins + losses
             if total_closed_trades == 0:
                 logger.info(
-                    "Aucun trade cloture — le win rate ne peut pas etre calcule."
+                    f"Aucun trade cloture pour {self.ticker} — le win rate ne peut pas etre calcule."
                 )
                 return -1.0  # Sentinelle: signifie "non calculable"
             return wins / total_closed_trades
         except Exception as e:
-            logger.error(f"Error calculating win rate: {e}")
+            logger.error(f"Error calculating win rate for {self.ticker}: {e}")
             return 0.0
