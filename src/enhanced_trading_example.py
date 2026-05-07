@@ -279,20 +279,6 @@ class EnhancedTradingSystem:
         else:
             logger.warning("Modèle Kronos non disponible ou erreur.")
 
-        # 1.5 Prédictions Kronos (calculées tôt pour le graphique)
-        logger.info("Génération de la prédiction Kronos...")
-        kronos_pred = get_kronos_prediction(data_with_features, pred_len=24)
-        kronos_decision = None
-        if kronos_pred and kronos_pred.get("signal"):
-            kronos_decision = {
-                "signal": kronos_pred["signal"],
-                "confidence": kronos_pred["confidence"],
-                "analysis": kronos_pred["analysis"],
-            }
-            kronos_pred_df = kronos_pred.get("forecast_df")
-            logger.info(f"Kronos signal: {kronos_decision['signal']} ({kronos_decision['confidence']:.2f})")
-        else:
-            logger.warning("Modèle Kronos non disponible ou erreur.")
 
         # 2. Génération du graphique pour l'analyse visuelle
         chart_generated = generate_chart_image(
