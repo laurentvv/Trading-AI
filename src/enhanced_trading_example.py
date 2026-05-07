@@ -8,7 +8,7 @@ import logging
 import numpy as np
 import pandas as pd
 import sqlite3
-from typing import Dict, List, Optional
+from typing import Dict
 from datetime import datetime
 from pathlib import Path
 import subprocess
@@ -28,6 +28,7 @@ except ImportError:
 from features import create_technical_indicators, create_features, select_features
 from classic_model import train_ensemble_model, get_classic_prediction
 from llm_client import get_llm_decision, get_visual_llm_decision
+from kronos_model import get_kronos_prediction
 from sentiment_analysis import get_sentiment_decision_from_score
 from web_researcher import generate_search_query, get_web_context_sync
 
@@ -59,9 +60,7 @@ logger = logging.getLogger(__name__)
 # IMPORTANT: It is strongly recommended to use an environment variable for your API key.
 ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
 if not ALPHA_VANTAGE_API_KEY:
-    logger.critical(
-        "CRITICAL: The ALPHA_VANTAGE_API_KEY environment variable is not set."
-    )
+    logger.critical("CRITICAL: The ALPHA_VANTAGE_API_KEY environment variable is not set.")
     logger.critical("Please set it to your Alpha Vantage API key.")
     sys.exit(1)
 
@@ -91,9 +90,7 @@ class EnhancedTradingSystem:
             initial_portfolio_value: Valeur initiale du portefeuille
         """
         self.ticker = ticker  # Ticker de TRADING (ex: SXRV.DE)
-        self.analysis_ticker = self.ANALYSIS_MAPPING.get(
-            ticker, ticker
-        )  # Ticker d'ANALYSE (ex: ^NDX)
+        self.analysis_ticker = self.ANALYSIS_MAPPING.get(ticker, ticker)  # Ticker d'ANALYSE (ex: ^NDX)
         self.initial_portfolio_value = initial_portfolio_value
 
         # Load centralized configuration
@@ -113,9 +110,7 @@ class EnhancedTradingSystem:
         # Pour l'initialisation du portefeuille, on utilise le ticker de trading
         self._initialize_portfolio(hist_data=get_etf_data(ticker=self.ticker)[0])
 
-        logger.info(
-            f"Système de trading amélioré initialisé. Trading: {self.ticker} | Analyse: {self.analysis_ticker}"
-        )
+        logger.info(f"Système de trading amélioré initialisé. Trading: {self.ticker} | Analyse: {self.analysis_ticker}")
 
     def _load_config(self) -> Dict:
         """Loads the scheduler_config.json file."""
@@ -131,9 +126,7 @@ class EnhancedTradingSystem:
     def _initialize_portfolio(self, hist_data):
         """Initializes the portfolio if it doesn't exist."""
         if get_latest_portfolio_state(self.ticker) is None:
-            logger.info(
-                f"No existing portfolio found for {self.ticker}. Initializing a new one."
-            )
+            logger.info(f"No existing portfolio found for {self.ticker}. Initializing a new one.")
             insert_portfolio_state(
                 date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 ticker=self.ticker,
@@ -145,9 +138,7 @@ class EnhancedTradingSystem:
 
     def prepare_data_and_features(self):
         """Prépare les données et indicateurs techniques basés sur l'indice d'analyse."""
-        logger.info(
-            f"Récupération et préparation des données pour l'indice {self.analysis_ticker}..."
-        )
+        logger.info(f"Récupération et préparation des données pour l'indice {self.analysis_ticker}...")
 
         try:
             # 1. Récupération des données de l'indice pour l'analyse IA
@@ -163,15 +154,11 @@ class EnhancedTradingSystem:
             if not current_etf_price:
                 etf_data, _ = get_etf_data(ticker=self.ticker)
                 current_etf_price = etf_data["Close"].iloc[-1]
-            logger.info(
-                f"Prix actuel de l'ETF ({self.ticker}): {current_etf_price:.2f}"
-            )
+            logger.info(f"Prix actuel de l'ETF ({self.ticker}): {current_etf_price:.2f}")
 
             # Validate data
             if hist_data is None or hist_data.empty:
-                raise ValueError(
-                    f"No data retrieved for analysis ticker {self.analysis_ticker}"
-                )
+                raise ValueError(f"No data retrieved for analysis ticker {self.analysis_ticker}")
 
             logger.info(
                 f"Analysis Data retrieved: {len(hist_data)} rows from {hist_data.index.min()} to {hist_data.index.max()}"
@@ -179,17 +166,13 @@ class EnhancedTradingSystem:
 
             # Check minimum data requirements
             if len(hist_data) < 50:
-                raise ValueError(
-                    f"Insufficient data for analysis: only {len(hist_data)} rows available"
-                )
+                raise ValueError(f"Insufficient data for analysis: only {len(hist_data)} rows available")
 
             data_with_indicators = create_technical_indicators(hist_data)
 
             # Validate indicators
             if data_with_indicators.empty:
-                raise ValueError(
-                    "Technical indicators generation failed - empty result"
-                )
+                raise ValueError("Technical indicators generation failed - empty result")
 
             # Contexte macroéconomique
             analysis_date = data_with_indicators.index[-1]
@@ -236,9 +219,7 @@ class EnhancedTradingSystem:
         logger.info(f"Unique target values: {y.unique()}")
 
         if len(y.unique()) < 2:
-            logger.warning(
-                "Données insuffisantes pour l'entraînement - moins de 2 classes"
-            )
+            logger.warning("Données insuffisantes pour l'entraînement - moins de 2 classes")
             return None, None
 
         # Check if we have enough valid data
@@ -258,9 +239,7 @@ class EnhancedTradingSystem:
             logger.error(f"Erreur lors de l'entraînement du modèle: {e}")
             return None, None
 
-    def get_model_predictions(
-        self, data_with_features, classic_model, scaler, vg_indicators=None
-    ):
+    def get_model_predictions(self, data_with_features, classic_model, scaler, vg_indicators=None):
         """Obtient les prédictions de tous les modèles."""
         logger.info("Génération des prédictions des modèles...")
 
@@ -269,41 +248,58 @@ class EnhancedTradingSystem:
         # 1. Prédiction du modèle classique
         if classic_model is not None and scaler is not None:
             try:
-                feature_cols = [
-                    col
-                    for col in scaler.feature_names_in_
-                    if col in latest_data.columns
-                ]
+                feature_cols = [col for col in scaler.feature_names_in_ if col in latest_data.columns]
                 latest_features = latest_data[feature_cols]
 
                 # Log feature information
-                logger.info(
-                    f"Features disponibles pour prédiction: {len(feature_cols)}"
-                )
-                logger.info(
-                    f"NaN dans les features: {latest_features.isnull().sum().sum()}"
-                )
+                logger.info(f"Features disponibles pour prédiction: {len(feature_cols)}")
+                logger.info(f"NaN dans les features: {latest_features.isnull().sum().sum()}")
 
-                classic_pred, classic_conf = get_classic_prediction(
-                    classic_model, scaler, latest_features
-                )
-                logger.info(
-                    f"Prédiction classique: {classic_pred}, confiance: {classic_conf:.3f}"
-                )
+                classic_pred, classic_conf = get_classic_prediction(classic_model, scaler, latest_features)
+                logger.info(f"Prédiction classique: {classic_pred}, confiance: {classic_conf:.3f}")
             except Exception as e:
                 logger.error(f"Erreur lors de la prédiction classique: {e}")
                 classic_pred, classic_conf = 0, 0.5
         else:
-            logger.warning(
-                "Modèle classique non disponible, utilisation de valeurs par défaut"
-            )
+            logger.warning("Modèle classique non disponible, utilisation de valeurs par défaut")
             classic_pred, classic_conf = 0, 0.5
+
+        # 1.5 Prédictions Kronos (calculées tôt pour le graphique)
+        logger.info("Génération de la prédiction Kronos...")
+        kronos_pred = get_kronos_prediction(data_with_features, pred_len=24)
+        kronos_decision = None
+        if kronos_pred and kronos_pred.get("signal"):
+            kronos_decision = {
+                "signal": kronos_pred["signal"],
+                "confidence": kronos_pred["confidence"],
+                "analysis": kronos_pred["analysis"],
+            }
+            kronos_pred_df = kronos_pred.get("forecast_df")
+            logger.info(f"Kronos signal: {kronos_decision['signal']} ({kronos_decision['confidence']:.2f})")
+        else:
+            logger.warning("Modèle Kronos non disponible ou erreur.")
+
+        # 1.5 Prédictions Kronos (calculées tôt pour le graphique)
+        logger.info("Génération de la prédiction Kronos...")
+        kronos_pred = get_kronos_prediction(data_with_features, pred_len=24)
+        kronos_decision = None
+        if kronos_pred and kronos_pred.get("signal"):
+            kronos_decision = {
+                "signal": kronos_pred["signal"],
+                "confidence": kronos_pred["confidence"],
+                "analysis": kronos_pred["analysis"],
+            }
+            kronos_pred_df = kronos_pred.get("forecast_df")
+            logger.info(f"Kronos signal: {kronos_decision['signal']} ({kronos_decision['confidence']:.2f})")
+        else:
+            logger.warning("Modèle Kronos non disponible ou erreur.")
 
         # 2. Génération du graphique pour l'analyse visuelle
         chart_generated = generate_chart_image(
             data_with_features,
             self.chart_output_path,
             title=f"{self.ticker} - Enhanced Analysis Chart",
+            kronos_pred_df=kronos_pred_df,
         )
 
         # 3. Analyse de sentiment et News (Déplacé avant le LLM pour servir de contexte)
@@ -327,9 +323,7 @@ class EnhancedTradingSystem:
             news_data = json.loads(process.stdout)
             headlines = news_data.get("headlines", [])
             sentiment_score = news_data.get("sentiment", 0)
-            logger.info(
-                f"Successfully fetched {len(headlines)} news headlines. Sentiment score: {sentiment_score:.2f}"
-            )
+            logger.info(f"Successfully fetched {len(headlines)} news headlines. Sentiment score: {sentiment_score:.2f}")
         except Exception as e:
             logger.error(f"Failed to fetch news: {e}")
 
@@ -337,9 +331,7 @@ class EnhancedTradingSystem:
 
         # Web Research pour contexte Macro
         logger.info("Début de la recherche Web Macro...")
-        search_query = generate_search_query(
-            self.analysis_ticker, latest_data=data_with_features
-        )
+        search_query = generate_search_query(self.analysis_ticker, latest_data=data_with_features)
         web_context = get_web_context_sync(search_query)
         logger.info("Recherche Web Macro terminée.")
 
@@ -394,9 +386,7 @@ class EnhancedTradingSystem:
 
         # Check if we have sufficient data for analysis
         if hist_data.empty or len(hist_data) < 2:
-            raise ValueError(
-                f"Insufficient price data for analysis: {len(hist_data)} rows"
-            )
+            raise ValueError(f"Insufficient price data for analysis: {len(hist_data)} rows")
 
         # 1. Évaluation des risques (basée sur l'INDICE)
         risk_metrics = self.risk_manager.calculate_comprehensive_risk(
@@ -410,9 +400,7 @@ class EnhancedTradingSystem:
         returns = hist_data["Close"].pct_change().dropna()
         if len(returns) < 2:
             current_volatility = 0.15  # Default volatility
-            logger.warning(
-                "Insufficient data for volatility calculation, using default"
-            )
+            logger.warning("Insufficient data for volatility calculation, using default")
         else:
             current_volatility = returns.std() * np.sqrt(252)
 
@@ -435,21 +423,16 @@ class EnhancedTradingSystem:
 
         # 4. Décision hybride améliorée
         # On désactive le modèle Vincent Ganne pour le Pétrole (absurde de l'utiliser sur lui-même)
-        is_oil = any(
-            oil_ticker in self.analysis_ticker for oil_ticker in ["CL=F", "BZ=F"]
-        )
+        is_oil = any(oil_ticker in self.analysis_ticker for oil_ticker in ["CL=F", "BZ=F"])
         effective_vg_indicators = None if is_oil else vg_indicators
 
         oil_bench_decision = None
         if EIAClient.is_oil_ticker(self.analysis_ticker):
             try:
                 oil_model = OilBenchModel()
-                oil_bench_decision = oil_model.analyze(
-                    ticker=self.analysis_ticker, headlines=None
-                )
+                oil_bench_decision = oil_model.analyze(ticker=self.analysis_ticker, headlines=None)
                 logger.info(
-                    f"OilBench signal: {oil_bench_decision['signal']} "
-                    f"(conf={oil_bench_decision['confidence']:.2f})"
+                    f"OilBench signal: {oil_bench_decision['signal']} (conf={oil_bench_decision['confidence']:.2f})"
                 )
             except Exception as e:
                 logger.error(f"OilBench model failed (isolated): {e}")
@@ -487,20 +470,17 @@ class EnhancedTradingSystem:
         )
 
         # 6. Vérification des overrides de risque
-        risk_adjusted_signal, adjustment_reason = (
-            self.risk_manager.get_risk_adjusted_signal(
-                enhanced_decision.final_signal,
-                enhanced_decision.final_confidence,
-                risk_metrics,
-                price_data=hist_data["Close"],
-                ticker=self.ticker,
-            )
+        risk_adjusted_signal, adjustment_reason = self.risk_manager.get_risk_adjusted_signal(
+            enhanced_decision.final_signal,
+            enhanced_decision.final_confidence,
+            risk_metrics,
+            price_data=hist_data["Close"],
+            ticker=self.ticker,
         )
 
         if risk_adjusted_signal != enhanced_decision.final_signal:
             logger.warning(
-                f"Signal ajuste par la gestion des risques: "
-                f"{enhanced_decision.final_signal} -> {risk_adjusted_signal}"
+                f"Signal ajuste par la gestion des risques: {enhanced_decision.final_signal} -> {risk_adjusted_signal}"
             )
             logger.warning(f"Raison: {adjustment_reason}")
 
@@ -518,9 +498,7 @@ class EnhancedTradingSystem:
         """
         Lance une analyse complète avec tous les composants améliorés.
         """
-        logger.info(
-            f"=== DÉMARRAGE DE L'ANALYSE {'SIMULÉE' if is_simulation else 'AMÉLIORÉE'} ==="
-        )
+        logger.info(f"=== DÉMARRAGE DE L'ANALYSE {'SIMULÉE' if is_simulation else 'AMÉLIORÉE'} ===")
 
         try:
             # 1. Préparation des données (avec current_etf_price et vg_indicators)
@@ -557,9 +535,7 @@ class EnhancedTradingSystem:
             )
 
             # 6. Mise à jour du monitoring (basée sur le rendement de l'ETF)
-            performance_report = self.update_performance_monitoring(
-                analysis_results, current_etf_price, trades
-            )
+            performance_report = self.update_performance_monitoring(analysis_results, current_etf_price, trades)
 
             # 7. Affichage des résultats
             self.display_enhanced_results(analysis_results, performance_report)
@@ -572,9 +548,7 @@ class EnhancedTradingSystem:
             logger.error(f"Erreur lors de l'analyse: {e}")
             raise
 
-    def _execute_hypothetical_trade(
-        self, analysis_results, current_price, analysis_date, is_simulation=False
-    ):
+    def _execute_hypothetical_trade(self, analysis_results, current_price, analysis_date, is_simulation=False):
         """Executes a hypothetical trade based on the signal with strict simulation logic."""
         signal = analysis_results["risk_adjusted_signal"]
         transaction_cost_pct = 0.001  # 0.1%
@@ -626,9 +600,7 @@ class EnhancedTradingSystem:
                     "cost": current_cash,
                 }
             )
-            logger.info(
-                f"TRADE: Executed BUY of {quantity:.4f} shares at ${current_price:.2f}"
-            )
+            logger.info(f"TRADE: Executed BUY of {quantity:.4f} shares at ${current_price:.2f}")
 
         elif "SELL" in signal and last_type == "BUY" and current_position > 0:
             # We can SELL only if we currently hold a position
@@ -655,9 +627,7 @@ class EnhancedTradingSystem:
                     "cost": new_cash,
                 }
             )
-            logger.info(
-                f"TRADE: Executed SELL at ${current_price:.2f}, New Balance: ${new_cash:.2f}"
-            )
+            logger.info(f"TRADE: Executed SELL at ${current_price:.2f}, New Balance: ${new_cash:.2f}")
 
         # Update portfolio state
         total_value = new_position * current_price + new_cash
@@ -671,9 +641,7 @@ class EnhancedTradingSystem:
         )
         return trades
 
-    def update_performance_monitoring(
-        self, analysis_results, current_etf_price, trades
-    ):
+    def update_performance_monitoring(self, analysis_results, current_etf_price, trades):
         """Met à jour le monitoring de performance."""
         logger.info("Mise à jour du monitoring de performance...")
 
@@ -686,7 +654,8 @@ class EnhancedTradingSystem:
             conn = sqlite3.connect(self.performance_monitor.db_path)
             last_val_df = pd.read_sql_query(
                 "SELECT portfolio_value FROM realtime_metrics WHERE ticker = ? ORDER BY timestamp DESC LIMIT 1",
-                conn, params=(self.ticker,)
+                conn,
+                params=(self.ticker,),
             )
             conn.close()
             if not last_val_df.empty:
@@ -716,14 +685,10 @@ class EnhancedTradingSystem:
         )
 
         # Génération du dashboard
-        self.performance_monitor.create_performance_dashboard(
-            f"enhanced_performance_dashboard_{self.ticker}.png"
-        )
+        self.performance_monitor.create_performance_dashboard(f"enhanced_performance_dashboard_{self.ticker}.png")
 
         # Génération du rapport
-        performance_report = self.performance_monitor.generate_performance_report(
-            days_back=7
-        )
+        performance_report = self.performance_monitor.generate_performance_report(days_back=7)
 
         return performance_report
 
@@ -763,11 +728,7 @@ class EnhancedTradingSystem:
 
         # Consensus des modèles
         consensus_style = (
-            "green"
-            if decision.consensus_score > 0.7
-            else "yellow"
-            if decision.consensus_score > 0.4
-            else "red"
+            "green" if decision.consensus_score > 0.7 else "yellow" if decision.consensus_score > 0.4 else "red"
         )
 
         main_table.add_row(
@@ -828,11 +789,7 @@ class EnhancedTradingSystem:
         for model_decision in decision.individual_decisions:
             model_name = model_decision.model_name
             signal_style = (
-                "green"
-                if "BUY" in model_decision.signal
-                else "red"
-                if "SELL" in model_decision.signal
-                else "yellow"
+                "green" if "BUY" in model_decision.signal else "red" if "SELL" in model_decision.signal else "yellow"
             )
 
             models_table.add_row(
@@ -870,9 +827,7 @@ class EnhancedTradingSystem:
 def main():
     """Fonction principale de démonstration."""
     # Configuration du logging
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
     # Initialisation et exécution du système amélioré
     enhanced_system = EnhancedTradingSystem(ticker="QQQ")
@@ -883,9 +838,7 @@ def main():
     print("\n" + "=" * 80)
     print("SYSTÈME DE TRADING AI AMÉLIORÉ - ANALYSE TERMINÉE")
     print("=" * 80)
-    print(
-        "Graphiques générés: enhanced_trading_chart.png, enhanced_performance_dashboard.png"
-    )
+    print("Graphiques générés: enhanced_trading_chart.png, enhanced_performance_dashboard.png")
     print(f"Décision finale: {results['enhanced_decision'].final_signal}")
     print(f"Niveau de risque: {results['risk_metrics'].risk_level.name}")
     print(f"Position recommandée: ${results['position_sizing'].recommended_size:,.2f}")

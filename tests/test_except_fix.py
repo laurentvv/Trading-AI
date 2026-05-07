@@ -37,9 +37,7 @@ def test_except_handling():
         save_portfolio_state(test_state, "TEST")
 
         loaded = load_portfolio_state("TEST")
-        assert loaded["current_capital"] == 1100.0, (
-            f"Expected 1100, got {loaded['current_capital']}"
-        )
+        assert loaded["current_capital"] == 1100.0, f"Expected 1100, got {loaded['current_capital']}"
         print("PASS: State save/load works correctly")
 
     finally:

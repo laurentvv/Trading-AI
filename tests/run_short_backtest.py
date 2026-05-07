@@ -13,7 +13,5 @@ if __name__ == "__main__":
     start = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
 
     # Mode Fast pour ne pas attendre Ollama
-    bt = Backtester(
-        ticker_etf="SXRV.DE", ticker_index="^NDX", fast_mode=True, use_visual=False
-    )
+    bt = Backtester(ticker_etf="SXRV.DE", ticker_index="^NDX", fast_mode=True, use_visual=False)
     bt.run(start, end)

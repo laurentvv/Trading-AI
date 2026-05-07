@@ -38,9 +38,7 @@ def get_tensortrade_prediction(df: pd.DataFrame) -> dict:
                 self.prices = prices
                 self.current_step = 0
                 self.action_space = gym.spaces.Discrete(3)  # 0: Hold, 1: Buy, 2: Sell
-                self.observation_space = gym.spaces.Box(
-                    low=-np.inf, high=np.inf, shape=(5,), dtype=np.float32
-                )
+                self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(5,), dtype=np.float32)
 
             def step(self, action):
                 self.current_step += 1
@@ -49,10 +47,7 @@ def get_tensortrade_prediction(df: pd.DataFrame) -> dict:
                 # Simple reward: if bought, reward is price change. If sold, inverse.
                 reward = 0
                 if not done:
-                    price_change = (
-                        self.prices[self.current_step]
-                        - self.prices[self.current_step - 1]
-                    )
+                    price_change = self.prices[self.current_step] - self.prices[self.current_step - 1]
                     if action == 1:
                         reward = price_change
                     elif action == 2:
@@ -102,9 +97,7 @@ def get_tensortrade_prediction(df: pd.DataFrame) -> dict:
         except Exception:
             confidence = 0.5
 
-        logger.info(
-            f"TensorTrade prédiction finale : {signal} (Confiance: {confidence:.2f})"
-        )
+        logger.info(f"TensorTrade prédiction finale : {signal} (Confiance: {confidence:.2f})")
 
         return {"signal": signal, "confidence": confidence}
 

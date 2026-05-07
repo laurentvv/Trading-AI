@@ -33,12 +33,8 @@ def test_weight_alignment():
     for model_name, expected_weight in expected.items():
         eng_weight = engine.base_weights.get(model_name)
         mgr_weight = weight_mgr.base_weights.get(model_name)
-        assert eng_weight == expected_weight, (
-            f"Engine {model_name}: expected {expected_weight}, got {eng_weight}"
-        )
-        assert mgr_weight == expected_weight, (
-            f"Manager {model_name}: expected {expected_weight}, got {mgr_weight}"
-        )
+        assert eng_weight == expected_weight, f"Engine {model_name}: expected {expected_weight}, got {eng_weight}"
+        assert mgr_weight == expected_weight, f"Manager {model_name}: expected {expected_weight}, got {mgr_weight}"
         print(f"PASS: {model_name} = {expected_weight} (both modules aligned)")
 
     print("\nAll weight alignment tests passed!")

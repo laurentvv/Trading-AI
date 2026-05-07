@@ -34,21 +34,11 @@ def construct_llm_prompt(
     Constructs a detailed prompt for the LLM from the latest market data and news.
     """
     data = latest_data.iloc[0]
-    news_text = (
-        "\n".join([f"- {h}" for h in headlines[:15]])
-        if headlines
-        else "No recent news available."
-    )
-    web_text = (
-        f"\n**Web Research / Macro Context:**\n{web_context}" if web_context else ""
-    )
+    news_text = "\n".join([f"- {h}" for h in headlines[:15]]) if headlines else "No recent news available."
+    web_text = f"\n**Web Research / Macro Context:**\n{web_context}" if web_context else ""
 
     # Déterminer le contexte de l'actif
-    asset_type = (
-        "OIL (WTI)"
-        if "CRUD" in ticker.upper() or "CL=F" in ticker.upper()
-        else "NASDAQ-100"
-    )
+    asset_type = "OIL (WTI)" if "CRUD" in ticker.upper() or "CL=F" in ticker.upper() else "NASDAQ-100"
 
     # Alternative Data / Speculative Sentiment (Hyperliquid)
     hl_text = ""
@@ -106,9 +96,7 @@ def get_llm_decision(
     Queries the textual LLM via Ollama to get a trading decision.
     """
     logger.info(f"Querying textual LLM for {ticker} decision...")
-    prompt = construct_llm_prompt(
-        latest_data, headlines, web_context, vg_indicators, ticker
-    )
+    prompt = construct_llm_prompt(latest_data, headlines, web_context, vg_indicators, ticker)
     payload = {
         "model": TEXT_LLM_MODEL,
         "prompt": prompt,
@@ -167,9 +155,7 @@ def get_visual_llm_decision(image_path: Path) -> dict:
     return _query_ollama(payload)
 
 
-def _query_ollama(
-    payload: dict, max_retries: int = 3, expected_keys: list = None
-) -> dict:
+def _query_ollama(payload: dict, max_retries: int = 3, expected_keys: list = None) -> dict:
     """
     Enhanced helper function to send a request to the Ollama API.
     Includes robust JSON extraction and error handling.
@@ -187,9 +173,7 @@ def _query_ollama(
             raw_output = response_data.get("response", "").strip()
 
             if not raw_output or raw_output == "{}":
-                logger.warning(
-                    f"Attempt {attempt + 1}: Empty or trivial response from LLM."
-                )
+                logger.warning(f"Attempt {attempt + 1}: Empty or trivial response from LLM.")
                 continue
 
             # Robust JSON extraction (in case of markdown or preamble)
@@ -208,18 +192,14 @@ def _query_ollama(
             try:
                 llm_output = json.loads(json_str)
             except json.JSONDecodeError:
-                logger.error(
-                    f"Attempt {attempt + 1}: Could not parse JSON. Output: {raw_output[:100]}..."
-                )
+                logger.error(f"Attempt {attempt + 1}: Could not parse JSON. Output: {raw_output[:100]}...")
                 continue
 
             # Normalize keys to lowercase for robustness
             llm_output = {k.lower(): v for k, v in llm_output.items()}
 
             if not all(key.lower() in llm_output for key in expected_keys):
-                logger.warning(
-                    f"Attempt {attempt + 1}: Missing keys in {list(llm_output.keys())}"
-                )
+                logger.warning(f"Attempt {attempt + 1}: Missing keys in {list(llm_output.keys())}")
                 continue
 
             logger.info(f"LLM decision ({model_name}) received and validated.")
@@ -230,16 +210,8 @@ def _query_ollama(
             if attempt < max_retries - 1:
                 time.sleep(2 * (attempt + 1))
             else:
-                logger.error(
-                    f"All {max_retries} attempts failed for LLM ({model_name})."
-                )
+                logger.error(f"All {max_retries} attempts failed for LLM ({model_name}).")
                 # Default response fallback
-                return {
-                    k: "HOLD" if k == "signal" else 0.0 if k == "confidence" else ""
-                    for k in expected_keys
-                }
+                return {k: "HOLD" if k == "signal" else 0.0 if k == "confidence" else "" for k in expected_keys}
 
-    return {
-        k: "HOLD" if k == "signal" else 0.0 if k == "confidence" else ""
-        for k in expected_keys
-    }
+    return {k: "HOLD" if k == "signal" else 0.0 if k == "confidence" else "" for k in expected_keys}

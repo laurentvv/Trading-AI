@@ -43,9 +43,7 @@ class NewsNowTools:
         # Simple in-memory cache: source_id -> {"time": timestamp, "data": []}
         self._cache = {}
 
-    def fetch_hot_news(
-        self, source_id: str, count: int = 15, fetch_content: bool = False
-    ) -> List[Dict]:
+    def fetch_hot_news(self, source_id: str, count: int = 15, fetch_content: bool = False) -> List[Dict]:
         """
         从指定新闻源获取热点新闻列表（支持5分钟缓存）。
         """
@@ -55,16 +53,12 @@ class NewsNowTools:
         now = time.time()
 
         if cached and (now - cached["time"] < 300):
-            logger.info(
-                f"⚡ Using cached news for {source_id} (Age: {int(now - cached['time'])}s)"
-            )
+            logger.info(f"⚡ Using cached news for {source_id} (Age: {int(now - cached['time'])}s)")
             return cached["data"]
 
         try:
             url = f"{self.BASE_URL}/api/s?id={source_id}"
-            response = requests.get(
-                url, headers={"User-Agent": self.user_agent}, timeout=30
-            )
+            response = requests.get(url, headers={"User-Agent": self.user_agent}, timeout=30)
             if response.status_code == 200:
                 data = response.json()
                 items = data.get("items", [])[:count]
@@ -77,8 +71,7 @@ class NewsNowTools:
 
                     processed_items.append(
                         {
-                            "id": item.get("id")
-                            or f"{source_id}_{int(time.time())}_{i}",
+                            "id": item.get("id") or f"{source_id}_{int(time.time())}_{i}",
                             "source": source_id,
                             "rank": i,
                             "title": item.get("title", ""),
@@ -111,9 +104,7 @@ class NewsNowTools:
         except RequestException as e:
             logger.error(f"Network error fetching hot news from {source_id}: {e}")
             if cached:
-                logger.warning(
-                    f"⚠️ Network check failed, using stale cache for {source_id}"
-                )
+                logger.warning(f"⚠️ Network check failed, using stale cache for {source_id}")
                 return cached["data"]
             return []
         except json.JSONDecodeError:
@@ -176,9 +167,7 @@ class PolymarketTools:
 
     def __init__(self, db: DatabaseManager):
         self.db = db
-        self.user_agent = (
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
-        )
+        self.user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 
     def get_active_markets(self, limit: int = 20) -> List[Dict]:
         """

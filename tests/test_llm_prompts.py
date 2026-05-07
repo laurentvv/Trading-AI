@@ -40,9 +40,7 @@ class TestLLMPrompts(unittest.TestCase):
 
     def test_construct_llm_prompt_content(self):
         """Affiche et vérifie le prompt texte généré."""
-        prompt = construct_llm_prompt(
-            self.sample_data, self.headlines, self.web_context, self.vg_indicators
-        )
+        prompt = construct_llm_prompt(self.sample_data, self.headlines, self.web_context, self.vg_indicators)
 
         print("\n" + "=" * 50)
         print("🔍 ANALYSE DU PROMPT TEXTUEL GÉNÉRÉ :")

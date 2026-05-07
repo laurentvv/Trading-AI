@@ -191,9 +191,7 @@ def get_t212_price(ticker_yahoo: str) -> float | None:
             for pos in resp.json():
                 if pos["instrument"]["ticker"] == t212_ticker:
                     price = float(pos["currentPrice"])
-                    logger.info(
-                        f"T212 live price for {ticker_yahoo} ({t212_ticker}): {price:.2f} EUR"
-                    )
+                    logger.info(f"T212 live price for {ticker_yahoo} ({t212_ticker}): {price:.2f} EUR")
                     return price
             logger.debug(f"No T212 position found for {t212_ticker}, price unavailable")
     except Exception as e:
@@ -250,11 +248,7 @@ def execute_t212_trade(
     t212_ticker = get_t212_ticker(ticker)
 
     # Date pour la BDD (maintenant ou date d'analyse fournie)
-    db_date = (
-        analysis_date
-        if analysis_date
-        else datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    )
+    db_date = analysis_date if analysis_date else datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     # Charger l'état spécifique au ticker (on utilise le ticker T212 comme clé)
     state = load_portfolio_state(t212_ticker)
@@ -269,9 +263,7 @@ def execute_t212_trade(
     def safe_request(method, url, **kwargs):
         for attempt in range(3):
             resp = requests.request(method, url, **kwargs)
-            if resp.status_code == 429 or (
-                resp.status_code == 400 and "TooManyRequests" in resp.text
-            ):
+            if resp.status_code == 429 or (resp.status_code == 400 and "TooManyRequests" in resp.text):
                 wait = (attempt + 1) * 2
                 logger.warning(f"⚠️ Rate limit atteint, attente de {wait}s...")
                 time.sleep(wait)
@@ -281,9 +273,7 @@ def execute_t212_trade(
 
     def get_portfolio_info():
         """Vérifie le cash et les positions réelles sur Trading 212."""
-        summary = safe_request(
-            "GET", f"{base_url}/equity/account/summary", headers=headers
-        )
+        summary = safe_request("GET", f"{base_url}/equity/account/summary", headers=headers)
         positions = safe_request("GET", f"{base_url}/equity/positions", headers=headers)
 
         info = {"cash": 0.0, "positions": []}
@@ -307,9 +297,7 @@ def execute_t212_trade(
     )
 
     if current_pos:
-        logger.info(
-            f"   - Position détectée : {current_pos['quantity']} actions de {t212_ticker}"
-        )
+        logger.info(f"   - Position détectée : {current_pos['quantity']} actions de {t212_ticker}")
     else:
         logger.info(f"   - Aucune position ouverte sur {t212_ticker}")
 
@@ -322,15 +310,12 @@ def execute_t212_trade(
                 )
                 # Resynchronisation du suivi si nécessaire
                 if not state.get("active_position"):
-                    logger.info(
-                        "🔄 Synchronisation du suivi local avec la position réelle..."
-                    )
+                    logger.info("🔄 Synchronisation du suivi local avec la position réelle...")
                     entry_price = (
                         current_pos.get("averagePrice")
                         or current_pos.get("avgPrice")
                         or (
-                            current_pos["walletImpact"]["currentValue"]
-                            / current_pos["quantity"]
+                            current_pos["walletImpact"]["currentValue"] / current_pos["quantity"]
                             if current_pos["quantity"] > 0
                             else 0.0
                         )
@@ -345,9 +330,7 @@ def execute_t212_trade(
                     }
                     save_portfolio_state(state, t212_ticker)
             else:
-                logger.warning(
-                    f"⚠️ Position déjà active pour {t212_ticker} dans le suivi. Achat ignoré."
-                )
+                logger.warning(f"⚠️ Position déjà active pour {t212_ticker} dans le suivi. Achat ignoré.")
             return
 
         # 1. Obtenir le prix le plus précis possible
@@ -355,11 +338,7 @@ def execute_t212_trade(
             current_price = get_real_price_eur(ticker)
             # --- AJOUT : Obtenir aussi le prix de l'INDICE de référence ---
             index_ticker = (
-                "^NDX"
-                if "SXRV" in t212_ticker.upper()
-                else "CL=F"
-                if "CRUD" in t212_ticker.upper()
-                else ticker
+                "^NDX" if "SXRV" in t212_ticker.upper() else "CL=F" if "CRUD" in t212_ticker.upper() else ticker
             )
             try:
                 index_price = get_real_price_eur(index_ticker)
@@ -400,9 +379,7 @@ def execute_t212_trade(
         # 3. Passage de l'ordre
         logger.info(f"🚀 Envoi de l'ordre d'achat de {quantity} {t212_ticker}...")
         order_data = {"ticker": t212_ticker, "quantity": quantity}
-        resp = safe_request(
-            "POST", f"{base_url}/equity/orders/market", headers=headers, json=order_data
-        )
+        resp = safe_request("POST", f"{base_url}/equity/orders/market", headers=headers, json=order_data)
 
         if resp.status_code in [200, 201, 202]:
             logger.info(f"✅ Ordre placé ! Quantité : {quantity}")
@@ -437,9 +414,7 @@ def execute_t212_trade(
             return
 
         if not current_pos:
-            logger.warning(
-                "⚠️ Position présente dans le suivi mais INTROUVABLE sur T212. Reset du suivi."
-            )
+            logger.warning("⚠️ Position présente dans le suivi mais INTROUVABLE sur T212. Reset du suivi.")
             state["active_position"] = None
             save_portfolio_state(state, t212_ticker)
             return
@@ -451,18 +426,12 @@ def execute_t212_trade(
         logger.info(f"📉 Vente de TOUTE la position sur {t212_ticker} ({total_qty} actions)")
 
         order_data = {"ticker": t212_ticker, "quantity": -total_qty}
-        sell_resp = safe_request(
-            "POST", f"{base_url}/equity/orders/market", headers=headers, json=order_data
-        )
+        sell_resp = safe_request("POST", f"{base_url}/equity/orders/market", headers=headers, json=order_data)
 
         if sell_resp.status_code in [200, 201, 202]:
             logger.info("✅ Vente effectuée.")
             # Calcul précis du nouveau capital en incluant le cash non-investi (résiduel)
-            buy_cost = (
-                state["active_position"]["buy_budget"]
-                if state.get("active_position")
-                else current_value_eur
-            )
+            buy_cost = state["active_position"]["buy_budget"] if state.get("active_position") else current_value_eur
 
             previous_capital = state.get("current_capital", buy_cost)
             residual_cash = max(0, previous_capital - buy_cost)

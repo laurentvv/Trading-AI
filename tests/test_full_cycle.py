@@ -44,13 +44,9 @@ def run_test():
     # SAFETY CHECK: Prevent accidental deletion of production databases
     env = os.getenv("T212_ENV", "demo").lower()
     if env != "demo" and os.getenv("FORCE_TEST_RUN") != "1":
-        print(
-            "⚠️ [WARNING] This test will DELETE trading_history.db and other databases."
-        )
+        print("⚠️ [WARNING] This test will DELETE trading_history.db and other databases.")
         print("⚠️ It is currently restricted to 'demo' environment.")
-        print(
-            "⚠️ To bypass this check, set FORCE_TEST_RUN=1 and T212_ENV=demo in your .env.t212 file."
-        )
+        print("⚠️ To bypass this check, set FORCE_TEST_RUN=1 and T212_ENV=demo in your .env.t212 file.")
         print("❌ Test aborted for safety.")
         return
 

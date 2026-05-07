@@ -68,9 +68,7 @@ def main():
 
     # 4. Installation via uv en mode éditable
     # Cela permet d'avoir la lib dans le venv tout en gardant nos patchs locaux
-    run_command(
-        f"uv pip install -e {timesfm_dir}", "Installing TimesFM in editable mode via uv"
-    )
+    run_command(f"uv pip install -e {timesfm_dir}", "Installing TimesFM in editable mode via uv")
 
     print("\n[V] TimesFM 2.5 is now correctly installed and patched!")
     print("[*] You can now run the analysis with 'uv run main.py'")

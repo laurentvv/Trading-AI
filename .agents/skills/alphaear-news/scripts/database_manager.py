@@ -42,12 +42,8 @@ class DatabaseManager:
         """)
 
         # Indexes
-        cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_news_crawl_time ON daily_news(crawl_time)"
-        )
-        cursor.execute(
-            "CREATE INDEX IF NOT EXISTS idx_news_source ON daily_news(source)"
-        )
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_news_crawl_time ON daily_news(crawl_time)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_news_source ON daily_news(source)")
 
         self.conn.commit()
 
@@ -61,10 +57,7 @@ class DatabaseManager:
 
         for news in news_list:
             try:
-                news_id = (
-                    news.get("id")
-                    or f"{news.get('source')}_{news.get('rank')}_{crawl_time[:10]}"
-                )
+                news_id = news.get("id") or f"{news.get('source')}_{news.get('rank')}_{crawl_time[:10]}"
                 cursor.execute(
                     """
                     INSERT OR REPLACE INTO daily_news 
@@ -91,9 +84,7 @@ class DatabaseManager:
         self.conn.commit()
         return count
 
-    def get_daily_news(
-        self, source: Optional[str] = None, limit: int = 100, days: int = 1
-    ) -> List[Dict]:
+    def get_daily_news(self, source: Optional[str] = None, limit: int = 100, days: int = 1) -> List[Dict]:
         """Get recent news"""
         cursor = self.conn.cursor()
         time_threshold = datetime.now().timestamp() - days * 86400
@@ -118,9 +109,7 @@ class DatabaseManager:
         self.conn.commit()
         return cursor.rowcount > 0
 
-    def update_news_content(
-        self, news_id: str, content: str = None, analysis: str = None
-    ) -> bool:
+    def update_news_content(self, news_id: str, content: str = None, analysis: str = None) -> bool:
         cursor = self.conn.cursor()
         updates = []
         params = []

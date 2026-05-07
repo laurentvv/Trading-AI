@@ -57,9 +57,7 @@ def create_technical_indicators(data: pd.DataFrame) -> pd.DataFrame:
     df["BB_Upper"] = df["BB_Middle"] + (2 * bb_std)
     df["BB_Lower"] = df["BB_Middle"] - (2 * bb_std)
     df["BB_Width"] = df["BB_Upper"] - df["BB_Lower"]
-    df["BB_Position"] = (df["Close"] - df["BB_Lower"]) / (
-        df["BB_Upper"] - df["BB_Lower"]
-    )
+    df["BB_Position"] = (df["Close"] - df["BB_Lower"]) / (df["BB_Upper"] - df["BB_Lower"])
 
     # Stochastic
     low_14 = df["Low"].rolling(window=14).min()
@@ -113,9 +111,7 @@ def _align_macro_data(market_data: pd.DataFrame, macro_data_dict: dict) -> pd.Da
     # Forward-fill macro data to propagate the latest known values
     for col in macro_data_dict.keys():
         if col in combined_df.columns:
-            combined_df[col] = combined_df[
-                col
-            ].ffill()  # Updated from deprecated fillna(method='ffill')
+            combined_df[col] = combined_df[col].ffill()  # Updated from deprecated fillna(method='ffill')
 
     return combined_df
 
@@ -131,16 +127,12 @@ def create_features(data: pd.DataFrame, macro_context: dict = None) -> pd.DataFr
         try:
             df = _align_macro_data(df, macro_context)
             available_macro = [k for k, v in macro_context.items() if v is not None]
-            logger.info(
-                f"Added {len(available_macro)} macroeconomic features: {list(available_macro)}"
-            )
+            logger.info(f"Added {len(available_macro)} macroeconomic features: {list(available_macro)}")
         except Exception as e:
             logger.warning(f"Failed to add macroeconomic context: {e}")
             logger.info("Continuing with technical indicators only")
     else:
-        logger.info(
-            "No macroeconomic context provided - using technical indicators only"
-        )
+        logger.info("No macroeconomic context provided - using technical indicators only")
 
     # Crossover signals
     df["MA_Cross_5_20"] = (df["MA_5"] > df["MA_20"]).astype(int)
@@ -154,10 +146,9 @@ def create_features(data: pd.DataFrame, macro_context: dict = None) -> pd.DataFr
 
     # MACD signals
     df["MACD_Bull"] = (df["MACD"] > df["MACD_Signal"]).astype(int)
-    df["MACD_Cross"] = (
-        (df["MACD"] > df["MACD_Signal"])
-        & (df["MACD"].shift(1) <= df["MACD_Signal"].shift(1))
-    ).astype(int)
+    df["MACD_Cross"] = ((df["MACD"] > df["MACD_Signal"]) & (df["MACD"].shift(1) <= df["MACD_Signal"].shift(1))).astype(
+        int
+    )
 
     # Bollinger Bands signals
     df["BB_Squeeze"] = (df["BB_Width"] < df["BB_Width"].rolling(20).mean()).astype(int)
@@ -170,12 +161,8 @@ def create_features(data: pd.DataFrame, macro_context: dict = None) -> pd.DataFr
     df["Volume_Spike"] = (df["Volume_Ratio"] > 1.5).astype(int)
 
     # Trend features
-    df["Trend_Short"] = np.where(
-        df["MA_5"] > df["MA_20"], 1, np.where(df["MA_5"] < df["MA_20"], -1, 0)
-    )
-    df["Trend_Long"] = np.where(
-        df["MA_20"] > df["MA_50"], 1, np.where(df["MA_20"] < df["MA_50"], -1, 0)
-    )
+    df["Trend_Short"] = np.where(df["MA_5"] > df["MA_20"], 1, np.where(df["MA_5"] < df["MA_20"], -1, 0))
+    df["Trend_Long"] = np.where(df["MA_20"] > df["MA_50"], 1, np.where(df["MA_20"] < df["MA_50"], -1, 0))
 
     # Improved target variable (future return over multiple horizons)
     # Use np.where but preserve NaN for the last rows
@@ -278,18 +265,12 @@ def select_features(data: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, list]:
     missing_macro = [col for col in macro_features if col not in data.columns]
 
     # Log feature availability
-    logger.info(
-        f"Core features available: {len(core_features) - len(missing_core)}/{len(core_features)}"
-    )
+    logger.info(f"Core features available: {len(core_features) - len(missing_core)}/{len(core_features)}")
     if missing_core:
-        logger.warning(
-            f"Missing CORE features: {missing_core[:3]}{'...' if len(missing_core) > 3 else ''}"
-        )
+        logger.warning(f"Missing CORE features: {missing_core[:3]}{'...' if len(missing_core) > 3 else ''}")
 
     if missing_macro:
-        logger.info(
-            f"Missing macro features (optional): {len(missing_macro)}/{len(macro_features)}"
-        )
+        logger.info(f"Missing macro features (optional): {len(missing_macro)}/{len(macro_features)}")
         logger.debug(f"Macro features not available: {missing_macro}")
     else:
         logger.info("All macroeconomic features available")
@@ -303,14 +284,10 @@ def select_features(data: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, list]:
         "BB_Position",
         "Volume_Ratio",
     ]
-    missing_required = [
-        col for col in min_required_features if col not in available_features
-    ]
+    missing_required = [col for col in min_required_features if col not in available_features]
 
     if missing_required:
-        raise ValueError(
-            f"Critical features missing: {missing_required}. Cannot proceed with analysis."
-        )
+        raise ValueError(f"Critical features missing: {missing_required}. Cannot proceed with analysis.")
 
     # Select features and target
     X = data[available_features].copy()
@@ -330,9 +307,7 @@ def select_features(data: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series, list]:
     # Check for infinite values and replace them
     inf_mask = np.isinf(X_clean).any(axis=1)
     if inf_mask.sum() > 0:
-        logger.warning(
-            f"Found {inf_mask.sum()} rows with infinite values, removing them"
-        )
+        logger.warning(f"Found {inf_mask.sum()} rows with infinite values, removing them")
         X_clean = X_clean[~inf_mask]
         y_clean = y_clean[~inf_mask]
 

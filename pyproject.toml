@@ -32,6 +32,7 @@ dependencies = [
     "crawl4ai>=0.8.6",
     "tensortrade>=1.0.4",
     "stable-baselines3>=2.8.0",
+    "einops>=0.8.2",
 ]
 
 [tool.pytest.ini_options]

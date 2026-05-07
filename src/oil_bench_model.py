@@ -66,9 +66,7 @@ class OilBenchModel:
 
         for name, ticker in tickers.items():
             try:
-                data = yf.download(
-                    ticker, period=f"{self.config.lookback_days}d", progress=False
-                )
+                data = yf.download(ticker, period=f"{self.config.lookback_days}d", progress=False)
                 if data.empty:
                     result[name] = {"price": None, "change_pct": None}
                     continue
@@ -86,9 +84,7 @@ class OilBenchModel:
 
         return result
 
-    def _construct_prompt(
-        self, price_data: dict, eia_text: str, headlines: list
-    ) -> str:
+    def _construct_prompt(self, price_data: dict, eia_text: str, headlines: list) -> str:
         wti = price_data.get("wti", {})
         brent = price_data.get("brent", {})
         dxy = price_data.get("dxy", {})
@@ -110,9 +106,7 @@ class OilBenchModel:
 
         if brent_spot_price and brent_price:
             dated_spread = brent_spot_price - brent_price
-            spread_text += (
-                f"\n- Dated Brent Spread (Spot vs Futures): ${dated_spread:.2f}"
-            )
+            spread_text += f"\n- Dated Brent Spread (Spot vs Futures): ${dated_spread:.2f}"
             if dated_spread > 10:
                 spread_text += " [EXTREME PHYSICAL TENSION]"
             elif dated_spread < 3:

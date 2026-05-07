@@ -21,9 +21,7 @@ def test_connection():
     env = os.getenv("T212_ENV", "demo").lower()
 
     if not api_key or not api_secret:
-        print(
-            "❌ Erreur : T212_API_KEY ou T212_API_SECRET non trouvés dans l'environnement."
-        )
+        print("❌ Erreur : T212_API_KEY ou T212_API_SECRET non trouvés dans l'environnement.")
         print("Assurez-vous d'avoir créé un fichier .env.t212 avec vos identifiants.")
         return
 
@@ -60,9 +58,7 @@ def test_connection():
             if positions:
                 for pos in positions:
                     instr = pos.get("instrument", {})
-                    print(
-                        f"  - {instr.get('name')} ({instr.get('ticker')}): {pos.get('quantity')} actions"
-                    )
+                    print(f"  - {instr.get('name')} ({instr.get('ticker')}): {pos.get('quantity')} actions")
             else:
                 print("  Aucune position ouverte.")
         else:

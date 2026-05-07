@@ -115,9 +115,7 @@ class AdvancedRiskManager:
             "sideways": {"threshold": 0.05, "risk_multiplier": 1.0},
         }
 
-    def calculate_volatility_risk(
-        self, price_data: pd.Series, window: int = 20
-    ) -> float:
+    def calculate_volatility_risk(self, price_data: pd.Series, window: int = 20) -> float:
         """
         Calculate volatility-based risk score.
 
@@ -174,9 +172,7 @@ class AdvancedRiskManager:
 
         return risk_score
 
-    def calculate_correlation_risk(
-        self, returns: pd.Series, market_returns: pd.Series = None
-    ) -> float:
+    def calculate_correlation_risk(self, returns: pd.Series, market_returns: pd.Series = None) -> float:
         """
         Calculate correlation risk with market benchmark.
 
@@ -203,9 +199,7 @@ class AdvancedRiskManager:
 
         return min(1.0, correlation_risk)
 
-    def calculate_liquidity_risk(
-        self, volume_data: pd.Series, price_data: pd.Series
-    ) -> float:
+    def calculate_liquidity_risk(self, volume_data: pd.Series, price_data: pd.Series) -> float:
         """
         Calculate liquidity risk based on volume patterns.
 
@@ -235,9 +229,7 @@ class AdvancedRiskManager:
         liquidity_risk = (volume_risk + pattern_risk) / 2
         return min(1.0, max(0.0, liquidity_risk))
 
-    def assess_market_regime(
-        self, price_data: pd.Series, lookback: int = 60
-    ) -> Dict[str, float]:
+    def assess_market_regime(self, price_data: pd.Series, lookback: int = 60) -> Dict[str, float]:
         """
         Assess current market regime (bull/bear/sideways).
 
@@ -289,9 +281,7 @@ class AdvancedRiskManager:
         drawdown_risk = self.calculate_drawdown_risk(price_data)
 
         returns = price_data.pct_change().dropna()
-        market_returns = (
-            market_data.pct_change().dropna() if market_data is not None else None
-        )
+        market_returns = market_data.pct_change().dropna() if market_data is not None else None
         correlation_risk = self.calculate_correlation_risk(returns, market_returns)
 
         liquidity_risk = 0.3  # Default if no volume data
@@ -329,9 +319,7 @@ class AdvancedRiskManager:
             risk_level=risk_level,
         )
 
-    def calculate_kelly_criterion(
-        self, win_rate: float, avg_win: float, avg_loss: float
-    ) -> float:
+    def calculate_kelly_criterion(self, win_rate: float, avg_win: float, avg_loss: float) -> float:
         """
         Calculate optimal position size using Kelly Criterion.
 
@@ -472,19 +460,12 @@ class AdvancedRiskManager:
 
         # SPECIAL FOR OIL: Be more lenient in high risk
         if is_oil and risk_metrics.risk_level in [RiskLevel.HIGH, RiskLevel.VERY_HIGH]:
-            min_buy_confidence *= (
-                0.6  # Reduce confidence requirement for Oil in "Risk-On" contexts
-            )
-            logger.info(
-                f"OIL SPECIAL RISK MODE: Reducing buy confidence threshold to {min_buy_confidence:.2f}"
-            )
+            min_buy_confidence *= 0.6  # Reduce confidence requirement for Oil in "Risk-On" contexts
+            logger.info(f"OIL SPECIAL RISK MODE: Reducing buy confidence threshold to {min_buy_confidence:.2f}")
 
         # FORCED BYPASS FOR INDEX TRADING (Aggressive mode)
         if signal in ["BUY", "STRONG_BUY"]:
-            if (
-                risk_metrics.risk_level == RiskLevel.VERY_HIGH
-                and confidence < min_buy_confidence
-            ):
+            if risk_metrics.risk_level == RiskLevel.VERY_HIGH and confidence < min_buy_confidence:
                 trend_msg = " (Bull trend detected)" if is_bull_trend else ""
                 oil_msg = " (Oil special handling)" if is_oil else ""
                 return (

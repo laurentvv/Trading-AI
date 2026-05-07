@@ -89,11 +89,7 @@ class EIAClient:
             if not df.empty:
                 latest = df.iloc[-1]
                 prev = df.iloc[-2] if len(df) > 1 else latest
-                unit = (
-                    str(df.iloc[0].get("unit", ""))
-                    if "unit" in df.columns or not df.empty
-                    else ""
-                )
+                unit = str(df.iloc[0].get("unit", "")) if "unit" in df.columns or not df.empty else ""
                 steo_data[label] = {
                     "latest_value": float(latest["value"]),
                     "latest_period": str(latest["period"]),
@@ -254,13 +250,8 @@ class EIAClient:
             current = inv["current"]
             wow = inv.get("wow_change", 0)
             direction = "build (bearish)" if wow > 0 else "draw (bullish)"
-            lines.append(
-                f"- US Crude Inventories: {current:,.0f} thousand barrels "
-                f"({wow:+,.0f} WoW, {direction})"
-            )
-            lines.append(
-                f"  WoW Change: {wow:+,.0f} KB ({inv.get('wow_change_pct', 0):+.2f}%)"
-            )
+            lines.append(f"- US Crude Inventories: {current:,.0f} thousand barrels ({wow:+,.0f} WoW, {direction})")
+            lines.append(f"  WoW Change: {wow:+,.0f} KB ({inv.get('wow_change_pct', 0):+.2f}%)")
             trend = inv.get("trend_4w")
             if trend:
                 lines.append(f"  4-Week Trend: {trend}")
@@ -269,65 +260,39 @@ class EIAClient:
         if imp and imp.get("latest_value") is not None:
             latest = imp["latest_value"]
             mom = imp.get("mom_change", 0)
-            direction = (
-                "increase (bearish supply)" if mom > 0 else "decrease (bullish supply)"
-            )
-            lines.append(
-                f"- US Crude Imports: {latest:,.0f} thousand barrels "
-                f"({mom:+,.0f} MoM, {direction})"
-            )
+            direction = "increase (bearish supply)" if mom > 0 else "decrease (bullish supply)"
+            lines.append(f"- US Crude Imports: {latest:,.0f} thousand barrels ({mom:+,.0f} MoM, {direction})")
 
         ref = data.get("refinery")
         if ref and ref.get("current") is not None:
             current = ref["current"]
             wow = ref.get("wow_change", 0)
-            direction = (
-                "increase (bullish for crude demand)"
-                if wow > 0
-                else "decrease (bearish for crude demand)"
-            )
-            lines.append(
-                f"- US Refinery Utilization: {current:.1f}% "
-                f"({wow:+.1f}% WoW, {direction})"
-            )
+            direction = "increase (bullish for crude demand)" if wow > 0 else "decrease (bearish for crude demand)"
+            lines.append(f"- US Refinery Utilization: {current:.1f}% ({wow:+.1f}% WoW, {direction})")
 
         steo = data.get("steo", {})
         if steo:
             wti = steo.get("wti_price")
             if wti:
-                lines.append(
-                    f"- STEO WTI Price Forecast: ${wti['latest_value']:.2f}/bbl "
-                    f"({wti['latest_period']})"
-                )
+                lines.append(f"- STEO WTI Price Forecast: ${wti['latest_value']:.2f}/bbl ({wti['latest_period']})")
             brent = steo.get("brent_price")
             if brent:
-                lines.append(
-                    f"- STEO Brent Price Forecast: ${brent['latest_value']:.2f}/bbl"
-                )
+                lines.append(f"- STEO Brent Price Forecast: ${brent['latest_value']:.2f}/bbl")
             prod = steo.get("us_production")
             if prod:
-                lines.append(
-                    f"- STEO US Crude Production Forecast: {prod['latest_value']:.2f} M bbl/day"
-                )
+                lines.append(f"- STEO US Crude Production Forecast: {prod['latest_value']:.2f} M bbl/day")
             demand = steo.get("world_demand")
             if demand:
-                lines.append(
-                    f"- STEO World Liquid Fuels Consumption: {demand['latest_value']:.2f} M bbl/day"
-                )
+                lines.append(f"- STEO World Liquid Fuels Consumption: {demand['latest_value']:.2f} M bbl/day")
             imports = steo.get("us_net_imports")
             if imports:
-                lines.append(
-                    f"- STEO US Crude Net Imports: {imports['latest_value']:.2f} M bbl/day"
-                )
+                lines.append(f"- STEO US Crude Net Imports: {imports['latest_value']:.2f} M bbl/day")
 
         spot = data.get("brent_spot")
         if spot and spot.get("current") is not None:
             current = spot["current"]
             wow = spot.get("wow_change", 0)
-            lines.append(
-                f"- Europe Brent Spot Price (Dated Brent): ${current:.2f}/bbl "
-                f"({wow:+.2f} WoW)"
-            )
+            lines.append(f"- Europe Brent Spot Price (Dated Brent): ${current:.2f}/bbl ({wow:+.2f} WoW)")
 
         return "\n".join(lines)
 
@@ -415,24 +380,18 @@ class EIAClient:
                     data_rows = body.get("response", {}).get("data", [])
                     return data_rows
                 elif resp.status_code in (401, 403):
-                    logger.critical(
-                        f"EIA API auth error ({resp.status_code}): key may be invalid"
-                    )
+                    logger.critical(f"EIA API auth error ({resp.status_code}): key may be invalid")
                     return None
                 elif resp.status_code == 429:
                     logger.warning("EIA API rate limited, falling back to cache")
                     return None
                 elif resp.status_code >= 500:
-                    logger.warning(
-                        f"EIA API server error ({resp.status_code}), attempt {attempt + 1}"
-                    )
+                    logger.warning(f"EIA API server error ({resp.status_code}), attempt {attempt + 1}")
                     if attempt < max_retries - 1:
                         time.sleep(2 ** (attempt + 1))
                     continue
                 else:
-                    logger.error(
-                        f"EIA API error ({resp.status_code}): {resp.text[:200]}"
-                    )
+                    logger.error(f"EIA API error ({resp.status_code}): {resp.text[:200]}")
                     return None
 
             except requests.exceptions.Timeout:
@@ -462,9 +421,7 @@ class EIAClient:
                 df = pd.read_parquet(disk_path)
                 mtime = datetime.fromtimestamp(disk_path.stat().st_mtime)
                 if (now - mtime).total_seconds() < ttl_hours * 3600:
-                    self._cache[key] = EIACacheEntry(
-                        data=df, fetched_at=mtime, ttl_hours=ttl_hours
-                    )
+                    self._cache[key] = EIACacheEntry(data=df, fetched_at=mtime, ttl_hours=ttl_hours)
                     logger.debug(f"EIA cache hit (disk): {key}")
                     return df
                 logger.debug(f"EIA cache expired (disk): {key}")
@@ -473,9 +430,7 @@ class EIAClient:
         return None
 
     def _save_to_cache(self, key: str, data: pd.DataFrame, ttl_hours: int):
-        self._cache[key] = EIACacheEntry(
-            data=data, fetched_at=datetime.now(), ttl_hours=ttl_hours
-        )
+        self._cache[key] = EIACacheEntry(data=data, fetched_at=datetime.now(), ttl_hours=ttl_hours)
         disk_path = EIA_CACHE_DIR / f"eia_{key}.parquet"
         try:
             data.to_parquet(disk_path)

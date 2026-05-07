@@ -93,9 +93,7 @@ def _yf_ticker_info(ticker_str, timeout=YF_TIMEOUT):
 # Alpha Vantage API setup
 ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
 if not ALPHA_VANTAGE_API_KEY:
-    logger.warning(
-        "ALPHA_VANTAGE_API_KEY not found in environment variables. Some features might be disabled."
-    )
+    logger.warning("ALPHA_VANTAGE_API_KEY not found in environment variables. Some features might be disabled.")
 
 
 class MarketDataManager:
@@ -126,9 +124,7 @@ class MarketDataManager:
             return pd.DataFrame()
 
 
-def get_etf_data(
-    ticker: str, period: str = "5y", force_refresh: bool = False
-) -> tuple[pd.DataFrame, dict]:
+def get_etf_data(ticker: str, period: str = "5y", force_refresh: bool = False) -> tuple[pd.DataFrame, dict]:
     """
     Retrieves ETF and VIX data, with a local caching system.
     The cache now includes VIX data.
@@ -150,15 +146,11 @@ def get_etf_data(
             logger.info(f"Data loaded from cache: {len(hist_data)} days.")
             last_date = pd.Timestamp(hist_data.index[-1])
             if (pd.Timestamp.now() - last_date) > pd.Timedelta(days=2):
-                logger.warning(
-                    f"Cache stale: last data date is {last_date.date()}, refreshing..."
-                )
+                logger.warning(f"Cache stale: last data date is {last_date.date()}, refreshing...")
                 hist_data = None
                 force_refresh = True
         except Exception as e:
-            logger.warning(
-                f"Could not read cache file {cache_filepath}: {e}. Forcing refresh."
-            )
+            logger.warning(f"Could not read cache file {cache_filepath}: {e}. Forcing refresh.")
             force_refresh = True
 
     if force_refresh or hist_data is None:
@@ -174,17 +166,13 @@ def get_etf_data(
                 logger.info(f"Attempt {attempt + 1}/{max_retries} to download data...")
 
                 # Download main ticker first
-                ticker_data = _yf_download(
-                    ticker, period="max", auto_adjust=True, timeout=YF_TIMEOUT
-                )
+                ticker_data = _yf_download(ticker, period="max", auto_adjust=True, timeout=YF_TIMEOUT)
                 if ticker_data.empty:
                     raise ValueError(f"No data found for ticker {ticker}")
 
                 time.sleep(1)
 
-                vix_data = _yf_download(
-                    "^VIX", period="max", auto_adjust=True, timeout=YF_TIMEOUT
-                )
+                vix_data = _yf_download("^VIX", period="max", auto_adjust=True, timeout=YF_TIMEOUT)
                 if vix_data.empty:
                     logger.warning("VIX data not available, using dummy VIX values")
                     # Create dummy VIX data aligned with ticker data
@@ -210,9 +198,7 @@ def get_etf_data(
                 # If VIX is still NaN, use default value
                 hist_data["VIX"] = hist_data["VIX"].fillna(20.0)
 
-                hist_data = hist_data.dropna(
-                    subset=["Close"]
-                )  # Only drop if Close is NaN
+                hist_data = hist_data.dropna(subset=["Close"])  # Only drop if Close is NaN
 
                 if hist_data.empty:
                     raise ValueError("No valid data after cleaning")
@@ -222,9 +208,7 @@ def get_etf_data(
                 # Save to cache
                 try:
                     hist_data.to_parquet(cache_filepath)
-                    logger.info(
-                        f"Data for {ticker} and ^VIX saved to cache: {cache_filepath}"
-                    )
+                    logger.info(f"Data for {ticker} and ^VIX saved to cache: {cache_filepath}")
                 except Exception as e:
                     logger.warning(f"Could not save to cache: {e}")
 
@@ -241,9 +225,7 @@ def get_etf_data(
                     # Last attempt failed, try to use any cached data
                     if cache_filepath.exists():
                         try:
-                            logger.warning(
-                                "All download attempts failed, trying to use cached data..."
-                            )
+                            logger.warning("All download attempts failed, trying to use cached data...")
                             hist_data = pd.read_parquet(cache_filepath)
                             info = {}
                             logger.info(f"Using cached data: {len(hist_data)} days.")
@@ -256,24 +238,18 @@ def get_etf_data(
 
     # Final check for old cache format without VIX
     if hist_data is not None and "VIX" not in hist_data.columns:
-        logger.warning(
-            "VIX column not found in loaded data. Adding default VIX values."
-        )
+        logger.warning("VIX column not found in loaded data. Adding default VIX values.")
         hist_data["VIX"] = 20.0  # Default VIX value
 
     # Final validation
     if hist_data is None or hist_data.empty:
         raise ValueError(f"Failed to retrieve any data for {ticker}")
 
-    logger.info(
-        f"Final data period: {hist_data.index.min()} to {hist_data.index.max()}"
-    )
+    logger.info(f"Final data period: {hist_data.index.min()} to {hist_data.index.max()}")
     return hist_data, info
 
 
-def _get_macro_cache_filepath(
-    function: str, symbol: str = None, interval: str = "monthly", source: str = "AV"
-) -> Path:
+def _get_macro_cache_filepath(function: str, symbol: str = None, interval: str = "monthly", source: str = "AV") -> Path:
     """
     Generates a cache file path for macroeconomic data.
     """
@@ -358,15 +334,11 @@ def get_alpha_vantage_data(
 
         # Check for API errors
         if "Error Message" in data:
-            logger.error(
-                f"Alpha Vantage API Error for {function}: {data['Error Message']}"
-            )
+            logger.error(f"Alpha Vantage API Error for {function}: {data['Error Message']}")
             # If API error, try to return cached data as a fallback
             cached_data = _load_macro_data_from_cache(cache_filepath)
             if not cached_data.empty:
-                logger.info(
-                    f"Falling back to cached data for {function} ({symbol}) after API error."
-                )
+                logger.info(f"Falling back to cached data for {function} ({symbol}) after API error.")
                 return cached_data
             return pd.DataFrame()
 
@@ -375,9 +347,7 @@ def get_alpha_vantage_data(
             # If rate limit hit, try to return cached data as a fallback
             cached_data = _load_macro_data_from_cache(cache_filepath)
             if not cached_data.empty:
-                logger.info(
-                    f"Falling back to cached data for {function} ({symbol}) due to rate limit."
-                )
+                logger.info(f"Falling back to cached data for {function} ({symbol}) due to rate limit.")
                 return cached_data
             return pd.DataFrame()
 
@@ -392,11 +362,7 @@ def get_alpha_vantage_data(
         else:
             # Try to find the first key that looks like a data series
             for k in data.keys():
-                if (
-                    isinstance(data[k], list)
-                    and len(data[k]) > 0
-                    and isinstance(data[k][0], dict)
-                ):
+                if isinstance(data[k], list) and len(data[k]) > 0 and isinstance(data[k][0], dict):
                     data_key = k
                     break
 
@@ -405,9 +371,7 @@ def get_alpha_vantage_data(
             # Fallback to cache
             cached_data = _load_macro_data_from_cache(cache_filepath)
             if not cached_data.empty:
-                logger.info(
-                    f"Falling back to cached data for {function} ({symbol}) after parsing error."
-                )
+                logger.info(f"Falling back to cached data for {function} ({symbol}) after parsing error.")
                 return cached_data
             return pd.DataFrame()
 
@@ -443,9 +407,7 @@ def get_alpha_vantage_data(
                     }
                 )
             except (ValueError, TypeError) as e:
-                logger.warning(
-                    f"Error parsing data item for {function} on {item.get(date_key, 'unknown date')}: {e}"
-                )
+                logger.warning(f"Error parsing data item for {function} on {item.get(date_key, 'unknown date')}: {e}")
                 continue
 
         if not df_list:
@@ -453,9 +415,7 @@ def get_alpha_vantage_data(
             # Fallback to cache
             cached_data = _load_macro_data_from_cache(cache_filepath)
             if not cached_data.empty:
-                logger.info(
-                    f"Falling back to cached data for {function} ({symbol}) as no new data was parsed."
-                )
+                logger.info(f"Falling back to cached data for {function} ({symbol}) as no new data was parsed.")
                 return cached_data
             return pd.DataFrame()
 
@@ -464,9 +424,7 @@ def get_alpha_vantage_data(
         df.reset_index(drop=True, inplace=True)
         df.rename(columns={"value": function.lower()}, inplace=True)
 
-        logger.info(
-            f"Successfully fetched {len(df)} data points for {function} ({symbol})."
-        )
+        logger.info(f"Successfully fetched {len(df)} data points for {function} ({symbol}).")
         # Save to cache
         _save_macro_data_to_cache(df, cache_filepath)
         return df
@@ -476,35 +434,27 @@ def get_alpha_vantage_data(
         # Fallback to cache on network error
         cached_data = _load_macro_data_from_cache(cache_filepath)
         if not cached_data.empty:
-            logger.info(
-                f"Falling back to cached data for {function} ({symbol}) after network error."
-            )
+            logger.info(f"Falling back to cached data for {function} ({symbol}) after network error.")
             return cached_data
     except ValueError as e:
         logger.error(f"Error parsing JSON response for {function}: {e}")
         # Fallback to cache on parse error
         cached_data = _load_macro_data_from_cache(cache_filepath)
         if not cached_data.empty:
-            logger.info(
-                f"Falling back to cached data for {function} ({symbol}) after JSON parse error."
-            )
+            logger.info(f"Falling back to cached data for {function} ({symbol}) after JSON parse error.")
             return cached_data
     except Exception as e:
         logger.error(f"Unexpected error fetching data for {function}: {e}")
         # Fallback to cache on any other error
         cached_data = _load_macro_data_from_cache(cache_filepath)
         if not cached_data.empty:
-            logger.info(
-                f"Falling back to cached data for {function} ({symbol}) after unexpected error."
-            )
+            logger.info(f"Falling back to cached data for {function} ({symbol}) after unexpected error.")
             return cached_data
 
     return pd.DataFrame()
 
 
-def get_macro_data_multi_source(
-    indicator: str, force_refresh: bool = False
-) -> pd.DataFrame:
+def get_macro_data_multi_source(indicator: str, force_refresh: bool = False) -> pd.DataFrame:
     """
     Fetch macroeconomic data from multiple sources with fallbacks.
 
@@ -564,9 +514,7 @@ def get_macro_data_multi_source(
         return pd.DataFrame()
 
     config = source_configs[indicator]
-    cache_filepath = _get_macro_cache_filepath(
-        f"MULTI_{indicator}", None, "monthly", source="MULTI"
-    )
+    cache_filepath = _get_macro_cache_filepath(f"MULTI_{indicator}", None, "monthly", source="MULTI")
 
     # Try cache first if not forcing refresh
     if not force_refresh:
@@ -591,9 +539,7 @@ def get_macro_data_multi_source(
             df = df.dropna()
 
             if len(df) > 0:
-                logger.info(
-                    f"[OK] Successfully fetched {len(df)} points from FRED for {indicator}"
-                )
+                logger.info(f"[OK] Successfully fetched {len(df)} points from FRED for {indicator}")
                 _save_macro_data_to_cache(df, cache_filepath)
                 return df
 
@@ -609,15 +555,11 @@ def get_macro_data_multi_source(
             hist = ticker.history(period="5y", interval="1mo")
 
             if not hist.empty:
-                df = pd.DataFrame(
-                    {"date": hist.index, "value": hist["Close"]}
-                ).reset_index(drop=True)
+                df = pd.DataFrame({"date": hist.index, "value": hist["Close"]}).reset_index(drop=True)
 
                 df = df.dropna()
                 if len(df) > 0:
-                    logger.info(
-                        f"[OK] Successfully fetched {len(df)} points from Yahoo Finance for {indicator}"
-                    )
+                    logger.info(f"[OK] Successfully fetched {len(df)} points from Yahoo Finance for {indicator}")
                     _save_macro_data_to_cache(df, cache_filepath)
                     return df
 
@@ -630,17 +572,13 @@ def get_macro_data_multi_source(
             logger.info(f"Trying Alpha Vantage for {config['av_function']}...")
             df = get_alpha_vantage_data(config["av_function"], config["av_symbol"])
             if not df.empty:
-                logger.info(
-                    f"[OK] Successfully fetched {len(df)} points from Alpha Vantage for {indicator}"
-                )
+                logger.info(f"[OK] Successfully fetched {len(df)} points from Alpha Vantage for {indicator}")
                 return df
         except Exception as e:
             logger.warning(f"Alpha Vantage failed for {indicator}: {e}")
 
     # Method 4: Create realistic default data as fallback
-    logger.warning(
-        f"All external sources failed for {indicator}, creating realistic default data"
-    )
+    logger.warning(f"All external sources failed for {indicator}, creating realistic default data")
 
     try:
         import numpy as np
@@ -658,9 +596,7 @@ def get_macro_data_multi_source(
 
         df = pd.DataFrame({"date": dates, "value": values})
 
-        logger.info(
-            f"[OK] Created {len(df)} realistic default data points for {indicator} (base: {base_value})"
-        )
+        logger.info(f"[OK] Created {len(df)} realistic default data points for {indicator} (base: {base_value})")
         _save_macro_data_to_cache(df, cache_filepath)
         return df
 
@@ -687,9 +623,7 @@ def get_fred_data_via_pdr(series_id: str, force_refresh: bool = False) -> pd.Dat
     if not force_refresh:
         cached_data = _load_macro_data_from_cache(cache_filepath)
         if not cached_data.empty:
-            logger.info(
-                f"Using cached FRED data (via pandas-datareader) for {series_id}."
-            )
+            logger.info(f"Using cached FRED data (via pandas-datareader) for {series_id}.")
             return cached_data
 
     # 2. If cache miss or force refresh, fetch from FRED via pandas-datareader
@@ -701,9 +635,7 @@ def get_fred_data_via_pdr(series_id: str, force_refresh: bool = False) -> pd.Dat
 
         data = web.DataReader(series_id, "fred", start_date, end_date)
         if data.empty:
-            logger.warning(
-                f"pandas-datareader returned no data for FRED series {series_id}."
-            )
+            logger.warning(f"pandas-datareader returned no data for FRED series {series_id}.")
             # Fallback to cache
             cached_data = _load_macro_data_from_cache(cache_filepath)
             if not cached_data.empty:
@@ -719,23 +651,17 @@ def get_fred_data_via_pdr(series_id: str, force_refresh: bool = False) -> pd.Dat
         df.sort_values("date", inplace=True)
         df.reset_index(drop=True, inplace=True)
 
-        logger.info(
-            f"Successfully fetched {len(df)} data points for FRED series {series_id} via pandas-datareader."
-        )
+        logger.info(f"Successfully fetched {len(df)} data points for FRED series {series_id} via pandas-datareader.")
         # Save to cache
         _save_macro_data_to_cache(df, cache_filepath)
         return df
 
     except Exception as e:
-        logger.error(
-            f"Error fetching data for FRED series {series_id} via pandas-datareader: {e}"
-        )
+        logger.error(f"Error fetching data for FRED series {series_id} via pandas-datareader: {e}")
         # Fallback to cache on error
         cached_data = _load_macro_data_from_cache(cache_filepath)
         if not cached_data.empty:
-            logger.info(
-                f"Falling back to cached data for FRED series {series_id} after error."
-            )
+            logger.info(f"Falling back to cached data for FRED series {series_id} after error.")
             return cached_data
 
     return pd.DataFrame()
@@ -834,31 +760,23 @@ def get_vincent_ganne_indicators() -> dict:
                 continue
 
             last_close = close_col.iloc[-1]
-            if last_close is None or (
-                isinstance(last_close, float) and np.isnan(last_close)
-            ):
+            if last_close is None or (isinstance(last_close, float) and np.isnan(last_close)):
                 indicators[f"{name}_price"] = None
                 logger.warning(f"[WARN] Last close is NaN for {name} ({ticker})")
                 continue
 
-            current_price = (
-                float(last_close.iloc[0])
-                if hasattr(last_close, "iloc")
-                else float(last_close)
-            )
+            current_price = float(last_close.iloc[0]) if hasattr(last_close, "iloc") else float(last_close)
             indicators[f"{name}_price"] = current_price
 
             # If this is Brent, we can calculate the Dated Brent spread
             if name == "Brent" and "Brent_spot" in indicators:
                 b_spot = indicators["Brent_spot"]
                 indicators["Brent_spread"] = b_spot - current_price
-                logger.info(
-                    f"Brent Spread (Dated vs Futs) calculated: ${indicators['Brent_spread']:.2f}"
-                )
+                logger.info(f"Brent Spread (Dated vs Futs) calculated: ${indicators['Brent_spread']:.2f}")
 
             ma200_series = close_col.rolling(window=200).mean()
             ma200_val = ma200_series.iloc[-1]
-            
+
             # Fallback for MA200 if insufficient data (common for Urea/UME=F)
             if ma200_val is None or (isinstance(ma200_val, float) and np.isnan(ma200_val)):
                 logger.info(f"MA200 not available for {name}, trying MA50 fallback...")
@@ -868,27 +786,17 @@ def get_vincent_ganne_indicators() -> dict:
             else:
                 fallback_name = "MA200"
 
-            if ma200_val is not None and not (
-                isinstance(ma200_val, float) and np.isnan(ma200_val)
-            ):
-                ma_val = (
-                    float(ma200_val.iloc[0])
-                    if hasattr(ma200_val, "iloc")
-                    else float(ma200_val)
-                )
+            if ma200_val is not None and not (isinstance(ma200_val, float) and np.isnan(ma200_val)):
+                ma_val = float(ma200_val.iloc[0]) if hasattr(ma200_val, "iloc") else float(ma200_val)
                 indicators[f"{name}_ma200"] = ma_val
                 indicators[f"{name}_above_ma200"] = bool(current_price > ma_val)
-                logger.info(
-                    f"Checking {name}: Price {current_price:.2f} ({fallback_name}: {ma_val:.2f})"
-                )
+                logger.info(f"Checking {name}: Price {current_price:.2f} ({fallback_name}: {ma_val:.2f})")
             else:
                 # Ultimate fallback: use the first available price point as a reference or None
                 indicators[f"{name}_ma200"] = None
                 # If we really need a boolean for 'above_ma200', we can assume True if price exists
                 indicators[f"{name}_above_ma200"] = True if current_price else False
-                logger.warning(
-                    f"[WARN] Neither MA200 nor MA50 available for {name} ({ticker}) — using price fallback"
-                )
+                logger.warning(f"[WARN] Neither MA200 nor MA50 available for {name} ({ticker}) — using price fallback")
         except TypeError as e:
             logger.error(f"[ERROR] TypeError fetching {name} ({ticker}): {e}")
             indicators[f"{name}_price"] = None
@@ -953,14 +861,10 @@ def fetch_macro_data_for_date(date: pd.Timestamp, force_refresh: bool = False) -
                     # Use the most recent available data if nothing before analysis_date
                     latest_value = df.iloc[-1]["value"]
                     macro_context[output_name] = float(latest_value)
-                    logger.info(
-                        f"[WARN] {output_name}: {latest_value:.2f} (using most recent available)"
-                    )
+                    logger.info(f"[WARN] {output_name}: {latest_value:.2f} (using most recent available)")
             else:
                 # Fallback to old method for this indicator
-                logger.warning(
-                    f"Multi-source failed for {output_name}, trying legacy FRED method..."
-                )
+                logger.warning(f"Multi-source failed for {output_name}, trying legacy FRED method...")
                 try:
                     fred_mapping = {
                         "treasury_yield_10year": "DGS10",
@@ -972,17 +876,13 @@ def fetch_macro_data_for_date(date: pd.Timestamp, force_refresh: bool = False) -
                     }
 
                     if output_name in fred_mapping:
-                        legacy_df = get_fred_data_via_pdr(
-                            fred_mapping[output_name], force_refresh
-                        )
+                        legacy_df = get_fred_data_via_pdr(fred_mapping[output_name], force_refresh)
                         if not legacy_df.empty:
                             df_before_date = legacy_df[legacy_df["date"] <= date]
                             if not df_before_date.empty:
                                 latest_value = df_before_date.iloc[-1]["value"]
                                 macro_context[output_name] = float(latest_value)
-                                logger.info(
-                                    f"[OK] {output_name} (legacy): {latest_value:.2f}"
-                                )
+                                logger.info(f"[OK] {output_name} (legacy): {latest_value:.2f}")
                             else:
                                 macro_context[output_name] = None
                         else:
@@ -990,9 +890,7 @@ def fetch_macro_data_for_date(date: pd.Timestamp, force_refresh: bool = False) -
                     else:
                         macro_context[output_name] = None
                 except Exception as legacy_e:
-                    logger.warning(
-                        f"Legacy method also failed for {output_name}: {legacy_e}"
-                    )
+                    logger.warning(f"Legacy method also failed for {output_name}: {legacy_e}")
                     macro_context[output_name] = None
 
         except Exception as e:
@@ -1000,9 +898,7 @@ def fetch_macro_data_for_date(date: pd.Timestamp, force_refresh: bool = False) -
             macro_context[output_name] = None
 
     available_indicators = [k for k, v in macro_context.items() if v is not None]
-    logger.info(
-        f"Macro data fetch complete. Retrieved {len(available_indicators)} indicators."
-    )
+    logger.info(f"Macro data fetch complete. Retrieved {len(available_indicators)} indicators.")
 
     # If we got some data, that's great. If not, the system will work with technical indicators only
     return macro_context

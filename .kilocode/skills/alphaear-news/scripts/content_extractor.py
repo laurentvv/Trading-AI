@@ -35,9 +35,7 @@ class ContentExtractor:
             current_time = time.time()
 
             # 1. 清理过期的请求记录
-            cls._request_times = [
-                t for t in cls._request_times if current_time - t < cls._rate_window
-            ]
+            cls._request_times = [t for t in cls._request_times if current_time - t < cls._rate_window]
 
             # 2. 检查是否达到速率限制
             if len(cls._request_times) >= cls._rate_limit_no_key:
@@ -45,16 +43,10 @@ class ContentExtractor:
                 oldest = cls._request_times[0]
                 wait_time = cls._rate_window - (current_time - oldest) + 1.0
                 if wait_time > 0:
-                    logger.warning(
-                        f"⏳ Jina rate limit reached, waiting {wait_time:.1f}s..."
-                    )
+                    logger.warning(f"⏳ Jina rate limit reached, waiting {wait_time:.1f}s...")
                     time.sleep(wait_time)
                     current_time = time.time()
-                    cls._request_times = [
-                        t
-                        for t in cls._request_times
-                        if current_time - t < cls._rate_window
-                    ]
+                    cls._request_times = [t for t in cls._request_times if current_time - t < cls._rate_window]
 
             # 3. 确保请求间隔不太快
             time_since_last = current_time - cls._last_request_time
@@ -113,9 +105,7 @@ class ContentExtractor:
                 time.sleep(60)
                 return cls.extract_with_jina(url, timeout)
             else:
-                logger.warning(
-                    f"Jina extraction failed (Status {response.status_code}) for {url}"
-                )
+                logger.warning(f"Jina extraction failed (Status {response.status_code}) for {url}")
                 return None
 
         except Timeout:
