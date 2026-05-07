@@ -115,7 +115,10 @@ class MarketDataManager:
             ticker_str = str(self.ticker)
             data = _yf_download(ticker_str, period="5d", timeout=YF_TIMEOUT)
             if not data.empty:
-                data.columns = [col.lower() for col in data.columns]
+                if isinstance(data.columns, pd.MultiIndex):
+                    data.columns = [col[0].lower() for col in data.columns]
+                else:
+                    data.columns = [str(col).lower() for col in data.columns]
                 return data
             return pd.DataFrame()
         except Exception as e:
