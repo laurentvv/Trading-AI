@@ -132,16 +132,16 @@ def load_portfolio_state(ticker=None):
         clean_ticker = get_t212_ticker(ticker)
         if clean_ticker not in state["tickers"]:
             state["tickers"][clean_ticker] = {
-                "initial_budget": 1000.0,
-                "current_capital": 1000.0,
+                "initial_budget": 5000.0,
+                "current_capital": 5000.0,
                 "total_realized_pl": 0.0,
                 "active_position": None,
             }
         else:
             # S'assurer que les clés minimales existent pour un ticker déjà présent
             t_state = state["tickers"][clean_ticker]
-            t_state.setdefault("initial_budget", 1000.0)
-            t_state.setdefault("current_capital", 1000.0)
+            t_state.setdefault("initial_budget", 5000.0)
+            t_state.setdefault("current_capital", 5000.0)
             t_state.setdefault("total_realized_pl", 0.0)
             t_state.setdefault("active_position", None)
 
@@ -298,6 +298,32 @@ def execute_t212_trade(
 
     if current_pos:
         logger.info(f"   - Position détectée : {current_pos['quantity']} actions de {t212_ticker}")
+        
+        # --- TRAILING STOP LOGIC ---
+        if state.get("active_position"):
+            current_value_eur = current_pos["walletImpact"]["currentValue"]
+            total_qty = current_pos["quantityAvailableForTrading"]
+            avg_price = current_pos.get("averagePrice") or current_pos.get("avgPrice") or 0.0
+            t212_buy_cost = float(avg_price) * total_qty
+            state_buy_cost = state["active_position"].get("buy_budget", 0.0)
+            reference_cost = max(state_buy_cost, t212_buy_cost) if max(state_buy_cost, t212_buy_cost) > 0 else current_value_eur
+            
+            # Update highest value seen
+            highest_value = state["active_position"].get("highest_value", reference_cost)
+            if current_value_eur > highest_value:
+                state["active_position"]["highest_value"] = current_value_eur
+                save_portfolio_state(state, t212_ticker)
+                highest_value = current_value_eur
+            
+            # Trailing Stop evaluation: Only trigger if we are in profit AND dropped significantly from peak
+            # Example: 3% drop from peak, but still > reference_cost
+            drop_from_peak = (highest_value - current_value_eur) / highest_value if highest_value > 0 else 0
+            profit_margin = (current_value_eur - reference_cost) / reference_cost if reference_cost > 0 else 0
+            
+            if drop_from_peak >= 0.03 and profit_margin > 0.005: # At least 0.5% profit to cover fees/spread
+                logger.warning(f"🚨 TRAILING STOP DÉCLENCHÉ ! Baisse de {drop_from_peak:.2%} depuis le sommet. Profit sécurisé de {profit_margin:.2%}.")
+                signal = "SELL" # Override signal to force securing profit
+                
     else:
         logger.info(f"   - Aucune position ouverte sur {t212_ticker}")
 
@@ -355,7 +381,7 @@ def execute_t212_trade(
         )
 
         # 2. Calculer la quantité
-        available_cash = state.get("current_capital", 1000.0)
+        available_cash = state.get("current_capital", 5000.0)
         if portfolio["cash"] < available_cash:
             logger.warning(
                 f"⚠️ Pas assez de cash réel ({portfolio['cash']:.2f}€) pour le budget cible ({available_cash:.2f}€)."
@@ -422,6 +448,21 @@ def execute_t212_trade(
         # Vente de TOUTE la quantité possédée sur T212
         total_qty = current_pos["quantityAvailableForTrading"]
         current_value_eur = current_pos["walletImpact"]["currentValue"]
+
+        # Anti-Loss Protection: Prevent selling at a loss
+        avg_price = current_pos.get("averagePrice") or current_pos.get("avgPrice") or 0.0
+        t212_buy_cost = float(avg_price) * total_qty
+        state_buy_cost = state["active_position"]["buy_budget"] if state.get("active_position") else 0.0
+        
+        # Use the maximum of state cost and T212 cost as reference to be conservative
+        reference_cost = max(state_buy_cost, t212_buy_cost)
+        if reference_cost == 0.0:
+            reference_cost = current_value_eur # Fallback if we can't find a cost
+             
+        # Add a small tolerance (0.2%) for bid/ask spread and rounding to avoid blocking minor break-even trades
+        if current_value_eur < reference_cost * 0.998:
+            logger.warning(f"⚠️ VENTE BLOQUÉE : Perte potentielle détectée. Valeur actuelle: {current_value_eur:.2f}€, Coût d'achat de référence: {reference_cost:.2f}€.")
+            return
 
         logger.info(f"📉 Vente de TOUTE la position sur {t212_ticker} ({total_qty} actions)")
 

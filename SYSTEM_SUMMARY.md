@@ -48,14 +48,20 @@ graph TD
 3.  **TimesFM (Google Research) :**
     *   Modèle de fondation **TimesFM 2.5** spécialisé dans la prévision de séries temporelles.
 
-4.  **TensorTrade / PPO (Reinforcement Learning) :**
+4.  **Kronos (NeoQuasar) :**
+    *   **Logic (Fix) :** Analyse la tendance moyenne sur les **5 prochains jours** (court terme) au lieu de prédire un point unique à J+24.
+    *   **Sécurité :** Confiance plafonnée à **65%** pour éviter qu'une "hallucination" de crash massif n'écrase le consensus.
+    *   **Statut :** Traité comme "non-prouvé" (poids initial 0.0). Il doit gagner ses galons via l'historique de performance pour influencer le capital.
+
+5.  **TensorTrade / PPO (Reinforcement Learning) :**
     *   Agent **PPO** (stable-baselines3) entraîné à chaque cycle dans un environnement **Gymnasium** custom (`SimpleTradingEnv`).
     *   Apprend une politique d'achat/vente/conservation basée sur les variations de prix récentes.
-    *   Poids de **10%** dans le moteur de décision. Ajoute un signal non-corrélé basé sur le comportement.
+    *   **Poids Adaptatif (0.0) :** Comme Kronos, son influence est désactivée par défaut tant que son historique de réussite n'est pas validé par le système.
 
-5.  **Modèle Oil-Bench (Gemma 4 : e4b) :**
+6.  **Modèle Oil-Bench (Gemma 4 : e4b) :**
     *   **Expert Fondamental :** Modèle spécialisé activé uniquement pour le pétrole (`CL=F`, `CRUDP.PA`).
     * **Données EIA :** Analyse automatisée des stocks US, des importations mensuelles et du taux d'utilisation des raffineries.
+    * **Poids Forcé (25%) :** Pour le pétrole, son avis macroéconomique est prioritaire et ne peut pas être réduit à zéro par l'Adaptive Weight Manager.
     * **Synthèse :** Produit une allocation cible (0-100%) basée sur la dynamique offre/demande physique.
 
 6.  **Hyperliquid (Sentiment Blockchain) :**
@@ -71,14 +77,17 @@ graph TD
 
 ---
 
-## 🛡️ Gestion des Risques & Sizing
+## 🛡️ Gestion des Risques & Sizing (Advanced Risk Manager)
 
-Le système intègre désormais un **Advanced Risk Manager** intelligent et conscient des spécificités des actifs :
+Le système intègre un **Advanced Risk Manager** intelligent conscient des spécificités des actifs et des erreurs de prédiction :
 
-1.  **Oil Special Risk Mode :** Contrairement aux actions, le Pétrole profite souvent de la volatilité et du risque géopolitique. Le Risk Manager abaisse automatiquement ses seuils de confiance pour le Pétrole en cas de risque `HIGH` ou `VERY_HIGH`, permettant de capturer des hausses impulsives là où le Nasdaq resterait en retrait.
-2.  **Inertie de Sortie (Sticky HOLD) :** Lorsqu'une position est active, le système devient plus exigeant pour vendre (`SELL`). Il compare le prix actuel à l'**indice de référence lors de l'achat** (ex: prix du WTI à l'entrée). Si la position est gagnante sur l'indice, il faut un signal de vente très fort (> 0.55 de conviction) pour sortir, protégeant ainsi la tendance haussière contre le bruit passager.
-3.  **Trend-Awareness :** Le système détecte la tendance de fond (Prix vs MM50). En marché haussier (Bull Market), il devient plus réactif en abaissant le seuil de confiance requis pour l'achat.
-4.  **Sizing Progressif :** L'exposition varie dynamiquement entre **75% et 100%** sur signal d'achat, selon la force du consensus de l'IA.
+1.  **Oil Special Risk Mode (Fix) :** Le Pétrole profite souvent de la volatilité et des crises. Le système **booste désormais de 20%** les signaux d'achat en cas de risque `VERY_HIGH` pour le Pétrole, au lieu de les pénaliser. Les blocages forcés (HOLD) en cas de crise sont désactivés pour cette classe d'actif.
+2.  **Sécurité Anti-Perte (Hard Block) :** L'exécuteur Trading 212 vérifie désormais le P&L réel de la position. Un ordre de vente (`SELL`) est **systématiquement bloqué** si la valeur actuelle est inférieure au prix d'achat initial (tolérance 0.2%). Le bot passe en mode "HOLD" jusqu'au retour à l'équilibre.
+3.  **Trailing Stop (Stop Suiveur) :** Pour sécuriser les gains, le système suit la valeur maximale atteinte par la position (`highest_value`). Si le cours baisse de **3%** depuis son sommet **ET** que la position est en profit (> +0.5%), une vente est forcée pour sécuriser le cash.
+4.  **Inertie de Sortie (Sticky HOLD) :** Lorsqu'une position est active, le système devient plus exigeant pour vendre (`SELL`). Il compare le prix actuel à l'**indice de référence lors de l'achat** (ex: prix du WTI à l'entrée). Si la position est gagnante sur l'indice, il faut un signal de vente très fort (> 0.55) pour sortir, protégeant ainsi la tendance haussière contre le bruit passager.
+5.  **Poids Adaptatifs & Mémoire :** Chaque décision de chaque modèle est enregistrée dans `model_performance.db`. Le système ajuste dynamiquement le poids de chaque IA en fonction de son "Win Rate" réel observé sur les jours précédents.
+6.  **Trend-Awareness :** Le système détecte la tendance de fond (Prix vs MM50). En marché haussier (Bull Market), il devient plus réactif en abaissant le seuil de confiance requis pour l'achat.
+7.  **Sizing Progressif :** L'exposition varie dynamiquement entre **75% et 100%** sur signal d'achat, selon la force du consensus de l'IA.
 
 ---
 

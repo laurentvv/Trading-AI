@@ -142,10 +142,22 @@ class KronosModel:
 
             # Convert prediction to signal
             last_close = input_df["close"].iloc[-1]
-            future_close = pred_df["close"].iloc[-1]
-            price_change_pct = ((future_close - last_close) / last_close) * 100
+            
+            # Use the first 5 periods (1 week) for trading decision to avoid long-term noise
+            eval_len = min(5, pred_len)
+            short_term_forecast = pred_df["close"].iloc[:eval_len]
+            
+            # Calculate average forecasted price over the short term
+            avg_future_close = short_term_forecast.mean()
+            price_change_pct = ((avg_future_close - last_close) / last_close) * 100
+            
+            # Maximum drawdown and runup in the full forecast to contextualize
+            max_future = pred_df["close"].max()
+            min_future = pred_df["close"].min()
+            max_up_pct = ((max_future - last_close) / last_close) * 100
+            max_down_pct = ((min_future - last_close) / last_close) * 100
 
-            # Simple logic: if predicted to go up by > 0.5%, BUY. Down by > 0.5%, SELL.
+            # Logic: We want the short-term average to be solidly positive or negative
             threshold = 0.5
 
             if price_change_pct > threshold:
@@ -155,10 +167,12 @@ class KronosModel:
             else:
                 signal = "HOLD"
 
-            # Confidence is based on the magnitude of the predicted move, capped at 0.95
-            confidence = min(abs(price_change_pct) / 2.0, 0.95)
+            # Confidence is based on the magnitude of the predicted move, but we CAP it strictly
+            # so hallucinations don't override the system. Max confidence 0.65
+            base_confidence = abs(price_change_pct) / 2.0
+            confidence = min(base_confidence, 0.65)
 
-            analysis = f"Kronos predicts a {price_change_pct:.2f}% price change over the next {pred_len} periods."
+            analysis = f"Kronos avg {eval_len}d forecast: {price_change_pct:+.2f}%. (24d max: {max_up_pct:+.2f}%, min: {max_down_pct:+.2f}%)"
 
             logger.info(f"Kronos prediction: {signal} (Conf: {confidence:.2f}) - {analysis}")
 

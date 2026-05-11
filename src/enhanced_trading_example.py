@@ -351,6 +351,7 @@ class EnhancedTradingSystem:
             "sentiment": sentiment_decision,
             "timesfm": timesfm_decision,
             "tensortrade": tensortrade_decision,
+            "kronos": kronos_decision,
         }
 
     def perform_enhanced_analysis(
@@ -412,6 +413,9 @@ class EnhancedTradingSystem:
         is_oil = any(oil_ticker in self.analysis_ticker for oil_ticker in ["CL=F", "BZ=F"])
         effective_vg_indicators = None if is_oil else vg_indicators
 
+        # Inject is_oil flag into market_data for the decision engine
+        market_data["is_oil"] = is_oil
+
         oil_bench_decision = None
         if EIAClient.is_oil_ticker(self.analysis_ticker):
             try:
@@ -432,6 +436,7 @@ class EnhancedTradingSystem:
             sentiment_decision=model_predictions["sentiment"],
             timesfm_decision=model_predictions["timesfm"],
             tensortrade_decision=model_predictions["tensortrade"],
+            kronos_decision=model_predictions["kronos"],
             vincent_ganne_indicators=effective_vg_indicators,
             oil_bench_decision=oil_bench_decision,
             market_data=market_data,
@@ -469,6 +474,17 @@ class EnhancedTradingSystem:
                 f"Signal ajuste par la gestion des risques: {enhanced_decision.final_signal} -> {risk_adjusted_signal}"
             )
             logger.warning(f"Raison: {adjustment_reason}")
+
+        # 7. Enregistrement des prédictions pour l'apprentissage du poids adaptatif
+        current_date = hist_data.index[-1].strftime("%Y-%m-%d")
+        for dec in enhanced_decision.individual_decisions:
+            self.weight_manager.record_model_prediction(
+                date=current_date,
+                model_name=dec.model_name,
+                signal=dec.signal,
+                confidence=dec.confidence,
+                market_regime=risk_metrics.risk_level.name
+            )
 
         return {
             "enhanced_decision": enhanced_decision,

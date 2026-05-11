@@ -15,7 +15,7 @@ def check_db(path, name):
     print(f"Tables: {tables}")
     for t in tables:
         print(f"\n--- {t} ---")
-        cur.execute(f"SELECT * FROM [{t}] ORDER BY rowid DESC LIMIT 5")
+        cur.execute(f"SELECT * FROM [{t}] ORDER BY rowid DESC LIMIT 20")
         cols = [d[0] for d in cur.description]
         print(f"Columns: {cols}")
         rows = cur.fetchall()
@@ -29,3 +29,4 @@ def check_db(path, name):
 
 check_db(logs_dir / "trading_history.db", "trading_history.db")
 check_db(logs_dir / "performance_monitor.db", "performance_monitor.db")
+check_db(logs_dir.parent / "model_performance.db", "model_performance.db")

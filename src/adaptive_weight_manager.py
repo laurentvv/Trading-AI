@@ -101,6 +101,7 @@ class AdaptiveWeightManager:
             "vincent_ganne": 0.0,
             "oil_bench": 0.0,
             "tensortrade": 0.0,
+            "kronos": 0.0,
         }
         self.lookback_days = lookback_days
         self.min_observations = min_observations

@@ -289,6 +289,7 @@ class EnhancedDecisionEngine:
             "vincent_ganne": 0.0,
             "oil_bench": 0.0,
             "tensortrade": 0.0,
+            "kronos": 0.0,
         }
 
         # Initialize models with config thresholds
@@ -380,16 +381,20 @@ class EnhancedDecisionEngine:
 
         return 0.0
 
-    def _adjust_for_market_regime(self, score: float, market_data: Dict) -> float:
+    def _adjust_for_market_regime(self, score: float, market_data: Dict, is_oil: bool = False) -> float:
         """
         Adjust decision score based on current market regime.
         """
         volatility = market_data.get("volatility", 0.02)
         rsi = market_data.get("rsi", 50)
 
-        # Reduce signal strength in high volatility environments
+        # Reduce signal strength in high volatility environments (UNLESS it's Oil)
         if volatility > self.VOLATILITY_HIGH_THRESHOLD:
-            score *= 0.8
+            if is_oil and score > 0:
+                # For Oil, high volatility (crises) often means price spikes. Boost the buy score!
+                score *= 1.2
+            elif not is_oil:
+                score *= 0.8
         elif volatility < self.VOLATILITY_LOW_THRESHOLD:
             score *= 1.1
 
@@ -401,7 +406,7 @@ class EnhancedDecisionEngine:
 
         return score
 
-    def _apply_risk_management(self, decision: str, confidence: float, market_data: Dict) -> str:
+    def _apply_risk_management(self, decision: str, confidence: float, market_data: Dict, is_oil: bool = False) -> str:
         """
         Apply risk management rules to adjust the final decision.
         """
@@ -420,7 +425,11 @@ class EnhancedDecisionEngine:
         # Market regime-based adjustments
         volatility = market_data.get("volatility", 0.02)
         if volatility > self.VOLATILITY_EXTREME_THRESHOLD:
-            if decision in ["BUY", "SELL"]:
+            # High risk generally forces HOLD to prevent massive losses
+            # BUT for Oil, extreme volatility is often the best time to be long. Do not force HOLD if we are buying.
+            if is_oil and decision in ["BUY", "STRONG_BUY"]:
+                return decision # Keep the BUY
+            if not is_oil and decision in ["BUY", "SELL"]:
                 return "HOLD"
 
         return decision
@@ -467,6 +476,16 @@ class EnhancedDecisionEngine:
         # Use adaptive weights if provided, otherwise use base weights
         weights = adaptive_weights or self.base_weights
 
+        # Override weights for OIL to ensure domain models aren't silenced
+        is_oil = market_data.get("is_oil", False)
+        if is_oil:
+            # Force a weight for oil_bench if it's zeroed out but a decision exists
+            if oil_bench_decision and weights.get("oil_bench", 0.0) < 0.15:
+                weights = weights.copy() # Avoid mutating original
+                weights["oil_bench"] = 0.25 # Give it strong weight
+                weights["llm_text"] = 0.15 # Reduce generic models
+                weights["timesfm"] = 0.15
+                
         # Start with generic results if provided
         decisions = generic_model_results or []
 
