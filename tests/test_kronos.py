@@ -12,9 +12,9 @@ from src.kronos_model import KronosModel, get_kronos_prediction
 
 class TestKronosModel(unittest.TestCase):
     @patch("src.kronos_model.KRONOS_AVAILABLE", True)
-    @patch("src.kronos_model.KronosTokenizer")
-    @patch("src.kronos_model.Kronos")
-    @patch("src.kronos_model.KronosPredictor")
+    @patch("src.kronos_model.KronosTokenizer", create=True)
+    @patch("src.kronos_model.Kronos", create=True)
+    @patch("src.kronos_model.KronosPredictor", create=True)
     def test_kronos_prediction(self, mock_predictor, mock_kronos, mock_tokenizer):
         # Create dummy instance and clear it just in case
         KronosModel._instance = None

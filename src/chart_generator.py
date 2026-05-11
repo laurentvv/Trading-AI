@@ -95,8 +95,7 @@ def generate_chart_image(
         logger.info(f"Generating chart image and saving to {output_path}...")
 
         # Generate and save the plot
-        mpf.plot(
-            six_months_data,
+        plot_kwargs = dict(
             type="candle",
             style="yahoo",
             title=title,
@@ -106,8 +105,12 @@ def generate_chart_image(
             panel_ratios=(6, 3, 3, 2),  # Ratios for price, volume, rsi, macd
             figscale=1.5,
             savefig=dict(fname=str(output_path), dpi=100, pad_inches=0.25),
-            vlines=vlines if "vlines" in locals() and vlines else None,
         )
+        
+        if vlines:
+            plot_kwargs["vlines"] = vlines
+            
+        mpf.plot(six_months_data, **plot_kwargs)
 
         logger.info("Chart generated successfully.")
         return True
