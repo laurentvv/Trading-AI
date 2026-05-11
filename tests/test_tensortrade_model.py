@@ -20,19 +20,14 @@ class SimpleTradingEnv(gym.Env):
         self.prices = prices
         self.current_step = 0
         self.action_space = gym.spaces.Discrete(3)
-        self.observation_space = gym.spaces.Box(
-            low=-np.inf, high=np.inf, shape=(5,), dtype=np.float32
-        )
+        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(5,), dtype=np.float32)
 
     def step(self, action):
         self.current_step += 1
         done = self.current_step >= len(self.prices) - 1
         reward = 0
         if not done:
-            price_change = (
-                self.prices[self.current_step]
-                - self.prices[self.current_step - 1]
-            )
+            price_change = self.prices[self.current_step] - self.prices[self.current_step - 1]
             if action == 1:
                 reward = price_change
             elif action == 2:
@@ -74,9 +69,7 @@ class TestLowercaseCloseColumn(unittest.TestCase):
         mock_policy = MagicMock()
         mock_policy.obs_to_tensor.return_value = (MagicMock(),)
         mock_dist = MagicMock()
-        mock_dist.distribution.probs.detach().numpy.return_value = np.array(
-            [[0.2, 0.6, 0.2]]
-        )
+        mock_dist.distribution.probs.detach().numpy.return_value = np.array([[0.2, 0.6, 0.2]])
         mock_policy.get_distribution.return_value = mock_dist
         mock_model.policy = mock_policy
         mock_ppo_cls.return_value = mock_model
@@ -95,9 +88,7 @@ class TestSuccessfulPrediction(unittest.TestCase):
         mock_policy = MagicMock()
         mock_policy.obs_to_tensor.return_value = (MagicMock(),)
         mock_dist = MagicMock()
-        mock_dist.distribution.probs.detach().numpy.return_value = np.array(
-            [[0.1, 0.3, 0.6]]
-        )
+        mock_dist.distribution.probs.detach().numpy.return_value = np.array([[0.1, 0.3, 0.6]])
         mock_policy.get_distribution.return_value = mock_dist
         mock_model.policy = mock_policy
         mock_ppo_cls.return_value = mock_model
@@ -117,9 +108,7 @@ class TestEnvStepLogic(unittest.TestCase):
         self.assertGreater(reward_buy, 0)
 
     def test_sell_reward_positive_when_price_down(self):
-        prices = np.array(
-            [107.0, 106.0, 105.0, 104.0, 103.0, 102.0, 101.0, 100.0]
-        )
+        prices = np.array([107.0, 106.0, 105.0, 104.0, 103.0, 102.0, 101.0, 100.0])
         env = SimpleTradingEnv(prices)
         env.reset()
         _, reward_sell, _, _, _ = env.step(2)

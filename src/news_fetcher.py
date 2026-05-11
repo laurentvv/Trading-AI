@@ -14,13 +14,7 @@ logger = logging.getLogger(__name__)
 ALPHA_EAR_PATH = Path(
     os.getenv(
         "ALPHA_EAR_SCRIPTS_PATH",
-        str(
-            Path(__file__).parent.parent
-            / ".agents"
-            / "skills"
-            / "alphaear-news"
-            / "scripts"
-        ),
+        str(Path(__file__).parent.parent / ".agents" / "skills" / "alphaear-news" / "scripts"),
     )
 )
 if ALPHA_EAR_PATH.exists():
@@ -48,9 +42,7 @@ def fetch_alpha_vantage_news(ticker: str, api_key: str):
         "SXRV.FRK": ["NASDAQ", "QQQ", "tech stocks", "Fed"],
     }
 
-    queries = topics_map.get(ticker, [ticker])[
-        :2
-    ]  # Max 2 queries to respect rate limits
+    queries = topics_map.get(ticker, [ticker])[:2]  # Max 2 queries to respect rate limits
 
     all_headlines = []
     total_sentiment = 0
@@ -73,9 +65,7 @@ def fetch_alpha_vantage_news(ticker: str, api_key: str):
                     all_headlines.append(title)
                 for sentiment in item.get("ticker_sentiment", []):
                     try:
-                        total_sentiment += float(
-                            sentiment.get("ticker_sentiment_score", 0)
-                        )
+                        total_sentiment += float(sentiment.get("ticker_sentiment_score", 0))
                         sentiment_count += 1
                     except (ValueError, TypeError):
                         continue

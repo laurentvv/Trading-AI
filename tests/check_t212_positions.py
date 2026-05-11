@@ -22,14 +22,14 @@ def check_positions():
     base_url = f"https://{env}.trading212.com/api/v0"
 
     print(f"--- 📊 VÉRIFICATION PORTEFEUILLE RÉEL ({env.upper()}) ---")
-    
+
     # Check account summary
     summary_resp = requests.get(f"{base_url}/equity/account/summary", headers=headers)
     if summary_resp.status_code == 200:
         summary = summary_resp.json()
         print(f"💰 Cash disponible: {summary.get('cash', {}).get('availableToTrade', 0):.2f} €")
         print(f"📈 Valeur totale du compte: {summary.get('total', 0):.2f} €")
-    
+
     resp = requests.get(f"{base_url}/equity/positions", headers=headers)
 
     if resp.status_code == 200:

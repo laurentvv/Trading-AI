@@ -23,9 +23,7 @@ def show_simulation_report():
     # Portfolio
     port_df = get_portfolio_history()
 
-    console.print(
-        Panel("[bold cyan]SIMULATION TRADING REPORT[/bold cyan]", expand=False)
-    )
+    console.print(Panel("[bold cyan]SIMULATION TRADING REPORT[/bold cyan]", expand=False))
 
     # Current State
     if not port_df.empty:

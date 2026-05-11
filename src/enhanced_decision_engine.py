@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ModelResult:
     """Standardized output from any model"""
+
     signal: str
     confidence: float
     reasoning: str
@@ -31,10 +32,10 @@ class BaseModel(ABC):
     def predict(self, data: Dict[str, Any]) -> ModelResult:
         """
         Generate a prediction based on input data.
-        
+
         Args:
             data: Dictionary containing necessary features, indicators, or market data.
-            
+
         Returns:
             ModelResult object with signal and confidence.
         """
@@ -121,7 +122,7 @@ class VincentGanneModel(BaseModel):
             signal=eval_result["signal"],
             confidence=eval_result["confidence"],
             reasoning=eval_result["analysis"],
-            metadata=eval_result
+            metadata=eval_result,
         )
 
     def evaluate(self, indicators: dict) -> dict:
@@ -139,9 +140,7 @@ class VincentGanneModel(BaseModel):
             max_score += 10
             if wti < self.thresholds["WTI"]["ideal"]:
                 score += 10  # FULL POINTS for IDEAL level
-                reasons.append(
-                    f"WTI STRONG SIGNAL: Ideal level reached ({wti:.2f} <= 80$)"
-                )
+                reasons.append(f"WTI STRONG SIGNAL: Ideal level reached ({wti:.2f} <= 80$)")
             elif wti < self.thresholds["WTI"]["max"]:
                 score += 5  # HALF POINTS for Minimum Technical Level
                 reasons.append(f"WTI Minimum validation ({wti:.2f} < 94$)")
@@ -154,9 +153,7 @@ class VincentGanneModel(BaseModel):
             max_score += 8
             if brent < self.thresholds["Brent"]["ideal"]:
                 score += 8
-                reasons.append(
-                    f"Brent STRONG SIGNAL: Ideal level reached ({brent:.2f} <= 83$)"
-                )
+                reasons.append(f"Brent STRONG SIGNAL: Ideal level reached ({brent:.2f} <= 83$)")
             elif brent < self.thresholds["Brent"]["max"]:
                 score += 4
                 reasons.append(f"Brent Minimum validation ({brent:.2f} < 95$)")
@@ -167,19 +164,13 @@ class VincentGanneModel(BaseModel):
             max_score += 5
             if brent_spread < 3:
                 score += 5
-                reasons.append(
-                    f"Brent Spread IDEAL: Physical market easing (${brent_spread:.2f})"
-                )
+                reasons.append(f"Brent Spread IDEAL: Physical market easing (${brent_spread:.2f})")
             elif brent_spread < 7:
                 score += 2.5
-                reasons.append(
-                    f"Brent Spread NORMAL: Moderate tension (${brent_spread:.2f})"
-                )
+                reasons.append(f"Brent Spread NORMAL: Moderate tension (${brent_spread:.2f})")
             elif brent_spread > 15:
                 # No points, just a reason
-                reasons.append(
-                    f"Brent Spread EXTREME: Physical Scarcity (${brent_spread:.2f})"
-                )
+                reasons.append(f"Brent Spread EXTREME: Physical Scarcity (${brent_spread:.2f})")
 
         # 3. Natural Gas TTF (Priority 3)
         gas = indicators.get("NaturalGas_price")
@@ -187,9 +178,7 @@ class VincentGanneModel(BaseModel):
             max_score += 5
             if gas < self.thresholds["Gas"]["ideal"]:
                 score += 5
-                reasons.append(
-                    f"Gas STRONG SIGNAL: Ideal level reached ({gas:.2f} < 38€)"
-                )
+                reasons.append(f"Gas STRONG SIGNAL: Ideal level reached ({gas:.2f} < 38€)")
             elif gas < self.thresholds["Gas"]["max"]:
                 score += 2.5
                 reasons.append(f"Gas Minimum validation ({gas:.2f} < 55€)")
@@ -234,9 +223,7 @@ class VincentGanneModel(BaseModel):
             # A very negative funding rate on OIL suggests extreme bearishness (Short Squeeze potential)
             if funding < -0.05:  # Extreme negative
                 score += 2
-                reasons.append(
-                    f"Hyperliquid Contrarian: Extreme negative funding ({funding:.2f}%)"
-                )
+                reasons.append(f"Hyperliquid Contrarian: Extreme negative funding ({funding:.2f}%)")
 
         # FINAL DECISION LOGIC
         confidence = score / max_score if max_score > 0 else 0
@@ -246,9 +233,7 @@ class VincentGanneModel(BaseModel):
 
         if oil_is_too_high:
             signal = "SELL" if confidence < 0.3 else "HOLD"
-            reasons.insert(
-                0, "GEO-POLITICAL PRESSURE (OIL TOO HIGH - NO MARKET BOTTOM)"
-            )
+            reasons.insert(0, "GEO-POLITICAL PRESSURE (OIL TOO HIGH - NO MARKET BOTTOM)")
         else:
             if confidence > 0.8:  # Very high score required for strong buy
                 signal = "STRONG_BUY"
@@ -279,9 +264,7 @@ class EnhancedDecisionEngine:
     RSI_OVERSOLD_THRESHOLD = 25
     CLASSIC_BUY_BONUS_THRESHOLD = 0.4
     TIMESFM_BUY_BONUS_THRESHOLD = 0.2
-    QUANT_MODEL_BUY_BONUS = (
-        0.0  # Removed: was +0.1 per quant model, creating structural bullish bias
-    )
+    QUANT_MODEL_BUY_BONUS = 0.0  # Removed: was +0.1 per quant model, creating structural bullish bias
     SUPER_CONSENSUS_BOOST = 0.20
 
     # Confidence thresholds for risk management
@@ -370,9 +353,7 @@ class EnhancedDecisionEngine:
             weighted_signal = np.mean(signals)
         else:
             weighted_signal = np.average(signals, weights=confidences)
-        confidence_alignment = 1 - np.average(
-            [abs(s - weighted_signal) for s in signals]
-        )
+        confidence_alignment = 1 - np.average([abs(s - weighted_signal) for s in signals])
 
         # Combined consensus score
         consensus = (signal_agreement + confidence_alignment) / 2
@@ -420,9 +401,7 @@ class EnhancedDecisionEngine:
 
         return score
 
-    def _apply_risk_management(
-        self, decision: str, confidence: float, market_data: Dict
-    ) -> str:
+    def _apply_risk_management(self, decision: str, confidence: float, market_data: Dict) -> str:
         """
         Apply risk management rules to adjust the final decision.
         """
@@ -454,6 +433,7 @@ class EnhancedDecisionEngine:
         visual_llm_decision: Dict = None,
         sentiment_decision: Dict = None,
         timesfm_decision: Dict = None,
+        kronos_decision: Dict = None,
         tensortrade_decision: Dict = None,
         vincent_ganne_indicators: Dict = None,
         oil_bench_decision: Dict = None,
@@ -509,6 +489,7 @@ class EnhancedDecisionEngine:
                 "llm_visual": visual_llm_decision,
                 "sentiment": sentiment_decision,
                 "timesfm": timesfm_decision,
+                "kronos": kronos_decision,
                 "tensortrade": tensortrade_decision,
                 "oil_bench": oil_bench_decision,
             }
@@ -581,26 +562,17 @@ class EnhancedDecisionEngine:
         # Calculate final confidence considering consensus
         base_confidence = abs(adjusted_score) / 2  # Normalize to 0-1
         consensus_adjustment = consensus_score * 0.3  # Boost confidence for consensus
-        disagreement_penalty = (
-            disagreement_factor * 0.2
-        )  # Reduce confidence for disagreement
+        disagreement_penalty = disagreement_factor * 0.2  # Reduce confidence for disagreement
 
         # Super-Consensus Boost: if Classic and TimesFM agree on a non-HOLD signal
-        classic_decision = next(
-            (d for d in decisions if d.model_name == "classic"), None
-        )
-        timesfm_decision = next(
-            (d for d in decisions if d.model_name == "timesfm"), None
-        )
+        classic_decision = next((d for d in decisions if d.model_name == "classic"), None)
+        timesfm_decision = next((d for d in decisions if d.model_name == "timesfm"), None)
 
         boost = 0.0
         if classic_decision and timesfm_decision:
             if (classic_decision.strength.value * timesfm_decision.strength.value) > 0:
                 # Both agree on BUY or both agree on SELL
-                if (
-                    classic_decision.confidence > 0.5
-                    and timesfm_decision.confidence > 0.3
-                ):
+                if classic_decision.confidence > 0.5 and timesfm_decision.confidence > 0.3:
                     boost = self.SUPER_CONSENSUS_BOOST
 
         final_confidence = min(
@@ -612,9 +584,7 @@ class EnhancedDecisionEngine:
         )
 
         # Apply risk management
-        risk_adjusted_signal = self._apply_risk_management(
-            final_signal, final_confidence, market_data
-        )
+        risk_adjusted_signal = self._apply_risk_management(final_signal, final_confidence, market_data)
 
         # Generate reasoning
         reasoning_parts = []
@@ -622,9 +592,7 @@ class EnhancedDecisionEngine:
         reasoning_parts.append(f"Consensus: {consensus_score:.2f}")
 
         if disagreement_factor > 0.3:
-            reasoning_parts.append(
-                f"High disagreement detected ({disagreement_factor:.2f})"
-            )
+            reasoning_parts.append(f"High disagreement detected ({disagreement_factor:.2f})")
 
         if risk_adjusted_signal != final_signal:
             reasoning_parts.append(f"Risk management adjusted from {final_signal}")
@@ -642,9 +610,7 @@ class EnhancedDecisionEngine:
             timestamp=timestamp,
         )
 
-    def update_adaptive_thresholds(
-        self, market_volatility: float, trend_strength: float
-    ):
+    def update_adaptive_thresholds(self, market_volatility: float, trend_strength: float):
         """
         Update adaptive thresholds based on market conditions.
 
@@ -665,9 +631,7 @@ class EnhancedDecisionEngine:
             self.adaptive_thresholds["buy"] -= trend_adjustment
             self.adaptive_thresholds["sell"] += trend_adjustment
 
-    def get_model_weights_recommendation(
-        self, performance_history: Dict
-    ) -> Dict[str, float]:
+    def get_model_weights_recommendation(self, performance_history: Dict) -> Dict[str, float]:
         """
         Recommend adaptive weights based on recent model performance.
 

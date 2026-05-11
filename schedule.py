@@ -27,9 +27,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
-        RotatingFileHandler(
-            "scheduler.log", maxBytes=1_000_000, backupCount=3, encoding="utf-8"
-        ),
+        RotatingFileHandler("scheduler.log", maxBytes=1_000_000, backupCount=3, encoding="utf-8"),
         logging.StreamHandler(sys.stdout),
     ],
 )
@@ -44,9 +42,7 @@ def is_market_open():
     if now.weekday() > 4:
         return False, "Week-end"
 
-    start_time = now.replace(
-        hour=START_HOUR, minute=START_MINUTE, second=0, microsecond=0
-    )
+    start_time = now.replace(hour=START_HOUR, minute=START_MINUTE, second=0, microsecond=0)
     end_time = now.replace(hour=END_HOUR, minute=END_MINUTE, second=0, microsecond=0)
 
     if now < start_time:

@@ -128,9 +128,7 @@ class TestDatabase(unittest.TestCase):
         )
 
         conn = sqlite3.connect(self.temp_db_path, timeout=5.0)
-        result = conn.execute(
-            "SELECT model_type, signal, confidence FROM model_signals WHERE ticker='AAPL'"
-        ).fetchone()
+        result = conn.execute("SELECT model_type, signal, confidence FROM model_signals WHERE ticker='AAPL'").fetchone()
         conn.close()
 
         self.assertIsNotNone(result)

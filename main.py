@@ -39,9 +39,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
-        RotatingFileHandler(
-            "trading.log", maxBytes=5_000_000, backupCount=5, encoding="utf-8"
-        ),
+        RotatingFileHandler("trading.log", maxBytes=5_000_000, backupCount=5, encoding="utf-8"),
         logging.StreamHandler(sys.stdout),
     ],
 )
@@ -66,9 +64,7 @@ def check_setup() -> bool:
     return True
 
 
-def run_trading_analysis(
-    ticker: str, is_simulation: bool = False, is_t212: bool = False
-):
+def run_trading_analysis(ticker: str, is_simulation: bool = False, is_t212: bool = False):
     if not check_setup():
         return
 
@@ -77,9 +73,7 @@ def run_trading_analysis(
     # Vérification santé Ollama avant chaque cycle
     ollama_ok = check_ollama_health()
     if not ollama_ok:
-        logger.critical(
-            f"OLLAMA INDISPONIBLE pour {ticker} — le cycle de trading est ignoré."
-        )
+        logger.critical(f"OLLAMA INDISPONIBLE pour {ticker} — le cycle de trading est ignoré.")
         console.print(
             Panel(
                 f"[bold red]OLLAMA INDISPONIBLE (localhost:11434)[/bold red]\n\n"
@@ -133,11 +127,7 @@ def run_trading_analysis(
 
             # --- AJOUT : Récupération de l'état de position pour le Risk Manager ---
             is_holding = t212_state.get("active_position") is not None
-            entry_price_index = (
-                t212_state.get("active_position", {}).get("entry_price_index")
-                if is_holding
-                else None
-            )
+            entry_price_index = t212_state.get("active_position", {}).get("entry_price_index") if is_holding else None
 
             # Recalculer le signal avec la conscience de la position
             # On ré-interroge le risk manager avec les infos de position
@@ -161,9 +151,7 @@ def run_trading_analysis(
                     console.print(f"[bold cyan]ℹ️ {adjustment_reason}[/bold cyan]")
 
             if signal in ["BUY", "SELL"]:
-                console.print(
-                    f"[bold yellow]🚀 Execution of the signal on Trading 212 for {ticker}...[/bold yellow]"
-                )
+                console.print(f"[bold yellow]🚀 Execution of the signal on Trading 212 for {ticker}...[/bold yellow]")
                 execute_t212_trade(
                     signal,
                     confidence,
@@ -172,9 +160,7 @@ def run_trading_analysis(
                     signal_source="IA_HYBRID_T212",
                 )
             else:
-                console.print(
-                    f"[bold blue]ℹ️ No trade executed (Signal is {signal})[/bold blue]"
-                )
+                console.print(f"[bold blue]ℹ️ No trade executed (Signal is {signal})[/bold blue]")
 
         # --- AJOUT : Journalisation CSV pour débriefing détaillé ---
         journal_file = "trading_journal.csv"
@@ -200,6 +186,7 @@ def run_trading_analysis(
                 "llm_visual",
                 "sentiment",
                 "timesfm",
+                "kronos",
                 "tensortrade",
                 "vincent_ganne",
             ]
@@ -225,10 +212,7 @@ def run_trading_analysis(
             ]
 
             # Dictionnaire des décisions pour un mapping facile
-            dec_map = {
-                d.model_name: f"{d.signal}({d.confidence:.2f})"
-                for d in decision.individual_decisions
-            }
+            dec_map = {d.model_name: f"{d.signal}({d.confidence:.2f})" for d in decision.individual_decisions}
             for m in model_names:
                 row.append(dec_map.get(m, "N/A"))
 
@@ -244,9 +228,7 @@ def run_trading_analysis(
         summary_table.add_column("Value")
 
         summary_table.add_row("TICKER", f"[bold]{ticker}[/bold]")
-        summary_table.add_row(
-            "FINAL DECISION", f"[bold {color}]{signal}[/bold {color}]"
-        )
+        summary_table.add_row("FINAL DECISION", f"[bold {color}]{signal}[/bold {color}]")
         summary_table.add_row("CONFIDENCE", f"{confidence:.2%}")
         summary_table.add_row("RISK LEVEL", f"{risk_level}")
 
@@ -257,9 +239,7 @@ def run_trading_analysis(
 
             if state:
                 summary_table.add_row("---", "---")
-                summary_table.add_row(
-                    "PORTFOLIO VALUE", f"[bold]{state[2]:.2f} €[/bold]"
-                )
+                summary_table.add_row("PORTFOLIO VALUE", f"[bold]{state[2]:.2f} €[/bold]")
                 summary_table.add_row("CASH", f"{state[1]:.2f} €")
                 summary_table.add_row("SHARES", f"{state[0]:.4f}")
                 if last_tx:
@@ -279,13 +259,9 @@ def run_trading_analysis(
             summary_table.add_row("T212 CAPITAL", f"[bold]{cap_val:.2f} €[/bold]")
             summary_table.add_row("T212 P/L", f"{pl_val:+.2f} €")
             if active_pos:
-                summary_table.add_row(
-                    "T212 POSITION", f"{active_pos['quantity']} shares"
-                )
+                summary_table.add_row("T212 POSITION", f"{active_pos['quantity']} shares")
         else:
-            summary_table.add_row(
-                "REC. POSITION", f"${results['position_sizing'].recommended_size:,.2f}"
-            )
+            summary_table.add_row("REC. POSITION", f"${results['position_sizing'].recommended_size:,.2f}")
 
         console.print(
             Panel(
@@ -336,6 +312,4 @@ if __name__ == "__main__":
         run_trading_analysis(t, args.simul, args.t212)
 
     duration = time.time() - start_time
-    logging.info(
-        f"Total execution time: {duration:.2f} seconds ({duration / 60:.2f} minutes)"
-    )
+    logging.info(f"Total execution time: {duration:.2f} seconds ({duration / 60:.2f} minutes)")

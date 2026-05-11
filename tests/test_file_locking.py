@@ -80,9 +80,7 @@ def test_concurrent_writes():
         print("PASS: Concurrent writes don't corrupt file")
 
         if errors:
-            print(
-                f"  Note: {len(errors)} errors during concurrent writes (expected with no locking)"
-            )
+            print(f"  Note: {len(errors)} errors during concurrent writes (expected with no locking)")
     finally:
         if test_path.exists():
             test_path.unlink()

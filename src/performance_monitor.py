@@ -173,7 +173,7 @@ class PerformanceMonitor:
                     acknowledged BOOLEAN DEFAULT FALSE
                 )
             """)
-            
+
             # Migration for alerts table
             cursor.execute("PRAGMA table_info(performance_alerts)")
             columns = [info[1] for info in cursor.fetchall()]
@@ -333,10 +333,7 @@ class PerformanceMonitor:
                 alerts.append(alert)
 
         # Check win rate (seulement si des trades ont ete clotures)
-        if (
-            metrics.win_rate >= 0
-            and metrics.win_rate < self.alert_thresholds["win_rate"]["critical"]
-        ):
+        if metrics.win_rate >= 0 and metrics.win_rate < self.alert_thresholds["win_rate"]["critical"]:
             alert = PerformanceAlert(
                 alert_type="win_rate",
                 severity="HIGH",
@@ -517,9 +514,7 @@ class PerformanceMonitor:
                 ORDER BY count DESC
             """
 
-            alerts_df = pd.read_sql_query(
-                alert_query, conn, params=(cutoff_date.isoformat(), self.ticker)
-            )
+            alerts_df = pd.read_sql_query(alert_query, conn, params=(cutoff_date.isoformat(), self.ticker))
 
             conn.close()
 
@@ -541,9 +536,7 @@ class PerformanceMonitor:
                     "active_positions": int(latest_metrics["active_positions"]),
                     "cash_balance": latest_metrics["cash_balance"],
                 },
-                "recent_alerts": alerts_df.to_dict("records")
-                if not alerts_df.empty
-                else [],
+                "recent_alerts": alerts_df.to_dict("records") if not alerts_df.empty else [],
                 "risk_assessment": self._assess_current_risk(df),
             }
 
@@ -617,9 +610,7 @@ class PerformanceMonitor:
         }
         return recommendations.get(risk_level, "Monitor situation closely.")
 
-    def create_performance_dashboard(
-        self, output_path: str = "performance_dashboard.png"
-    ):
+    def create_performance_dashboard(self, output_path: str = "performance_dashboard.png"):
         """Create visual performance dashboard"""
         try:
             # Get recent data for specific ticker
@@ -648,14 +639,10 @@ class PerformanceMonitor:
 
             # Create dashboard
             fig, axes = plt.subplots(2, 3, figsize=(20, 12))
-            fig.suptitle(
-                f"Trading AI Performance Dashboard - {self.ticker}", fontsize=16, fontweight="bold"
-            )
+            fig.suptitle(f"Trading AI Performance Dashboard - {self.ticker}", fontsize=16, fontweight="bold")
 
             # Portfolio value
-            axes[0, 0].plot(
-                df["timestamp"], df["portfolio_value"], color="blue", linewidth=2
-            )
+            axes[0, 0].plot(df["timestamp"], df["portfolio_value"], color="blue", linewidth=2)
             axes[0, 0].set_title("Portfolio Value Over Time")
             axes[0, 0].set_ylabel("Value ($)")
             axes[0, 0].grid(True, alpha=0.3)
@@ -672,44 +659,30 @@ class PerformanceMonitor:
             axes[0, 1].grid(True, alpha=0.3)
 
             # Daily returns distribution
-            axes[0, 2].hist(
-                df["daily_return"] * 100, bins=20, alpha=0.7, color="orange"
-            )
+            axes[0, 2].hist(df["daily_return"] * 100, bins=20, alpha=0.7, color="orange")
             axes[0, 2].set_title("Daily Returns Distribution")
             axes[0, 2].set_xlabel("Daily Return (%)")
             axes[0, 2].set_ylabel("Frequency")
             axes[0, 2].grid(True, alpha=0.3)
 
             # Sharpe ratio
-            axes[1, 0].plot(
-                df["timestamp"], df["sharpe_ratio"], color="purple", linewidth=2
-            )
-            axes[1, 0].axhline(
-                y=1.0, color="red", linestyle="--", alpha=0.7, label="Good Threshold"
-            )
+            axes[1, 0].plot(df["timestamp"], df["sharpe_ratio"], color="purple", linewidth=2)
+            axes[1, 0].axhline(y=1.0, color="red", linestyle="--", alpha=0.7, label="Good Threshold")
             axes[1, 0].set_title("Sharpe Ratio Over Time")
             axes[1, 0].set_ylabel("Sharpe Ratio")
             axes[1, 0].legend()
             axes[1, 0].grid(True, alpha=0.3)
 
             # Max drawdown
-            axes[1, 1].plot(
-                df["timestamp"], df["max_drawdown"] * 100, color="red", linewidth=2
-            )
-            axes[1, 1].fill_between(
-                df["timestamp"], df["max_drawdown"] * 100, alpha=0.3, color="red"
-            )
+            axes[1, 1].plot(df["timestamp"], df["max_drawdown"] * 100, color="red", linewidth=2)
+            axes[1, 1].fill_between(df["timestamp"], df["max_drawdown"] * 100, alpha=0.3, color="red")
             axes[1, 1].set_title("Maximum Drawdown")
             axes[1, 1].set_ylabel("Drawdown (%)")
             axes[1, 1].grid(True, alpha=0.3)
 
             # Win rate
-            axes[1, 2].plot(
-                df["timestamp"], df["win_rate"] * 100, color="teal", linewidth=2
-            )
-            axes[1, 2].axhline(
-                y=50, color="gray", linestyle="--", alpha=0.7, label="50% Baseline"
-            )
+            axes[1, 2].plot(df["timestamp"], df["win_rate"] * 100, color="teal", linewidth=2)
+            axes[1, 2].axhline(y=50, color="gray", linestyle="--", alpha=0.7, label="50% Baseline")
             axes[1, 2].set_title("Win Rate Over Time")
             axes[1, 2].set_ylabel("Win Rate (%)")
             axes[1, 2].legend()
@@ -760,7 +733,8 @@ class PerformanceMonitor:
                     conn = sqlite3.connect(self.db_path)
                     first_val_df = pd.read_sql_query(
                         "SELECT portfolio_value FROM realtime_metrics WHERE ticker = ? ORDER BY timestamp ASC LIMIT 1",
-                        conn, params=(self.ticker,)
+                        conn,
+                        params=(self.ticker,),
                     )
                     conn.close()
                     if not first_val_df.empty:
@@ -773,14 +747,10 @@ class PerformanceMonitor:
 
             # Calculate Sharpe ratio (simplified, 30-day rolling for specific ticker)
             if len(ticker_history) >= 30:
-                recent_returns = [
-                    m.daily_return for m in ticker_history[-30:]
-                ]
+                recent_returns = [m.daily_return for m in ticker_history[-30:]]
                 mean_return = np.mean(recent_returns)
                 std_return = np.std(recent_returns)
-                sharpe_ratio = (
-                    (mean_return / std_return) * np.sqrt(252) if std_return > 0 else 0.0
-                )
+                sharpe_ratio = (mean_return / std_return) * np.sqrt(252) if std_return > 0 else 0.0
             else:
                 sharpe_ratio = 0.0
 
@@ -798,10 +768,7 @@ class PerformanceMonitor:
             model_accuracy = {}
             for model_name, predictions in model_predictions.items():
                 if predictions.get("total_predictions", 0) > 0:
-                    accuracy = (
-                        predictions.get("correct_predictions", 0)
-                        / predictions["total_predictions"]
-                    )
+                    accuracy = predictions.get("correct_predictions", 0) / predictions["total_predictions"]
                     model_accuracy[model_name] = accuracy
 
             # Create metrics object
@@ -844,8 +811,7 @@ class PerformanceMonitor:
         try:
             conn = sqlite3.connect("trading_history.db")
             df = pd.read_sql_query(
-                "SELECT * FROM transactions WHERE ticker = ? ORDER BY date ASC", 
-                conn, params=(self.ticker,)
+                "SELECT * FROM transactions WHERE ticker = ? ORDER BY date ASC", conn, params=(self.ticker,)
             )
             conn.close()
 
@@ -868,9 +834,7 @@ class PerformanceMonitor:
 
             total_closed_trades = wins + losses
             if total_closed_trades == 0:
-                logger.info(
-                    f"Aucun trade cloture pour {self.ticker} — le win rate ne peut pas etre calcule."
-                )
+                logger.info(f"Aucun trade cloture pour {self.ticker} — le win rate ne peut pas etre calcule.")
                 return -1.0  # Sentinelle: signifie "non calculable"
             return wins / total_closed_trades
         except Exception as e:

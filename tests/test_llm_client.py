@@ -14,9 +14,7 @@ class TestLLMClient(unittest.TestCase):
         # Mock successful response
         mock_response = MagicMock()
         mock_response.json.return_value = {
-            "response": json.dumps(
-                {"signal": "BUY", "confidence": 0.8, "analysis": "Test analysis"}
-            )
+            "response": json.dumps({"signal": "BUY", "confidence": 0.8, "analysis": "Test analysis"})
         }
         mock_post.return_value = mock_response
 

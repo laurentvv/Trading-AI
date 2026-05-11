@@ -20,9 +20,7 @@ def test_no_hardcoded_prices():
     print("PASS: No hardcoded prices in get_real_price_eur")
 
     # Check that ValueError is raised when all sources fail
-    assert "raise ValueError" in source, (
-        "Should raise ValueError when price unavailable"
-    )
+    assert "raise ValueError" in source, "Should raise ValueError when price unavailable"
     print("PASS: Raises ValueError when price unavailable")
 
     # Check yfinance fallback exists

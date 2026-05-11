@@ -34,9 +34,7 @@ class TestTimesFMModelWrapper(unittest.TestCase):
     @patch("src.timesfm_model.TimesFMModel")
     def test_get_timesfm_prediction_exception(self, mock_timesfm_model_class):
         # Setup mock behavior to raise exception
-        mock_timesfm_model_class.get_instance.side_effect = Exception(
-            "Mocked initialization error"
-        )
+        mock_timesfm_model_class.get_instance.side_effect = Exception("Mocked initialization error")
 
         # Call function
         result = get_timesfm_prediction(self.dummy_df)

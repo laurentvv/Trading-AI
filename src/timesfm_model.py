@@ -19,9 +19,7 @@ try:
     logger.info("API TimesFM 2.5 (Torch) chargée avec succès.")
 except ImportError:
     TIMESFM_2P5_AVAILABLE = False
-    logger.error(
-        "API TimesFM 2.5 non trouvée. Veuillez lancer 'python setup_timesfm.py' pour l'installer."
-    )
+    logger.error("API TimesFM 2.5 non trouvée. Veuillez lancer 'python setup_timesfm.py' pour l'installer.")
 
 
 class TimesFMModel:
@@ -49,26 +47,16 @@ class TimesFMModel:
                     from huggingface_hub import login
 
                     login(token=hf_token, add_to_git_credential=False)
-                    logger.info(
-                        "HF_TOKEN detecte — authentification HuggingFace effectuee."
-                    )
+                    logger.info("HF_TOKEN detecte — authentification HuggingFace effectuee.")
                 except Exception as hf_err:
-                    logger.warning(
-                        f"Authentification HF echouee (non bloquant): {hf_err}"
-                    )
+                    logger.warning(f"Authentification HF echouee (non bloquant): {hf_err}")
             else:
-                logger.info(
-                    "HF_TOKEN non defini — telechargements sans authentification."
-                )
+                logger.info("HF_TOKEN non defini — telechargements sans authentification.")
 
-            logger.info(
-                "Initialisation de TimesFM 2.5 (google/timesfm-2.5-200m-pytorch)..."
-            )
+            logger.info("Initialisation de TimesFM 2.5 (google/timesfm-2.5-200m-pytorch)...")
 
             # Initialisation selon l'API 2.5 (sans torch_compile pour Windows)
-            self.model = TimesFM_2p5_200M_torch(torch_compile=False).from_pretrained(
-                "google/timesfm-2.5-200m-pytorch"
-            )
+            self.model = TimesFM_2p5_200M_torch(torch_compile=False).from_pretrained("google/timesfm-2.5-200m-pytorch")
 
             self.model.compile(
                 ForecastConfig(
@@ -108,11 +96,7 @@ class TimesFMModel:
 
             current_price = prices[-1]
             last_pred = predictions[-1]
-            expected_return = (
-                (last_pred - current_price) / current_price
-                if current_price != 0
-                else 0.0
-            )
+            expected_return = (last_pred - current_price) / current_price if current_price != 0 else 0.0
 
             signal = "HOLD"
             # On scale la confiance : 1% de mouvement -> 0.5 de confiance, 2% -> 1.0

@@ -251,9 +251,7 @@ class AdaptiveWeightManager:
         except Exception as e:
             logger.error(f"Failed to update outcome: {e}")
 
-    def calculate_model_performance(
-        self, model_name: str, days_back: int = None
-    ) -> Optional[ModelPerformance]:
+    def calculate_model_performance(self, model_name: str, days_back: int = None) -> Optional[ModelPerformance]:
         """
         Calculate comprehensive performance metrics for a model.
 
@@ -282,9 +280,7 @@ class AdaptiveWeightManager:
             conn.close()
 
             if len(df) < self.min_observations:
-                logger.warning(
-                    f"Insufficient data for {model_name}: {len(df)} observations"
-                )
+                logger.warning(f"Insufficient data for {model_name}: {len(df)} observations")
                 return None
 
             # Calculate performance metrics
@@ -301,11 +297,7 @@ class AdaptiveWeightManager:
 
             precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
             recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-            f1_score = (
-                2 * (precision * recall) / (precision + recall)
-                if (precision + recall) > 0
-                else 0.0
-            )
+            f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
 
             # Return-based metrics
             returns = df["return_1d"].dropna()
@@ -384,16 +376,12 @@ class AdaptiveWeightManager:
 
             for model_name, group in df.groupby("model_name"):
                 if len(group) < self.min_observations:
-                    logger.warning(
-                        f"Insufficient data for {model_name}: {len(group)} observations"
-                    )
+                    logger.warning(f"Insufficient data for {model_name}: {len(group)} observations")
                     continue
 
                 # Calculate performance metrics
                 # Convert signals to binary (1 for BUY/STRONG_BUY, 0 for others)
-                predicted = (
-                    group["signal_predicted"].isin(["BUY", "STRONG_BUY"])
-                ).astype(int)
+                predicted = (group["signal_predicted"].isin(["BUY", "STRONG_BUY"])).astype(int)
                 actual = group["actual_outcome"]
 
                 # Classification metrics
@@ -405,11 +393,7 @@ class AdaptiveWeightManager:
 
                 precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
                 recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-                f1_score = (
-                    2 * (precision * recall) / (precision + recall)
-                    if (precision + recall) > 0
-                    else 0.0
-                )
+                f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
 
                 # Return-based metrics
                 returns = group["return_1d"].dropna()
@@ -500,16 +484,12 @@ class AdaptiveWeightManager:
         """
         # Normalize metrics to 0-1 scale
         accuracy_score = performance.accuracy
-        sharpe_score = min(
-            1.0, max(0.0, (performance.sharpe_ratio + 1) / 3)
-        )  # Normalize Sharpe
+        sharpe_score = min(1.0, max(0.0, (performance.sharpe_ratio + 1) / 3))  # Normalize Sharpe
         win_rate_score = performance.win_rate
 
         # Invert negative metrics (lower is better)
         drawdown_score = 1.0 - min(1.0, performance.max_drawdown * 10)  # Scale drawdown
-        volatility_score = 1.0 - min(
-            1.0, performance.volatility * 20
-        )  # Scale volatility
+        volatility_score = 1.0 - min(1.0, performance.volatility * 20)  # Scale volatility
 
         # Recency bonus (placeholder - could be enhanced with time-weighted scoring)
         recency_score = 1.0  # Full score for recent performance
@@ -560,17 +540,13 @@ class AdaptiveWeightManager:
             performance = all_performances.get(model_name)
             if performance is not None:
                 model_performances[model_name] = performance
-                performance_scores[model_name] = self.calculate_performance_score(
-                    performance
-                )
+                performance_scores[model_name] = self.calculate_performance_score(performance)
             else:
                 # Use base performance if no data available
                 performance_scores[model_name] = 0.5  # Neutral score
 
         # Check if we have enough data for adaptation
-        models_with_data = len(
-            [p for p in model_performances.values() if p is not None]
-        )
+        models_with_data = len([p for p in model_performances.values() if p is not None])
 
         if models_with_data < 2 and not force_update:
             # Not enough data, return base weights
@@ -587,10 +563,7 @@ class AdaptiveWeightManager:
         if total_performance == 0:
             performance_weights = self.base_weights.copy()
         else:
-            performance_weights = {
-                model: score / total_performance
-                for model, score in performance_scores.items()
-            }
+            performance_weights = {model: score / total_performance for model, score in performance_scores.items()}
 
         # Apply market regime adjustments
         regime_adjusted_weights = {}
@@ -606,10 +579,7 @@ class AdaptiveWeightManager:
         # Normalize weights to sum to 1.0
         total_weight = sum(regime_adjusted_weights.values())
         if total_weight > 0:
-            final_weights = {
-                model: weight / total_weight
-                for model, weight in regime_adjusted_weights.items()
-            }
+            final_weights = {model: weight / total_weight for model, weight in regime_adjusted_weights.items()}
         else:
             final_weights = self.base_weights.copy()
 
@@ -619,9 +589,7 @@ class AdaptiveWeightManager:
         for model in self.base_weights.keys():
             new_weight = final_weights.get(model, self.base_weights[model])
             base_weight = self.base_weights[model]
-            smoothed_weights[model] = (
-                smoothing_factor * new_weight + (1 - smoothing_factor) * base_weight
-            )
+            smoothed_weights[model] = smoothing_factor * new_weight + (1 - smoothing_factor) * base_weight
 
         # Generate adjustment reasoning
         reasoning_parts = []
@@ -629,9 +597,7 @@ class AdaptiveWeightManager:
 
         # Identify top performing model
         if performance_scores:
-            top_model = max(
-                performance_scores.keys(), key=lambda k: performance_scores[k]
-            )
+            top_model = max(performance_scores.keys(), key=lambda k: performance_scores[k])
             reasoning_parts.append(f"Top performer: {top_model}")
 
         # Identify significant weight changes
@@ -659,9 +625,7 @@ class AdaptiveWeightManager:
             performance_period=f"{self.lookback_days} days",
         )
 
-    def get_current_weights(
-        self, market_data: pd.Series = None, volatility: float = None
-    ) -> Dict[str, float]:
+    def get_current_weights(self, market_data: pd.Series = None, volatility: float = None) -> Dict[str, float]:
         """
         Get current recommended weights (convenience method).
 

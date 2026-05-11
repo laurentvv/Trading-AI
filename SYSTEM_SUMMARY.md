@@ -4,7 +4,7 @@ Ce document résume l'architecture, les capacités et les performances du systè
 
 ## 🚀 Architecture Globale
 
-Le système repose sur une approche **multi-modale hybride**. Au lieu de faire confiance à un seul algorithme, il combine neuf types d'intelligence pour prendre une décision finale.
+Le système repose sur une approche **multi-modale hybride**. Au lieu de faire confiance à un seul algorithme, il combine dix types d'intelligence pour prendre une décision finale.
 
 ```mermaid
 graph TD

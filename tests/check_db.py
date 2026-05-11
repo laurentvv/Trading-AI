@@ -3,10 +3,11 @@ from pathlib import Path
 
 logs_dir = Path(__file__).resolve().parent.parent / "logs_prod"
 
+
 def check_db(path, name):
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"DATABASE: {name}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     conn = sqlite3.connect(path)
     cur = conn.cursor()
     cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
@@ -24,6 +25,7 @@ def check_db(path, name):
         total = cur.execute(f"SELECT COUNT(*) FROM [{t}]").fetchone()[0]
         print(f"Total rows: {total}")
     conn.close()
+
 
 check_db(logs_dir / "trading_history.db", "trading_history.db")
 check_db(logs_dir / "performance_monitor.db", "performance_monitor.db")

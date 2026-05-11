@@ -77,14 +77,16 @@ def aggregate_daily_signals(journal: pd.DataFrame) -> pd.DataFrame:
             final = "SELL"
         else:
             final = "HOLD"
-        daily.append({
-            "ticker": ticker,
-            "date": d,
-            "signal": final,
-            "signal_value": round(avg_signal, 2),
-            "confidence": grp["confidence"].mean(),
-            "n_signals": len(grp),
-        })
+        daily.append(
+            {
+                "ticker": ticker,
+                "date": d,
+                "signal": final,
+                "signal_value": round(avg_signal, 2),
+                "confidence": grp["confidence"].mean(),
+                "n_signals": len(grp),
+            }
+        )
     return pd.DataFrame(daily)
 
 
@@ -190,10 +192,12 @@ def run_baseline(prices: dict, start_date: date, end_date: date, initial_cash: f
         final = px_period.iloc[-1]
         final_equity = shares * final
         total_return = (final_equity / initial_cash) - 1
-        equity_curve = pd.DataFrame({
-            "date": px_period.index,
-            "equity": shares * px_period.values,
-        })
+        equity_curve = pd.DataFrame(
+            {
+                "date": px_period.index,
+                "equity": shares * px_period.values,
+            }
+        )
         daily_returns = equity_curve["equity"].pct_change().dropna()
         sharpe = 0.0
         if len(daily_returns) > 1 and daily_returns.std() > 0:
@@ -224,43 +228,48 @@ def print_report(journal_stats: dict, backtest: dict, baseline: dict, t212_trade
 
     print("\n--- SIGNAL SUMMARY (from logs_prod/trading_journal.csv) ---")
     for ticker, stats in journal_stats.items():
-        print(f"  {ticker}: {stats['total']} signals | "
-              f"BUY={stats['buy']} SELL={stats['sell']} HOLD={stats['hold']} | "
-              f"Avg Conf={stats['avg_conf']:.1%}")
+        print(
+            f"  {ticker}: {stats['total']} signals | "
+            f"BUY={stats['buy']} SELL={stats['sell']} HOLD={stats['hold']} | "
+            f"Avg Conf={stats['avg_conf']:.1%}"
+        )
 
     print("\n--- REAL T212 TRADES (from logs_prod/trading_history.db) ---")
     if t212_trades:
         for t in t212_trades:
-            print(f"  {t[1]} {t[3]} {t[4]:.4f}x {t[5]:.2f} EUR "
-                  f"(cost={t[6]:.2f}, src={t[7]})")
+            print(f"  {t[1]} {t[3]} {t[4]:.4f}x {t[5]:.2f} EUR (cost={t[6]:.2f}, src={t[7]})")
     else:
         print("  (none)")
 
     print("\n--- SIGNAL-FOLLOWING BACKTEST (daily aggregated) ---")
-    print(f"  {'Ticker':<10} {'Return':>10} {'MaxDD':>10} {'Sharpe':>8} "
-          f"{'Fees':>8} {'Trades':>8} {'WinRate':>8}")
-    print(f"  {'-'*62}")
+    print(f"  {'Ticker':<10} {'Return':>10} {'MaxDD':>10} {'Sharpe':>8} {'Fees':>8} {'Trades':>8} {'WinRate':>8}")
+    print(f"  {'-' * 62}")
     for ticker, r in backtest.items():
-        print(f"  {ticker:<10} {r['total_return_pct']:>10} {r['max_drawdown_pct']:>10} "
-              f"{r['sharpe_ratio']:>8.2f} {r['total_fees']:>8.2f} "
-              f"{r['n_buys']}B/{r['n_sells']}S {' ' * 4}{r['win_rate']:>8}")
+        print(
+            f"  {ticker:<10} {r['total_return_pct']:>10} {r['max_drawdown_pct']:>10} "
+            f"{r['sharpe_ratio']:>8.2f} {r['total_fees']:>8.2f} "
+            f"{r['n_buys']}B/{r['n_sells']}S {' ' * 4}{r['win_rate']:>8}"
+        )
 
     print("\n--- BASELINE BUY & HOLD ---")
-    print(f"  {'Ticker':<10} {'Return':>10} {'MaxDD':>10} {'Sharpe':>8} "
-          f"{'Entry':>10} {'Exit':>10}")
-    print(f"  {'-'*58}")
+    print(f"  {'Ticker':<10} {'Return':>10} {'MaxDD':>10} {'Sharpe':>8} {'Entry':>10} {'Exit':>10}")
+    print(f"  {'-' * 58}")
     for ticker, r in baseline.items():
-        print(f"  {ticker:<10} {r['total_return_pct']:>10} {r['max_drawdown_pct']:>10} "
-              f"{r['sharpe_ratio']:>8.2f} {r['entry_price']:>10.2f} {r['exit_price']:>10.2f}")
+        print(
+            f"  {ticker:<10} {r['total_return_pct']:>10} {r['max_drawdown_pct']:>10} "
+            f"{r['sharpe_ratio']:>8.2f} {r['entry_price']:>10.2f} {r['exit_price']:>10.2f}"
+        )
 
     print("\n--- COMPARISON ---")
     for ticker in backtest:
         if ticker in baseline:
             alpha = backtest[ticker]["total_return"] - baseline[ticker]["total_return"]
             emoji = "+" if alpha > 0 else ""
-            print(f"  {ticker}: Signal strategy {backtest[ticker]['total_return_pct']} "
-                  f"vs Buy&Hold {baseline[ticker]['total_return_pct']} "
-                  f"=> Alpha: {emoji}{alpha:.2f}%")
+            print(
+                f"  {ticker}: Signal strategy {backtest[ticker]['total_return_pct']} "
+                f"vs Buy&Hold {baseline[ticker]['total_return_pct']} "
+                f"=> Alpha: {emoji}{alpha:.2f}%"
+            )
 
     print("\n" + "=" * 70)
 
@@ -309,12 +318,13 @@ def main():
     out_dir = Path("logs_prod")
     for ticker, r in backtest.items():
         if isinstance(r.get("equity_curve"), pd.DataFrame):
-            r["equity_curve"].to_csv(out_dir / f"backtest_equity_{ticker.replace('.','_')}.csv", index=False)
+            r["equity_curve"].to_csv(out_dir / f"backtest_equity_{ticker.replace('.', '_')}.csv", index=False)
 
     report_data = {
         "period": {"start": str(start_date), "end": str(end_date)},
-        "signal_strategy": {k: {kk: vv for kk, vv in v.items() if kk not in ("trades", "equity_curve")}
-                            for k, v in backtest.items()},
+        "signal_strategy": {
+            k: {kk: vv for kk, vv in v.items() if kk not in ("trades", "equity_curve")} for k, v in backtest.items()
+        },
         "baseline": baseline,
         "t212_real_trades": len(t212_trades),
     }

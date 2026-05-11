@@ -46,12 +46,8 @@ class BenchmarkResults:
 
     def print_markdown(self):
         print("\n## TensorTrade Benchmark Results\n")
-        print(
-            "| Size | Phase | Duration (s) | Peak Mem (MB) | Signal | Confidence |"
-        )
-        print(
-            "|------|-------|-------------|---------------|--------|------------|"
-        )
+        print("| Size | Phase | Duration (s) | Peak Mem (MB) | Signal | Confidence |")
+        print("|------|-------|-------------|---------------|--------|------------|")
         for r in self.rows:
             print(
                 f"| {r['size']} | {r['phase']} | {r['duration_s']} | "

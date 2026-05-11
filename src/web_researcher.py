@@ -30,15 +30,9 @@ def generate_search_query(ticker: str, latest_data: pd.DataFrame = None) -> str:
     price_context = ""
     if latest_data is not None and not latest_data.empty:
         last_price = latest_data["Close"].iloc[-1]
-        prev_price = (
-            latest_data["Close"].iloc[-5]
-            if len(latest_data) > 5
-            else latest_data["Close"].iloc[0]
-        )
+        prev_price = latest_data["Close"].iloc[-5] if len(latest_data) > 5 else latest_data["Close"].iloc[0]
         change = ((last_price / prev_price) - 1) * 100
-        trend = (
-            "upward" if change > 0.5 else "downward" if change < -0.5 else "sideways"
-        )
+        trend = "upward" if change > 0.5 else "downward" if change < -0.5 else "sideways"
         price_context = f"The current price is {last_price:.2f} with a 5-day {trend} trend ({change:+.2f}%)."
 
     # Specific instruction for Hyperliquid on Oil and NASDAQ
@@ -101,9 +95,7 @@ def _sync_search_ddg(query: str, count: int) -> List[Dict[str, str]]:
                         {
                             "url": item.get("href"),
                             "title": item.get("title", ""),
-                            "body": item.get(
-                                "body", ""
-                            ),  # DDG already provides a small snippet
+                            "body": item.get("body", ""),  # DDG already provides a small snippet
                         }
                     )
     except Exception as e:

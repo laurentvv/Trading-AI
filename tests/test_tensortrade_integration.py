@@ -37,9 +37,7 @@ class TestTensorTradeIntegration(unittest.TestCase):
         mock_policy = MagicMock()
         mock_policy.obs_to_tensor.return_value = (MagicMock(),)
         mock_dist = MagicMock()
-        mock_dist.distribution.probs.detach().numpy.return_value = np.array(
-            [[0.1, 0.8, 0.1]]
-        )
+        mock_dist.distribution.probs.detach().numpy.return_value = np.array([[0.1, 0.8, 0.1]])
         mock_policy.get_distribution.return_value = mock_dist
         mock_model.policy = mock_policy
         mock_ppo_cls.return_value = mock_model
@@ -68,9 +66,7 @@ class TestTensorTradeIntegration(unittest.TestCase):
         )
 
         self.assertIsNotNone(result)
-        tensortrade_models = [
-            d for d in result.individual_decisions if d.model_name == "tensortrade"
-        ]
+        tensortrade_models = [d for d in result.individual_decisions if d.model_name == "tensortrade"]
         self.assertEqual(len(tensortrade_models), 1)
         td = tensortrade_models[0]
         self.assertEqual(td.signal, "BUY")
@@ -88,9 +84,7 @@ class TestTensorTradeIntegration(unittest.TestCase):
         mock_policy = MagicMock()
         mock_policy.obs_to_tensor.return_value = (MagicMock(),)
         mock_dist = MagicMock()
-        mock_dist.distribution.probs.detach().numpy.return_value = np.array(
-            [[0.1, 0.9, 0.0]]
-        )
+        mock_dist.distribution.probs.detach().numpy.return_value = np.array([[0.1, 0.9, 0.0]])
         mock_policy.get_distribution.return_value = mock_dist
         mock_model.policy = mock_policy
         mock_ppo_cls.return_value = mock_model
@@ -120,9 +114,7 @@ class TestTensorTradeIntegration(unittest.TestCase):
         mock_policy = MagicMock()
         mock_policy.obs_to_tensor.return_value = (MagicMock(),)
         mock_dist = MagicMock()
-        mock_dist.distribution.probs.detach().numpy.return_value = np.array(
-            [[0.7, 0.2, 0.1]]
-        )
+        mock_dist.distribution.probs.detach().numpy.return_value = np.array([[0.7, 0.2, 0.1]])
         mock_policy.get_distribution.return_value = mock_dist
         mock_model.policy = mock_policy
         mock_ppo_cls.return_value = mock_model
