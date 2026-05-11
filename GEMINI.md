@@ -6,7 +6,7 @@ Ce projet est un système expert d'aide à la décision pour le trading d'ETFs N
 - **Analyse sur Indices** : Le système télécharge et analyse les indices de référence (`^NDX`, `CL=F`) pour obtenir des signaux d'IA plus propres et robustes.
 - **Trading sur ETFs** : Les décisions sont appliquées aux ETFs correspondants sur Trading 212 (`SXRV.DE`, `CRUDP.PA`).
 
-Le moteur fusionne un modèle quantitatif classique, un LLM textuel (Gemma 4), un LLM visuel (analyse de graphiques), les modèles de fondation **TimesFM 2.5** (Google Research) et **Kronos** (NeoQuasar), et le **Modèle Vincent Ganne** (Géopolitique & Cross-Asset).
+Le moteur fusionne un modèle quantitatif classique, un LLM textuel (Gemma 4), un LLM visuel (analyse de graphiques), les modèles de fondation **TimesFM 2.5** (Google Research) et **Kronos-base** (NeoQuasar), et le **Modèle Vincent Ganne** (Géopolitique & Cross-Asset).
 
 ### Nouveautés majeures :
 - **Intégration EIA (Energy Information Administration) :** Analyse automatisée des données fondamentales américaines (Stocks de brut, Importations, Taux d'utilisation des raffineries) et des prévisions STEO.
