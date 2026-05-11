@@ -46,10 +46,10 @@ class KronosModel:
         if self.predictor is not None:
             return True
 
-        logger.info("Loading Kronos-small model and tokenizer...")
+        logger.info("Loading Kronos-base model and tokenizer...")
         try:
             self.tokenizer = KronosTokenizer.from_pretrained("NeoQuasar/Kronos-Tokenizer-base")
-            self.model = Kronos.from_pretrained("NeoQuasar/Kronos-small")
+            self.model = Kronos.from_pretrained("NeoQuasar/Kronos-base")
 
             # Initialize predictor
             self.predictor = KronosPredictor(
