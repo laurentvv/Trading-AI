@@ -72,7 +72,8 @@ def fetch_alpha_vantage_news(ticker: str, api_key: str):
 
             time.sleep(12)  # Respect Alpha Vantage free tier rate limit (5/min)
 
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Alpha Vantage news fetch failed for query '{query}': {e}")
             continue
 
     overall_sentiment = total_sentiment / sentiment_count if sentiment_count > 0 else 0

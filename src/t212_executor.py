@@ -395,7 +395,7 @@ def execute_t212_trade(
                 f"⚠️ Pas assez de cash réel ({portfolio['cash']:.2f}€) pour le budget cible ({available_cash:.2f}€)."
             )
 
-        target_budget = min(available_cash, portfolio["cash"]) * 0.99
+        target_budget = min(available_cash, portfolio["cash"]) * 0.95
         # Déterminer la précision selon le ticker
         precision = 2 if "CRUD" in t212_ticker.upper() else 4
         quantity = round(target_budget / current_price, precision)

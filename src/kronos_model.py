@@ -175,9 +175,18 @@ class KronosModel:
             if price_change_pct < -15:
                 logger.warning(
                     f"KRONOS SANITY: Unrealistic 5-day prediction ({price_change_pct:+.1f}%). "
-                    f"Flagging as unreliable. Clamping confidence to 0.05."
+                    f"Flagging as unreliable. Returning HOLD instead."
                 )
-                confidence = min(confidence, 0.05)
+                signal = "HOLD"
+                confidence = 0.0
+
+            if price_change_pct > 15:
+                logger.warning(
+                    f"KRONOS SANITY: Unrealistic 5-day prediction ({price_change_pct:+.1f}%). "
+                    f"Flagging as unreliable. Returning HOLD instead."
+                )
+                signal = "HOLD"
+                confidence = 0.0
 
             analysis = f"Kronos avg {eval_len}d forecast: {price_change_pct:+.2f}%. (24d max: {max_up_pct:+.2f}%, min: {max_down_pct:+.2f}%)"
 

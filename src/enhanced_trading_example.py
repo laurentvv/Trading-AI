@@ -304,12 +304,17 @@ class EnhancedTradingSystem:
                 ],
                 capture_output=True,
                 text=True,
-                check=True,
+                timeout=60,
             )
-            news_data = json.loads(process.stdout)
-            headlines = news_data.get("headlines", [])
-            sentiment_score = news_data.get("sentiment", 0)
-            logger.info(f"Successfully fetched {len(headlines)} news headlines. Sentiment score: {sentiment_score:.2f}")
+            if process.returncode != 0:
+                logger.error(f"News fetcher failed (exit {process.returncode}): {process.stderr[:500]}")
+            else:
+                news_data = json.loads(process.stdout)
+                headlines = news_data.get("headlines", [])
+                sentiment_score = news_data.get("sentiment", 0)
+                if not headlines:
+                    logger.warning(f"News fetcher returned 0 headlines. stderr: {process.stderr[:300]}")
+                logger.info(f"Successfully fetched {len(headlines)} news headlines. Sentiment score: {sentiment_score:.2f}")
         except Exception as e:
             logger.error(f"Failed to fetch news: {e}")
 

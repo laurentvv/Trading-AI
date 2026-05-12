@@ -150,10 +150,11 @@ def run_trading_analysis(ticker: str, is_simulation: bool = False, is_t212: bool
                 if "INERTIA" in adjustment_reason:
                     console.print(f"[bold cyan]ℹ️ {adjustment_reason}[/bold cyan]")
 
-            if signal in ["BUY", "SELL"]:
-                console.print(f"[bold yellow]🚀 Execution of the signal on Trading 212 for {ticker}...[/bold yellow]")
+            if signal in ["BUY", "STRONG_BUY", "SELL", "STRONG_SELL"]:
+                exec_signal = "BUY" if "BUY" in signal else "SELL"
+                console.print(f"[bold yellow]🚀 Execution of the signal on Trading 212 for {ticker}... (original: {signal})[/bold yellow]")
                 execute_t212_trade(
-                    signal,
+                    exec_signal,
                     confidence,
                     ticker=ticker,
                     analysis_date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
