@@ -25,6 +25,8 @@
 - [ ] Web recherche retourne parfois des articles obsolètes (ex: CNBC 2015)
 - [x] Urea (UME=F) MA200 = nan (résolu par MA50 fallback dans `src/data.py`)
 - [ ] HF_TOKEN non défini sur PROD
+- [x] Kronos prédictions irréalistes (-12% à -42%) — résolu par Sanity Guards double protection (2026-05-12)
+- [x] update_prediction_outcome() jamais appelé — résolu par feedback loop dans t212_executor.py (2026-05-12)
 
 # TensorTrade et Cache (2026-04-28/29)
 ~~Intégrer TensorTrade / PPO comme 9ème signal~~ [FAIT]
@@ -35,3 +37,16 @@
 - [ ] Optimiser le temps d'entraînement PPO (actuel ~500 timesteps)
 - [ ] Evaluer la corrélation TensorTrade vs Classic sur backtest long
 - [ ] Synchroniser les 9 traductions i18n avec les mises à jour README (TensorTrade, cache)
+
+# Robustesse Prod (2026-05-12)
+~~Feedback loop adaptatif (update_outcomes_for_date)~~ [FAIT]
+~~Garde-fous Kronos (sanity guards double)~~ [FAIT]
+~~Poids progressifs pour modèles en test (0.05)~~ [FAIT]
+~~Normalisation des poids à la volée (somme → 1.0)~~ [FAIT]
+~~Seuil cache 2j → 1j~~ [FAIT]
+~~Budgets T212 par ticker (INITIAL_BUDGETS)~~ [FAIT]
+~~Filtre grokipedia dans les logs~~ [FAIT]
+- [ ] Configurer HF_TOKEN sur le serveur PROD (variable d'environnement Windows)
+- [ ] Surveiller les performances Kronos avec poids 0.05 et ajuster si nécessaire
+- [ ] Une fois Kronos calibré, augmenter progressivement le poids (0.05 → 0.10 → 0.15)
+- [ ] Extraire les poids de base dans un fichier de config partagé (éliminer la duplication)

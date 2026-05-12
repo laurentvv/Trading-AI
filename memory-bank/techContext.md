@@ -31,7 +31,8 @@
 - `main.py`: CLI controller with `--simul`, `--t212` and `--ticker` flags.
 - `src/enhanced_trading_example.py`: Main engine orchestrating all models.
 - `src/t212_executor.py`: Real-world execution layer via Trading 212 API. Includes `get_t212_price()` for live ETF price retrieval.
-- `src/data.py`: Market data layer with yfinance circuit breaker (separate trackers for `info` vs `download`), 10s timeouts, and cache auto-invalidation (stale > 2 days).
+- `src/data.py`: Market data layer with yfinance circuit breaker (separate trackers for `info` vs `download`), 10s timeouts, and cache auto-invalidation (stale > **1 day**).
+- `src/adaptive_weight_manager.py`: Manages dynamic model weights based on `model_performance.db`. Includes `update_outcomes_for_date()` for batch-updating prediction outcomes after trade closes, and on-the-fly weight normalization.
 - `src/tensortrade_model.py`: Reinforcement Learning signal using PPO (stable-baselines3) in a Gymnasium trading environment.
 - `src/lean_bridge.py`: *(removed 2026-05-05)* Replaced by `backtest_prod.py`.
 - `src/lean_validator.py`: *(removed 2026-05-05)* Replaced by `backtest_prod.py`.
@@ -57,5 +58,7 @@
 - **T212 Live Price Fallback** (`src/t212_executor.py`): `get_t212_price()` retrieves real-time EUR prices from Trading 212 positions when available (0.2s vs 10s+ yfinance timeout).
 - **Price Hierarchy**: T212 live → MarketDataManager (yfinance) → yfinance history → cache parquet last close.
 - **_yf_ticker_info() skipped when cache exists**: The `info` metadata call is bypassed when loading from parquet cache, saving ~30-50s per cycle.
-- **Stale Cache Auto-Invalidation** (`src/data.py` lines 148-154): When loading from Parquet cache, if `last_date` is > 2 days old, the cache is bypassed and fresh data is downloaded. Prevents stale data decisions in PROD.
+- **Stale Cache Auto-Invalidation** (`src/data.py` lines 148-154): When loading from Parquet cache, if `last_date` is > **1 day** old, the cache is bypassed and fresh data is downloaded. Cache age is logged in fractional days for precise diagnostics. Prevents stale data decisions in PROD.
 - **MA50 Fallback** (`src/data.py`): When MA200 is NaN (insufficient price history, e.g. Urea/UME=F), the system falls back to MA50 for the cross-asset moving average check. Ensures the Vincent Ganne model always has a valid reference.
+- **Feedback Loop** (`src/t212_executor.py` + `src/adaptive_weight_manager.py`): After a confirmed T212 SELL, `update_outcomes_for_date()` batch-updates `model_performance_history` with actual trade results using a single SQLite connection. Only updates models that had predictions on the entry date (`actual_outcome IS NULL`). This feeds the AdaptiveWeightManager for dynamic weight adjustment.
+- **Grokipedia Log Filter** (`src/web_researcher.py`): A `_GrokipediaFilter` logging filter suppresses non-blocking crawl4ai "grokipedia" warnings from polluting production logs.

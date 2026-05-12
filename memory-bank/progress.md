@@ -14,6 +14,14 @@
 ...
 
 ## 5. Corrections Récentes
+- **2026-05-12**: Améliorations Prod & Robustesse
+  * **Feedback Loop Adaptatif** : Après chaque vente confirmée sur T212, `update_outcomes_for_date()` enregistre les résultats réels (return_1d, win/loss) dans `model_performance.db` via une connexion SQLite unique. L'AdaptiveWeightManager peut désormais ajuster les poids dynamiquement.
+  * **Poids Progressifs** : Tous les modèles expérimentaux (vincent_ganne, oil_bench, tensortrade, kronos) passent de poids 0.0 à 0.05 (phase de test active). Poids normalisés à la volée (somme→1.0) dans le moteur de décision.
+  * **Garde-fous Kronos (Sanity Guards)** : Double protection — (1) au niveau modèle : confiance écrasée à 0.05 si prédiction 5j < -15% ; (2) au niveau moteur : poids réduit à 0.01 si impact implicite > 15%.
+  * **Seuil Cache 2→1 jour** : Le cache Parquet s'invalide désormais après 1 jour au lieu de 2. Âge du cache journalisé en jours fractionnels.
+  * **Budgets T212 par Ticker** : Remplacement du budget fixe 5000€ par `INITIAL_BUDGETS` configurable (1000€ par ticker).
+  * **Filtre Grokipedia** : Suppression des warnings non-bloquants crawl4ai/grokipedia dans les logs.
+  * **Test `test_weight_alignment.py`** : Corrigé le chemin d'import et mis à jour les poids attendus (1.05 normalisé à l'usage).
 - **2026-05-06**: Refactoring Architectural Majeur
   * **Découplage des Modèles** : Introduction de la classe abstraite `BaseModel` et standardisation des prédictions via `ModelResult`. `VincentGanneModel` est le premier migré nativement.
   * **Moteur de Décision Générique** : `EnhancedDecisionEngine` supporte désormais une liste dynamique de modèles, simplifiant l'ajout de futurs signaux IA.

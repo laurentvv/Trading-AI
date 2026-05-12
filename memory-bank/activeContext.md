@@ -1,14 +1,20 @@
 # Active Context
 
 ## Current Status
-The project is now in a **high-fidelity production/demo phase** with a **standalone production backtest engine**. The decision engine has been refined for extreme accuracy, and the web research capabilities have been significantly upgraded. The system is operating under an "Accuracy First" (Justesse) mandate. `backtest_prod.py` replays actual prod signals against real prices with T212 fees for performance validation.
+The project is now in a **high-fidelity production/demo phase** with a **standalone production backtest engine** and an **active adaptive feedback loop**. The decision engine has been refined for extreme accuracy, and the web research capabilities have been significantly upgraded. The system is operating under an "Accuracy First" (Justesse) mandate. `backtest_prod.py` replays actual prod signals against real prices with T212 fees for performance validation.
 
 ### Key Recent Changes
+- **Adaptive Feedback Loop (2026-05-12)**: After each confirmed T212 SELL, `update_outcomes_for_date()` records actual trade returns in `model_performance.db` for all models that had predictions on the entry date. Uses a single SQLite connection. This closes the loop — the `AdaptiveWeightManager` can now dynamically adjust weights based on real observed performance.
+- **Progressive Model Weights (2026-05-12)**: All experimental models (vincent_ganne, oil_bench, tensortrade, kronos) now have a test weight of 0.05 instead of 0.0. Base weights are normalized to sum=1.0 at the point of use in `enhanced_decision_engine.py` and `adaptive_weight_manager.py`.
+- **Kronos Sanity Guards (2026-05-12)**: Double protection against unrealistic Kronos predictions: (1) at model level, confidence clamped to 0.05 if 5d prediction > 15% drop; (2) at decision engine level, weight capped to 0.01 if implied impact > 15%.
+- **Cache Staleness 2→1 day (2026-05-12)**: Parquet cache auto-invalidates after 1 day instead of 2. Cache age logged in fractional days for precise diagnostics.
+- **Grokipedia Log Suppression (2026-05-12)**: Added `_GrokipediaFilter` to suppress non-blocking crawl4ai grokipedia errors in logs.
+- **T212 Budgets per Ticker (2026-05-12)**: Replaced hardcoded 5000€ default with `INITIAL_BUDGETS` dict (1000€ per ticker: SXRVd_EQ, SXRV_EQ, CRUDl_EQ).
 - **Production Backtest Engine (2026-05-05)**: Replaced QuantConnect Lean integration with a standalone `backtest_prod.py` that replays actual prod signals from `trading_journal.csv` against real parquet prices with T212 fees (0.1%). No external dependencies (no Docker, no Lean CLI). Compares signal strategy vs buy-and-hold baseline with Sharpe, MaxDD, and alpha metrics. Removed `TradingAI-Lean/`, `src/lean_bridge.py`, `src/lean_validator.py`, `run_lean_backtest.py`.
 - **T212 API Resilience Fix**: Fixed `KeyError: 'averagePrice'` crash in `t212_executor.py` when the Trading 212 positions API omits the `averagePrice` field. Now uses defensive `.get()` with fallback calculation.
 - **Diagnostic Scripts**: Moved `check_cache.py`, `check_db.py`, `check_live.py` from `logs_prod/` to `tests/` with relative paths for reusability.
-- **TensorTrade / PPO Integration**: Added a 9th signal — a Reinforcement Learning agent (PPO via stable-baselines3, Gymnasium environment) that learns buy/sell/hold policies from price history. Weight: 10% in the decision engine.
-- **Cache Auto-Invalidation**: Parquet cache files now auto-detect staleness — if `last_date` is > 2 days old, a force refresh is triggered automatically (`src/data.py` lines 148-154).
+- **TensorTrade / PPO Integration**: Added a 9th signal — a Reinforcement Learning agent (PPO via stable-baselines3, Gymnasium environment) that learns buy/sell/hold policies from price history. Weight: 5% (progressive test).
+- **Cache Auto-Invalidation**: Parquet cache files now auto-detect staleness — if `last_date` is > **1 day** old, a force refresh is triggered automatically (`src/data.py` lines 148-154). Age logged in fractional days.
 - **MA50 Fallback**: When MA200 is NaN (insufficient history, e.g. Urea/UME=F), the system falls back to MA50 for the cross-asset indicators used by the Vincent Ganne model.
 - **Cache Utility Script**: `refresh_cache.py` forces refresh of all 4 tickers (`^NDX`, `CL=F`, `SXRV.DE`, `CRUDP.PA`).
 - **DB Files Removed from Git**: `performance_monitor.db` and `trading_history.db` are no longer tracked — generated locally only.
@@ -25,12 +31,15 @@ The project is now in a **high-fidelity production/demo phase** with a **standal
 - [x] Validate full cycle on Nasdaq and Oil tickers.
 - [x] Implement detailed per-model logging.
 - [x] Integrate TensorTrade / PPO RL agent as 9th signal.
-- [x] Implement cache auto-invalidation (stale > 2 days).
+- [x] Implement cache auto-invalidation (stale > 1 day).
 - [x] Implement MA50 fallback for insufficient MA200 data.
+- [x] Implement adaptive feedback loop for model weight adjustment.
+- [x] Add Kronos sanity guards (double protection).
+- [x] Give progressive test weights to experimental models (0.05 each).
 - [ ] Monitor real-time performance in Demo Mode.
-- [ ] Add automated Stop-Loss rules in AdvancedRiskManager.
 - [ ] Synchronize i18n translations (9 languages) with README.md updates.
 - [ ] Optimize model weights via backtest_prod.py grid search.
+- [ ] Set HF_TOKEN on PROD server for TimesFM model download.
 
 ## Decision Log
 - **Nasdaq Exclusivity for VG**: Decided to restrict the Vincent Ganne model to Nasdaq because its energy-price-to-stock-bottom logic is fundamentally a cross-asset indicator for equities, not a directional signal for energy itself.

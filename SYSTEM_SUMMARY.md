@@ -50,13 +50,15 @@ graph TD
 
 4.  **Kronos (NeoQuasar) :**
     *   **Logic (Fix) :** Analyse la tendance moyenne sur les **5 prochains jours** (court terme) au lieu de prédire un point unique à J+24.
-    *   **Sécurité :** Confiance plafonnée à **65%** pour éviter qu'une "hallucination" de crash massif n'écrase le consensus.
-    *   **Statut :** Traité comme "non-prouvé" (poids initial 0.0). Il doit gagner ses galons via l'historique de performance pour influencer le capital.
+    *   **Sécurité :** Confiance plafonnée à **65%**. De plus, un **Sanity Guard** double protège le système :
+        *   Au niveau du modèle (`kronos_model.py`) : si la prédiction 5j implique une baisse > 15%, la confiance est écrasée à 0.05 max.
+        *   Au niveau du moteur de décision (`enhanced_decision_engine.py`) : si l'impact implicite (signal × confiance) dépasse 15%, le poids de Kronos est réduit à 0.01 pour cette décision.
+    *   **Statut :** Poids progressif de **0.05** (phase de test). Son influence peut augmenter via le feedback loop adaptatif.
 
 5.  **TensorTrade / PPO (Reinforcement Learning) :**
     *   Agent **PPO** (stable-baselines3) entraîné à chaque cycle dans un environnement **Gymnasium** custom (`SimpleTradingEnv`).
     *   Apprend une politique d'achat/vente/conservation basée sur les variations de prix récentes.
-    *   **Poids Adaptatif (0.0) :** Comme Kronos, son influence est désactivée par défaut tant que son historique de réussite n'est pas validé par le système.
+    *   **Poids Progressif (0.05) :** En phase de test actif. Son influence s'ajuste via le feedback loop adaptatif.
 
 6.  **Modèle Oil-Bench (Gemma 4 : e4b) :**
     *   **Expert Fondamental :** Modèle spécialisé activé uniquement pour le pétrole (`CL=F`, `CRUDP.PA`).
@@ -85,7 +87,7 @@ Le système intègre un **Advanced Risk Manager** intelligent conscient des spé
 2.  **Sécurité Anti-Perte (Hard Block) :** L'exécuteur Trading 212 vérifie désormais le P&L réel de la position. Un ordre de vente (`SELL`) est **systématiquement bloqué** si la valeur actuelle est inférieure au prix d'achat initial (tolérance 0.2%). Le bot passe en mode "HOLD" jusqu'au retour à l'équilibre.
 3.  **Trailing Stop (Stop Suiveur) :** Pour sécuriser les gains, le système suit la valeur maximale atteinte par la position (`highest_value`). Si le cours baisse de **3%** depuis son sommet **ET** que la position est en profit (> +0.5%), une vente est forcée pour sécuriser le cash.
 4.  **Inertie de Sortie (Sticky HOLD) :** Lorsqu'une position est active, le système devient plus exigeant pour vendre (`SELL`). Il compare le prix actuel à l'**indice de référence lors de l'achat** (ex: prix du WTI à l'entrée). Si la position est gagnante sur l'indice, il faut un signal de vente très fort (> 0.55) pour sortir, protégeant ainsi la tendance haussière contre le bruit passager.
-5.  **Poids Adaptatifs & Mémoire :** Chaque décision de chaque modèle est enregistrée dans `model_performance.db`. Le système ajuste dynamiquement le poids de chaque IA en fonction de son "Win Rate" réel observé sur les jours précédents.
+5.  **Poids Adaptatifs & Feedback Loop** : Chaque décision de chaque modèle est enregistrée dans `model_performance.db`. À chaque clôture de trade (SELL confirmé sur T212), le système met à jour les résultats réels (return_1d, win/loss) pour les modèles ayant prédit à la date d'entrée via `update_outcomes_for_date()`. Le système ajuste dynamiquement le poids de chaque IA en fonction de son "Win Rate" réel observé sur les jours précédents. Les poids de base sont normalisés à la volée (somme → 1.0) au moment du calcul pour garantir un score pondéré cohérent.
 6.  **Trend-Awareness :** Le système détecte la tendance de fond (Prix vs MM50). En marché haussier (Bull Market), il devient plus réactif en abaissant le seuil de confiance requis pour l'achat.
 7.  **Sizing Progressif :** L'exposition varie dynamiquement entre **75% et 100%** sur signal d'achat, selon la force du consensus de l'IA.
 
@@ -119,7 +121,7 @@ Deux tests majeurs ont été réalisés pour valider la robustesse :
 
 Le système ne se contente pas d'additionner les signaux. Il applique une logique de filtrage rigoureuse pour éviter les faux signaux :
 
-1.  **Pondération Cognitive (75% vs 25%)** : Même si le modèle mathématique (`Classic`) est très agressif, il ne pèse que 25% de la note. Les modèles cognitifs (LLM, Vision, Sentiment, TimesFM) contrôlent la décision finale.
+1.  **Pondération Cognitive avec Normalisation** : Les poids de base sont distribués entre les modèles actifs (classic 12%, llm_text 20%, llm_visual 18%, sentiment 15%, timesfm 20%) et les modèles en phase de test (vincent_ganne, oil_bench, tensortrade, kronos — chacun 5%). Ces poids sont **normalisés dynamiquement à la volée** (division par la somme totale) avant le calcul du score pondéré, garantissant un score toujours sur l'échelle attendue. Les modèles cognitifs dominent la décision (~73% après normalisation).
 2.  **Seuil de Confiance Critique (40%)** : Toute décision de mouvement (`BUY` ou `SELL`) doit avoir une confiance globale > 40%. Si la confiance est entre 20% et 40%, le signal est dégradé en `HOLD`.
 3.  **Gestion de la Panique** : En risque `VERY_HIGH`, le système exige un consensus quasi-parfait. Si les modèles divergent (ex: Classic dit SELL mais LLM dit HOLD), le système reste en `HOLD` pour protéger le capital.
 
@@ -157,17 +159,18 @@ Le système peut désormais passer des ordres réels sur un compte Trading 212 v
 - **Prix Temps Réel T212** : Récupère le prix live en EUR via l'API positions Trading 212 (`get_t212_price()`). Plus rapide et plus fiable que yfinance pour les ETFs cotés.
 - **Tickers Certifiés** : Utilisation des identifiants d'instruments exacts pour garantir l'exécution (`SXRVd_EQ` pour le Nasdaq EUR, `CRUDl_EQ` pour le Pétrole WTI).
 - **Logique de Signal Ajusté** : Le robot utilise le signal filtré par le `AdvancedRiskManager`. Si le risque est jugé trop élevé par rapport à la confiance, l'exécution est bloquée (conversion en `HOLD`).
-- **Budget Dédié :** Commence avec 1000 € (paramétrable dans `t212_portfolio_state.json`).
+- **Budget Dédié :** Budget initial configurable par ticker (`INITIAL_BUDGETS` dans `t212_executor.py`) : 1000 € par défaut (SXRVd_EQ, SXRV_EQ, CRUDl_EQ).
 - **Actions Fractionnées :** Le système calcule la quantité exacte pour respecter le budget au centime près.
 - **Vente Totale :** En cas de signal SELL, le robot liquide 100% de la position (incluant toutes les fractions).
 - **Gestion des API** : Retry automatique en cas de limite de requêtes API (Rate Limit).
+- **Feedback Loop d'Apprentissage** : Après chaque vente confirmée sur T212, le système enregistre le résultat réel (profit/perte) dans `model_performance.db` via `update_outcomes_for_date()`, permettant à l'Adaptive Weight Manager d'ajuster les poids des modèles en fonction de leur performance réelle.
 
 ### Résilience Réseau :
 - **Circuit Breaker yfinance** : Deux trackers séparés (`info` vs `download`). Après 3 échecs consécutifs, les appels sont bloqués 120s. Empêche les cascades de timeouts.
 - **Hiérarchie de prix** : T212 live → yfinance → cache parquet.
 - **Timeout 10s** sur tous les appels réseau (yfinance, Alpha Vantage).
 - **Skip metadata** : `_yf_ticker_info()` ignoré quand le cache parquet existe (gain ~30-50s/cycle).
-- **Cache Auto-Invalidation** : Si la dernière donnée du cache Parquet date de > 2 jours, un téléchargement forcé est déclenché automatiquement (`src/data.py`). Utilitaire `refresh_cache.py` pour forcer le rafraîchissement manuel de tous les tickers.
+- **Cache Auto-Invalidation** : Si la dernière donnée du cache Parquet date de > **1 jour** (seuil réduit de 2→1j le 2026-05-12), un téléchargement forcé est déclenché automatiquement (`src/data.py`). L'âge du cache est journalisé en jours fractionnels pour un diagnostic précis. Utilitaire `refresh_cache.py` pour forcer le rafraîchissement manuel de tous les tickers.
 - **MA50 Fallback** : Quand MA200 est indisponible (historique insuffisant, ex: Urée/UME=F), le système utilise MA50 comme référence mobile pour les indicateurs cross-asset du modèle Vincent Ganne.
 
 ```bash
