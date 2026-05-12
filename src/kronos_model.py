@@ -172,6 +172,13 @@ class KronosModel:
             base_confidence = abs(price_change_pct) / 2.0
             confidence = min(base_confidence, 0.65)
 
+            if price_change_pct < -15:
+                logger.warning(
+                    f"KRONOS SANITY: Unrealistic 5-day prediction ({price_change_pct:+.1f}%). "
+                    f"Flagging as unreliable. Clamping confidence to 0.05."
+                )
+                confidence = min(confidence, 0.05)
+
             analysis = f"Kronos avg {eval_len}d forecast: {price_change_pct:+.2f}%. (24d max: {max_up_pct:+.2f}%, min: {max_down_pct:+.2f}%)"
 
             logger.info(f"Kronos prediction: {signal} (Conf: {confidence:.2f}) - {analysis}")

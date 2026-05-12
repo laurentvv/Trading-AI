@@ -93,15 +93,15 @@ class AdaptiveWeightManager:
         self.db_path = db_path
         self.config = config or {}
         self.base_weights = base_weights or {
-            "classic": 0.15,
-            "llm_text": 0.25,
-            "llm_visual": 0.20,
+            "classic": 0.12,
+            "llm_text": 0.20,
+            "llm_visual": 0.18,
             "sentiment": 0.15,
-            "timesfm": 0.25,
-            "vincent_ganne": 0.0,
-            "oil_bench": 0.0,
-            "tensortrade": 0.0,
-            "kronos": 0.0,
+            "timesfm": 0.20,
+            "vincent_ganne": 0.05,
+            "oil_bench": 0.05,
+            "tensortrade": 0.05,
+            "kronos": 0.05,
         }
         self.lookback_days = lookback_days
         self.min_observations = min_observations
@@ -251,6 +251,34 @@ class AdaptiveWeightManager:
 
         except Exception as e:
             logger.error(f"Failed to update outcome: {e}")
+
+    def update_outcomes_for_date(
+        self,
+        date: str,
+        actual_outcome: int,
+        return_1d: float,
+        return_5d: float = None,
+    ) -> int:
+        """Update outcomes for ALL models that have a recorded prediction on this date.
+        Uses a single connection. Returns the number of rows updated."""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                UPDATE model_performance_history
+                SET actual_outcome = ?, return_1d = ?, return_5d = ?
+                WHERE date = ? AND actual_outcome IS NULL
+            """,
+                (actual_outcome, return_1d, return_5d, date),
+            )
+            updated = cursor.rowcount
+            conn.commit()
+            conn.close()
+            return updated
+        except Exception as e:
+            logger.error(f"Failed to batch-update outcomes for {date}: {e}")
+            return 0
 
     def calculate_model_performance(self, model_name: str, days_back: int = None) -> Optional[ModelPerformance]:
         """
@@ -550,9 +578,12 @@ class AdaptiveWeightManager:
         models_with_data = len([p for p in model_performances.values() if p is not None])
 
         if models_with_data < 2 and not force_update:
-            # Not enough data, return base weights
+            normalized = self.base_weights.copy()
+            total_bw = sum(normalized.values())
+            if total_bw > 0:
+                normalized = {k: v / total_bw for k, v in normalized.items()}
             return WeightAdjustment(
-                model_weights=self.base_weights.copy(),
+                model_weights=normalized,
                 adjustment_reason="Insufficient performance data for adaptation",
                 confidence=0.3,
                 market_regime=market_regime,

@@ -145,10 +145,13 @@ def get_etf_data(ticker: str, period: str = "5y", force_refresh: bool = False) -
             info = {}
             logger.info(f"Data loaded from cache: {len(hist_data)} days.")
             last_date = pd.Timestamp(hist_data.index[-1])
-            if (pd.Timestamp.now() - last_date) > pd.Timedelta(days=2):
-                logger.warning(f"Cache stale: last data date is {last_date.date()}, refreshing...")
+            cache_age = (pd.Timestamp.now() - last_date).total_seconds() / 86400
+            if (pd.Timestamp.now() - last_date) > pd.Timedelta(days=1):
+                logger.warning(f"Cache stale: last data date is {last_date.date()} ({cache_age:.1f} days old), refreshing...")
                 hist_data = None
                 force_refresh = True
+            else:
+                logger.info(f"Cache fresh enough: last data date is {last_date.date()} ({cache_age:.1f} days old), using cache without refresh")
         except Exception as e:
             logger.warning(f"Could not read cache file {cache_filepath}: {e}. Forcing refresh.")
             force_refresh = True

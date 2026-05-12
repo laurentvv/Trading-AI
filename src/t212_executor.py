@@ -66,11 +66,12 @@ sys.path.append(str(Path(__file__).parent.parent))
 try:
     from src.data import MarketDataManager
     from src.database import insert_transaction, insert_portfolio_state
+    from src.adaptive_weight_manager import AdaptiveWeightManager
 except ImportError:
-    # Fallback si l'import échoue selon le contexte d'exécution
     MarketDataManager = None
     insert_transaction = None
     insert_portfolio_state = None
+    AdaptiveWeightManager = None
 
 load_dotenv(".env.t212")
 
@@ -83,6 +84,13 @@ TICKER_MAPPING_T212 = {
     "CRUDP.PA": "CRUDl_EQ",
     "CRUDP": "CRUDl_EQ",
 }
+# Budget initial par ticker T212 (en EUR)
+INITIAL_BUDGETS = {
+    "SXRVd_EQ": 1000.0,
+    "SXRV_EQ": 1000.0,
+    "CRUDl_EQ": 1000.0,
+}
+DEFAULT_INITIAL_BUDGET = 1000.0
 
 
 def get_t212_ticker(ticker_yahoo: str) -> str:
@@ -130,18 +138,18 @@ def load_portfolio_state(ticker=None):
     if ticker:
         # Nettoyage du ticker pour la clé via le helper standard
         clean_ticker = get_t212_ticker(ticker)
+        budget = INITIAL_BUDGETS.get(clean_ticker, DEFAULT_INITIAL_BUDGET)
         if clean_ticker not in state["tickers"]:
             state["tickers"][clean_ticker] = {
-                "initial_budget": 5000.0,
-                "current_capital": 5000.0,
+                "initial_budget": budget,
+                "current_capital": budget,
                 "total_realized_pl": 0.0,
                 "active_position": None,
             }
         else:
-            # S'assurer que les clés minimales existent pour un ticker déjà présent
             t_state = state["tickers"][clean_ticker]
-            t_state.setdefault("initial_budget", 5000.0)
-            t_state.setdefault("current_capital", 5000.0)
+            t_state.setdefault("initial_budget", budget)
+            t_state.setdefault("current_capital", budget)
             t_state.setdefault("total_realized_pl", 0.0)
             t_state.setdefault("active_position", None)
 
@@ -485,6 +493,8 @@ def execute_t212_trade(
             logger.info(f"   - Cash résiduel récupéré : {residual_cash:.2f} €")
             logger.info(f"   - Nouveau total : {state['current_capital']:.2f} €")
 
+            entry_time_str = state["active_position"].get("entry_time") if state.get("active_position") else None
+
             state["active_position"] = None
             save_portfolio_state(state, t212_ticker)
 
@@ -500,6 +510,23 @@ def execute_t212_trade(
                     signal_source=signal_source,
                     reason=f"T212 Confirmed Sale (P&L: {(current_value_eur - buy_cost):+.2f}€, {((current_value_eur / buy_cost) - 1):+.2%})",
                 )
+
+            # --- Feedback loop: update adaptive weight manager with trade outcome ---
+            if AdaptiveWeightManager is not None:
+                try:
+                    wm = AdaptiveWeightManager()
+                    entry_date = entry_time_str[:10] if entry_time_str else db_date[:10]
+                    actual_outcome = 1 if current_value_eur > buy_cost else 0
+                    return_1d = (current_value_eur - buy_cost) / buy_cost if buy_cost > 0 else 0.0
+                    updated = wm.update_outcomes_for_date(
+                        date=entry_date,
+                        actual_outcome=actual_outcome,
+                        return_1d=return_1d,
+                    )
+                    if updated > 0:
+                        logger.info(f"📊 Feedback loop: updated {updated} model predictions for {entry_date} (return_1d={return_1d:+.4f})")
+                except Exception as fb_e:
+                    logger.warning(f"Feedback loop failed: {fb_e}")
         else:
             logger.error(f"❌ Erreur lors de la vente : {sell_resp.text}")
 

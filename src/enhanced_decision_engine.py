@@ -281,15 +281,15 @@ class EnhancedDecisionEngine:
         """
         self.config = config or {}
         self.base_weights = base_weights or {
-            "classic": 0.15,
-            "llm_text": 0.25,
-            "llm_visual": 0.20,
+            "classic": 0.12,
+            "llm_text": 0.20,
+            "llm_visual": 0.18,
             "sentiment": 0.15,
-            "timesfm": 0.25,
-            "vincent_ganne": 0.0,
-            "oil_bench": 0.0,
-            "tensortrade": 0.0,
-            "kronos": 0.0,
+            "timesfm": 0.20,
+            "vincent_ganne": 0.05,
+            "oil_bench": 0.05,
+            "tensortrade": 0.05,
+            "kronos": 0.05,
         }
 
         # Initialize models with config thresholds
@@ -474,16 +474,20 @@ class EnhancedDecisionEngine:
         market_data = market_data or {}
 
         # Use adaptive weights if provided, otherwise use base weights
-        weights = adaptive_weights or self.base_weights
+        weights = (adaptive_weights or self.base_weights).copy()
+
+        # Normalize weights to sum to 1.0 (base_weights may intentionally sum != 1.0)
+        total_w = sum(weights.values())
+        if total_w > 0:
+            weights = {k: v / total_w for k, v in weights.items()}
 
         # Override weights for OIL to ensure domain models aren't silenced
         is_oil = market_data.get("is_oil", False)
         if is_oil:
             # Force a weight for oil_bench if it's zeroed out but a decision exists
             if oil_bench_decision and weights.get("oil_bench", 0.0) < 0.15:
-                weights = weights.copy() # Avoid mutating original
-                weights["oil_bench"] = 0.25 # Give it strong weight
-                weights["llm_text"] = 0.15 # Reduce generic models
+                weights["oil_bench"] = 0.25
+                weights["llm_text"] = 0.15
                 weights["timesfm"] = 0.15
                 
         # Start with generic results if provided
@@ -557,6 +561,16 @@ class EnhancedDecisionEngine:
         for decision in decisions:
             model_weight = weights.get(decision.model_name, 0.25)
             signal_value = decision.strength.value
+
+            if decision.model_name == "kronos" and signal_value <= -1 and decision.confidence > 0:
+                kronos_implied_drop = abs(signal_value) * decision.confidence
+                if kronos_implied_drop > 0.15:
+                    logger.warning(
+                        f"KRONOS SANITY GUARD: Unrealistic prediction detected "
+                        f"(implied drop ~{kronos_implied_drop:.0%}), capping weight from {model_weight:.2f} to 0.01"
+                    )
+                    model_weight = 0.01
+
             weighted_score += signal_value * decision.confidence * model_weight
 
         # Adjust for market regime
