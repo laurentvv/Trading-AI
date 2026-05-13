@@ -14,6 +14,9 @@
 ...
 
 ## 5. Corrections Récentes
+- **2026-05-13**: Bug Fix Budget T212
+  * **`load_portfolio_state()` early return** : Quand `t212_portfolio_state.json` n'existait pas, la fonction retournait `{"tickers": {}}` sans initialiser le ticker — le bloc `if ticker:` (qui set le budget 1000€) était sauté. Corrigé : le `else` englobe maintenant `_read_with_retry` + migration.
+  * **Fallback achat `5000.0` → `DEFAULT_INITIAL_BUDGET`** : Dans `execute_t212_trade()`, `state.get("current_capital", 5000.0)` utilisait 5000€ comme fallback au lieu de `DEFAULT_INITIAL_BUDGET` (1000€). Conséquence PROD : 4 ordres rejetés "Insufficient funds" + 1 achat à 4750€ au lieu de 950€.
 - **2026-05-12**: Améliorations Prod & Robustesse
   * **Feedback Loop Adaptatif** : Après chaque vente confirmée sur T212, `update_outcomes_for_date()` enregistre les résultats réels (return_1d, win/loss) dans `model_performance.db` via une connexion SQLite unique. L'AdaptiveWeightManager peut désormais ajuster les poids dynamiquement.
   * **Poids Progressifs** : Tous les modèles expérimentaux (vincent_ganne, oil_bench, tensortrade, kronos) passent de poids 0.0 à 0.05 (phase de test active). Poids normalisés à la volée (somme→1.0) dans le moteur de décision.
