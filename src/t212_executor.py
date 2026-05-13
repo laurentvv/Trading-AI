@@ -116,24 +116,22 @@ def get_auth_header():
 
 def load_portfolio_state(ticker=None):
     if not os.path.exists(STATE_FILE):
-        # État initial par défaut
-        initial = {"tickers": {}}
-        return initial
-
-    state = _read_with_retry(Path(STATE_FILE))
-    if state is None:
         state = {"tickers": {}}
+    else:
+        state = _read_with_retry(Path(STATE_FILE))
+        if state is None:
+            state = {"tickers": {}}
 
-    # Migration si c'est l'ancien format (format plat)
-    if "current_capital" in state and "tickers" not in state:
-        old_ticker = (
-            state.get("active_position", {}).get("ticker", DEFAULT_TICKER)
-            if state.get("active_position")
-            else DEFAULT_TICKER
-        )
-        state = {"tickers": {old_ticker: state}}
-        # On sauvegarde immédiatement le nouveau format
-        _atomic_json_write(Path(STATE_FILE), state)
+        # Migration si c'est l'ancien format (format plat)
+        if "current_capital" in state and "tickers" not in state:
+            old_ticker = (
+                state.get("active_position", {}).get("ticker", DEFAULT_TICKER)
+                if state.get("active_position")
+                else DEFAULT_TICKER
+            )
+            state = {"tickers": {old_ticker: state}}
+            # On sauvegarde immédiatement le nouveau format
+            _atomic_json_write(Path(STATE_FILE), state)
 
     if ticker:
         # Nettoyage du ticker pour la clé via le helper standard
@@ -389,7 +387,7 @@ def execute_t212_trade(
         )
 
         # 2. Calculer la quantité
-        available_cash = state.get("current_capital", 5000.0)
+        available_cash = state.get("current_capital", DEFAULT_INITIAL_BUDGET)
         if portfolio["cash"] < available_cash:
             logger.warning(
                 f"⚠️ Pas assez de cash réel ({portfolio['cash']:.2f}€) pour le budget cible ({available_cash:.2f}€)."
