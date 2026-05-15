@@ -15,6 +15,9 @@ Le projet utilise un fichier `.env.t212` pour stocker les identifiants de maniè
 
 ## 2. Découvertes Techniques Majeures
 
+### Pas d'API OHLCV / Candles
+L'API Trading 212 v0 ne propose **aucun endpoint de données historiques** (candles, OHLCV). 12 endpoints potentiels ont été testés (`/instruments/{id}/candles`, `/market-data/`, etc.) — tous retournent 404. Le système utilise donc **Yahoo Finance pour l'historique** et **T212 uniquement pour le prix live** (via `/equity/positions`).
+
 ### Achat par Valeur (€) vs Quantité
 ⚠️ **Important :** L'API Trading 212 ne supporte **PAS** l'achat direct par montant (ex: "Acheter pour 1000€"). Elle n'accepte que le paramètre `quantity` (Nombre d'actions).
 - **Solution implémentée :** Le système calcule dynamiquement la fraction d'action nécessaire : `Quantité = Budget / Prix Réel`.
@@ -52,6 +55,15 @@ Le système utilise une cascade de sources pour obtenir le prix le plus précis 
    - Liquide la position totale au prix du marché.
    - Met à jour le capital (Capital Initial + Profit/Perte).
 
+### Synchronisation Réelle du Portefeuille
+Le système synchronise désormais son état directement depuis T212 :
+- **Source primaire** : `sync_state_from_t212()` interroge `/equity/positions` (positions ouvertes) et `/equity/history/orders` (P&L réalisé, matching FIFO des lots).
+- **Fallback offline** : L'état est sauvegardé dans `t212_portfolio_state.json` après chaque sync.
+- **Fonctions utilitaires** : `get_t212_positions()`, `get_t212_account_summary()`, `get_t212_order_history()`.
+
+### Injection du Prix Live dans l'Analyse
+`_inject_t212_live_price()` (dans `src/data.py`) patche automatiquement la dernière barre OHLCV des ETFs tradeables avec le prix live T212 après le chargement des données Yahoo. Ne s'applique qu'aux tickers mappés (`SXRV.DE`, `SXRV.FRK`, `CRUDP.PA`).
+
 ### Résilience Réseau
 - **Circuit breaker yfinance** : Les timeouts metadata (`info`) et données (`download`) sont gérés par des trackers séparés. Après 3 échecs consécutifs, les appels sont bloqués pendant 120s.
 - **Timeout 10s** sur tous les appels yfinance (avant : 30s+ sans limite).
@@ -77,4 +89,4 @@ Le système utilise une cascade de sources pour obtenir le prix le plus précis 
 3. **Fichier de suivi :** `t212_portfolio_state.json` est le "journal de bord" de l'IA. Ne pas le supprimer manuellement si une position est active.
 
 ---
-*Dernière mise à jour : 4 mai 2026.*
+*Dernière mise à jour : 15 mai 2026.*

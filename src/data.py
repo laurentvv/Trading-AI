@@ -124,6 +124,33 @@ class MarketDataManager:
             return pd.DataFrame()
 
 
+def _inject_t212_live_price(hist_data: pd.DataFrame, ticker: str) -> pd.DataFrame:
+    """
+    Patch the last row of OHLCV data with T212 live price if available.
+    Only applies to tradeable ETF tickers that have a T212 mapping.
+    This ensures analysis sees the real-time broker price instead of stale Yahoo EOD.
+    """
+    _T212_MAPPED = {"SXRV.DE", "SXRV.FRK", "CRUDP.PA"}
+    if ticker not in _T212_MAPPED:
+        return hist_data
+    if hist_data is None or hist_data.empty:
+        return hist_data
+    try:
+        from t212_executor import get_t212_price
+        live_price = get_t212_price(ticker)
+        if live_price and live_price > 0:
+            last_idx = hist_data.index[-1]
+            hist_data.loc[last_idx, "Close"] = live_price
+            if "High" in hist_data.columns:
+                hist_data.loc[last_idx, "High"] = max(hist_data.loc[last_idx, "High"], live_price)
+            if "Low" in hist_data.columns:
+                hist_data.loc[last_idx, "Low"] = min(hist_data.loc[last_idx, "Low"], live_price)
+            logger.info(f"T212 live price patched for {ticker}: Close={live_price:.4f}")
+    except Exception as e:
+        logger.debug(f"T212 live price injection skipped for {ticker}: {e}")
+    return hist_data
+
+
 def get_etf_data(ticker: str, period: str = "5y", force_refresh: bool = False) -> tuple[pd.DataFrame, dict]:
     """
     Retrieves ETF and VIX data, with a local caching system.
@@ -247,6 +274,9 @@ def get_etf_data(ticker: str, period: str = "5y", force_refresh: bool = False) -
     # Final validation
     if hist_data is None or hist_data.empty:
         raise ValueError(f"Failed to retrieve any data for {ticker}")
+
+    # Patch last row with T212 live price if available (only for tradeable ETFs)
+    hist_data = _inject_t212_live_price(hist_data, ticker)
 
     logger.info(f"Final data period: {hist_data.index.min()} to {hist_data.index.max()}")
     return hist_data, info

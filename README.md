@@ -59,7 +59,7 @@ This project is an expert decision-support system for ETF trading, using a tri-m
 ### 🚀 Dual-Ticker Strategy (Analysis vs. Trading)
 The system uses an innovative approach to maximize model accuracy:
 - **High-Fidelity Analysis**: AI models analyze **global reference indices** (`^NDX` for Nasdaq, `CL=F` for WTI Crude Oil). These indices offer longer history and "purer" trends, without the noise related to trading hours or ETF fees.
-- **ETF Execution**: Real orders are placed on the corresponding tickers on **Trading 212** (`SXRV.DE`, `CRUDP.PA`), using **T212 live prices** (via positions API) for position sizing.
+- **ETF Execution**: Real orders are placed on the corresponding tickers on **Trading 212** (`SXRV.DE`, `CRUDP.PA`), using **T212 live prices** (via positions API) for position sizing. Portfolio state is synchronized directly from T212 (`sync_state_from_t212()`), and live prices are injected into the analysis pipeline (`_inject_t212_live_price()` in `src/data.py`).
 
 ### 🧠 Hybrid AI Engine
 The system merges ten distinct signals:

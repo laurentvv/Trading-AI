@@ -157,6 +157,8 @@ Le système peut désormais passer des ordres réels sur un compte Trading 212 v
 ### Caractéristiques :
 - **Sécurité et Vérification** : Consulte le cash réel et les positions ouvertes **avant** toute action.
 - **Prix Temps Réel T212** : Récupère le prix live en EUR via l'API positions Trading 212 (`get_t212_price()`). Plus rapide et plus fiable que yfinance pour les ETFs cotés.
+- **Injection Prix Live dans l'Analyse** : `_inject_t212_live_price()` (dans `src/data.py`) patche automatiquement la dernière barre OHLCV des ETFs tradeables (SXRV.DE, SXRV.FRK, CRUDP.PA) avec le prix live T212 après le chargement des données Yahoo. Les indices (^NDX, ^VIX, CL=F) restent intouchés.
+- **Portfolio Sync T212** : `sync_state_from_t212()` reconstruit l'état du portefeuille depuis les données T212 réelles (positions ouvertes + P&L réalisé via FIFO). T212 est la source de vérité primaire ; le fichier JSON local sert de fallback offline.
 - **Tickers Certifiés** : Utilisation des identifiants d'instruments exacts pour garantir l'exécution (`SXRVd_EQ` pour le Nasdaq EUR, `CRUDl_EQ` pour le Pétrole WTI).
 - **Logique de Signal Ajusté** : Le robot utilise le signal filtré par le `AdvancedRiskManager`. Si le risque est jugé trop élevé par rapport à la confiance, l'exécution est bloquée (conversion en `HOLD`).
 - **Budget Dédié :** Budget initial configurable par ticker (`INITIAL_BUDGETS` dans `t212_executor.py`) : 1000 € par défaut (SXRVd_EQ, SXRV_EQ, CRUDl_EQ).
@@ -164,10 +166,12 @@ Le système peut désormais passer des ordres réels sur un compte Trading 212 v
 - **Vente Totale :** En cas de signal SELL, le robot liquide 100% de la position (incluant toutes les fractions).
 - **Gestion des API** : Retry automatique en cas de limite de requêtes API (Rate Limit).
 - **Feedback Loop d'Apprentissage** : Après chaque vente confirmée sur T212, le système enregistre le résultat réel (profit/perte) dans `model_performance.db` via `update_outcomes_for_date()`, permettant à l'Adaptive Weight Manager d'ajuster les poids des modèles en fonction de leur performance réelle.
+- **Synchronisation Réelle du Portefeuille** : `load_portfolio_state()` utilise T212 comme source primaire via `sync_state_from_t212()`, qui interroge `/equity/positions` et `/equity/history/orders` pour reconstruire l'état réel (positions, P&L, lots FIFO). Le fichier JSON local est mis à jour après chaque sync et sert de fallback offline.
 
 ### Résilience Réseau :
 - **Circuit Breaker yfinance** : Deux trackers séparés (`info` vs `download`). Après 3 échecs consécutifs, les appels sont bloqués 120s. Empêche les cascades de timeouts.
 - **Hiérarchie de prix** : T212 live → yfinance → cache parquet.
+- **Données Hybrides** : Yahoo pour l'OHLCV historique (pas de candles API sur T212 v0) + T212 pour le prix live injecté dans la dernière barre. Approche optimale combinant profondeur historique et fraîcheur du prix courant.
 - **Timeout 10s** sur tous les appels réseau (yfinance, Alpha Vantage).
 - **Skip metadata** : `_yf_ticker_info()` ignoré quand le cache parquet existe (gain ~30-50s/cycle).
 - **Cache Auto-Invalidation** : Si la dernière donnée du cache Parquet date de > **1 jour** (seuil réduit de 2→1j le 2026-05-12), un téléchargement forcé est déclenché automatiquement (`src/data.py`). L'âge du cache est journalisé en jours fractionnels pour un diagnostic précis. Utilitaire `refresh_cache.py` pour forcer le rafraîchissement manuel de tous les tickers.

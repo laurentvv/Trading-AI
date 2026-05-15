@@ -14,6 +14,13 @@
 ...
 
 ## 5. Corrections Récentes
+- **2026-05-15**: Intégration Données T212 Hybrides (Live Price + Portfolio Sync)
+  * **`_inject_t212_live_price()`** dans `src/data.py` : Après le chargement des données Yahoo (OHLCV historique), la dernière barre Close/High/Low des ETFs T212 est patchée avec le prix live Trading 212 (via `/equity/positions`). Ne s'applique qu'aux tickers mappés (`SXRV.DE`, `SXRV.FRK`, `CRUDP.PA`). L'indice (^NDX, ^VIX, CL=F) n'est pas affecté.
+  * **`sync_state_from_t212()`** dans `src/t212_executor.py` : Nouvelle fonction qui reconstruit l'état du portefeuille directement depuis les données T212 réelles (`/equity/positions` pour les positions ouvertes, `/equity/history/orders` pour le P&L réalisé). Utilise un matching FIFO pour les lots d'achat.
+  * **`load_portfolio_state()` réécrit** : T212 est désormais la source de vérité primaire. Le fichier JSON local (`t212_portfolio_state.json`) sert uniquement de fallback offline. Après chaque sync T212, l'état est sauvegardé localement pour les consultations hors-ligne.
+  * **Nouvelles fonctions utilitaires** : `get_t212_positions()`, `get_t212_account_summary()`, `get_t212_order_history()` — wrappers propres autour de l'API T212 v0.
+  * **Validation** : Cycle complet testé sur SXRV.DE (HOLD, confiance 31.23%, risque VERY_HIGH). T212 sync fonctionne correctement (`SXRVd_EQ | no position | realized P&L=+0.00 EUR`).
+  * **Limitation connue** : Le prix live T212 n'est disponible que pour les instruments avec position ouverte (via `/equity/positions`). SXRV.DE sans position → pas de prix live T212, Yahoo reste la source.
 - **2026-05-13**: Bug Fix Budget T212
   * **`load_portfolio_state()` early return** : Quand `t212_portfolio_state.json` n'existait pas, la fonction retournait `{"tickers": {}}` sans initialiser le ticker — le bloc `if ticker:` (qui set le budget 1000€) était sauté. Corrigé : le `else` englobe maintenant `_read_with_retry` + migration.
   * **Fallback achat `5000.0` → `DEFAULT_INITIAL_BUDGET`** : Dans `execute_t212_trade()`, `state.get("current_capital", 5000.0)` utilisait 5000€ comme fallback au lieu de `DEFAULT_INITIAL_BUDGET` (1000€). Conséquence PROD : 4 ordres rejetés "Insufficient funds" + 1 achat à 4750€ au lieu de 950€.

@@ -114,7 +114,139 @@ def get_auth_header():
     return {"Authorization": f"Basic {base64_auth}"}
 
 
+def _get_t212_base_url():
+    env = os.getenv("T212_ENV", "demo").lower()
+    return f"https://{env}.trading212.com/api/v0"
+
+
+def get_t212_positions():
+    """Fetch all open positions from T212 with live prices."""
+    try:
+        headers = get_auth_header()
+        resp = requests.get(f"{_get_t212_base_url()}/equity/positions", headers=headers, timeout=10)
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception as e:
+        logger.debug(f"T212 positions fetch failed: {e}")
+    return []
+
+
+def get_t212_account_summary():
+    """Fetch account summary from T212 (cash, total value, P&L)."""
+    try:
+        headers = get_auth_header()
+        resp = requests.get(f"{_get_t212_base_url()}/equity/account/summary", headers=headers, timeout=10)
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception as e:
+        logger.debug(f"T212 account summary fetch failed: {e}")
+    return None
+
+
+def get_t212_order_history(ticker=None, limit=50):
+    """Fetch historical filled orders from T212."""
+    try:
+        headers = get_auth_header()
+        params = f"?limit={limit}"
+        if ticker:
+            params += f"&ticker={ticker}"
+        resp = requests.get(f"{_get_t212_base_url()}/equity/history/orders{params}", headers=headers, timeout=10)
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception as e:
+        logger.debug(f"T212 order history fetch failed: {e}")
+    return {"items": []}
+
+
+def sync_state_from_t212(t212_ticker):
+    """
+    Build portfolio state from T212 real data instead of local JSON.
+    Returns a state dict compatible with the existing system, or None if T212 is unavailable.
+    """
+    budget = INITIAL_BUDGETS.get(t212_ticker, DEFAULT_INITIAL_BUDGET)
+    positions = get_t212_positions()
+    current_pos = next((p for p in positions if p["instrument"]["ticker"] == t212_ticker), None)
+
+    state = {
+        "initial_budget": budget,
+        "current_capital": budget,
+        "total_realized_pl": 0.0,
+        "active_position": None,
+        "t212_synced": True,
+    }
+
+    if current_pos:
+        entry_price = float(current_pos.get("averagePricePaid", 0) or current_pos.get("averagePrice", 0))
+        qty = float(current_pos.get("quantity", 0))
+        current_value = float(current_pos.get("walletImpact", {}).get("currentValue", 0))
+        current_price = float(current_pos.get("currentPrice", 0))
+        buy_cost = entry_price * qty
+
+        state["active_position"] = {
+            "ticker": t212_ticker,
+            "quantity": qty,
+            "buy_budget": buy_cost,
+            "entry_price_etf": entry_price,
+            "entry_price_index": entry_price,
+            "entry_time": current_pos.get("createdAt", datetime.datetime.now().isoformat()),
+            "highest_value": max(current_value, buy_cost),
+        }
+
+        # Calculate capital: if position is open, capital = value of position
+        # Realized P&L comes from order history
+        state["current_capital"] = current_value
+        unrealized_pl = current_value - buy_cost
+        logger.info(
+            f"T212 sync: {t212_ticker} | qty={qty} | entry={entry_price:.4f} | "
+            f"current={current_price:.4f} | value={current_value:.2f} EUR | "
+            f"unrealized P&L={unrealized_pl:+.2f} EUR"
+        )
+    else:
+        # No position - capital stays at budget (cash not invested)
+        # Check order history for realized P&L
+        order_data = get_t212_order_history(ticker=t212_ticker, limit=20)
+        total_pl = 0.0
+        buys = []
+        for item in order_data.get("items", []):
+            order = item.get("order", {})
+            fill = item.get("fill", {})
+            if order.get("status") != "FILLED" or not fill:
+                continue
+            side = order.get("side", "")
+            qty = float(fill.get("quantity", 0))
+            price = float(fill.get("price", 0))
+            if side == "BUY":
+                buys.append({"qty": qty, "price": price})
+            elif side == "SELL" and buys:
+                buy = buys.pop(0)
+                total_pl += qty * (price - buy["price"])
+        state["total_realized_pl"] = total_pl
+        state["current_capital"] = budget + total_pl
+        logger.info(f"T212 sync: {t212_ticker} | no position | realized P&L={total_pl:+.2f} EUR")
+
+    return state
+
+
 def load_portfolio_state(ticker=None):
+    # Try T212 real data first
+    if ticker:
+        clean_ticker = get_t212_ticker(ticker)
+        try:
+            t212_state = sync_state_from_t212(clean_ticker)
+            if t212_state:
+                # Save to local file for offline fallback
+                full_state = _read_with_retry(Path(STATE_FILE))
+                if full_state is None:
+                    full_state = {"tickers": {}}
+                if "tickers" not in full_state:
+                    full_state = {"tickers": {}}
+                full_state["tickers"][clean_ticker] = t212_state
+                _atomic_json_write(Path(STATE_FILE), full_state)
+                return t212_state
+        except Exception as e:
+            logger.warning(f"T212 sync failed, falling back to local state: {e}")
+
+    # Fallback to local JSON state
     if not os.path.exists(STATE_FILE):
         state = {"tickers": {}}
     else:
@@ -130,11 +262,9 @@ def load_portfolio_state(ticker=None):
                 else DEFAULT_TICKER
             )
             state = {"tickers": {old_ticker: state}}
-            # On sauvegarde immédiatement le nouveau format
             _atomic_json_write(Path(STATE_FILE), state)
 
     if ticker:
-        # Nettoyage du ticker pour la clé via le helper standard
         clean_ticker = get_t212_ticker(ticker)
         budget = INITIAL_BUDGETS.get(clean_ticker, DEFAULT_INITIAL_BUDGET)
         if clean_ticker not in state["tickers"]:
@@ -151,7 +281,6 @@ def load_portfolio_state(ticker=None):
             t_state.setdefault("total_realized_pl", 0.0)
             t_state.setdefault("active_position", None)
 
-        # Nettoyage récursif si la migration a foiré (évite le "tickers" dans "tickers")
         if "tickers" in state["tickers"][clean_ticker]:
             del state["tickers"][clean_ticker]["tickers"]
 

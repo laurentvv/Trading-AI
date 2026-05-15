@@ -4,6 +4,9 @@
 The project is now in a **high-fidelity production/demo phase** with a **standalone production backtest engine** and an **active adaptive feedback loop**. The decision engine has been refined for extreme accuracy, and the web research capabilities have been significantly upgraded. The system is operating under an "Accuracy First" (Justesse) mandate. `backtest_prod.py` replays actual prod signals against real prices with T212 fees for performance validation.
 
 ### Key Recent Changes
+- **T212 Live Price Injection (2026-05-15)**: `_inject_t212_live_price()` in `src/data.py` patches the last OHLCV bar of tradeable ETFs (SXRV.DE, SXRV.FRK, CRUDP.PA) with the live T212 price from `/equity/positions`. This ensures the analysis engine works with real-time prices instead of stale EOD Yahoo data. Only affects mapped ETF tickers — indices (^NDX, ^VIX, CL=F) remain untouched.
+- **T212 Real Portfolio Sync (2026-05-15)**: `sync_state_from_t212()` in `src/t212_executor.py` rebuilds portfolio state from real T212 data using `/equity/positions` (open positions) and `/equity/history/orders` (realized P&L via FIFO matching). `load_portfolio_state()` now uses T212 as primary source, with local JSON as offline fallback. New helper functions: `get_t212_positions()`, `get_t212_account_summary()`, `get_t212_order_history()`.
+- **T212 API Exploration (2026-05-15)**: Exhaustive testing of 12 potential OHLCV/candle endpoints on T212 API v0 — all returned 404. T212 has no historical price data API. Yahoo remains necessary for OHLCV historical data.
 - **Adaptive Feedback Loop (2026-05-12)**: After each confirmed T212 SELL, `update_outcomes_for_date()` records actual trade returns in `model_performance.db` for all models that had predictions on the entry date. Uses a single SQLite connection. This closes the loop — the `AdaptiveWeightManager` can now dynamically adjust weights based on real observed performance.
 - **Progressive Model Weights (2026-05-12)**: All experimental models (vincent_ganne, oil_bench, tensortrade, kronos) now have a test weight of 0.05 instead of 0.0. Base weights are normalized to sum=1.0 at the point of use in `enhanced_decision_engine.py` and `adaptive_weight_manager.py`.
 - **Kronos Sanity Guards (2026-05-12)**: Double protection against unrealistic Kronos predictions: (1) at model level, confidence clamped to 0.05 if 5d prediction > 15% drop; (2) at decision engine level, weight capped to 0.01 if implied impact > 15%.
@@ -41,6 +44,7 @@ The project is now in a **high-fidelity production/demo phase** with a **standal
 - [ ] Synchronize i18n translations (9 languages) with README.md updates.
 - [ ] Optimize model weights via backtest_prod.py grid search.
 - [ ] Set HF_TOKEN on PROD server for TimesFM model download.
+- [ ] Explore alternative live price source for ETFs without open T212 positions (SXRV.DE).
 
 ## Decision Log
 - **Nasdaq Exclusivity for VG**: Decided to restrict the Vincent Ganne model to Nasdaq because its energy-price-to-stock-bottom logic is fundamentally a cross-asset indicator for equities, not a directional signal for energy itself.
