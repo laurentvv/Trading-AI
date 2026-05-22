@@ -331,61 +331,63 @@ class AdaptiveWeightManager:
             if df.empty:
                 return results
 
-            for model_name, group in df.groupby('model_name'):
-                if len(group) < self.min_observations:
-                    logger.warning(f"Insufficient data for {model_name}: {len(group)} observations")
+            # Pre-calculate common components for all models vectorially
+            df['predicted_bin'] = df['signal_predicted'].isin(['BUY', 'STRONG_BUY']).astype(int)
+            df['is_correct'] = (df['predicted_bin'] == df['actual_outcome']).astype(int)
+            df['tp'] = ((df['predicted_bin'] == 1) & (df['actual_outcome'] == 1)).astype(int)
+            df['fp'] = ((df['predicted_bin'] == 1) & (df['actual_outcome'] == 0)).astype(int)
+            df['fn'] = ((df['predicted_bin'] == 0) & (df['actual_outcome'] == 1)).astype(int)
+            df['is_win'] = (df['return_1d'] > 0).where(df['return_1d'].notna())
+
+            def calc_max_drawdown(returns):
+                r = returns.dropna()
+                if r.empty:
+                    return 0.0
+                cum = (1 + r).cumprod()
+                running_max = cum.expanding().max()
+                drawdown = (cum - running_max) / running_max
+                return float(abs(drawdown.min()))
+
+            # Perform optimized aggregation
+            summary = df.groupby('model_name').agg({
+                'is_correct': 'mean',
+                'tp': 'sum',
+                'fp': 'sum',
+                'fn': 'sum',
+                'return_1d': ['mean', 'std', calc_max_drawdown],
+                'is_win': 'mean',
+                'model_name': 'count'
+            })
+
+            # Flatten columns and filter by min_observations
+            summary.columns = ['accuracy', 'tp_sum', 'fp_sum', 'fn_sum', 'avg_return', 'volatility', 'max_drawdown', 'win_rate', 'obs_count']
+
+            now = datetime.now()
+            for model_name, row in summary.iterrows():
+                if row['obs_count'] < self.min_observations:
+                    logger.warning(f"Insufficient data for {model_name}: {int(row['obs_count'])} observations")
                     continue
 
-                # Calculate performance metrics
-                # Convert signals to binary (1 for BUY/STRONG_BUY, 0 for others)
-                predicted = (group['signal_predicted'].isin(['BUY', 'STRONG_BUY'])).astype(int)
-                actual = group['actual_outcome']
-
-                # Classification metrics
-                accuracy = (predicted == actual).mean()
-
-                tp = ((predicted == 1) & (actual == 1)).sum()
-                fp = ((predicted == 1) & (actual == 0)).sum()
-                fn = ((predicted == 0) & (actual == 1)).sum()
-
+                tp, fp, fn = row['tp_sum'], row['fp_sum'], row['fn_sum']
                 precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
                 recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-                f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
+                f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
 
-                # Return-based metrics
-                returns = group['return_1d'].dropna()
-                if len(returns) > 0:
-                    avg_return = returns.mean()
-                    volatility = returns.std()
-                    sharpe_ratio = avg_return / volatility if volatility > 0 else 0.0
+                avg_ret, vol = row['avg_return'], row['volatility']
+                sharpe = avg_ret / vol if vol > 0 else 0.0
 
-                    # Win rate (percentage of positive returns)
-                    win_rate = (returns > 0).mean()
-
-                    # Maximum drawdown
-                    cumulative = (1 + returns).cumprod()
-                    running_max = cumulative.expanding().max()
-                    drawdown = (cumulative - running_max) / running_max
-                    max_drawdown = abs(drawdown.min())
-                else:
-                    avg_return = 0.0
-                    volatility = 0.0
-                    sharpe_ratio = 0.0
-                    win_rate = 0.0
-                    max_drawdown = 0.0
-
-                results[model_name] = ModelPerformance(
-                    model_name=model_name,
-                    accuracy=accuracy,
-                    precision=precision,
-                    recall=recall,
-                    f1_score=f1_score,
-                    sharpe_ratio=sharpe_ratio,
-                    win_rate=win_rate,
-                    avg_return=avg_return,
-                    volatility=volatility,
-                    max_drawdown=max_drawdown,
-                    last_updated=datetime.now()
+                results[str(model_name)] = ModelPerformance(
+                    model_name=str(model_name),
+                    accuracy=float(row['accuracy']),
+                    precision=float(precision),
+                    recall=float(recall),
+                    f1_score=float(f1),
+                    sharpe_ratio=float(sharpe),
+                    win_rate=float(row['win_rate']),
+                    avg_return=float(avg_ret),
+                    volatility=float(vol),
+                    max_drawdown=float(row['max_drawdown']),
+                    last_updated=now
                 )
 
         except Exception as e:
