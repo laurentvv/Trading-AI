@@ -12,8 +12,8 @@ from src.t212_executor import load_portfolio_state, save_portfolio_state, STATE_
 
 @patch("src.t212_executor.sync_state_from_t212")
 def test_except_handling(mock_sync):
-    mock_sync.side_effect = Exception("Mocked T212 error")
     """Test that corrupted state file is handled gracefully."""
+    mock_sync.side_effect = Exception("Mocked T212 error")
     # Test 1: Corrupted JSON file
     backup = None
     if os.path.exists(STATE_FILE):
