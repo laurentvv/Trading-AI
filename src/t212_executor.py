@@ -372,6 +372,27 @@ def get_real_price_eur(ticker_yahoo=None):
     raise ValueError(f"Could not retrieve price for {target} from any source")
 
 
+def safe_request(method: str, url: str, **kwargs) -> requests.Response | None:
+    """
+    Execute an HTTP request with error handling and retry logic.
+    """
+    for attempt in range(3):
+        try:
+            resp = requests.request(method, url, **kwargs)
+            if resp.status_code == 429 or (resp.status_code == 400 and "TooManyRequests" in resp.text):
+                wait = (attempt + 1) * 2
+                logger.warning(f"⚠️ Rate limit atteint, attente de {wait}s...")
+                time.sleep(wait)
+                continue
+            return resp
+        except requests.exceptions.RequestException as e:
+            wait = (attempt + 1) * 2
+            logger.warning(f"⚠️ Erreur réseau lors de la requête: {e}. Attente de {wait}s...")
+            time.sleep(wait)
+            continue
+    logger.error("❌ Échec de la requête après 3 tentatives.")
+    return None
+
 def execute_t212_trade(
     signal,
     confidence,
@@ -395,16 +416,6 @@ def execute_t212_trade(
     if signal not in ["BUY", "SELL"]:
         return
 
-    def safe_request(method, url, **kwargs):
-        for attempt in range(3):
-            resp = requests.request(method, url, **kwargs)
-            if resp.status_code == 429 or (resp.status_code == 400 and "TooManyRequests" in resp.text):
-                wait = (attempt + 1) * 2
-                logger.warning(f"⚠️ Rate limit atteint, attente de {wait}s...")
-                time.sleep(wait)
-                continue
-            return resp
-        return resp
 
     def get_portfolio_info():
         """Vérifie le cash et les positions réelles sur Trading 212."""
@@ -412,9 +423,9 @@ def execute_t212_trade(
         positions = safe_request("GET", f"{base_url}/equity/positions", headers=headers)
 
         info = {"cash": 0.0, "positions": []}
-        if summary.status_code == 200:
+        if summary is not None and summary.status_code == 200:
             info["cash"] = summary.json().get("cash", {}).get("availableToTrade", 0.0)
-        if positions.status_code == 200:
+        if positions is not None and positions.status_code == 200:
             info["positions"] = positions.json()
         return info
 
@@ -542,7 +553,7 @@ def execute_t212_trade(
         order_data = {"ticker": t212_ticker, "quantity": quantity}
         resp = safe_request("POST", f"{base_url}/equity/orders/market", headers=headers, json=order_data)
 
-        if resp.status_code in [200, 201, 202]:
+        if resp is not None and resp.status_code in [200, 201, 202]:
             logger.info(f"✅ Ordre placé ! Quantité : {quantity}")
             state["active_position"] = {
                 "ticker": t212_ticker,
@@ -604,7 +615,7 @@ def execute_t212_trade(
         order_data = {"ticker": t212_ticker, "quantity": -total_qty}
         sell_resp = safe_request("POST", f"{base_url}/equity/orders/market", headers=headers, json=order_data)
 
-        if sell_resp.status_code in [200, 201, 202]:
+        if sell_resp is not None and sell_resp.status_code in [200, 201, 202]:
             logger.info("✅ Vente effectuée.")
             # Calcul précis du nouveau capital en incluant le cash non-investi (résiduel)
             buy_cost = state["active_position"]["buy_budget"] if state.get("active_position") else current_value_eur

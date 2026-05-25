@@ -75,7 +75,7 @@ class TestTensorTradeIntegration(unittest.TestCase):
     def test_tensortrade_weight_in_base_weights(self):
         engine = EnhancedDecisionEngine()
         self.assertIn("tensortrade", engine.base_weights)
-        self.assertEqual(engine.base_weights["tensortrade"], 0.0)
+        self.assertEqual(engine.base_weights["tensortrade"], 0.05)
 
     @patch("tensortrade_model.PPO")
     def test_consensus_score_includes_tensortrade(self, mock_ppo_cls):

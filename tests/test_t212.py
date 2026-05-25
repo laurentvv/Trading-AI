@@ -3,6 +3,8 @@ import base64
 import requests
 import json
 from dotenv import load_dotenv
+import unittest
+from unittest.mock import patch, MagicMock
 
 # Charger les variables d'environnement
 load_dotenv(".env.t212")
@@ -70,3 +72,85 @@ def test_connection():
 
 if __name__ == "__main__":
     test_connection()
+
+
+class TestSafeRequest(unittest.TestCase):
+    def setUp(self):
+        # We need to import the function to test
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).parent.parent))
+        from src.t212_executor import safe_request
+        self.safe_request = safe_request
+
+    @patch("requests.request")
+    def test_safe_request_success(self, mock_request):
+        # Arrange
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_request.return_value = mock_resp
+
+        # Act
+        result = self.safe_request("GET", "http://test.com")
+
+        # Assert
+        self.assertEqual(result, mock_resp)
+        mock_request.assert_called_once_with("GET", "http://test.com")
+
+    @patch("time.sleep")
+    @patch("requests.request")
+    def test_safe_request_rate_limit(self, mock_request, mock_sleep):
+        # Arrange
+        mock_resp_429 = MagicMock()
+        mock_resp_429.status_code = 429
+
+        mock_resp_200 = MagicMock()
+        mock_resp_200.status_code = 200
+
+        # Fails once, then succeeds
+        mock_request.side_effect = [mock_resp_429, mock_resp_200]
+
+        # Act
+        result = self.safe_request("GET", "http://test.com")
+
+        # Assert
+        self.assertEqual(result, mock_resp_200)
+        self.assertEqual(mock_request.call_count, 2)
+        mock_sleep.assert_called_once()
+
+    @patch("time.sleep")
+    @patch("requests.request")
+    def test_safe_request_exception(self, mock_request, mock_sleep):
+        # Arrange
+        from requests.exceptions import Timeout
+
+        # Always raises Timeout
+        mock_request.side_effect = Timeout("Connection timed out")
+
+        # Act
+        result = self.safe_request("GET", "http://test.com")
+
+        # Assert
+        self.assertIsNone(result)
+        self.assertEqual(mock_request.call_count, 3)
+        self.assertEqual(mock_sleep.call_count, 3)
+
+    @patch("time.sleep")
+    @patch("requests.request")
+    def test_safe_request_exception_then_success(self, mock_request, mock_sleep):
+        # Arrange
+        from requests.exceptions import ConnectionError
+
+        mock_resp_200 = MagicMock()
+        mock_resp_200.status_code = 200
+
+        # Fails twice, then succeeds
+        mock_request.side_effect = [ConnectionError("Network unreachable"), ConnectionError("Network unreachable"), mock_resp_200]
+
+        # Act
+        result = self.safe_request("GET", "http://test.com")
+
+        # Assert
+        self.assertEqual(result, mock_resp_200)
+        self.assertEqual(mock_request.call_count, 3)
+        self.assertEqual(mock_sleep.call_count, 2)
