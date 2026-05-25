@@ -578,7 +578,10 @@ def execute_t212_trade(
                     reason=f"T212 Order Confirmed (Index: {index_price:.2f})",
                 )
         else:
-            logger.error(f"❌ Échec de l'achat : {resp.text}")
+            if resp is None:
+                logger.error("❌ Échec de l'achat : réseau (pas de réponse de l'API)")
+            else:
+                logger.error(f"❌ Échec de l'achat : {resp.text}")
 
     elif signal == "SELL":
         if not state.get("active_position") and not current_pos:
@@ -666,7 +669,10 @@ def execute_t212_trade(
                 except Exception as fb_e:
                     logger.warning(f"Feedback loop failed: {fb_e}")
         else:
-            logger.error(f"❌ Erreur lors de la vente : {sell_resp.text}")
+            if sell_resp is None:
+                logger.error("❌ Erreur lors de la vente : réseau (pas de réponse de l'API)")
+            else:
+                logger.error(f"❌ Erreur lors de la vente : {sell_resp.text}")
 
 
 if __name__ == "__main__":
