@@ -48,19 +48,12 @@ graph TD
 3.  **TimesFM (Google Research) :**
     *   Modèle de fondation **TimesFM 2.5** spécialisé dans la prévision de séries temporelles.
 
-4.  **Kronos (NeoQuasar) :**
-    *   **Logic (Fix) :** Analyse la tendance moyenne sur les **5 prochains jours** (court terme) au lieu de prédire un point unique à J+24.
-    *   **Sécurité :** Confiance plafonnée à **65%**. De plus, un **Sanity Guard** double protège le système :
-        *   Au niveau du modèle (`kronos_model.py`) : si la prédiction 5j implique une baisse > 15%, la confiance est écrasée à 0.05 max.
-        *   Au niveau du moteur de décision (`enhanced_decision_engine.py`) : si l'impact implicite (signal × confiance) dépasse 15%, le poids de Kronos est réduit à 0.01 pour cette décision.
-    *   **Statut :** Poids progressif de **0.05** (phase de test). Son influence peut augmenter via le feedback loop adaptatif.
-
-5.  **TensorTrade / PPO (Reinforcement Learning) :**
+4.  **TensorTrade / PPO (Reinforcement Learning) :**
     *   Agent **PPO** (stable-baselines3) entraîné à chaque cycle dans un environnement **Gymnasium** custom (`SimpleTradingEnv`).
     *   Apprend une politique d'achat/vente/conservation basée sur les variations de prix récentes.
     *   **Poids Progressif (0.05) :** En phase de test actif. Son influence s'ajuste via le feedback loop adaptatif.
 
-6.  **Modèle Oil-Bench (Gemma 4 : e4b) :**
+5.  **Modèle Oil-Bench (Gemma 4 : e4b) :**
     *   **Expert Fondamental :** Modèle spécialisé activé uniquement pour le pétrole (`CL=F`, `CRUDP.PA`).
     * **Données EIA :** Analyse automatisée des stocks US, des importations mensuelles et du taux d'utilisation des raffineries.
     * **Poids Forcé (25%) :** Pour le pétrole, son avis macroéconomique est prioritaire et ne peut pas être réduit à zéro par l'Adaptive Weight Manager.

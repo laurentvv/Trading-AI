@@ -177,7 +177,6 @@ Follow these steps to set up your local development environment.
     Run the installation scripts to clone the models into `vendor/` and apply patches:
     ```bash
     python setup_timesfm.py
-    python setup_kronos.py
     ```
 
 4.  **Initialize and synchronize the environment:**

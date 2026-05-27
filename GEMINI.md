@@ -6,12 +6,11 @@ Ce projet est un système expert d'aide à la décision pour le trading d'ETFs N
 - **Analyse sur Indices** : Le système télécharge et analyse les indices de référence (`^NDX`, `CL=F`) pour obtenir des signaux d'IA plus propres et robustes.
 - **Trading sur ETFs** : Les décisions sont appliquées aux ETFs correspondants sur Trading 212 (`SXRV.DE`, `CRUDP.PA`).
 
-Le moteur fusionne un modèle quantitatif classique, un LLM textuel (Gemma 4), un LLM visuel (analyse de graphiques), les modèles de fondation **TimesFM 2.5** (Google Research) et **Kronos-base** (NeoQuasar), et le **Modèle Vincent Ganne** (Géopolitique & Cross-Asset).
+Le moteur fusionne un modèle quantitatif classique, un LLM textuel (Gemma 4), un LLM visuel (analyse de graphiques), le modèle de fondation **TimesFM 2.5** (Google Research), et le **Modèle Vincent Ganne** (Géopolitique & Cross-Asset).
 
 ### Nouveautés majeures :
 - **Sécurité Anti-Perte & Trailing Stop :** Blocage automatique des ventes à perte et déclenchement de prises de profits (Stop Suiveur 3%) pour sécuriser le cash.
 - **Inversion du Risque Pétrole :** Le système reconnaît désormais que la haute volatilité est un signal haussier pour le pétrole et booste les scores d'achat en conséquence.
-- **Kronos Short-Term Fix :** Refonte du modèle Kronos pour analyser les tendances à 5 jours (lissage) plutôt qu'un point unique à 1 mois, avec confiance plafonnée à 65%.
 - **Mémoire de Performance :** Enregistrement de chaque décision individuelle dans `model_performance.db` pour l'ajustement automatique des poids via le Weight Manager.
 - **Intégration EIA (Energy Information Administration) :** Analyse automatisée des données fondamentales américaines (Stocks de brut, Importations, Taux d'utilisation des raffineries) et des prévisions STEO.
 - **Modèle Oil-Bench (Gemma 4) :** Nouveau modèle spécialisé dans le pétrole, fusionnant les données EIA et le sentiment de marché pour une analyse fondamentale profonde.

@@ -26,8 +26,7 @@
   * **Fallback achat `5000.0` → `DEFAULT_INITIAL_BUDGET`** : Dans `execute_t212_trade()`, `state.get("current_capital", 5000.0)` utilisait 5000€ comme fallback au lieu de `DEFAULT_INITIAL_BUDGET` (1000€). Conséquence PROD : 4 ordres rejetés "Insufficient funds" + 1 achat à 4750€ au lieu de 950€.
 - **2026-05-12**: Améliorations Prod & Robustesse
   * **Feedback Loop Adaptatif** : Après chaque vente confirmée sur T212, `update_outcomes_for_date()` enregistre les résultats réels (return_1d, win/loss) dans `model_performance.db` via une connexion SQLite unique. L'AdaptiveWeightManager peut désormais ajuster les poids dynamiquement.
-  * **Poids Progressifs** : Tous les modèles expérimentaux (vincent_ganne, oil_bench, tensortrade, kronos) passent de poids 0.0 à 0.05 (phase de test active). Poids normalisés à la volée (somme→1.0) dans le moteur de décision.
-  * **Garde-fous Kronos (Sanity Guards)** : Double protection — (1) au niveau modèle : confiance écrasée à 0.05 si prédiction 5j < -15% ; (2) au niveau moteur : poids réduit à 0.01 si impact implicite > 15%.
+  * **Poids Progressifs** : Tous les modèles expérimentaux (vincent_ganne, oil_bench, tensortrade) passent de poids 0.0 à 0.05 (phase de test active). Poids normalisés à la volée (somme→1.0) dans le moteur de décision.
   * **Seuil Cache 2→1 jour** : Le cache Parquet s'invalide désormais après 1 jour au lieu de 2. Âge du cache journalisé en jours fractionnels.
   * **Budgets T212 par Ticker** : Remplacement du budget fixe 5000€ par `INITIAL_BUDGETS` configurable (1000€ par ticker).
   * **Filtre Grokipedia** : Suppression des warnings non-bloquants crawl4ai/grokipedia dans les logs.
