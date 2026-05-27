@@ -6,7 +6,7 @@ import time
 import threading
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from t212_executor import _atomic_json_write, _read_with_retry
 

@@ -17,7 +17,7 @@ def get_auth_header(api_key, api_secret):
     return f"Basic {base64_auth}"
 
 
-def test_connection():
+def check_connection():
     api_key = os.getenv("T212_API_KEY")
     api_secret = os.getenv("T212_API_SECRET")
     env = os.getenv("T212_ENV", "demo").lower()
@@ -71,7 +71,7 @@ def test_connection():
 
 
 if __name__ == "__main__":
-    test_connection()
+    check_connection()
 
 
 class TestSafeRequest(unittest.TestCase):

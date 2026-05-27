@@ -1,34 +1,28 @@
 """Test bare except fix in t212_executor."""
 
-import os
 import sys
 from pathlib import Path
 
 from unittest.mock import patch
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.t212_executor import load_portfolio_state, save_portfolio_state, STATE_FILE
+from src.t212_executor import load_portfolio_state, save_portfolio_state
 
 
 @patch("src.t212_executor.sync_state_from_t212")
-def test_except_handling(mock_sync):
+def test_except_handling(mock_sync, tmp_path):
     """Test that corrupted state file is handled gracefully."""
     mock_sync.side_effect = Exception("Mocked T212 error")
-    # Test 1: Corrupted JSON file
-    backup = None
-    if os.path.exists(STATE_FILE):
-        with open(STATE_FILE, "r") as f:
-            backup = f.read()
 
-    try:
-        # Write corrupted JSON
-        with open(STATE_FILE, "w") as f:
-            f.write("{corrupted json!!!")
+    state_file = tmp_path / "test_state.json"
 
-        # Should handle gracefully
+    with patch("src.t212_executor.STATE_FILE", str(state_file)):
+        # Test 1: Corrupted JSON file
+        state_file.write_text("{corrupted json!!!")
+
         state = load_portfolio_state()
         assert state == {"tickers": {}}, f"Expected empty state, got {state}"
-        print("PASS: Corrupted JSON handled gracefully")
 
         # Test 2: Valid state save/load
         test_state = {
@@ -41,17 +35,6 @@ def test_except_handling(mock_sync):
 
         loaded = load_portfolio_state("TEST")
         assert loaded["current_capital"] == 1100.0, f"Expected 1100, got {loaded['current_capital']}"
-        print("PASS: State save/load works correctly")
-
-    finally:
-        # Restore original state
-        if backup is not None:
-            with open(STATE_FILE, "w") as f:
-                f.write(backup)
-        elif os.path.exists(STATE_FILE):
-            os.remove(STATE_FILE)
-
-    print("\nAll except handling tests passed!")
 
 
 if __name__ == "__main__":

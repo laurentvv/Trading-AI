@@ -93,15 +93,14 @@ class AdaptiveWeightManager:
         self.db_path = db_path
         self.config = config or {}
         self.base_weights = base_weights or {
-            "classic": 0.12,
-            "llm_text": 0.20,
-            "llm_visual": 0.18,
-            "sentiment": 0.15,
+            "classic": 0.13,
+            "llm_text": 0.21,
+            "llm_visual": 0.19,
+            "sentiment": 0.16,
             "timesfm": 0.20,
             "vincent_ganne": 0.05,
             "oil_bench": 0.05,
             "tensortrade": 0.05,
-            "kronos": 0.05,
         }
         self.lookback_days = lookback_days
         self.min_observations = min_observations
@@ -623,6 +622,10 @@ class AdaptiveWeightManager:
             base_weight = self.base_weights[model]
             smoothed_weights[model] = smoothing_factor * new_weight + (1 - smoothing_factor) * base_weight
 
+        total_smoothed = sum(smoothed_weights.values())
+        if total_smoothed > 0:
+            smoothed_weights = {k: v / total_smoothed for k, v in smoothed_weights.items()}
+
         # Generate adjustment reasoning
         reasoning_parts = []
         reasoning_parts.append(f"Market regime: {market_regime}")
@@ -656,6 +659,60 @@ class AdaptiveWeightManager:
             market_regime=market_regime,
             performance_period=f"{self.lookback_days} days",
         )
+
+    def resolve_previous_predictions(self, dates_prices: dict):
+        """
+        Resolve unresolved predictions (actual_outcome IS NULL) by computing
+        the actual 1-day return from historical prices.
+
+        Args:
+            dates_prices: dict of {date_str: (price_at_date, price_next_day)}
+        """
+        if not dates_prices:
+            return
+
+        try:
+            conn = sqlite3.connect(self.db_path)
+            try:
+                cursor = conn.cursor()
+
+                cursor.execute(
+                    "SELECT DISTINCT date FROM model_performance_history WHERE actual_outcome IS NULL"
+                )
+                unresolved_dates = {row[0] for row in cursor.fetchall()}
+
+                resolved_count = 0
+                for date_str, (price_today, price_next) in dates_prices.items():
+                    date_key = date_str.strftime("%Y-%m-%d") if hasattr(date_str, "strftime") else str(date_str)[:10]
+                    if date_key not in unresolved_dates:
+                        continue
+
+                    if price_next is None or price_today is None or price_today == 0:
+                        continue
+
+                    return_1d = (price_next - price_today) / price_today
+
+                    actual_outcome = 1 if return_1d > 0 else 0
+
+                    cursor.execute(
+                        """
+                        UPDATE model_performance_history
+                        SET actual_outcome = ?, return_1d = ?
+                        WHERE date = ? AND actual_outcome IS NULL
+                        """,
+                        (actual_outcome, return_1d, date_key),
+                    )
+                    resolved_count += cursor.rowcount
+
+                conn.commit()
+
+                if resolved_count > 0:
+                    logger.info(f"Resolved {resolved_count} unresolved predictions from {len(dates_prices)} dates")
+            finally:
+                conn.close()
+
+        except Exception as e:
+            logger.error(f"Failed to resolve previous predictions: {e}")
 
     def get_current_weights(self, market_data: pd.Series = None, volatility: float = None) -> Dict[str, float]:
         """

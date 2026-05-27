@@ -187,7 +187,6 @@ def run_trading_analysis(ticker: str, is_simulation: bool = False, is_t212: bool
                 "llm_visual",
                 "sentiment",
                 "timesfm",
-                "kronos",
                 "tensortrade",
                 "vincent_ganne",
             ]

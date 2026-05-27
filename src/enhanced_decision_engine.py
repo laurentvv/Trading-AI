@@ -281,15 +281,14 @@ class EnhancedDecisionEngine:
         """
         self.config = config or {}
         self.base_weights = base_weights or {
-            "classic": 0.12,
-            "llm_text": 0.20,
-            "llm_visual": 0.18,
-            "sentiment": 0.15,
+            "classic": 0.13,
+            "llm_text": 0.21,
+            "llm_visual": 0.19,
+            "sentiment": 0.16,
             "timesfm": 0.20,
             "vincent_ganne": 0.05,
             "oil_bench": 0.05,
             "tensortrade": 0.05,
-            "kronos": 0.05,
         }
 
         # Initialize models with config thresholds
@@ -381,20 +380,16 @@ class EnhancedDecisionEngine:
 
         return 0.0
 
-    def _adjust_for_market_regime(self, score: float, market_data: Dict, is_oil: bool = False) -> float:
+    def _adjust_for_market_regime(self, score: float, market_data: Dict) -> float:
         """
         Adjust decision score based on current market regime.
         """
         volatility = market_data.get("volatility", 0.02)
         rsi = market_data.get("rsi", 50)
 
-        # Reduce signal strength in high volatility environments (UNLESS it's Oil)
+        # Reduce signal strength in high volatility environments
         if volatility > self.VOLATILITY_HIGH_THRESHOLD:
-            if is_oil and score > 0:
-                # For Oil, high volatility (crises) often means price spikes. Boost the buy score!
-                score *= 1.2
-            elif not is_oil:
-                score *= 0.8
+            score *= 0.8
         elif volatility < self.VOLATILITY_LOW_THRESHOLD:
             score *= 1.1
 
@@ -406,7 +401,7 @@ class EnhancedDecisionEngine:
 
         return score
 
-    def _apply_risk_management(self, decision: str, confidence: float, market_data: Dict, is_oil: bool = False) -> str:
+    def _apply_risk_management(self, decision: str, confidence: float, market_data: Dict) -> str:
         """
         Apply risk management rules to adjust the final decision.
         """
@@ -425,11 +420,7 @@ class EnhancedDecisionEngine:
         # Market regime-based adjustments
         volatility = market_data.get("volatility", 0.02)
         if volatility > self.VOLATILITY_EXTREME_THRESHOLD:
-            # High risk generally forces HOLD to prevent massive losses
-            # BUT for Oil, extreme volatility is often the best time to be long. Do not force HOLD if we are buying.
-            if is_oil and decision in ["BUY", "STRONG_BUY"]:
-                return decision # Keep the BUY
-            if not is_oil and decision in ["BUY", "SELL"]:
+            if decision in ["BUY", "SELL"]:
                 return "HOLD"
 
         return decision
@@ -442,7 +433,6 @@ class EnhancedDecisionEngine:
         visual_llm_decision: Dict = None,
         sentiment_decision: Dict = None,
         timesfm_decision: Dict = None,
-        kronos_decision: Dict = None,
         tensortrade_decision: Dict = None,
         vincent_ganne_indicators: Dict = None,
         oil_bench_decision: Dict = None,
@@ -484,11 +474,13 @@ class EnhancedDecisionEngine:
         # Override weights for OIL to ensure domain models aren't silenced
         is_oil = market_data.get("is_oil", False)
         if is_oil:
-            # Force a weight for oil_bench if it's zeroed out but a decision exists
             if oil_bench_decision and weights.get("oil_bench", 0.0) < 0.15:
-                weights["oil_bench"] = 0.25
+                weights["oil_bench"] = 0.15
                 weights["llm_text"] = 0.15
                 weights["timesfm"] = 0.15
+                total_w = sum(weights.values())
+                if total_w > 0:
+                    weights = {k: v / total_w for k, v in weights.items()}
                 
         # Start with generic results if provided
         decisions = generic_model_results or []
@@ -512,7 +504,6 @@ class EnhancedDecisionEngine:
                 "llm_visual": visual_llm_decision,
                 "sentiment": sentiment_decision,
                 "timesfm": timesfm_decision,
-                "kronos": kronos_decision,
                 "tensortrade": tensortrade_decision,
                 "oil_bench": oil_bench_decision,
             }
@@ -561,15 +552,6 @@ class EnhancedDecisionEngine:
         for decision in decisions:
             model_weight = weights.get(decision.model_name, 0.25)
             signal_value = decision.strength.value
-
-            if decision.model_name == "kronos" and signal_value <= -1 and decision.confidence > 0:
-                kronos_implied_drop = abs(signal_value) * decision.confidence
-                if kronos_implied_drop > 0.15:
-                    logger.warning(
-                        f"KRONOS SANITY GUARD: Unrealistic prediction detected "
-                        f"(implied drop ~{kronos_implied_drop:.0%}), capping weight from {model_weight:.2f} to 0.01"
-                    )
-                    model_weight = 0.01
 
             weighted_score += signal_value * decision.confidence * model_weight
 

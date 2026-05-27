@@ -15,20 +15,19 @@ def test_weight_alignment():
     weight_mgr = AdaptiveWeightManager()
 
     expected = {
-        "classic": 0.12,
-        "llm_text": 0.20,
-        "llm_visual": 0.18,
-        "sentiment": 0.15,
+        "classic": 0.13,
+        "llm_text": 0.21,
+        "llm_visual": 0.19,
+        "sentiment": 0.16,
         "timesfm": 0.20,
         "vincent_ganne": 0.05,
         "oil_bench": 0.05,
         "tensortrade": 0.05,
-        "kronos": 0.05,
     }
 
-    # Verify weights sum approximately to 1.0 (test models add ~0.05 each)
+    # Verify weights sum approximately to 1.04
     total = sum(expected.values())
-    assert abs(total - 1.05) < 1e-6, f"Weights should sum to 1.05, got {total}"
+    assert abs(total - 1.04) < 1e-6, f"Weights should sum to 1.04, got {total}"
     print(f"PASS: Weights sum to {total}")
 
     for model_name, expected_weight in expected.items():

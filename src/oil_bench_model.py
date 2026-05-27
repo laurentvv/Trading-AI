@@ -14,7 +14,7 @@ class OilBenchConfig:
     wti_ticker: str = "CL=F"
     dxy_ticker: str = "DX-Y.NYB"
     brent_ticker: str = "BZ=F"
-    allocation_strong_buy_threshold: float = 75.0
+    allocation_strong_buy_threshold: float = 85.0
     allocation_buy_threshold: float = 55.0
     allocation_sell_threshold: float = 45.0
     allocation_strong_sell_threshold: float = 25.0
@@ -120,6 +120,9 @@ class OilBenchModel:
 
         prompt = f"""You are a senior commodity quantitative analyst specializing in WTI Crude Oil.
 Analyze the following data to determine your recommended portfolio allocation (0-100%).
+
+IMPORTANT: A value of 50 means NEUTRAL. Values below 50 mean bearish. Values above 50 mean bullish.
+Be objective and consider both bullish and bearish evidence equally. Do NOT default to high allocations.
 
 **Price Context:**
 - WTI Spot: {wti_str}

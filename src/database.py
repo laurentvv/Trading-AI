@@ -19,7 +19,7 @@ def init_db():
 
     # Define valid types for constraints
     VALID_MODEL_TYPES = (
-        "'classic', 'llm_text', 'llm_visual', 'sentiment', 'hybrid', 'oil_bench', 'vincent_ganne', 'timesfm', 'kronos'"
+        "'classic', 'llm_text', 'llm_visual', 'sentiment', 'hybrid', 'oil_bench', 'vincent_ganne', 'timesfm'"
     )
     VALID_SIGNALS = "'BUY', 'SELL', 'HOLD', 'STRONG_BUY', 'STRONG_SELL'"
 
@@ -217,7 +217,7 @@ def _migrate_model_signals_table():
             cursor.execute("DROP TABLE IF EXISTS model_signals_old")
             cursor.execute("ALTER TABLE model_signals RENAME TO model_signals_old")
 
-            VALID_MODEL_TYPES = "'classic', 'llm_text', 'llm_visual', 'sentiment', 'hybrid', 'oil_bench', 'vincent_ganne', 'timesfm', 'kronos'"
+            VALID_MODEL_TYPES = "'classic', 'llm_text', 'llm_visual', 'sentiment', 'hybrid', 'oil_bench', 'vincent_ganne', 'timesfm'"
             VALID_SIGNALS = "'BUY', 'SELL', 'HOLD', 'STRONG_BUY', 'STRONG_SELL'"
 
             cursor.execute(f"""CREATE TABLE model_signals (
@@ -230,15 +230,27 @@ def _migrate_model_signals_table():
                 details TEXT
             )""")
 
-            # Explicit column mapping for safer migration
             cursor.execute("""
                 INSERT INTO model_signals (date, ticker, model_type, signal, confidence, details)
                 SELECT date, ticker, model_type, signal, confidence, details FROM model_signals_old
+                WHERE model_type != 'kronos'
             """)
+            conn.commit()
             cursor.execute("DROP TABLE model_signals_old")
             conn.commit()
             logger.info("Migration complete.")
     except Exception as e:
         logger.warning(f"Migration check for model_signals: {e}")
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='model_signals_old'")
+            if cursor.fetchone():
+                logger.info("Attempting to recover model_signals from backup...")
+                cursor.execute("DROP TABLE IF EXISTS model_signals")
+                cursor.execute("ALTER TABLE model_signals_old RENAME TO model_signals")
+                conn.commit()
+                logger.info("Recovery successful.")
+        except Exception as recovery_err:
+            logger.error(f"Recovery also failed: {recovery_err}")
     finally:
         conn.close()

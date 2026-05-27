@@ -14,7 +14,7 @@ class TestOilBenchSignalTranslation(unittest.TestCase):
         self.model.config = OilBenchConfig()
 
     def test_strong_buy(self):
-        result = self.model._translate_signal({"allocation": 80, "reasoning": "very bullish"})
+        result = self.model._translate_signal({"allocation": 90, "reasoning": "very bullish"})
         self.assertEqual(result["signal"], "STRONG_BUY")
         self.assertGreater(result["confidence"], 0.5)
 

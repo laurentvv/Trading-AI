@@ -28,7 +28,6 @@ except ImportError:
 from features import create_technical_indicators, create_features, select_features
 from classic_model import train_ensemble_model, get_classic_prediction
 from llm_client import get_llm_decision, get_visual_llm_decision
-from kronos_model import get_kronos_prediction
 from sentiment_analysis import get_sentiment_decision_from_score
 from web_researcher import generate_search_query, get_web_context_sync
 
@@ -264,28 +263,11 @@ class EnhancedTradingSystem:
             logger.warning("Modèle classique non disponible, utilisation de valeurs par défaut")
             classic_pred, classic_conf = 0, 0.5
 
-        # 1.5 Prédictions Kronos (calculées tôt pour le graphique)
-        logger.info("Génération de la prédiction Kronos...")
-        kronos_pred = get_kronos_prediction(data_with_features, pred_len=24)
-        kronos_decision = None
-        if kronos_pred and kronos_pred.get("signal"):
-            kronos_decision = {
-                "signal": kronos_pred["signal"],
-                "confidence": kronos_pred["confidence"],
-                "analysis": kronos_pred["analysis"],
-            }
-            kronos_pred_df = kronos_pred.get("forecast_df")
-            logger.info(f"Kronos signal: {kronos_decision['signal']} ({kronos_decision['confidence']:.2f})")
-        else:
-            logger.warning("Modèle Kronos non disponible ou erreur.")
-
-
         # 2. Génération du graphique pour l'analyse visuelle
         chart_generated = generate_chart_image(
             data_with_features,
             self.chart_output_path,
             title=f"{self.ticker} - Enhanced Analysis Chart",
-            kronos_pred_df=kronos_pred_df,
         )
 
         # 3. Analyse de sentiment et News (Déplacé avant le LLM pour servir de contexte)
@@ -356,7 +338,6 @@ class EnhancedTradingSystem:
             "sentiment": sentiment_decision,
             "timesfm": timesfm_decision,
             "tensortrade": tensortrade_decision,
-            "kronos": kronos_decision,
         }
 
     def perform_enhanced_analysis(
@@ -388,7 +369,16 @@ class EnhancedTradingSystem:
         logger.info(f"Niveau de risque détecté: {risk_metrics.risk_level.name}")
         logger.info(f"Score de risque: {risk_metrics.overall_risk_score:.3f}")
 
-        # 2. Calcul des poids adaptatifs
+        # 2. Resolve previous unresolved predictions for adaptive weights
+        dates_prices = {}
+        hist_close = hist_data["Close"]
+        for i in range(max(0, len(hist_close) - 30), len(hist_close) - 1):
+            date_str = hist_close.index[i]
+            next_price = hist_close.iloc[i + 1]
+            dates_prices[date_str] = (hist_close.iloc[i], next_price)
+        self.weight_manager.resolve_previous_predictions(dates_prices)
+
+        # 3. Calcul des poids adaptatifs
         returns = hist_data["Close"].pct_change().dropna()
         if len(returns) < 2:
             current_volatility = 0.15  # Default volatility
@@ -404,7 +394,7 @@ class EnhancedTradingSystem:
         for model, weight in weight_adjustment.model_weights.items():
             logger.info(f"  {model}: {weight:.3f}")
 
-        # 3. Préparation des données de marché pour la décision
+        # 4. Préparation des données de marché pour la décision
         latest_data = data_with_features.tail(1).iloc[0]
         market_data = {
             "volatility": current_volatility,
@@ -413,9 +403,9 @@ class EnhancedTradingSystem:
             "bb_position": latest_data.get("BB_Position", 0.5),
         }
 
-        # 4. Décision hybride améliorée
+        # 5. Décision hybride améliorée
         # On désactive le modèle Vincent Ganne pour le Pétrole (absurde de l'utiliser sur lui-même)
-        is_oil = any(oil_ticker in self.analysis_ticker for oil_ticker in ["CL=F", "BZ=F"])
+        is_oil = EIAClient.is_oil_ticker(self.analysis_ticker)
         effective_vg_indicators = None if is_oil else vg_indicators
 
         # Inject is_oil flag into market_data for the decision engine
@@ -441,7 +431,6 @@ class EnhancedTradingSystem:
             sentiment_decision=model_predictions["sentiment"],
             timesfm_decision=model_predictions["timesfm"],
             tensortrade_decision=model_predictions["tensortrade"],
-            kronos_decision=model_predictions["kronos"],
             vincent_ganne_indicators=effective_vg_indicators,
             oil_bench_decision=oil_bench_decision,
             market_data=market_data,
@@ -452,7 +441,7 @@ class EnhancedTradingSystem:
         logger.info(f"Consensus: {enhanced_decision.consensus_score:.2f}")
         logger.info(f"Confiance: {enhanced_decision.final_confidence:.2f}")
 
-        # 5. Calcul de la taille de position optimale (basée sur le prix de l'ETF)
+        # 6. Calcul de la taille de position optimale
         position_sizing = self.risk_manager.calculate_position_sizing(
             signal_strength=enhanced_decision.final_confidence,
             confidence=enhanced_decision.final_confidence,
@@ -465,7 +454,7 @@ class EnhancedTradingSystem:
             f"Taille de position recommandée: ${position_sizing.recommended_size:,.2f} (ETF: {current_etf_price:.2f})"
         )
 
-        # 6. Vérification des overrides de risque
+        # 7. Vérification des overrides de risque
         risk_adjusted_signal, adjustment_reason = self.risk_manager.get_risk_adjusted_signal(
             enhanced_decision.final_signal,
             enhanced_decision.final_confidence,
@@ -480,7 +469,7 @@ class EnhancedTradingSystem:
             )
             logger.warning(f"Raison: {adjustment_reason}")
 
-        # 7. Enregistrement des prédictions pour l'apprentissage du poids adaptatif
+        # 8. Enregistrement des prédictions pour l'apprentissage du poids adaptatif
         current_date = hist_data.index[-1].strftime("%Y-%m-%d")
         for dec in enhanced_decision.individual_decisions:
             self.weight_manager.record_model_prediction(

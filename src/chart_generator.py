@@ -10,7 +10,6 @@ def generate_chart_image(
     data_with_indicators: pd.DataFrame,
     output_path: Path,
     title: str = "Financial Chart",
-    kronos_pred_df: pd.DataFrame = None,
 ) -> bool:
     """
     Generates and saves a financial chart image using pre-calculated indicators.
@@ -48,26 +47,6 @@ def generate_chart_image(
             logger.error(f"Data must contain the following indicator columns: {required_indicators}")
             return False
 
-        # If Kronos prediction is available, merge it for plotting
-        if kronos_pred_df is not None and not kronos_pred_df.empty:
-            logger.info("Adding Kronos forecast to the chart.")
-            # Ensure index matches
-            kronos_pred_df = kronos_pred_df.copy()
-            # To plot alongside, we need a unified index, filling missing rows with NaN
-            unified_df = pd.concat([six_months_data, kronos_pred_df], axis=0)
-
-            # Remove duplicated index if any
-            unified_df = unified_df[~unified_df.index.duplicated(keep="last")]
-            unified_df = unified_df.sort_index()
-
-            six_months_data = unified_df
-
-            # Create a Series of NaN except where the prediction is
-            pred_close = pd.Series(index=six_months_data.index, dtype=float)
-            pred_close.loc[kronos_pred_df.index] = kronos_pred_df["close"]
-
-            # Forward fill indicator values so the chart lines don't break or just let them end
-
         addplots = [
             mpf.make_addplot(six_months_data["MA_50"], color="blue", width=0.7),
             mpf.make_addplot(six_months_data["MA_200"], color="orange", width=0.7),
@@ -83,15 +62,6 @@ def generate_chart_image(
             mpf.make_addplot(six_months_data["MACD_Signal"], panel=3, color="cyan"),
         ]
 
-        if kronos_pred_df is not None and not kronos_pred_df.empty:
-            addplots.append(
-                mpf.make_addplot(pred_close, color="red", width=2.0, linestyle="--", label="Kronos Forecast")
-            )
-            # Add a vertical line to mark the start of the prediction
-            vlines = dict(vlines=[kronos_pred_df.index[0]], colors=["r"], linestyle="-.", alpha=0.5)
-        else:
-            vlines = None
-
         logger.info(f"Generating chart image and saving to {output_path}...")
 
         # Generate and save the plot
@@ -102,14 +72,11 @@ def generate_chart_image(
             ylabel="Price ($)",
             volume=True,
             addplot=addplots,
-            panel_ratios=(6, 3, 3, 2),  # Ratios for price, volume, rsi, macd
+            panel_ratios=(6, 3, 3, 2),
             figscale=1.5,
             savefig=dict(fname=str(output_path), dpi=100, pad_inches=0.25),
         )
-        
-        if vlines:
-            plot_kwargs["vlines"] = vlines
-            
+
         mpf.plot(six_months_data, **plot_kwargs)
 
         logger.info("Chart generated successfully.")
