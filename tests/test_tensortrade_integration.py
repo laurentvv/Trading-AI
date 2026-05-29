@@ -1,3 +1,4 @@
+import shutil
 import unittest
 from datetime import datetime
 from unittest.mock import patch, MagicMock
@@ -5,7 +6,7 @@ from unittest.mock import patch, MagicMock
 import numpy as np
 import pandas as pd
 
-from tensortrade_model import get_tensortrade_prediction
+from tensortrade_model import get_tensortrade_prediction, _MODEL_DIR
 from enhanced_decision_engine import (
     EnhancedDecisionEngine,
     ModelDecision,
@@ -29,18 +30,34 @@ def _make_other_decision(signal="HOLD", confidence=0.5):
     )
 
 
+def _mock_ppo_setup(mock_ppo_cls, action=1, probs=None):
+    if probs is None:
+        probs = np.array([[0.1, 0.8, 0.1]])
+    mock_model = MagicMock()
+    mock_model.predict.return_value = (np.array(action), None)
+    mock_policy = MagicMock()
+    mock_policy.obs_to_tensor.return_value = (MagicMock(),)
+    mock_dist = MagicMock()
+    mock_dist.distribution.probs.detach().numpy.return_value = probs
+    mock_policy.get_distribution.return_value = mock_dist
+    mock_model.policy = mock_policy
+    mock_ppo_cls.return_value = mock_model
+    mock_ppo_cls.load = MagicMock(return_value=mock_model)
+    return mock_model
+
+
 class TestTensorTradeIntegration(unittest.TestCase):
+    def setUp(self):
+        if _MODEL_DIR.exists():
+            shutil.rmtree(_MODEL_DIR, ignore_errors=True)
+
+    def tearDown(self):
+        if _MODEL_DIR.exists():
+            shutil.rmtree(_MODEL_DIR, ignore_errors=True)
+
     @patch("tensortrade_model.PPO")
     def test_full_chain_creates_model_decision(self, mock_ppo_cls):
-        mock_model = MagicMock()
-        mock_model.predict.return_value = (np.array(1), None)
-        mock_policy = MagicMock()
-        mock_policy.obs_to_tensor.return_value = (MagicMock(),)
-        mock_dist = MagicMock()
-        mock_dist.distribution.probs.detach().numpy.return_value = np.array([[0.1, 0.8, 0.1]])
-        mock_policy.get_distribution.return_value = mock_dist
-        mock_model.policy = mock_policy
-        mock_ppo_cls.return_value = mock_model
+        _mock_ppo_setup(mock_ppo_cls, action=1, probs=np.array([[0.1, 0.8, 0.1]]))
 
         df = _make_df(100)
         tensortrade_result = get_tensortrade_prediction(df)
@@ -79,15 +96,7 @@ class TestTensorTradeIntegration(unittest.TestCase):
 
     @patch("tensortrade_model.PPO")
     def test_consensus_score_includes_tensortrade(self, mock_ppo_cls):
-        mock_model = MagicMock()
-        mock_model.predict.return_value = (np.array(1), None)
-        mock_policy = MagicMock()
-        mock_policy.obs_to_tensor.return_value = (MagicMock(),)
-        mock_dist = MagicMock()
-        mock_dist.distribution.probs.detach().numpy.return_value = np.array([[0.1, 0.9, 0.0]])
-        mock_policy.get_distribution.return_value = mock_dist
-        mock_model.policy = mock_policy
-        mock_ppo_cls.return_value = mock_model
+        _mock_ppo_setup(mock_ppo_cls, action=1, probs=np.array([[0.1, 0.9, 0.0]]))
 
         df = _make_df(100)
         tensortrade_result = get_tensortrade_prediction(df)
@@ -109,15 +118,7 @@ class TestTensorTradeIntegration(unittest.TestCase):
 
     @patch("tensortrade_model.PPO")
     def test_analysis_key_fallback(self, mock_ppo_cls):
-        mock_model = MagicMock()
-        mock_model.predict.return_value = (np.array(0), None)
-        mock_policy = MagicMock()
-        mock_policy.obs_to_tensor.return_value = (MagicMock(),)
-        mock_dist = MagicMock()
-        mock_dist.distribution.probs.detach().numpy.return_value = np.array([[0.7, 0.2, 0.1]])
-        mock_policy.get_distribution.return_value = mock_dist
-        mock_model.policy = mock_policy
-        mock_ppo_cls.return_value = mock_model
+        _mock_ppo_setup(mock_ppo_cls, action=0, probs=np.array([[0.7, 0.2, 0.1]]))
 
         df = _make_df(100)
         result = get_tensortrade_prediction(df)

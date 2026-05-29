@@ -8,20 +8,19 @@ logger = logging.getLogger(__name__)
 
 DB_PATH = Path("trading_history.db")
 
+VALID_MODEL_TYPES = (
+    "'classic', 'llm_text', 'llm_visual', 'sentiment', 'hybrid', 'oil_bench', "
+    "'vincent_ganne', 'timesfm', 'tensortrade'"
+)
+VALID_SIGNALS = "'BUY', 'SELL', 'HOLD', 'STRONG_BUY', 'STRONG_SELL'"
+
 
 def init_db():
     """Initializes the SQLite database and creates tables if they don't exist."""
     conn = sqlite3.connect(DB_PATH, timeout=5.0)
     cursor = conn.cursor()
 
-    # Enable foreign key constraints
     cursor.execute("PRAGMA foreign_keys = ON")
-
-    # Define valid types for constraints
-    VALID_MODEL_TYPES = (
-        "'classic', 'llm_text', 'llm_visual', 'sentiment', 'hybrid', 'oil_bench', 'vincent_ganne', 'timesfm'"
-    )
-    VALID_SIGNALS = "'BUY', 'SELL', 'HOLD', 'STRONG_BUY', 'STRONG_SELL'"
 
     # Create transactions table
     cursor.execute("""
@@ -212,13 +211,10 @@ def _migrate_model_signals_table():
         cursor = conn.cursor()
         cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='model_signals'")
         row = cursor.fetchone()
-        if row and "oil_bench" not in row[0]:
+        if row and "tensortrade" not in row[0]:
             logger.info("Migrating model_signals table to add new model types...")
             cursor.execute("DROP TABLE IF EXISTS model_signals_old")
             cursor.execute("ALTER TABLE model_signals RENAME TO model_signals_old")
-
-            VALID_MODEL_TYPES = "'classic', 'llm_text', 'llm_visual', 'sentiment', 'hybrid', 'oil_bench', 'vincent_ganne', 'timesfm'"
-            VALID_SIGNALS = "'BUY', 'SELL', 'HOLD', 'STRONG_BUY', 'STRONG_SELL'"
 
             cursor.execute(f"""CREATE TABLE model_signals (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

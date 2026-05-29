@@ -9,6 +9,7 @@ Usage:
 """
 
 import gc
+import shutil
 import time
 import tracemalloc
 import unittest
@@ -16,7 +17,7 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from tensortrade_model import get_tensortrade_prediction
+from tensortrade_model import get_tensortrade_prediction, _MODEL_DIR
 
 SIZES = [100, 500, 1000]
 
@@ -60,6 +61,11 @@ class TestBenchmarkTraining(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.results = BenchmarkResults()
+
+    @classmethod
+    def tearDownClass(cls):
+        if _MODEL_DIR.exists():
+            shutil.rmtree(_MODEL_DIR, ignore_errors=True)
 
     def test_benchmark_all_sizes(self):
         for size in SIZES:
