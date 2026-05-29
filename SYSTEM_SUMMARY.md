@@ -114,7 +114,7 @@ Deux tests majeurs ont été réalisés pour valider la robustesse :
 
 Le système ne se contente pas d'additionner les signaux. Il applique une logique de filtrage rigoureuse pour éviter les faux signaux :
 
-1.  **Pondération Cognitive avec Normalisation** : Les poids de base sont distribués entre les modèles actifs (classic 12%, llm_text 20%, llm_visual 18%, sentiment 15%, timesfm 20%) et les modèles en phase de test (vincent_ganne, oil_bench, tensortrade, kronos — chacun 5%). Ces poids sont **normalisés dynamiquement à la volée** (division par la somme totale) avant le calcul du score pondéré, garantissant un score toujours sur l'échelle attendue. Les modèles cognitifs dominent la décision (~73% après normalisation).
+1.  **Pondération Cognitive avec Normalisation** : Les poids de base sont distribués entre les modèles actifs (classic 13%, llm_text 21%, llm_visual 19%, sentiment 16%, timesfm 21%) et les modèles en phase de test (vincent_ganne, oil_bench, tensortrade — chacun 5%). Ces poids sont **normalisés dynamiquement à la volée** (division par la somme totale) avant le calcul du score pondéré, garantissant un score toujours sur l'échelle attendue. Les modèles cognitifs dominent la décision (~73% après normalisation).
 2.  **Seuil de Confiance Critique (40%)** : Toute décision de mouvement (`BUY` ou `SELL`) doit avoir une confiance globale > 40%. Si la confiance est entre 20% et 40%, le signal est dégradé en `HOLD`.
 3.  **Gestion de la Panique** : En risque `VERY_HIGH`, le système exige un consensus quasi-parfait. Si les modèles divergent (ex: Classic dit SELL mais LLM dit HOLD), le système reste en `HOLD` pour protéger le capital.
 

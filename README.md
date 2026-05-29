@@ -65,12 +65,11 @@ The system uses an innovative approach to maximize model accuracy:
 The system merges ten distinct signals:
 1.  **Classic Quantitative Model**: RandomForest/GradientBoosting/LogisticRegression ensemble trained on technical and macroeconomic indicators.
 2.  **TimesFM 2.5 (Google Research)**: State-of-the-art foundation model for time-series forecasting.
-3.  **Kronos-base (NeoQuasar)**: A foundation model trained on 12B+ K-line records for zero-shot financial forecasting (102M parameters).
-4.  **TensorTrade / PPO (Reinforcement Learning)**: RL agent (stable-baselines3) training a PPO policy in a custom Gymnasium trading environment at each run.
-5.  **Oil-Bench Model (Gemma 4:e4b)**: Energy-specialized model merging **EIA** fundamental data (Stocks, Imports, Refinery utilization) and sentiment for WTI trading.
-6.  **Textual LLM (Gemma 4:e4b)**: Contextual analysis of raw data, real-time news via the **AlphaEar** skill, and integration of dynamic **macro-economic web research**.
-7.  **Visual LLM (Gemma 4:e4b)**: Direct analysis of technical charts (`enhanced_trading_chart.png`).
-8.  **Sentiment Analysis**: Hybrid analysis combining Alpha Vantage and "hot" trends from **AlphaEar** (Weibo, WallstreetCN).
+3.  **TensorTrade / PPO (Reinforcement Learning)**: RL agent (stable-baselines3) training a PPO policy in a custom Gymnasium trading environment with persistence across cycles.
+4.  **Oil-Bench Model (Gemma 4:e4b)**: Energy-specialized model merging **EIA** fundamental data (Stocks, Imports, Refinery utilization) and sentiment for WTI trading.
+5.  **Textual LLM (Gemma 4:e4b)**: Contextual analysis of raw data, real-time news via the **AlphaEar** skill, and integration of dynamic **macro-economic web research**.
+6.  **Visual LLM (Gemma 4:e4b)**: Direct analysis of technical charts (`enhanced_trading_chart.png`).
+7.  **Sentiment Analysis**: Hybrid analysis combining Alpha Vantage and "hot" trends from **AlphaEar** (Weibo, WallstreetCN).
 9.  **Decentralized Data (Hyperliquid)**: Analysis of speculative sentiment on Oil (WTI) via *Funding Rate* and *Open Interest*.
 10. **Vincent Ganne Model**: Geopolitical and cross-asset analysis (WTI, Brent, Gas, DXY, MA200) for detecting macroeconomic bottoms.
 

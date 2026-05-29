@@ -37,8 +37,8 @@ The project is now in a **high-fidelity production/demo phase** with a **standal
 - [x] Implement cache auto-invalidation (stale > 1 day).
 - [x] Implement MA50 fallback for insufficient MA200 data.
 - [x] Implement adaptive feedback loop for model weight adjustment.
-- [x] Add Kronos sanity guards (double protection).
 - [x] Give progressive test weights to experimental models (0.05 each).
+- [x] Remove Kronos model (fully deprecated and cleaned).
 - [ ] Monitor real-time performance in Demo Mode.
 - [ ] Synchronize i18n translations (9 languages) with README.md updates.
 - [ ] Optimize model weights via backtest_prod.py grid search.

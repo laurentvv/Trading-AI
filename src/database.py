@@ -229,7 +229,6 @@ def _migrate_model_signals_table():
             cursor.execute("""
                 INSERT INTO model_signals (date, ticker, model_type, signal, confidence, details)
                 SELECT date, ticker, model_type, signal, confidence, details FROM model_signals_old
-                WHERE model_type != 'kronos'
             """)
             conn.commit()
             cursor.execute("DROP TABLE model_signals_old")
