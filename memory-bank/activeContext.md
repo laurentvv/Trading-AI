@@ -4,6 +4,7 @@
 **PROD restart from scratch (2026-05-29)**. Kronos fully removed, TensorTrade PPO persistence deployed (enriched 10-feature env, DB integration). PROD DBs wiped clean — fresh start with a **1-month validation period until end of June 2026** to confirm all models perform correctly with real T212 trades.
 
 ### Validation Period: 2026-05-29 → 2026-06-30
+- **Premier lancement validé (2026-05-29 13:48)**: Cycle complet OK pour SXRV.DE + CRUDP.PA en 488 sec. TensorTrade PPO persistance confirmée (2000→2500 timesteps). Tous modèles actifs sans erreur. Zéro référence Kronos.
 - Monitoring TensorTrade PPO persistence: first cycle trains (2000 steps), subsequent cycles load + fine-tune (500 steps).
 - Monitoring all model signals via `trading_journal.csv` and `model_performance.db`.
 - Adaptive feedback loop active — weights will adjust based on real outcomes.
