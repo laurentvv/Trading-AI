@@ -42,9 +42,7 @@ class SimpleTradingEnv(gym.Env):
         self.current_step = 0
         self.hold_count = 0
         self.action_space = gym.spaces.Discrete(3)
-        self.observation_space = gym.spaces.Box(
-            low=-np.inf, high=np.inf, shape=(10,), dtype=np.float32
-        )
+        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(10,), dtype=np.float32)
 
     def step(self, action):
         self.current_step += 1
@@ -109,9 +107,7 @@ def get_tensortrade_prediction(df: pd.DataFrame) -> dict:
 
         if _MODEL_PATH.exists():
             metadata = _load_metadata()
-            if metadata.get("obs_shape") and metadata["obs_shape"] != list(
-                env.observation_space.shape
-            ):
+            if metadata.get("obs_shape") and metadata["obs_shape"] != list(env.observation_space.shape):
                 logger.info("Observation space changed, retraining from scratch.")
                 _MODEL_PATH.unlink(missing_ok=True)
             else:
@@ -124,9 +120,7 @@ def get_tensortrade_prediction(df: pd.DataFrame) -> dict:
                     total_ts = metadata.get("total_timesteps", 0) + _FINE_TUNE_TIMESTEPS
                     _save_metadata(total_ts, env.observation_space.shape)
                     model.save(_MODEL_PATH)
-                    logger.info(
-                        f"Modèle PPO sauvegardé ({_FINE_TUNE_TIMESTEPS} timesteps ajoutés, total: {total_ts})"
-                    )
+                    logger.info(f"Modèle PPO sauvegardé ({_FINE_TUNE_TIMESTEPS} timesteps ajoutés, total: {total_ts})")
                 except Exception as e:
                     logger.warning(f"Erreur chargement modèle PPO, retraining from scratch: {e}")
                     model = PPO("MlpPolicy", env, n_steps=64, batch_size=32, verbose=0)

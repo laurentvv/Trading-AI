@@ -9,8 +9,7 @@ logger = logging.getLogger(__name__)
 DB_PATH = Path("trading_history.db")
 
 VALID_MODEL_TYPES = (
-    "'classic', 'llm_text', 'llm_visual', 'sentiment', 'hybrid', 'oil_bench', "
-    "'vincent_ganne', 'timesfm', 'tensortrade'"
+    "'classic', 'llm_text', 'llm_visual', 'sentiment', 'hybrid', 'oil_bench', 'vincent_ganne', 'timesfm', 'tensortrade'"
 )
 VALID_SIGNALS = "'BUY', 'SELL', 'HOLD', 'STRONG_BUY', 'STRONG_SELL'"
 

@@ -289,6 +289,7 @@ class EnhancedDecisionEngine:
             "vincent_ganne": 0.05,
             "oil_bench": 0.05,
             "tensortrade": 0.05,
+            "grebenkov": 0.05,
         }
 
         # Initialize models with config thresholds
@@ -436,6 +437,7 @@ class EnhancedDecisionEngine:
         tensortrade_decision: Dict = None,
         vincent_ganne_indicators: Dict = None,
         oil_bench_decision: Dict = None,
+        grebenkov_decision: Dict = None,
         market_data: Dict = None,
         adaptive_weights: Dict[str, float] = None,
         generic_model_results: List[ModelDecision] = None,
@@ -481,7 +483,7 @@ class EnhancedDecisionEngine:
                 total_w = sum(weights.values())
                 if total_w > 0:
                     weights = {k: v / total_w for k, v in weights.items()}
-                
+
         # Start with generic results if provided
         decisions = generic_model_results or []
 
@@ -506,6 +508,7 @@ class EnhancedDecisionEngine:
                 "timesfm": timesfm_decision,
                 "tensortrade": tensortrade_decision,
                 "oil_bench": oil_bench_decision,
+                "grebenkov": grebenkov_decision,
             }
 
             for model_name, dec in legacy_models.items():

@@ -137,6 +137,7 @@ def _inject_t212_live_price(hist_data: pd.DataFrame, ticker: str) -> pd.DataFram
         return hist_data
     try:
         from t212_executor import get_t212_price
+
         live_price = get_t212_price(ticker)
         if live_price and live_price > 0:
             last_idx = hist_data.index[-1]
@@ -174,11 +175,15 @@ def get_etf_data(ticker: str, period: str = "5y", force_refresh: bool = False) -
             last_date = pd.Timestamp(hist_data.index[-1])
             cache_age = (pd.Timestamp.now() - last_date).total_seconds() / 86400
             if (pd.Timestamp.now() - last_date) > pd.Timedelta(days=1):
-                logger.warning(f"Cache stale: last data date is {last_date.date()} ({cache_age:.1f} days old), refreshing...")
+                logger.warning(
+                    f"Cache stale: last data date is {last_date.date()} ({cache_age:.1f} days old), refreshing..."
+                )
                 hist_data = None
                 force_refresh = True
             else:
-                logger.info(f"Cache fresh enough: last data date is {last_date.date()} ({cache_age:.1f} days old), using cache without refresh")
+                logger.info(
+                    f"Cache fresh enough: last data date is {last_date.date()} ({cache_age:.1f} days old), using cache without refresh"
+                )
         except Exception as e:
             logger.warning(f"Could not read cache file {cache_filepath}: {e}. Forcing refresh.")
             force_refresh = True

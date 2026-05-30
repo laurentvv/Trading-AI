@@ -43,6 +43,7 @@ from timesfm_model import get_timesfm_prediction
 from tensortrade_model import get_tensortrade_prediction
 from eia_client import EIAClient
 from oil_bench_model import OilBenchModel
+from grebenkov_model import GrebenkovTrendModel
 
 # Imports des nouveaux modules d'amélioration
 from enhanced_decision_engine import EnhancedDecisionEngine
@@ -96,6 +97,7 @@ class EnhancedTradingSystem:
         self.config = self._load_config()
 
         # Initialisation des composants améliorés avec injection de config
+        self.grebenkov_model = GrebenkovTrendModel()
         self.decision_engine = EnhancedDecisionEngine(config=self.config)
         self.risk_manager = AdvancedRiskManager(config=self.config)
         self.weight_manager = AdaptiveWeightManager(config=self.config)
@@ -238,7 +240,9 @@ class EnhancedTradingSystem:
             logger.error(f"Erreur lors de l'entraînement du modèle: {e}")
             return None, None
 
-    def get_model_predictions(self, data_with_features, classic_model, scaler, vg_indicators=None):
+    def get_model_predictions(
+        self, data_with_features, classic_model, scaler, vg_indicators=None, wti_data=None, nasdaq_data=None
+    ):
         """Obtient les prédictions de tous les modèles."""
         logger.info("Génération des prédictions des modèles...")
 
@@ -296,7 +300,9 @@ class EnhancedTradingSystem:
                 sentiment_score = news_data.get("sentiment", 0)
                 if not headlines:
                     logger.warning(f"News fetcher returned 0 headlines. stderr: {process.stderr[:300]}")
-                logger.info(f"Successfully fetched {len(headlines)} news headlines. Sentiment score: {sentiment_score:.2f}")
+                logger.info(
+                    f"Successfully fetched {len(headlines)} news headlines. Sentiment score: {sentiment_score:.2f}"
+                )
         except Exception as e:
             logger.error(f"Failed to fetch news: {e}")
 
@@ -331,6 +337,20 @@ class EnhancedTradingSystem:
         timesfm_decision = get_timesfm_prediction(data_with_features)
         tensortrade_decision = get_tensortrade_prediction(data_with_features)
 
+        logger.info("Génération de la prédiction Grebenkov ARP...")
+        grebenkov_data = {
+            "hist_data": data_with_features,
+            "wti_data": wti_data,
+            "nasdaq_data": nasdaq_data,
+            "ticker": self.ticker,
+        }
+        grebenkov_result = self.grebenkov_model.predict(grebenkov_data)
+        grebenkov_decision = {
+            "signal": grebenkov_result.signal,
+            "confidence": grebenkov_result.confidence,
+            "reasoning": grebenkov_result.reasoning,
+        }
+
         return {
             "classic": {"prediction": classic_pred, "confidence": classic_conf},
             "text_llm": text_llm_decision,
@@ -338,6 +358,7 @@ class EnhancedTradingSystem:
             "sentiment": sentiment_decision,
             "timesfm": timesfm_decision,
             "tensortrade": tensortrade_decision,
+            "grebenkov": grebenkov_decision,
         }
 
     def perform_enhanced_analysis(
@@ -433,6 +454,7 @@ class EnhancedTradingSystem:
             tensortrade_decision=model_predictions["tensortrade"],
             vincent_ganne_indicators=effective_vg_indicators,
             oil_bench_decision=oil_bench_decision,
+            grebenkov_decision=model_predictions["grebenkov"],
             market_data=market_data,
             adaptive_weights=weight_adjustment.model_weights,
         )
@@ -477,7 +499,7 @@ class EnhancedTradingSystem:
                 model_name=dec.model_name,
                 signal=dec.signal,
                 confidence=dec.confidence,
-                market_regime=risk_metrics.risk_level.name
+                market_regime=risk_metrics.risk_level.name,
             )
 
         return {
@@ -510,8 +532,18 @@ class EnhancedTradingSystem:
             classic_model, scaler = self.train_classic_model(data_with_features)
 
             # 3. Prédictions de tous les modèles
+
+            # Récupération des données WTI et NASDAQ pour le modèle de Grebenkov
+            wti_data, _ = get_etf_data(ticker="CRUDP.PA")
+            nasdaq_data, _ = get_etf_data(ticker="SXRV.DE")
+
             model_predictions = self.get_model_predictions(
-                data_with_features, classic_model, scaler, vg_indicators=vg_indicators
+                data_with_features,
+                classic_model,
+                scaler,
+                vg_indicators=vg_indicators,
+                wti_data=wti_data,
+                nasdaq_data=nasdaq_data,
             )
 
             # 4. Analyse améliorée
