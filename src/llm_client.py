@@ -134,7 +134,7 @@ def get_visual_llm_decision(image_path: Path) -> dict:
     2. Price Action: Note the recent candle behavior (rejection, momentum, gaps).
     3. Indicators: Look at the visual shape of indicators (RSI divergences, MACD crossovers).
 
-    IMPORTANT: Your role is purely geometric and visual validation. 
+    IMPORTANT: Your role is purely geometric and visual validation.
     Output ONLY a valid JSON object exactly like this:
     {
       "signal": "BUY|SELL|HOLD",

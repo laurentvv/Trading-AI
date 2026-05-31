@@ -213,7 +213,7 @@ class PerformanceMonitor:
 
             cursor.execute(
                 """
-                INSERT INTO realtime_metrics 
+                INSERT INTO realtime_metrics
                 (timestamp, ticker, portfolio_value, daily_return, cumulative_return,
                  sharpe_ratio, max_drawdown, win_rate, total_trades,
                  active_positions, cash_balance, model_accuracy, risk_metrics)
@@ -394,7 +394,7 @@ class PerformanceMonitor:
 
             cursor.executemany(
                 """
-                INSERT INTO performance_alerts 
+                INSERT INTO performance_alerts
                 (timestamp, ticker, alert_type, severity, message, model_name, metric_value, threshold)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
@@ -430,17 +430,17 @@ class PerformanceMonitor:
 
             body = f"""
             Trading AI Performance Alert for {self.ticker}
-            
+
             Alert Type: {alert.alert_type}
             Severity: {alert.severity}
             Time: {alert.timestamp.strftime("%Y-%m-%d %H:%M:%S")}
-            
+
             {alert.message}
-            
+
             Model: {alert.model_name or "System-wide"}
             Current Value: {alert.metric_value}
             Threshold: {alert.threshold}
-            
+
             Please review the system performance and take appropriate action.
             """
 
@@ -474,7 +474,7 @@ class PerformanceMonitor:
 
             # Get recent metrics for specific ticker
             query = """
-                SELECT * FROM realtime_metrics 
+                SELECT * FROM realtime_metrics
                 WHERE timestamp >= ? AND ticker = ?
                 ORDER BY timestamp DESC
             """
@@ -508,7 +508,7 @@ class PerformanceMonitor:
             # Recent alerts
             alert_query = """
                 SELECT alert_type, severity, COUNT(*) as count
-                FROM performance_alerts 
+                FROM performance_alerts
                 WHERE timestamp >= ? AND ticker = ?
                 GROUP BY alert_type, severity
                 ORDER BY count DESC
@@ -621,7 +621,7 @@ class PerformanceMonitor:
                 """
                 SELECT timestamp, portfolio_value, daily_return, cumulative_return,
                        sharpe_ratio, max_drawdown, win_rate
-                FROM realtime_metrics 
+                FROM realtime_metrics
                 WHERE timestamp >= ? AND ticker = ?
                 ORDER BY timestamp
             """,

@@ -33,6 +33,7 @@ dependencies = [
     "tensortrade>=1.0.4",
     "stable-baselines3>=2.8.0",
     "einops>=0.8.2",
+    "pre-commit>=4.6.0",
 ]
 
 [tool.pytest.ini_options]

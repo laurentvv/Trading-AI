@@ -82,41 +82,41 @@ class EIACacheEntry:
 
 class EIAClient:
     BASE_URL = "https://api.eia.gov/v2"
-    
+
     OIL_TICKERS = frozenset({"CL=F", "CRUDP.PA", "BZ=F", "CL", "BZ"})
-    
+
     def __init__(self):
         self.api_key: str  # from EIA_API_KEY env var
         self._cache: dict[str, EIACacheEntry]
         self._cache_dir: Path  # data_cache/eia/
-    
+
     @staticmethod
     def is_oil_ticker(ticker: str) -> bool:
         """Gate function - returns True ONLY for oil-related tickers."""
         return any(t in ticker for t in ("CL=F", "CRUDP", "BZ=F", "CL="))
-    
+
     def get_fundamental_context(self) -> dict:
         """Main entry point. Returns all EIA fundamental data as a dict."""
         # Calls internal methods, catches all errors, always returns valid dict
-    
+
     def get_crude_inventories(self, weeks: int = 8) -> pd.DataFrame:
         """Fetches last N weeks of US crude oil inventory data."""
         # GET /v2/petroleum/stoc/wstk/data?facets[duoarea]=R5X2
         #   &facets[product]=EPC0&frequency=weekly&sort[0][column]=period
         #   &sort[0][direction]=desc&length={weeks}
-    
+
     def get_steo_outlook(self) -> pd.DataFrame:
         """Short-Term Energy Outlook - WTI price & global demand forecasts."""
         # GET /v2/steo/data?facets[seriesId]=...
-    
+
     def get_crude_production(self) -> pd.DataFrame:
         """US crude oil field production."""
         # GET /v2/petroleum/sum/wtyp/data?facets[product]=EPC0...
-    
+
     def get_imports(self) -> pd.DataFrame:
         """US crude oil imports."""
         # GET /v2/crude-oil-imports/data?...
-    
+
     def format_for_llm(self, data: dict) -> str:
         """Converts raw EIA data into human-readable text for LLM prompt."""
         # Returns structured text block like:
@@ -127,13 +127,13 @@ class EIAClient:
         #  - Net Imports: 6.1M bbl/day
         #  - STEO WTI Forecast: $72/bbl (next quarter avg)
         #  - Supply/Demand Balance: +0.8M bbl/day surplus"
-    
+
     def _make_request(self, endpoint: str, params: dict) -> dict:
         """Core HTTP request with retry, timeout, and error handling."""
-    
+
     def _get_from_cache(self, key: str) -> pd.DataFrame | None:
         """Check in-memory cache, then disk cache."""
-    
+
     def _save_to_cache(self, key: str, data: pd.DataFrame):
         """Save to both in-memory and disk cache."""
 ```
@@ -201,52 +201,52 @@ class OilBenchConfig:
 class OilBenchModel:
     """
     Commodity Quant Analyst Model for WTI.
-    
+
     INVARIANT: This model MUST only be instantiated and called when
     EIAClient.is_oil_ticker(ticker) == True. The caller is responsible
     for this check. The model will refuse to analyze non-oil tickers.
     """
-    
+
     def __init__(self, config: OilBenchConfig = None):
         self.config = config or OilBenchConfig()
         self.eia_client = EIAClient()
-    
+
     def analyze(self, ticker: str, headlines: list = None) -> dict:
         """
         Main analysis entry point.
-        
+
         Args:
             ticker: Must be an oil ticker (validated internally)
             headlines: Optional news headlines from existing news_fetcher
-        
+
         Returns:
             {"signal": "BUY"|"SELL"|"HOLD", "confidence": float, "analysis": str}
         """
         # 1. Validate ticker
         if not EIAClient.is_oil_ticker(ticker):
             return {"signal": "HOLD", "confidence": 0.0, "analysis": "Non-oil ticker, OilBench skipped."}
-        
+
         # 2. Collect price data (WTI, DXY, Brent)
         price_data = self._fetch_price_data()
-        
+
         # 3. Collect EIA fundamentals
         eia_context = self.eia_client.get_fundamental_context()
         eia_text = self.eia_client.format_for_llm(eia_context)
-        
+
         # 4. Build LLM prompt
         prompt = self._construct_prompt(price_data, eia_text, headlines)
-        
+
         # 5. Query LLM
         llm_response = self._query_llm(prompt)
-        
+
         # 6. Translate allocation to signal
         return self._translate_signal(llm_response)
-    
+
     def _fetch_price_data(self) -> dict:
         """Fetch WTI, Brent, DXY price data via yfinance."""
         # Uses data._yf_download or direct yf.download
         # Returns dict with current prices, % changes, trend info
-    
+
     def _construct_prompt(self, price_data: dict, eia_text: str, headlines: list) -> str:
         """Build the Oil Bench LLM prompt."""
         # Specialized commodity analyst prompt:
@@ -254,7 +254,7 @@ class OilBenchModel:
         # - EIA fundamental context (inventories, production, imports)
         # - News headlines (oil-specific)
         # - Request JSON: {"allocation": float 0-100, "reasoning": str}
-    
+
     def _query_llm(self, prompt: str) -> dict:
         """Send to Ollama via existing _query_ollama helper."""
         payload = {
@@ -265,12 +265,12 @@ class OilBenchModel:
             "system": "You are a senior commodity quantitative analyst...",
         }
         return _query_ollama(payload, expected_keys=["allocation", "reasoning"])
-    
+
     def _translate_signal(self, llm_response: dict) -> dict:
         """Convert 0-100 allocation to BUY/SELL/HOLD with confidence."""
         allocation = llm_response.get("allocation", 50.0)
         reasoning = llm_response.get("reasoning", "")
-        
+
         if allocation > self.config.allocation_buy_threshold:
             signal = "BUY"
             confidence = min(1.0, (allocation - 50) / 50)  # 55→0.10, 100→1.0
@@ -280,7 +280,7 @@ class OilBenchModel:
         else:
             signal = "HOLD"
             confidence = 0.3  # Low confidence for neutral zone
-        
+
         return {
             "signal": signal,
             "confidence": round(confidence, 3),
@@ -322,7 +322,7 @@ Return ONLY a JSON object:
 
 ### 4.1 `src/enhanced_trading_example.py`
 
-**File**: `src/enhanced_trading_example.py`  
+**File**: `src/enhanced_trading_example.py`
 **Lines affected**: ~6 lines added in `perform_enhanced_analysis()`
 
 ```python
@@ -354,7 +354,7 @@ Then pass `oil_bench_decision` to `make_enhanced_decision()`.
 
 ### 4.2 `src/enhanced_decision_engine.py`
 
-**File**: `src/enhanced_decision_engine.py`  
+**File**: `src/enhanced_decision_engine.py`
 **Lines affected**: ~15 lines added in `make_enhanced_decision()`
 
 ```python
@@ -392,7 +392,7 @@ Then pass `oil_bench_decision` to `make_enhanced_decision()`.
 
 ### 4.3 `src/database.py`
 
-**File**: `src/database.py`  
+**File**: `src/database.py`
 **Line affected**: 1 line change
 
 ```python

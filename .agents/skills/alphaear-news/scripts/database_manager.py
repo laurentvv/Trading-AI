@@ -60,7 +60,7 @@ class DatabaseManager:
                 news_id = news.get("id") or f"{news.get('source')}_{news.get('rank')}_{crawl_time[:10]}"
                 cursor.execute(
                     """
-                    INSERT OR REPLACE INTO daily_news 
+                    INSERT OR REPLACE INTO daily_news
                     (id, source, rank, title, url, content, publish_time, crawl_time, sentiment_score, meta_data)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,

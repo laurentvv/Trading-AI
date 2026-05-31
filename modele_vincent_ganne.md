@@ -1,7 +1,7 @@
 # Modèle de Décision Vincent Ganne (Point Bas Nasdaq)
 
 ## **Philosophie du Modèle**
-Ce modèle est un indicateur **cross-asset** et **macro-géopolitique** dont l'unique but est de valider des opportunités d'achat (**BUY**) sur le **Nasdaq-100**. 
+Ce modèle est un indicateur **cross-asset** et **macro-géopolitique** dont l'unique but est de valider des opportunités d'achat (**BUY**) sur le **Nasdaq-100**.
 
 Il repose sur l'observation historique que les grands creux de marché sur les actions américaines coïncident souvent avec une stabilisation ou une baisse des prix de l'énergie et une détente sur le marché obligataire.
 
