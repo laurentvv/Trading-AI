@@ -105,16 +105,16 @@ class TestATRAdaptiveThreshold(unittest.TestCase):
 
         low_vol_prices = np.linspace(100, 102, 800)
         hist_low = pd.DataFrame({"Close": low_vol_prices}, index=dates)
-        pd.DataFrame({"Close": np.random.lognormal(0, 0.02, 800).cumprod() * 50}, index=dates)
-        pd.DataFrame({"Close": np.random.lognormal(0, 0.015, 800).cumprod() * 10000}, index=dates)
+
+
 
         model = GrebenkovTrendModel()
-        model._weight_to_signal(0.1, 0.1, hist_low)
+        _ = model._weight_to_signal(0.1, 0.1, hist_low)
         threshold_low = model._compute_atr(hist_low) / max(model._compute_atr_median(hist_low), 1e-8)
 
         high_vol_prices = np.cumsum(np.random.randn(800) * 2) + 100
         hist_high = pd.DataFrame({"Close": high_vol_prices}, index=dates)
-        model._weight_to_signal(0.1, 0.1, hist_high)
+        _ = model._weight_to_signal(0.1, 0.1, hist_high)
         threshold_high = model._compute_atr(hist_high) / max(model._compute_atr_median(hist_high), 1e-8)
 
         self.assertGreater(threshold_high, threshold_low)
