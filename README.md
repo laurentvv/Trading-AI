@@ -62,7 +62,7 @@ The system uses an innovative approach to maximize model accuracy:
 - **ETF Execution**: Real orders are placed on the corresponding tickers on **Trading 212** (`SXRV.DE`, `CRUDP.PA`), using **T212 live prices** (via positions API) for position sizing. Portfolio state is synchronized directly from T212 (`sync_state_from_t212()`), and live prices are injected into the analysis pipeline (`_inject_t212_live_price()` in `src/data.py`).
 
 ### 🧠 Hybrid AI Engine
-The system merges ten distinct signals:
+The system merges eleven distinct signals:
 1.  **Classic Quantitative Model**: RandomForest/GradientBoosting/LogisticRegression ensemble trained on technical and macroeconomic indicators.
 2.  **TimesFM 2.5 (Google Research)**: State-of-the-art foundation model for time-series forecasting.
 3.  **TensorTrade / PPO (Reinforcement Learning)**: RL agent (stable-baselines3) training a PPO policy in a custom Gymnasium trading environment with persistence across cycles.
@@ -70,8 +70,10 @@ The system merges ten distinct signals:
 5.  **Textual LLM (Gemma 4:e4b)**: Contextual analysis of raw data, real-time news via the **AlphaEar** skill, and integration of dynamic **macro-economic web research**.
 6.  **Visual LLM (Gemma 4:e4b)**: Direct analysis of technical charts (`enhanced_trading_chart.png`).
 7.  **Sentiment Analysis**: Hybrid analysis combining Alpha Vantage and "hot" trends from **AlphaEar** (Weibo, WallstreetCN).
-9.  **Decentralized Data (Hyperliquid)**: Analysis of speculative sentiment on Oil (WTI) via *Funding Rate* and *Open Interest*.
-10. **Vincent Ganne Model**: Geopolitical and cross-asset analysis (WTI, Brent, Gas, DXY, MA200) for detecting macroeconomic bottoms.
+8.  **Decentralized Data (Hyperliquid)**: Analysis of speculative sentiment on Oil (WTI) via *Funding Rate* and *Open Interest*.
+9.  **Vincent Ganne Model**: Geopolitical and cross-asset analysis (WTI, Brent, Gas, DXY, MA200) for detecting macroeconomic bottoms.
+10. **Grebenkov Model**: Trend-Following mathematical model calibrated for cross-asset analysis using Agnostic Risk Parity.
+11. **Hybrid Fusion Engine**: The meta-model orchestrating dynamic weighting and cognitive consensus across all sub-models.
 
 The goal is to produce a final decision (`BUY`, `SELL`, `HOLD`) with an absolute priority on **Accuracy First**.
 
@@ -172,23 +174,30 @@ Follow these steps to set up your local development environment.
 2.  **Install `uv` (if not already done):**
     See [astral.sh/uv](https://astral.sh/uv) for installation instructions.
 
-3.  **Install Foundation Models (CRUCIAL Step):**
+3.  **Create and activate the virtual environment (CRUCIAL Step):**
+    You must create and activate the `.venv` before installing the foundation models.
+    ```bash
+    uv venv
+    source .venv/bin/activate  # On Windows, use `.venv\Scripts\activate`
+    ```
+
+4.  **Install Foundation Models:**
     Run the installation scripts to clone the models into `vendor/` and apply patches:
     ```bash
     python setup_timesfm.py
     ```
 
-4.  **Initialize and synchronize the environment:**
+5.  **Initialize and synchronize the environment:**
     ```bash
     uv sync
     ```
 
-5.  **Install browsers for Web research (Crawl4AI):**
+6.  **Install browsers for Web research (Crawl4AI):**
     ```bash
     uv run python -m playwright install chromium
     ```
 
-6.  **Configure your API keys:**
+7.  **Configure your API keys:**
     Create a `.env` file in the project root:
     ```
     ALPHA_VANTAGE_API_KEY="YOUR_KEY"
@@ -231,7 +240,7 @@ uv run main.py --t212
 The system includes a **standalone production backtest engine** (`backtest_prod.py`) that replays actual prod signals from `logs_prod/trading_journal.csv` against real prices from `data_cache/` Parquet files.
 
 ### Features
-- **Real signals**: Replays the exact decisions of the 9-model hybrid engine.
+- **Real signals**: Replays the exact decisions of the 11-model hybrid engine.
 - **Real prices**: Uses actual ETF OHLCV data (SXRV.DE, CRUDP.PA) — no US proxies.
 - **T212 fees**: Simulates Trading 212's 0.1% per-trade fee model.
 - **Baseline comparison**: Automatically computes buy-and-hold performance as benchmark.
