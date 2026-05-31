@@ -133,7 +133,7 @@ def cmd_status(args):
         print(f"  Positions ERROR: {positions.status_code}")
 
     state = load_state()
-    print(f"\n  Local state:")
+    print("\n  Local state:")
     for k, v in state.get("tickers", {}).items():
         pos = v.get("active_position")
         print(f"    {k}: capital={v.get('current_capital', 0):.2f}€ | "
@@ -173,7 +173,7 @@ def cmd_buy(args):
         cash = summary.json().get("cash", {}).get("availableToTrade", 0)
         print(f"  Cash available: {cash:.2f}€")
         if cash < amount_eur * 0.96:
-            print(f"  ERROR: Not enough cash")
+            print("  ERROR: Not enough cash")
             return
 
     # Get price
@@ -217,7 +217,7 @@ def cmd_buy(args):
         }
         ts["current_capital"] = cost
         save_state(state)
-        print(f"  State saved.")
+        print("  State saved.")
     else:
         print(f"  FAILED: {resp.text}")
 

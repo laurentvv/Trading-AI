@@ -1,4 +1,3 @@
-import sys
 
 with open("src/t212_executor.py", "r") as f:
     content = f.read()
