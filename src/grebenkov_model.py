@@ -15,21 +15,26 @@ class GrebenkovTrendModel(BaseModel):
     basé sur Grebenkov et Serror (2014) et "Breaking the Trend" (Valeyre, 2026).
     """
 
-    def __init__(self, eta: float = 1 / 112, rho: float = 1 / 20, vol_window: int = 40, corr_window: int = 750):
-        """
-        Initialise les paramètres du modèle.
-
-        :param eta: Paramètre de lissage de l'EMA (Optimal = 1/112 selon l'étude).
-        :param rho: Paramètre de lissage du portefeuille pour réduire le turnover.
-        :param vol_window: Fenêtre pour l'estimation de la volatilité quotidienne (Sigma).
-        :param corr_window: Fenêtre pour l'estimation de la matrice de corrélation (C).
-        """
+    def __init__(self, eta: float = 1 / 112, rho: float = 1 / 20, vol_window: int = 40,
+                 corr_window: int = 750, stop_loss_pct: float = 0.10,
+                 trailing_stop_pct: float = 0.05, atr_lookback: int = 14):
         self.eta = eta
         self.rho = rho
         self.vol_window = vol_window
         self.corr_window = corr_window
-        # Fallback target volatility if not enough assets to normalize perfectly
         self.target_volatility = 0.15
+        self.stop_loss_pct = stop_loss_pct
+        self.trailing_stop_pct = trailing_stop_pct
+        self.atr_lookback = atr_lookback
+        self._peak_price = None
+        self._position_type = "FLAT"
+        self._last_ticker = None
+
+    def reset(self):
+        """Reset internal state (peak price, position, last ticker). Called automatically on ticker change."""
+        self._peak_price = None
+        self._position_type = "FLAT"
+        self._last_ticker = None
 
     def _bun_rie_filter(self, corr_matrix: np.ndarray, num_obs: int) -> np.ndarray:
         """
@@ -56,14 +61,9 @@ class GrebenkovTrendModel(BaseModel):
         return vecs @ inv_sqrt_vals @ vecs.T
 
     def predict(self, data: Dict[str, Any]) -> ModelResult:
-        """
-        Génère une prédiction selon l'API BaseModel.
+        """Generate a trading signal using EMA trend-following and Agnostic Risk Parity.
 
-        Args:
-            data: Dictionnaire contenant:
-                - 'hist_data': pd.DataFrame du ticker analysé
-                - 'wti_data': pd.DataFrame du ticker WTI (CRUDP.PA ou CL=F)
-                - 'nasdaq_data': pd.DataFrame du ticker NASDAQ (SXRV.DE ou ^IXIC)
+        Automatically resets internal state when the ticker changes between calls.
         """
         try:
             hist_data = data.get("hist_data")
@@ -71,76 +71,91 @@ class GrebenkovTrendModel(BaseModel):
             nasdaq_data = data.get("nasdaq_data")
             ticker = data.get("ticker", "Unknown")
 
+            if ticker != self._last_ticker:
+                self.reset()
+                self._last_ticker = ticker
+
             if hist_data is None or hist_data.empty:
                 return ModelResult("HOLD", 0.0, "Missing hist_data for Grebenkov model")
+
+            current_price = float(hist_data["Close"].iloc[-1])
+
+            if self._position_type == "LONG" and self._peak_price is not None:
+                self._peak_price = max(self._peak_price, current_price)
+
+            if self._check_stop_loss(current_price):
+                self._position_type = "FLAT"
+                self._peak_price = None
+                return ModelResult(
+                    "SELL",
+                    0.9,
+                    f"Grebenkov Stop-Loss triggered at {current_price:.2f} "
+                    f"(stop={self.stop_loss_pct * 100:.0f}%, trail={self.trailing_stop_pct * 100:.0f}%)",
+                )
 
             if wti_data is None or nasdaq_data is None or wti_data.empty or nasdaq_data.empty:
                 logger.warning(
                     "GrebenkovModel: Données WTI ou NASDAQ manquantes. Mode dégradé sans Agnostic Risk Parity."
                 )
-                return self._predict_single_asset(hist_data, ticker)
+                result = self._predict_single_asset(hist_data, ticker)
+            else:
+                df_returns = pd.concat(
+                    [nasdaq_data["Close"].pct_change().fillna(0),
+                     wti_data["Close"].pct_change().fillna(0)],
+                    axis=1, join="inner"
+                ).tail(self.corr_window)
+                df_returns.columns = ["NASDAQ", "WTI"]
 
-            # --- Préparation des données communes (Alignement des index) ---
-            # Conversion en rendements
-            ret_wti = wti_data["Close"].pct_change().fillna(0)
-            ret_ndx = nasdaq_data["Close"].pct_change().fillna(0)
+                if len(df_returns) < 50:
+                    return ModelResult("HOLD", 0.0, "Not enough common data points for Grebenkov")
 
-            # Alignement
-            df_returns = pd.concat([ret_ndx, ret_wti], axis=1, join="inner").tail(self.corr_window)
-            df_returns.columns = ["NASDAQ", "WTI"]
+                corr_matrix = df_returns.corr().values
+                C_cleaned = self._bun_rie_filter(corr_matrix, len(df_returns))
+                C_inv_sqrt = self._inverse_sqrt_matrix(C_cleaned)
 
-            if len(df_returns) < 50:
-                return ModelResult("HOLD", 0.0, "Not enough common data points for Grebenkov")
+                vol_ndx = df_returns["NASDAQ"].ewm(span=self.vol_window).std().iloc[-1]
+                vol_wti = df_returns["WTI"].ewm(span=self.vol_window).std().iloc[-1]
+                vol_ndx = max(vol_ndx, 1e-4)
+                vol_wti = max(vol_wti, 1e-4)
 
-            # 1. Matrice de Corrélation C et Filtre
-            corr_matrix = df_returns.corr().values
-            C_cleaned = self._bun_rie_filter(corr_matrix, len(df_returns))
-            C_inv_sqrt = self._inverse_sqrt_matrix(C_cleaned)
+                inv_Sigma = np.diag([1.0 / vol_ndx, 1.0 / vol_wti])
 
-            # 2. Volatilité (EMA 40j) pour chaque actif
-            vol_ndx = df_returns["NASDAQ"].ewm(span=self.vol_window).std().iloc[-1]
-            vol_wti = df_returns["WTI"].ewm(span=self.vol_window).std().iloc[-1]
+                returns = hist_data["Close"].pct_change().fillna(0)
+                sigma2 = returns.pow(2).ewm(alpha=self.eta, adjust=False).mean()
+                sigma_t = np.sqrt(sigma2).shift(1).bfill()
+                norm_returns = returns / np.maximum(sigma_t, 1e-6)
 
-            vol_ndx = max(vol_ndx, 1e-4)
-            vol_wti = max(vol_wti, 1e-4)
+                phi = 0.0
+                sqrt_eta = np.sqrt(self.eta)
+                norm_ret_arr = norm_returns.values
+                for r in norm_ret_arr[-100:]:
+                    phi = (1 - self.eta) * phi + sqrt_eta * r
 
-            inv_Sigma = np.diag([1.0 / vol_ndx, 1.0 / vol_wti])
+                is_wti = "CRUD" in ticker.upper() or "CL=F" in ticker.upper()
+                idx = 1 if is_wti else 0
 
-            # 3. Calcul du Signal Normalisé phi_t pour le ticker actuel
-            # On recrée l'EMA récursive
-            returns = hist_data["Close"].pct_change().fillna(0)
-            sigma2 = returns.pow(2).ewm(alpha=self.eta, adjust=False).mean()
-            sigma_t = np.sqrt(sigma2).shift(1).bfill()
-            norm_returns = returns / np.maximum(sigma_t, 1e-6)
+                phi_vec = np.zeros(2)
+                phi_vec[idx] = phi
 
-            phi = 0.0
-            sqrt_eta = np.sqrt(self.eta)
-            norm_ret_arr = norm_returns.values
-            for r in norm_ret_arr[-100:]:  # Warmup sur les 100 derniers jours
-                phi = (1 - self.eta) * phi + sqrt_eta * r
+                target_position_vec = inv_Sigma @ C_inv_sqrt @ phi_vec
+                target_weight = target_position_vec[idx]
 
-            # Pour le vecteur complet (on suppose que si le ticker est WTI, sa position est [1], sinon [0])
-            is_wti = "CRUD" in ticker.upper() or "CL=F" in ticker.upper()
-            idx = 1 if is_wti else 0
+                result = self._weight_to_signal(target_weight, phi, hist_data)
 
-            # On construit le vecteur de signaux (simplifié : on met 0 pour l'autre pour isoler notre position ARP)
-            phi_vec = np.zeros(2)
-            phi_vec[idx] = phi
+            if result.signal == "BUY":
+                self._position_type = "LONG"
+                self._peak_price = current_price
+            elif result.signal == "SELL":
+                self._position_type = "FLAT"
+                self._peak_price = None
 
-            # 4. Agnostic Risk Parity Target Position
-            target_position_vec = inv_Sigma @ C_inv_sqrt @ phi_vec
-            target_weight = target_position_vec[idx]
-
-            # Lissage rho appliqué en théorie sur la série, ici on approxime le scaling final
-            # Pour l'intégration dans l'Engine existant, on traduit le poids en signal de classification
-            return self._weight_to_signal(target_weight, phi)
+            return result
 
         except Exception as e:
             logger.error(f"Erreur GrebenkovTrendModel: {e}", exc_info=True)
             return ModelResult("HOLD", 0.0, f"Error: {str(e)}")
 
     def _predict_single_asset(self, hist_data: pd.DataFrame, ticker: str) -> ModelResult:
-        """Mode dégradé sans ARP, calcule uniquement l'EMA normalisée."""
         returns = hist_data["Close"].pct_change().fillna(0)
         sigma2 = returns.pow(2).ewm(alpha=self.eta, adjust=False).mean()
         sigma_t = np.sqrt(sigma2).shift(1).bfill()
@@ -148,27 +163,73 @@ class GrebenkovTrendModel(BaseModel):
 
         phi = 0.0
         sqrt_eta = np.sqrt(self.eta)
-        for r in norm_returns.values[-150:]:  # Warmup
+        for r in norm_returns.values[-150:]:
             phi = (1 - self.eta) * phi + sqrt_eta * r
 
-        return self._weight_to_signal(phi, phi)
+        return self._weight_to_signal(phi, phi, hist_data)
 
-    def _weight_to_signal(self, weight: float, raw_phi: float) -> ModelResult:
-        """Convertit un poids continu en signal discret (BUY/SELL/HOLD) avec confiance."""
-        # Un signal phi ~ 1.0 indique une tendance d'1 écart-type
+    def _true_range(self, hist_data: pd.DataFrame) -> np.ndarray:
+        close = hist_data["Close"].values
+        if "High" in hist_data.columns and "Low" in hist_data.columns:
+            high = hist_data["High"].values
+            low = hist_data["Low"].values
+            tr = np.abs(high[1:] - low[1:])
+            tr = np.maximum(tr, np.abs(high[1:] - close[:-1]))
+            tr = np.maximum(tr, np.abs(low[1:] - close[:-1]))
+        else:
+            tr = np.abs(np.diff(close))
+        return tr
+
+    def _compute_atr(self, hist_data: pd.DataFrame) -> float:
+        tr = self._true_range(hist_data)
+        if len(tr) < self.atr_lookback:
+            return float(np.mean(tr)) if len(tr) > 0 else 1.0
+        return float(np.mean(tr[-self.atr_lookback:]))
+
+    def _compute_atr_median(self, hist_data: pd.DataFrame) -> float:
+        tr = self._true_range(hist_data)
+        if len(tr) < self.atr_lookback:
+            return float(np.median(tr)) if len(tr) > 0 else 1.0
+        chunks = tr[:len(tr) - len(tr) % self.atr_lookback].reshape(-1, self.atr_lookback)
+        atr_vals = chunks.mean(axis=1)
+        return float(np.median(atr_vals)) if len(atr_vals) > 0 else 1.0
+
+    def _check_stop_loss(self, current_price: float) -> bool:
+        if self._position_type == "LONG" and self._peak_price is not None:
+            drawdown = (self._peak_price - current_price) / self._peak_price
+            if drawdown >= self.stop_loss_pct:
+                return True
+            trailing_level = self._peak_price * (1 - self.trailing_stop_pct)
+            if current_price <= trailing_level:
+                return True
+        return False
+
+    def _weight_to_signal(self, weight: float, raw_phi: float,
+                          hist_data: pd.DataFrame = None) -> ModelResult:
+        """Convert a continuous target weight into a discrete BUY/SELL/HOLD signal.
+
+        Uses ATR-adaptive thresholding: higher volatility widens the neutral band.
+        """
         abs_weight = abs(weight)
-
-        # Scaling heuristique pour la confiance (maxé à 1.0)
-        # weight typiquement dans [-2, 2]
         confidence = min(max(abs_weight * 0.4, 0.0), 1.0)
 
-        if weight > 0.15:
+        base_threshold = 0.15
+        if hist_data is not None and len(hist_data) > self.atr_lookback + 1:
+            current_atr = self._compute_atr(hist_data)
+            median_atr = self._compute_atr_median(hist_data)
+            if median_atr > 0:
+                base_threshold = 0.15 * (current_atr / median_atr)
+
+        if weight > base_threshold:
             signal = "BUY"
-        elif weight < -0.15:
+        elif weight < -base_threshold:
             signal = "SELL"
         else:
             signal = "HOLD"
 
-        reasoning = f"Grebenkov ARP: Target Weight={weight:.3f}, Raw Phi={raw_phi:.3f}, Conf={confidence:.2f}"
+        reasoning = (
+            f"Grebenkov ARP: Target Weight={weight:.3f}, Raw Phi={raw_phi:.3f}, "
+            f"Conf={confidence:.2f}, ATR_Threshold={base_threshold:.3f}"
+        )
 
         return ModelResult(signal, confidence, reasoning)

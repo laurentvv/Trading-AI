@@ -1,5 +1,6 @@
 import logging
 import os
+import numpy as np
 import pandas as pd
 from typing import Dict
 from dotenv import load_dotenv
@@ -33,9 +34,11 @@ class TimesFMModel:
             cls._instance = cls()
         return cls._instance
 
-    def __init__(self):
+    def __init__(self, vol_multiplier: float = 0.5):
         self.model = None
         self.initialized = False
+        self.vol_multiplier = vol_multiplier
+        self._positions: Dict[str, str] = {}
 
         if not TIMESFM_2P5_AVAILABLE:
             return
@@ -76,8 +79,34 @@ class TimesFMModel:
             logger.warning(f"Erreur lors de l'initialisation de TimesFM 2.5: {e}")
             self.initialized = False
 
-    def predict(self, df: pd.DataFrame, horizon: int = 5) -> Dict:
-        """Prédit les valeurs futures et génère une décision."""
+    def update_position(self, position: str, ticker: str = "default"):
+        """Manually set the current position for *ticker* to LONG or FLAT."""
+        if position.upper() in ("LONG", "FLAT"):
+            self._positions[ticker] = position.upper()
+
+    def reset(self, ticker: str = None):
+        """Clear position state. If *ticker* is given, reset only that ticker; otherwise clear all."""
+        if ticker:
+            self._positions.pop(ticker, None)
+        else:
+            self._positions.clear()
+
+    def _get_position(self, ticker: str) -> str:
+        return self._positions.get(ticker, "FLAT")
+
+    def _adaptive_threshold(self, prices: np.ndarray) -> float:
+        if len(prices) < 20:
+            return 0.005
+        returns = np.diff(prices[-20:]) / np.maximum(prices[-20:-1], 1e-8)
+        realised_vol = float(np.std(returns))
+        return max(0.005, realised_vol * self.vol_multiplier)
+
+    def predict(self, df: pd.DataFrame, horizon: int = 5, ticker: str = "default") -> Dict:
+        """Generate a trading signal from TimesFM 2.5 price forecast.
+
+        Uses an ATR-adaptive threshold and position-aware filtering to avoid
+        redundant BUY (when already LONG) or SELL (when FLAT) signals.
+        """
         if not self.initialized or self.model is None:
             return {
                 "signal": "HOLD",
@@ -90,7 +119,6 @@ class TimesFMModel:
             if len(prices) > 1024:
                 prices = prices[-1024:]
 
-            # API 2.5: point_forecast est un numpy array de shape (batch_size, horizon)
             point_forecast, _ = self.model.forecast(horizon=horizon, inputs=[prices])
             predictions = point_forecast[0]
 
@@ -99,18 +127,30 @@ class TimesFMModel:
             expected_return = (last_pred - current_price) / current_price if current_price != 0 else 0.0
 
             signal = "HOLD"
-            # On scale la confiance : 1% de mouvement -> 0.5 de confiance, 2% -> 1.0
             confidence = min(1.0, abs(expected_return) * 50)
 
-            threshold = 0.005  # Seuil de 0.5% (plus réaliste pour un ETF sur 5 jours)
+            threshold = self._adaptive_threshold(prices)
             if expected_return > threshold:
                 signal = "BUY"
             elif expected_return < -threshold:
                 signal = "SELL"
 
+            if signal == "BUY" and self._get_position(ticker) == "LONG":
+                signal = "HOLD"
+                confidence *= 0.5
+            elif signal == "SELL" and self._get_position(ticker) == "FLAT":
+                signal = "HOLD"
+                confidence *= 0.5
+
+            if signal == "BUY":
+                self._positions[ticker] = "LONG"
+            elif signal == "SELL":
+                self._positions[ticker] = "FLAT"
+
             analysis = (
                 f"TimesFM 2.5 forecasts price move: {current_price:.2f} -> {last_pred:.2f} "
-                f"({expected_return * 100:+.2f}%) over {horizon} days."
+                f"({expected_return * 100:+.2f}%) over {horizon} days. "
+                f"Adaptive threshold={threshold * 100:.2f}%, position={self._get_position(ticker)}"
             )
 
             logger.info(f"TimesFM 2.5 prediction: {signal} ({confidence:.2f})")
@@ -127,14 +167,11 @@ class TimesFMModel:
             return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Error: {e}"}
 
 
-def get_timesfm_prediction(df: pd.DataFrame) -> Dict:
-    """
-    Wrapper function to get predictions from the TimesFM model.
-    Handles singleton initialization automatically.
-    """
+def get_timesfm_prediction(df: pd.DataFrame, ticker: str = "default") -> Dict:
+    """Convenience wrapper: get a TimesFM prediction for *ticker* using the singleton model."""
     try:
         model = TimesFMModel.get_instance()
-        return model.predict(df)
+        return model.predict(df, ticker=ticker)
     except Exception as e:
         logger.error(f"TimesFM prediction failed: {e}")
         return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Model error: {e}"}
