@@ -210,7 +210,7 @@ class AdaptiveWeightManager:
 
             cursor.execute(
                 """
-                INSERT INTO model_performance_history 
+                INSERT INTO model_performance_history
                 (date, model_name, signal_predicted, confidence, market_regime)
                 VALUES (?, ?, ?, ?, ?)
             """,
@@ -238,7 +238,7 @@ class AdaptiveWeightManager:
 
             cursor.execute(
                 """
-                UPDATE model_performance_history 
+                UPDATE model_performance_history
                 SET actual_outcome = ?, return_1d = ?, return_5d = ?
                 WHERE date = ? AND model_name = ?
             """,
@@ -299,7 +299,7 @@ class AdaptiveWeightManager:
             # Get recent predictions with outcomes
             query = """
                 SELECT signal_predicted, actual_outcome, return_1d, return_5d, confidence
-                FROM model_performance_history 
+                FROM model_performance_history
                 WHERE model_name = ? AND date >= ? AND actual_outcome IS NOT NULL
                 ORDER BY date DESC
             """

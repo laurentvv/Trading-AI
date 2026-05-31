@@ -61,7 +61,7 @@ def generate_search_query(ticker: str, latest_data: pd.DataFrame = None) -> str:
 
     Your goal is to find the most impactful news or reports FROM THE LAST 30 DAYS that explain the current market regime.
     Generate the single most effective Google/DuckDuckGo search query (maximum 10 words).
-    
+
     Output ONLY a valid JSON object:
     {{
       "query": "<your optimized search query>"

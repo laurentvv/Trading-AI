@@ -1,13 +1,13 @@
 <p align="center">
-  <a href="README.md">English</a> | 
-  <a href="i18n/README_zh.md">中文</a> | 
-  <a href="i18n/README_hi.md">हिंदी</a> | 
-  <a href="i18n/README_es.md">Español</a> | 
-  <a href="i18n/README_fr.md">Français</a> | 
-  <a href="i18n/README_ar.md">العربية</a> | 
-  <a href="i18n/README_bn.md">বাংলা</a> | 
-  <a href="i18n/README_ru.md">Русский</a> | 
-  <a href="i18n/README_pt.md">Português</a> | 
+  <a href="README.md">English</a> |
+  <a href="i18n/README_zh.md">中文</a> |
+  <a href="i18n/README_hi.md">हिंदी</a> |
+  <a href="i18n/README_es.md">Español</a> |
+  <a href="i18n/README_fr.md">Français</a> |
+  <a href="i18n/README_ar.md">العربية</a> |
+  <a href="i18n/README_bn.md">বাংলা</a> |
+  <a href="i18n/README_ru.md">Русский</a> |
+  <a href="i18n/README_pt.md">Português</a> |
   <a href="i18n/README_id.md">Bahasa Indonesia</a>
 </p>
 
@@ -121,35 +121,42 @@ The project is organized modularly for better maintainability.
 
 ```
 Trading-AI/
-├── src/                     # Core modules
-│   ├── eia_client.py               # Energy fundamental data client
-│   ├── oil_bench_model.py          # Energy specialized model
-│   ├── tensortrade_model.py        # Reinforcement Learning signal (PPO/SB3)
-│   ├── enhanced_decision_engine.py # Fusion engine and Vincent Ganne model
-│   ├── advanced_risk_manager.py    # Trend-Aware risk management
-│   ├── adaptive_weight_manager.py  # Dynamic model weighting
-│   ├── t212_executor.py            # Real execution on Trading 212
-│   ├── timesfm_model.py            # TimesFM 2.5 integration
-│   └── ...                         # Data, Features, LLM Client
-├── tests/                   # Test and validation scripts
-│   ├── check_cache.py               # Inspect Parquet cache files (dates, sizes)
-│   ├── check_db.py                  # Inspect SQLite databases (tables, rows)
-│   ├── check_live.py                # Live market prices via yfinance
+├── src/                             # Core modules
+│   ├── adaptive_weight_manager.py   # Dynamic model weighting based on performance
+│   ├── advanced_risk_manager.py     # Trend-Aware risk management and sizing
+│   ├── chart_generator.py           # Generates technical charts for visual LLM
+│   ├── classic_model.py             # Scikit-learn quantitative models ensemble
+│   ├── data.py                      # Data fetching, caching, and preprocessing
+│   ├── database.py                  # SQLite database management for metrics
+│   ├── eia_client.py                # Energy Information Administration API client
+│   ├── enhanced_decision_engine.py  # Hybrid fusion engine orchestrating all models
+│   ├── features.py                  # Technical and macroeconomic feature engineering
+│   ├── grebenkov_model.py           # Trend-Following math model (Agnostic Risk Parity)
+│   ├── llm_client.py                # Ollama integration for local LLM inference
+│   ├── news_fetcher.py              # Financial news crawling and parsing
+│   ├── oil_bench_model.py           # Energy-specialized WTI trading model
+│   ├── performance_monitor.py       # Tracking model accuracy and history
+│   ├── sentiment_analysis.py        # Alpha Vantage & AlphaEar sentiment integration
+│   ├── t212_executor.py             # Trading 212 API real execution and portfolio
+│   ├── tensortrade_model.py         # Reinforcement Learning (PPO) signal
+│   ├── timesfm_model.py             # TimesFM 2.5 time-series forecasting integration
+│   └── web_researcher.py            # Macro-economic web scraping with Crawl4AI
+├── tests/                           # Test and validation scripts
 │   ├── test_full_cycle.py           # End-to-end T212 buy/wait/sell test
-│   └── ...                          # Unit & integration tests
-├── data_cache/              # Market and macro data (Parquet)
-├── logs_prod/               # Production logs (trading_journal.csv, T212 state)
-├── src/                     # Core modules
-│   ├── enhanced_decision_engine.py  # Fusion engine and Vincent Ganne model
-│   ├── t212_executor.py             # Real execution on Trading 212
-│   ├── tensortrade_model.py         # Reinforcement Learning signal (PPO/SB3)
-│   └── ...                          # Data, Features, LLM Client, Risk, etc.
-├── main.py                  # Single entry point (Analysis & Trading)
-├── backtest_prod.py         # Standalone production backtest (signals vs buy&hold)
-├── schedule.py              # Live scheduler (8:30 AM - 6:00 PM)
-├── refresh_cache.py         # CLI utility to force-refresh Parquet cache
-├── .env                     # API Keys (Alpha Vantage, T212, EIA)
-└── README.md                # This documentation
+│   ├── test_enhanced_decision_engine.py # Tests for the hybrid fusion engine
+│   ├── check_live.py                # Live market prices verification script
+│   └── ...                          # Other unit and integration tests
+├── i18n/                            # Internationalization (Translated READMEs)
+├── assets/                          # Static assets (images, banners)
+├── memory-bank/                     # AI assistant memory and context
+├── backtest_prod.py                 # Standalone production backtest engine
+├── main.py                          # Single entry point (Analysis & Trading)
+├── pyproject.toml                   # Project dependencies and configuration (uv)
+├── refresh_cache.py                 # CLI utility to force-refresh Parquet cache
+├── schedule.py                      # Live scheduler for automated execution
+├── setup_timesfm.py                 # Installation script for TimesFM 2.5 vendor
+├── .env.example                     # Example environment variables
+└── README.md                        # This documentation
 ```
 
 ---

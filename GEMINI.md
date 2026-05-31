@@ -35,7 +35,7 @@ Le moteur fusionne un modèle quantitatif classique, un LLM textuel (Gemma 4), u
     ```bash
     # IMPORTANT : Exécuter ce script en premier pour cloner et patcher TimesFM
     python setup_timesfm.py
-    
+
     # Ensuite, synchroniser l'environnement complet
     uv sync
 

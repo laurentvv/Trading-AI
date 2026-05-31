@@ -9,13 +9,13 @@ Le système repose sur une approche **multi-modale hybride**. Au lieu de faire c
 ```mermaid
 graph TD
     A[Données Marché & Macro] --> B{Moteur IA Hybride}
-    
+
     subgraph "Analyse Technique"
     B --> C[Modèle Classique - Scikit-Learn]
     B --> D[TimesFM - Google Research]
     B --> TT[TensorTrade / PPO - RL]
     end
-    
+
     subgraph "Analyse Contextuelle"
     B --> E[LLM Texte - Gemma 4]
     B --> F[LLM Visuel - Analyse Graphique]
@@ -24,9 +24,9 @@ graph TD
     B --> OB[Oil-Bench - EIA Fondamentaux]
     B --> VG[Vincent Ganne - Géopolitique]
     end
-    
+
     C & D & TT & E & F & G & HL & OB & VG --> H{Moteur de Décision}
-    
+
     H --> I[BUY / SELL / HOLD]
     I --> J[Position Sizing - Kelly Criterion]
     J --> K[Gestion des Risques]
