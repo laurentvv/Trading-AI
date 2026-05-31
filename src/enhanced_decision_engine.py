@@ -271,13 +271,17 @@ class EnhancedDecisionEngine:
     MIN_CONFIDENCE_FOR_ACTION = 0.20
     MIN_CONFIDENCE_FOR_SELL = 0.40
 
-    def __init__(self, base_weights: Dict[str, float] = None, config: Dict = None):
+    def __init__(self, base_weights: Dict[str, float] = None, config: Dict = None,
+                 regime_adjustments: Dict[str, Dict[str, float]] = None):
         """
         Initialize the enhanced decision engine.
 
         Args:
             base_weights: Base weights for each model type
             config: Optional configuration dictionary
+            regime_adjustments: Optional per-regime model multipliers, e.g.
+                {"trending": {"grebenkov": 1.5, "timesfm": 1.2, "classic": 0.7},
+                 "ranging": {"classic": 1.5, "tensortrade": 1.3, "grebenkov": 0.6}}
         """
         self.config = config or {}
         self.base_weights = base_weights or {
@@ -289,6 +293,7 @@ class EnhancedDecisionEngine:
             "vincent_ganne": 0.05,
             "oil_bench": 0.05,
             "tensortrade": 0.05,
+            "grebenkov": 0.05,
         }
 
         # Initialize models with config thresholds
@@ -308,9 +313,17 @@ class EnhancedDecisionEngine:
         # Track model performance for weight adjustment
         self.model_performance_history = {}
 
+        self.regime_adjustments = regime_adjustments or {
+            "trending": {"grebenkov": 1.5, "timesfm": 1.2, "classic": 0.7},
+            "ranging": {"classic": 1.5, "tensortrade": 1.3, "grebenkov": 0.6},
+        }
+
         # Market regime adaptation thresholds
         self.regime_volatility_high = 0.03
         self.trend_strength_threshold = 0.7
+
+    def compute_position_size(self, confidence: float) -> float:
+        return min(confidence * 1.5, 1.0)
 
     def _normalize_signal(self, signal: str) -> SignalStrength:
         """Convert signal string to SignalStrength enum"""
@@ -331,6 +344,31 @@ class EnhancedDecisionEngine:
         else:
             logger.warning(f"Unknown signal: {signal}, defaulting to HOLD")
             return SignalStrength.HOLD
+
+    def _detect_market_regime(self, market_data: Dict) -> str:
+        adx = market_data.get("adx")
+        if adx is None:
+            return "unknown"
+        if adx > 25:
+            return "trending"
+        elif adx < 20:
+            return "ranging"
+        return "neutral"
+
+    def _adjust_weights_by_regime(self, weights: Dict[str, float], regime: str) -> Dict[str, float]:
+        if regime not in ("trending", "ranging"):
+            return weights
+
+        adjusted = weights.copy()
+        multipliers = self.regime_adjustments.get(regime, {})
+        for model_name, multiplier in multipliers.items():
+            if model_name in adjusted:
+                adjusted[model_name] = adjusted[model_name] * multiplier
+
+        total = sum(adjusted.values())
+        if total > 0:
+            adjusted = {k: v / total for k, v in adjusted.items()}
+        return adjusted
 
     def _calculate_consensus_score(self, decisions: List[ModelDecision]) -> float:
         """
@@ -436,6 +474,7 @@ class EnhancedDecisionEngine:
         tensortrade_decision: Dict = None,
         vincent_ganne_indicators: Dict = None,
         oil_bench_decision: Dict = None,
+        grebenkov_decision: Dict = None,
         market_data: Dict = None,
         adaptive_weights: Dict[str, float] = None,
         generic_model_results: List[ModelDecision] = None,
@@ -471,6 +510,9 @@ class EnhancedDecisionEngine:
         if total_w > 0:
             weights = {k: v / total_w for k, v in weights.items()}
 
+        regime = self._detect_market_regime(market_data)
+        weights = self._adjust_weights_by_regime(weights, regime)
+
         # Override weights for OIL to ensure domain models aren't silenced
         is_oil = market_data.get("is_oil", False)
         if is_oil:
@@ -481,7 +523,7 @@ class EnhancedDecisionEngine:
                 total_w = sum(weights.values())
                 if total_w > 0:
                     weights = {k: v / total_w for k, v in weights.items()}
-                
+
         # Start with generic results if provided
         decisions = generic_model_results or []
 
@@ -506,6 +548,7 @@ class EnhancedDecisionEngine:
                 "timesfm": timesfm_decision,
                 "tensortrade": tensortrade_decision,
                 "oil_bench": oil_bench_decision,
+                "grebenkov": grebenkov_decision,
             }
 
             for model_name, dec in legacy_models.items():

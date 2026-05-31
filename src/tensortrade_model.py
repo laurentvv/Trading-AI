@@ -15,6 +15,11 @@ _MODEL_PATH = _MODEL_DIR / "ppo_model.zip"
 _METADATA_PATH = _MODEL_DIR / "metadata.json"
 _INITIAL_TIMESTEPS = 2000
 _FINE_TUNE_TIMESTEPS = 500
+_FEE_RATE = 0.001
+_COOLDOWN_DAYS = 5
+# 20 features: diffs(5) + returns(5) + pos(1) + days_since(1) + vol(1) +
+# rsi_14(1) + price_vs_sma(1) + fee_impact(1) + mom_10(1) + mom_20(1) + cum_ret_5(1) + norm_price(1)
+_OBS_SIZE = 20
 
 
 def _load_metadata():
@@ -36,33 +41,56 @@ def _save_metadata(total_timesteps, obs_shape):
 
 
 class SimpleTradingEnv(gym.Env):
-    def __init__(self, prices):
+    def __init__(self, prices, fee_rate=_FEE_RATE, cooldown_days=_COOLDOWN_DAYS):
         super().__init__()
-        self.prices = prices
+        self.prices = np.asarray(prices, dtype=np.float64)
+        self.fee_rate = fee_rate
+        self.cooldown_days = cooldown_days
         self.current_step = 0
         self.hold_count = 0
+        self.in_position = 0.0
+        self.entry_price = 0.0
+        self.cooldown_counter = 0
         self.action_space = gym.spaces.Discrete(3)
         self.observation_space = gym.spaces.Box(
-            low=-np.inf, high=np.inf, shape=(10,), dtype=np.float32
+            low=-np.inf, high=np.inf, shape=(_OBS_SIZE,), dtype=np.float32
         )
 
     def step(self, action):
         self.current_step += 1
         done = self.current_step >= len(self.prices) - 1
 
-        reward = 0
+        if self.cooldown_counter > 0:
+            self.cooldown_counter -= 1
+            action = 0
+
+        reward = 0.0
         if not done:
-            price_change = self.prices[self.current_step] - self.prices[self.current_step - 1]
+            price = self.prices[self.current_step]
+            prev_price = self.prices[self.current_step - 1]
+            price_change = price - prev_price
             window = self.prices[max(0, self.current_step - 14) : self.current_step + 1]
             atr = np.mean(np.abs(np.diff(window))) if len(window) > 1 else 1.0
             atr = max(atr, 1e-6)
 
-            if action == 1:
+            if action == 1 and self.in_position == 0:
+                fee = price * self.fee_rate
+                reward = (price_change - fee) / atr
+                self.in_position = 1.0
+                self.entry_price = price
+                self.hold_count = 0
+                self.cooldown_counter = self.cooldown_days
+            elif action == 2 and self.in_position > 0:
+                fee = price * self.fee_rate
+                pnl = (price - self.entry_price) - fee
+                reward = pnl / atr
+                self.in_position = 0.0
+                self.entry_price = 0.0
+                self.hold_count = 0
+                self.cooldown_counter = self.cooldown_days
+            elif action == 0 and self.in_position > 0:
                 reward = price_change / atr
-                self.hold_count = 0
-            elif action == 2:
-                reward = -price_change / atr
-                self.hold_count = 0
+                self.hold_count += 1
             else:
                 self.hold_count += 1
                 reward = -0.01 * min(self.hold_count, 10)
@@ -71,16 +99,62 @@ class SimpleTradingEnv(gym.Env):
         return obs, reward, done, False, {}
 
     def reset(self, seed=None, options=None):
-        self.current_step = 10
+        self.current_step = 20
         self.hold_count = 0
+        self.in_position = 0.0
+        self.entry_price = 0.0
+        self.cooldown_counter = 0
         return self._get_obs(), {}
 
     def _get_obs(self):
         idx = self.current_step
         diffs = np.diff(self.prices[idx - 5 : idx + 1])
         recent = self.prices[idx - 5 : idx + 1]
-        returns = np.diff(recent) / recent[:-1]
-        return np.concatenate([diffs, returns]).astype(np.float32)
+        returns = np.diff(recent) / np.maximum(recent[:-1], 1e-8)
+
+        pos = np.array([self.in_position], dtype=np.float32)
+        days_since = np.array([self.cooldown_counter / max(self.cooldown_days, 1)], dtype=np.float32)
+
+        w20 = self.prices[max(0, idx - 19) : idx + 1]
+        vol_20 = np.std(np.diff(w20) / np.maximum(w20[:-1], 1e-8)) if len(w20) > 2 else 0.0
+        vol = np.array([vol_20], dtype=np.float32)
+
+        changes = self.prices[idx - 13 : idx + 1] - self.prices[idx - 14 : idx]
+        gains = np.maximum(changes, 0.0)
+        losses = np.maximum(-changes, 0.0)
+        avg_gain = np.mean(gains) if len(gains) > 0 else 0.0
+        avg_loss = np.mean(losses) if len(losses) > 0 else 1e-8
+        rs = avg_gain / max(avg_loss, 1e-8)
+        rsi_14 = np.array([100.0 - (100.0 / (1.0 + rs))], dtype=np.float32) / 100.0
+
+        sma20 = np.mean(self.prices[max(0, idx - 19) : idx + 1]) if idx >= 5 else self.prices[idx]
+        price_vs_sma = np.array(
+            [(self.prices[idx] - sma20) / max(sma20, 1e-8)], dtype=np.float32
+        )
+
+        fee_impact = np.array([self.fee_rate], dtype=np.float32)
+
+        mom_10 = np.array(
+            [(self.prices[idx] - self.prices[max(0, idx - 9)]) / max(self.prices[max(0, idx - 9)], 1e-8)],
+            dtype=np.float32,
+        )
+        mom_20 = np.array(
+            [(self.prices[idx] - self.prices[max(0, idx - 19)]) / max(self.prices[max(0, idx - 19)], 1e-8)],
+            dtype=np.float32,
+        )
+        cum_ret_5 = np.array(
+            [(self.prices[idx] / max(self.prices[max(0, idx - 4)], 1e-8)) - 1.0],
+            dtype=np.float32,
+        )
+        norm_price = np.array(
+            [self.prices[idx] / max(np.max(self.prices[max(0, idx - 49) : idx + 1]), 1e-8)],
+            dtype=np.float32,
+        )
+
+        return np.concatenate([
+            diffs, returns, pos, days_since, vol, rsi_14, price_vs_sma, fee_impact,
+            mom_10, mom_20, cum_ret_5, norm_price,
+        ]).astype(np.float32)
 
 
 def get_tensortrade_prediction(df: pd.DataFrame) -> dict:
@@ -109,9 +183,7 @@ def get_tensortrade_prediction(df: pd.DataFrame) -> dict:
 
         if _MODEL_PATH.exists():
             metadata = _load_metadata()
-            if metadata.get("obs_shape") and metadata["obs_shape"] != list(
-                env.observation_space.shape
-            ):
+            if metadata.get("obs_shape") and metadata["obs_shape"] != list(env.observation_space.shape):
                 logger.info("Observation space changed, retraining from scratch.")
                 _MODEL_PATH.unlink(missing_ok=True)
             else:
@@ -124,9 +196,7 @@ def get_tensortrade_prediction(df: pd.DataFrame) -> dict:
                     total_ts = metadata.get("total_timesteps", 0) + _FINE_TUNE_TIMESTEPS
                     _save_metadata(total_ts, env.observation_space.shape)
                     model.save(_MODEL_PATH)
-                    logger.info(
-                        f"Modèle PPO sauvegardé ({_FINE_TUNE_TIMESTEPS} timesteps ajoutés, total: {total_ts})"
-                    )
+                    logger.info(f"Modèle PPO sauvegardé ({_FINE_TUNE_TIMESTEPS} timesteps ajoutés, total: {total_ts})")
                 except Exception as e:
                     logger.warning(f"Erreur chargement modèle PPO, retraining from scratch: {e}")
                     model = PPO("MlpPolicy", env, n_steps=64, batch_size=32, verbose=0)

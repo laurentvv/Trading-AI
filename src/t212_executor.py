@@ -393,6 +393,7 @@ def safe_request(method: str, url: str, **kwargs) -> requests.Response | None:
     logger.error("❌ Échec de la requête après 3 tentatives.")
     return None
 
+
 def execute_t212_trade(
     signal,
     confidence,
@@ -415,7 +416,6 @@ def execute_t212_trade(
 
     if signal not in ["BUY", "SELL"]:
         return
-
 
     def get_portfolio_info():
         """Vérifie le cash et les positions réelles sur Trading 212."""
@@ -444,7 +444,7 @@ def execute_t212_trade(
 
     if current_pos:
         logger.info(f"   - Position détectée : {current_pos['quantity']} actions de {t212_ticker}")
-        
+
         # --- TRAILING STOP LOGIC ---
         if state.get("active_position"):
             current_value_eur = current_pos["walletImpact"]["currentValue"]
@@ -452,24 +452,28 @@ def execute_t212_trade(
             avg_price = current_pos.get("averagePrice") or current_pos.get("avgPrice") or 0.0
             t212_buy_cost = float(avg_price) * total_qty
             state_buy_cost = state["active_position"].get("buy_budget", 0.0)
-            reference_cost = max(state_buy_cost, t212_buy_cost) if max(state_buy_cost, t212_buy_cost) > 0 else current_value_eur
-            
+            reference_cost = (
+                max(state_buy_cost, t212_buy_cost) if max(state_buy_cost, t212_buy_cost) > 0 else current_value_eur
+            )
+
             # Update highest value seen
             highest_value = state["active_position"].get("highest_value", reference_cost)
             if current_value_eur > highest_value:
                 state["active_position"]["highest_value"] = current_value_eur
                 save_portfolio_state(state, t212_ticker)
                 highest_value = current_value_eur
-            
+
             # Trailing Stop evaluation: Only trigger if we are in profit AND dropped significantly from peak
             # Example: 3% drop from peak, but still > reference_cost
             drop_from_peak = (highest_value - current_value_eur) / highest_value if highest_value > 0 else 0
             profit_margin = (current_value_eur - reference_cost) / reference_cost if reference_cost > 0 else 0
-            
-            if drop_from_peak >= 0.03 and profit_margin > 0.005: # At least 0.5% profit to cover fees/spread
-                logger.warning(f"🚨 TRAILING STOP DÉCLENCHÉ ! Baisse de {drop_from_peak:.2%} depuis le sommet. Profit sécurisé de {profit_margin:.2%}.")
-                signal = "SELL" # Override signal to force securing profit
-                
+
+            if drop_from_peak >= 0.03 and profit_margin > 0.005:  # At least 0.5% profit to cover fees/spread
+                logger.warning(
+                    f"🚨 TRAILING STOP DÉCLENCHÉ ! Baisse de {drop_from_peak:.2%} depuis le sommet. Profit sécurisé de {profit_margin:.2%}."
+                )
+                signal = "SELL"  # Override signal to force securing profit
+
     else:
         logger.info(f"   - Aucune position ouverte sur {t212_ticker}")
 
@@ -602,15 +606,17 @@ def execute_t212_trade(
         avg_price = current_pos.get("averagePrice") or current_pos.get("avgPrice") or 0.0
         t212_buy_cost = float(avg_price) * total_qty
         state_buy_cost = state["active_position"]["buy_budget"] if state.get("active_position") else 0.0
-        
+
         # Use the maximum of state cost and T212 cost as reference to be conservative
         reference_cost = max(state_buy_cost, t212_buy_cost)
         if reference_cost == 0.0:
-            reference_cost = current_value_eur # Fallback if we can't find a cost
-             
+            reference_cost = current_value_eur  # Fallback if we can't find a cost
+
         # Add a small tolerance (0.2%) for bid/ask spread and rounding to avoid blocking minor break-even trades
         if current_value_eur < reference_cost * 0.998:
-            logger.warning(f"⚠️ VENTE BLOQUÉE : Perte potentielle détectée. Valeur actuelle: {current_value_eur:.2f}€, Coût d'achat de référence: {reference_cost:.2f}€.")
+            logger.warning(
+                f"⚠️ VENTE BLOQUÉE : Perte potentielle détectée. Valeur actuelle: {current_value_eur:.2f}€, Coût d'achat de référence: {reference_cost:.2f}€."
+            )
             return
 
         logger.info(f"📉 Vente de TOUTE la position sur {t212_ticker} ({total_qty} actions)")
@@ -665,7 +671,9 @@ def execute_t212_trade(
                         return_1d=return_1d,
                     )
                     if updated > 0:
-                        logger.info(f"📊 Feedback loop: updated {updated} model predictions for {entry_date} (return_1d={return_1d:+.4f})")
+                        logger.info(
+                            f"📊 Feedback loop: updated {updated} model predictions for {entry_date} (return_1d={return_1d:+.4f})"
+                        )
                 except Exception as fb_e:
                     logger.warning(f"Feedback loop failed: {fb_e}")
         else:

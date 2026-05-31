@@ -676,9 +676,7 @@ class AdaptiveWeightManager:
             try:
                 cursor = conn.cursor()
 
-                cursor.execute(
-                    "SELECT DISTINCT date FROM model_performance_history WHERE actual_outcome IS NULL"
-                )
+                cursor.execute("SELECT DISTINCT date FROM model_performance_history WHERE actual_outcome IS NULL")
                 unresolved_dates = {row[0] for row in cursor.fetchall()}
 
                 resolved_count = 0

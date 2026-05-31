@@ -15,12 +15,14 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
 class _GrokipediaFilter(logging.Filter):
     def filter(self, record):
         msg = record.getMessage().lower()
         if "grokipedia" in msg:
             return False
         return True
+
 
 logging.getLogger("crawl4ai").addFilter(_GrokipediaFilter())
 

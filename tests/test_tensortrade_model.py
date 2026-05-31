@@ -9,7 +9,10 @@ import gymnasium as gym
 import numpy as np
 import pandas as pd
 
-from tensortrade_model import get_tensortrade_prediction, _MODEL_DIR, _MODEL_PATH, _METADATA_PATH
+from tensortrade_model import (
+    get_tensortrade_prediction, _MODEL_DIR, _MODEL_PATH, _METADATA_PATH,
+    SimpleTradingEnv as SrcSimpleTradingEnv, _OBS_SIZE,
+)
 
 
 def _make_df(n=100, close_col="Close"):
@@ -26,7 +29,7 @@ class SimpleTradingEnv(gym.Env):
         self.hold_count = 0
         self.action_space = gym.spaces.Discrete(3)
         self.observation_space = gym.spaces.Box(
-            low=-np.inf, high=np.inf, shape=(10,), dtype=np.float32
+            low=-np.inf, high=np.inf, shape=(_OBS_SIZE,), dtype=np.float32
         )
 
     def step(self, action):
@@ -51,7 +54,7 @@ class SimpleTradingEnv(gym.Env):
         return obs, reward, done, False, {}
 
     def reset(self, seed=None, options=None):
-        self.current_step = 10
+        self.current_step = _OBS_SIZE
         self.hold_count = 0
         return self._get_obs(), {}
 
@@ -60,7 +63,8 @@ class SimpleTradingEnv(gym.Env):
         diffs = np.diff(self.prices[idx - 5 : idx + 1])
         recent = self.prices[idx - 5 : idx + 1]
         returns = np.diff(recent) / recent[:-1]
-        return np.concatenate([diffs, returns]).astype(np.float32)
+        padding = np.zeros(_OBS_SIZE - len(diffs) - len(returns), dtype=np.float32)
+        return np.concatenate([diffs, returns, padding]).astype(np.float32)
 
 
 def _mock_ppo_setup(mock_ppo_cls, action=1, probs=None):
@@ -75,7 +79,7 @@ def _mock_ppo_setup(mock_ppo_cls, action=1, probs=None):
     mock_policy.get_distribution.return_value = mock_dist
     mock_model.policy = mock_policy
     mock_ppo_cls.return_value = mock_model
-    mock_ppo_cls.load = MagicMock(return_value=mock_model)
+    mock_ppo_cls.load = MagicMock(return_value= mock_model)
     return mock_model
 
 
@@ -117,21 +121,21 @@ class TestSuccessfulPrediction(unittest.TestCase):
 
 class TestEnvStepLogic(unittest.TestCase):
     def test_buy_reward_positive_when_price_up(self):
-        prices = np.linspace(100, 120, 30)
+        prices = np.linspace(100, 120, 50)
         env = SimpleTradingEnv(prices)
         env.reset()
         _, reward_buy, _, _, _ = env.step(1)
         self.assertGreater(reward_buy, 0)
 
     def test_sell_reward_positive_when_price_down(self):
-        prices = np.linspace(120, 100, 30)
+        prices = np.linspace(120, 100, 50)
         env = SimpleTradingEnv(prices)
         env.reset()
         _, reward_sell, _, _, _ = env.step(2)
         self.assertGreater(reward_sell, 0)
 
     def test_hold_penalty_increases(self):
-        prices = np.linspace(100, 110, 20)
+        prices = np.linspace(100, 110, 50)
         env = SimpleTradingEnv(prices)
         env.reset()
         _, r1, _, _, _ = env.step(0)
@@ -140,23 +144,23 @@ class TestEnvStepLogic(unittest.TestCase):
 
 
 class TestEnvObservationShape(unittest.TestCase):
-    def test_observation_shape_is_10(self):
-        prices = np.linspace(100, 120, 20)
+    def test_observation_shape_matches_obs_size(self):
+        prices = np.linspace(100, 120, 50)
         env = SimpleTradingEnv(prices)
         obs, info = env.reset()
-        self.assertEqual(obs.shape, (10,))
+        self.assertEqual(obs.shape, (_OBS_SIZE,))
 
     def test_observation_contains_diffs_and_returns(self):
-        prices = np.linspace(100, 120, 20)
+        prices = np.linspace(100, 120, 50)
         env = SimpleTradingEnv(prices)
         obs, _ = env.reset()
-        self.assertEqual(obs.shape[0], 10)
+        self.assertEqual(obs.shape[0], _OBS_SIZE)
         self.assertTrue(np.all(np.isfinite(obs)))
 
 
 class TestEnvReset(unittest.TestCase):
     def test_reset_returns_obs_and_info_dict(self):
-        prices = np.linspace(100, 120, 20)
+        prices = np.linspace(100, 120, 50)
         env = SimpleTradingEnv(prices)
         result = env.reset()
         self.assertIsInstance(result, tuple)
@@ -164,11 +168,11 @@ class TestEnvReset(unittest.TestCase):
         obs, info = result
         self.assertIsInstance(info, dict)
 
-    def test_reset_starts_at_step_10(self):
-        prices = np.linspace(100, 120, 20)
+    def test_reset_starts_at_step_obs_size(self):
+        prices = np.linspace(100, 120, 50)
         env = SimpleTradingEnv(prices)
         env.reset()
-        self.assertEqual(env.current_step, 10)
+        self.assertEqual(env.current_step, _OBS_SIZE)
 
 
 class TestExceptionHandling(unittest.TestCase):
@@ -217,7 +221,7 @@ class TestModelPersistence(unittest.TestCase):
         _MODEL_PATH.touch()
 
         with open(_METADATA_PATH, "w") as f:
-            json.dump({"total_timesteps": 2000, "last_trained": "2024-01-01", "obs_shape": [10]}, f)
+            json.dump({"total_timesteps": 2000, "last_trained": "2024-01-01", "obs_shape": [_OBS_SIZE]}, f)
 
         get_tensortrade_prediction(df)
 
@@ -236,7 +240,7 @@ class TestModelPersistence(unittest.TestCase):
         self.assertIn("total_timesteps", meta)
         self.assertIn("last_trained", meta)
         self.assertIn("obs_shape", meta)
-        self.assertEqual(meta["obs_shape"], [10])
+        self.assertEqual(meta["obs_shape"], [_OBS_SIZE])
         self.assertEqual(meta["total_timesteps"], 2000)
 
 
@@ -271,6 +275,59 @@ class TestModelInvalidationOnObsChange(unittest.TestCase):
 
         mock_ppo_cls.load.assert_not_called()
         mock_ppo_cls.assert_called_once()
+
+
+class TestSourceEnvObsShape(unittest.TestCase):
+    def test_obs_shape_matches_obs_size(self):
+        prices = np.linspace(100, 120, 60)
+        env = SrcSimpleTradingEnv(prices)
+        obs, _ = env.reset()
+        self.assertEqual(obs.shape, (_OBS_SIZE,))
+
+    def test_rsi_bounded(self):
+        np.random.seed(42)
+        prices = np.cumsum(np.random.randn(60)) + 100
+        env = SrcSimpleTradingEnv(prices)
+        obs, _ = env.reset()
+        rsi_normalized = obs[12]
+        self.assertGreaterEqual(rsi_normalized, 0.0)
+        self.assertLessEqual(rsi_normalized, 1.0)
+
+    def test_env_position_tracking(self):
+        prices = np.linspace(100, 120, 200)
+        env = SrcSimpleTradingEnv(prices)
+        obs, _ = env.reset()
+        self.assertEqual(env.in_position, 0.0)
+        obs, _, _, _, _ = env.step(1)
+        self.assertEqual(env.in_position, 1.0)
+        for _ in range(env.cooldown_days):
+            env.step(0)
+        obs, _, done, _, _ = env.step(2)
+        if not done:
+            self.assertEqual(env.in_position, 0.0)
+
+    def test_env_fee_deduction(self):
+        prices = np.linspace(100, 200, 60)
+        env = SrcSimpleTradingEnv(prices, fee_rate=0.01)
+        obs, _ = env.reset()
+        _, reward, _, _, _ = env.step(1)
+        price = prices[env.current_step]
+        prev_price = prices[env.current_step - 1]
+        fee = price * 0.01
+        window = prices[max(0, env.current_step - 14) : env.current_step + 1]
+        atr = max(np.mean(np.abs(np.diff(window))), 1e-6)
+        expected_reward = (price - prev_price - fee) / atr
+        self.assertAlmostEqual(reward, expected_reward, places=5)
+
+    def test_env_cooldown(self):
+        prices = np.linspace(100, 120, 60)
+        env = SrcSimpleTradingEnv(prices, cooldown_days=3)
+        obs, _ = env.reset()
+        env.step(1)
+        self.assertGreater(env.cooldown_counter, 0)
+        counter_before = env.cooldown_counter
+        obs, reward, done, _, _ = env.step(0)
+        self.assertEqual(env.cooldown_counter, counter_before - 1)
 
 
 if __name__ == "__main__":
