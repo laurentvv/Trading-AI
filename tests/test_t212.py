@@ -79,8 +79,10 @@ class TestSafeRequest(unittest.TestCase):
         # We need to import the function to test
         import sys
         from pathlib import Path
+
         sys.path.insert(0, str(Path(__file__).parent.parent))
         from src.t212_executor import safe_request
+
         self.safe_request = safe_request
 
     @patch("requests.request")
@@ -145,7 +147,11 @@ class TestSafeRequest(unittest.TestCase):
         mock_resp_200.status_code = 200
 
         # Fails twice, then succeeds
-        mock_request.side_effect = [ConnectionError("Network unreachable"), ConnectionError("Network unreachable"), mock_resp_200]
+        mock_request.side_effect = [
+            ConnectionError("Network unreachable"),
+            ConnectionError("Network unreachable"),
+            mock_resp_200,
+        ]
 
         # Act
         result = self.safe_request("GET", "http://test.com")

@@ -15,9 +15,16 @@ class GrebenkovTrendModel(BaseModel):
     basé sur Grebenkov et Serror (2014) et "Breaking the Trend" (Valeyre, 2026).
     """
 
-    def __init__(self, eta: float = 1 / 112, rho: float = 1 / 20, vol_window: int = 40,
-                 corr_window: int = 750, stop_loss_pct: float = 0.10,
-                 trailing_stop_pct: float = 0.05, atr_lookback: int = 14):
+    def __init__(
+        self,
+        eta: float = 1 / 112,
+        rho: float = 1 / 20,
+        vol_window: int = 40,
+        corr_window: int = 750,
+        stop_loss_pct: float = 0.10,
+        trailing_stop_pct: float = 0.05,
+        atr_lookback: int = 14,
+    ):
         self.eta = eta
         self.rho = rho
         self.vol_window = vol_window
@@ -100,9 +107,9 @@ class GrebenkovTrendModel(BaseModel):
                 result = self._predict_single_asset(hist_data, ticker)
             else:
                 df_returns = pd.concat(
-                    [nasdaq_data["Close"].pct_change().fillna(0),
-                     wti_data["Close"].pct_change().fillna(0)],
-                    axis=1, join="inner"
+                    [nasdaq_data["Close"].pct_change().fillna(0), wti_data["Close"].pct_change().fillna(0)],
+                    axis=1,
+                    join="inner",
                 ).tail(self.corr_window)
                 df_returns.columns = ["NASDAQ", "WTI"]
 
@@ -184,13 +191,13 @@ class GrebenkovTrendModel(BaseModel):
         tr = self._true_range(hist_data)
         if len(tr) < self.atr_lookback:
             return float(np.mean(tr)) if len(tr) > 0 else 1.0
-        return float(np.mean(tr[-self.atr_lookback:]))
+        return float(np.mean(tr[-self.atr_lookback :]))
 
     def _compute_atr_median(self, hist_data: pd.DataFrame) -> float:
         tr = self._true_range(hist_data)
         if len(tr) < self.atr_lookback:
             return float(np.median(tr)) if len(tr) > 0 else 1.0
-        chunks = tr[:len(tr) - len(tr) % self.atr_lookback].reshape(-1, self.atr_lookback)
+        chunks = tr[: len(tr) - len(tr) % self.atr_lookback].reshape(-1, self.atr_lookback)
         atr_vals = chunks.mean(axis=1)
         return float(np.median(atr_vals)) if len(atr_vals) > 0 else 1.0
 
@@ -204,8 +211,7 @@ class GrebenkovTrendModel(BaseModel):
                 return True
         return False
 
-    def _weight_to_signal(self, weight: float, raw_phi: float,
-                          hist_data: pd.DataFrame = None) -> ModelResult:
+    def _weight_to_signal(self, weight: float, raw_phi: float, hist_data: pd.DataFrame = None) -> ModelResult:
         """Convert a continuous target weight into a discrete BUY/SELL/HOLD signal.
 
         Uses ATR-adaptive thresholding: higher volatility widens the neutral band.

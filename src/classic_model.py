@@ -47,8 +47,7 @@ def _load_cached_model(cache_hash: str):
     return None
 
 
-def _save_model_cache(cache_hash: str, model, scaler, metrics, feature_importance,
-                       train_date: str = None):
+def _save_model_cache(cache_hash: str, model, scaler, metrics, feature_importance, train_date: str = None):
     path = _cache_path(cache_hash)
     try:
         with open(path, "wb") as f:
@@ -71,20 +70,21 @@ def _build_model_candidates() -> dict:
     """Return a dict of candidate classifiers for ensemble selection."""
     return {
         "RandomForest": RandomForestClassifier(
-            n_estimators=200, max_depth=15, min_samples_split=5,
-            min_samples_leaf=2, random_state=42, class_weight="balanced",
+            n_estimators=200,
+            max_depth=15,
+            min_samples_split=5,
+            min_samples_leaf=2,
+            random_state=42,
+            class_weight="balanced",
         ),
         "GradientBoosting": GradientBoostingClassifier(
             n_estimators=100, max_depth=6, learning_rate=0.1, random_state=42
         ),
-        "LogisticRegression": LogisticRegression(
-            random_state=42, class_weight="balanced", max_iter=1000
-        ),
+        "LogisticRegression": LogisticRegression(random_state=42, class_weight="balanced", max_iter=1000),
     }
 
 
-def train_ensemble_model(X: pd.DataFrame, y: pd.Series, walk_forward: bool = False,
-                         skip_cache: bool = False) -> tuple:
+def train_ensemble_model(X: pd.DataFrame, y: pd.Series, walk_forward: bool = False, skip_cache: bool = False) -> tuple:
     """Train an ensemble model by selecting the best classifier via time-series CV.
 
     Args:
@@ -222,8 +222,9 @@ def train_ensemble_model(X: pd.DataFrame, y: pd.Series, walk_forward: bool = Fal
     return best_model, scaler, metrics, feature_importance
 
 
-def retrain_if_stale(model, scaler, X_recent: pd.DataFrame, y_recent: pd.Series,
-                     last_train_date, max_age_days: int = 60) -> tuple:
+def retrain_if_stale(
+    model, scaler, X_recent: pd.DataFrame, y_recent: pd.Series, last_train_date, max_age_days: int = 60
+) -> tuple:
     """Retrain the ensemble model if it is older than *max_age_days*.
 
     Args:

@@ -52,9 +52,7 @@ class SimpleTradingEnv(gym.Env):
         self.entry_price = 0.0
         self.cooldown_counter = 0
         self.action_space = gym.spaces.Discrete(3)
-        self.observation_space = gym.spaces.Box(
-            low=-np.inf, high=np.inf, shape=(_OBS_SIZE,), dtype=np.float32
-        )
+        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(_OBS_SIZE,), dtype=np.float32)
 
     def step(self, action):
         self.current_step += 1
@@ -128,9 +126,7 @@ class SimpleTradingEnv(gym.Env):
         rsi_14 = np.array([100.0 - (100.0 / (1.0 + rs))], dtype=np.float32) / 100.0
 
         sma20 = np.mean(self.prices[max(0, idx - 19) : idx + 1]) if idx >= 5 else self.prices[idx]
-        price_vs_sma = np.array(
-            [(self.prices[idx] - sma20) / max(sma20, 1e-8)], dtype=np.float32
-        )
+        price_vs_sma = np.array([(self.prices[idx] - sma20) / max(sma20, 1e-8)], dtype=np.float32)
 
         fee_impact = np.array([self.fee_rate], dtype=np.float32)
 
@@ -151,10 +147,22 @@ class SimpleTradingEnv(gym.Env):
             dtype=np.float32,
         )
 
-        return np.concatenate([
-            diffs, returns, pos, days_since, vol, rsi_14, price_vs_sma, fee_impact,
-            mom_10, mom_20, cum_ret_5, norm_price,
-        ]).astype(np.float32)
+        return np.concatenate(
+            [
+                diffs,
+                returns,
+                pos,
+                days_since,
+                vol,
+                rsi_14,
+                price_vs_sma,
+                fee_impact,
+                mom_10,
+                mom_20,
+                cum_ret_5,
+                norm_price,
+            ]
+        ).astype(np.float32)
 
 
 def get_tensortrade_prediction(df: pd.DataFrame) -> dict:
