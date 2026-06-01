@@ -227,19 +227,31 @@ def sync_state_from_t212(t212_ticker):
     return state
 
 
-def load_portfolio_state(ticker=None):
-    # Try T212 real data first
-    if ticker:
+def load_portfolio_state(ticker=None, sync=True):
+    if ticker and sync:
         clean_ticker = get_t212_ticker(ticker)
         try:
             t212_state = sync_state_from_t212(clean_ticker)
             if t212_state:
-                # Save to local file for offline fallback
                 full_state = _read_with_retry(Path(STATE_FILE))
                 if full_state is None:
                     full_state = {"tickers": {}}
                 if "tickers" not in full_state:
                     full_state = {"tickers": {}}
+
+                local_state = full_state["tickers"].get(clean_ticker, {})
+                if t212_state.get("active_position") is None and local_state.get("active_position") is not None:
+                    local_pos = local_state["active_position"]
+                    entry_time_str = local_pos.get("entry_time", "")
+                    try:
+                        entry_dt = datetime.datetime.fromisoformat(entry_time_str)
+                        age_seconds = (datetime.datetime.now() - entry_dt).total_seconds()
+                        if age_seconds < 300:
+                            t212_state["active_position"] = local_pos
+                            logger.debug(f"Preserved local active_position for {clean_ticker} (age={age_seconds:.0f}s)")
+                    except (ValueError, TypeError):
+                        pass
+
                 full_state["tickers"][clean_ticker] = t212_state
                 _atomic_json_write(Path(STATE_FILE), full_state)
                 return t212_state

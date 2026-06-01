@@ -197,7 +197,7 @@ def run_trading_analysis(ticker: str, is_simulation: bool = False, is_t212: bool
                 writer.writerow(header)
 
             t212_key = get_t212_ticker(ticker) if is_t212 else ticker
-            t212_state = load_t212_state(t212_key)
+            t212_state = load_t212_state(t212_key, sync=False)
             capital_val = t212_state.get("current_capital", 1000.0)
 
             # Préparation de la ligne de données
@@ -248,9 +248,7 @@ def run_trading_analysis(ticker: str, is_simulation: bool = False, is_t212: bool
             from t212_executor import get_t212_ticker
 
             t212_key = get_t212_ticker(ticker)
-            t212_state = load_t212_state(t212_key)
-
-            # Correction: s'assurer que les clés existent
+            t212_state = load_t212_state(t212_key, sync=False)
             cap_val = t212_state.get("current_capital", 1000.0)
             pl_val = t212_state.get("total_realized_pl", 0.0)
             active_pos = t212_state.get("active_position")
