@@ -25,7 +25,7 @@ class TestTimesFMModelWrapper(unittest.TestCase):
         result = get_timesfm_prediction(self.dummy_df)
 
         mock_timesfm_model_class.get_instance.assert_called_once()
-        mock_instance.predict.assert_called_once_with(self.dummy_df, ticker='default')
+        mock_instance.predict.assert_called_once_with(self.dummy_df, ticker="default")
         self.assertEqual(result, mock_prediction)
 
     @patch("src.timesfm_model.TimesFMModel")

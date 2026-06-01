@@ -1,8 +1,6 @@
 import json
-import os
 import shutil
 import unittest
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import gymnasium as gym
@@ -10,8 +8,12 @@ import numpy as np
 import pandas as pd
 
 from tensortrade_model import (
-    get_tensortrade_prediction, _MODEL_DIR, _MODEL_PATH, _METADATA_PATH,
-    SimpleTradingEnv as SrcSimpleTradingEnv, _OBS_SIZE,
+    get_tensortrade_prediction,
+    _MODEL_DIR,
+    _MODEL_PATH,
+    _METADATA_PATH,
+    SimpleTradingEnv as SrcSimpleTradingEnv,
+    _OBS_SIZE,
 )
 
 
@@ -28,9 +30,7 @@ class SimpleTradingEnv(gym.Env):
         self.current_step = 0
         self.hold_count = 0
         self.action_space = gym.spaces.Discrete(3)
-        self.observation_space = gym.spaces.Box(
-            low=-np.inf, high=np.inf, shape=(_OBS_SIZE,), dtype=np.float32
-        )
+        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(_OBS_SIZE,), dtype=np.float32)
 
     def step(self, action):
         self.current_step += 1
@@ -79,7 +79,7 @@ def _mock_ppo_setup(mock_ppo_cls, action=1, probs=None):
     mock_policy.get_distribution.return_value = mock_dist
     mock_model.policy = mock_policy
     mock_ppo_cls.return_value = mock_model
-    mock_ppo_cls.load = MagicMock(return_value= mock_model)
+    mock_ppo_cls.load = MagicMock(return_value=mock_model)
     return mock_model
 
 

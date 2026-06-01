@@ -152,7 +152,9 @@ def run_trading_analysis(ticker: str, is_simulation: bool = False, is_t212: bool
 
             if signal in ["BUY", "STRONG_BUY", "SELL", "STRONG_SELL"]:
                 exec_signal = "BUY" if "BUY" in signal else "SELL"
-                console.print(f"[bold yellow]🚀 Execution of the signal on Trading 212 for {ticker}... (original: {signal})[/bold yellow]")
+                console.print(
+                    f"[bold yellow]🚀 Execution of the signal on Trading 212 for {ticker}... (original: {signal})[/bold yellow]"
+                )
                 execute_t212_trade(
                     exec_signal,
                     confidence,

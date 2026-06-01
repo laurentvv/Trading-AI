@@ -8,6 +8,7 @@ Usage:
     python debug_t212.py buy SXRV.DE 300     # Buy ~300€ worth
     python debug_t212.py reset CRUDP.PA      # Reset local state for ticker
 """
+
 import sys
 import os
 import json
@@ -20,6 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from dotenv import load_dotenv
+
 load_dotenv(".env.t212")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -95,6 +97,7 @@ def get_ticker_state(state, t212_key):
 
 def get_price(ticker_yahoo):
     import yfinance as yf
+
     t = yf.Ticker(ticker_yahoo)
     hist = t.history(period="5d")
     if hist.empty:
@@ -105,9 +108,9 @@ def get_price(ticker_yahoo):
 def cmd_status(args):
     base_url, env = get_base_url()
     headers = get_auth()
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  Trading 212 STATUS ({env.upper()})")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     summary = safe_req("GET", f"{base_url}/equity/account/summary", headers=headers)
     if summary.status_code == 200:
@@ -133,13 +136,15 @@ def cmd_status(args):
         print(f"  Positions ERROR: {positions.status_code}")
 
     state = load_state()
-    print(f"\n  Local state:")
+    print("\n  Local state:")
     for k, v in state.get("tickers", {}).items():
         pos = v.get("active_position")
-        print(f"    {k}: capital={v.get('current_capital', 0):.2f}€ | "
-              f"budget={v.get('initial_budget', 0):.2f}€ | "
-              f"P&L={v.get('total_realized_pl', 0):+.2f}€ | "
-              f"pos={'YES' if pos else 'NO'}")
+        print(
+            f"    {k}: capital={v.get('current_capital', 0):.2f}€ | "
+            f"budget={v.get('initial_budget', 0):.2f}€ | "
+            f"P&L={v.get('total_realized_pl', 0):+.2f}€ | "
+            f"pos={'YES' if pos else 'NO'}"
+        )
 
 
 def cmd_buy(args):
@@ -153,9 +158,9 @@ def cmd_buy(args):
 
     base_url, env = get_base_url()
     headers = get_auth()
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  BUY {t212_key} for ~{amount_eur:.2f}€ ({env.upper()})")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     # Check no existing position
     positions = safe_req("GET", f"{base_url}/equity/positions", headers=headers)
@@ -173,7 +178,7 @@ def cmd_buy(args):
         cash = summary.json().get("cash", {}).get("availableToTrade", 0)
         print(f"  Cash available: {cash:.2f}€")
         if cash < amount_eur * 0.96:
-            print(f"  ERROR: Not enough cash")
+            print("  ERROR: Not enough cash")
             return
 
     # Get price
@@ -217,7 +222,7 @@ def cmd_buy(args):
         }
         ts["current_capital"] = cost
         save_state(state)
-        print(f"  State saved.")
+        print("  State saved.")
     else:
         print(f"  FAILED: {resp.text}")
 
@@ -232,9 +237,9 @@ def cmd_sell(args):
 
     base_url, env = get_base_url()
     headers = get_auth()
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  SELL {t212_key} ({env.upper()})")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     # Find position
     positions = safe_req("GET", f"{base_url}/equity/positions", headers=headers)
