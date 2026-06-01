@@ -79,6 +79,7 @@ class TestEnhancedDecisionEngine(unittest.TestCase):
 class TestVincentGanneModel(unittest.TestCase):
     def setUp(self):
         from enhanced_decision_engine import VincentGanneModel
+
         self.model = VincentGanneModel()
 
     def test_evaluate_with_brent_spread(self):

@@ -55,10 +55,7 @@ def simulate(dates, prices, signals, budget=BUDGET, partial_sizing=False):
             bought = (invest - fee) / px
             position = bought
             entry_price = px
-            trades.append(
-                {"date": str(dt.date()), "type": "BUY", "price": round(px, 2),
-                 "size_pct": round(size * 100)}
-            )
+            trades.append({"date": str(dt.date()), "type": "BUY", "price": round(px, 2), "size_pct": round(size * 100)})
             cash -= invest
         elif sig in ("SELL", "STRONG_SELL") and position > 0:
             sell_qty = position
@@ -66,10 +63,7 @@ def simulate(dates, prices, signals, budget=BUDGET, partial_sizing=False):
             fee = proceeds * T212_FEE_RATE
             pnl = (px - entry_price) * sell_qty - fee
             cash += proceeds - fee
-            trades.append(
-                {"date": str(dt.date()), "type": "SELL", "price": round(px, 2),
-                 "pnl": round(pnl, 2)}
-            )
+            trades.append({"date": str(dt.date()), "type": "SELL", "price": round(px, 2), "pnl": round(pnl, 2)})
             position = 0
             entry_price = 0
 
@@ -81,9 +75,15 @@ def simulate(dates, prices, signals, budget=BUDGET, partial_sizing=False):
 
 def metrics(ec, trades, budget=BUDGET):
     empty = {
-        "equity_curve": ec, "trades": trades, "total_return_pct": 0,
-        "annualized_return_pct": 0, "max_drawdown_pct": 0, "sharpe_ratio": 0,
-        "n_trades": len(trades), "win_rate_pct": 0, "final_equity": budget,
+        "equity_curve": ec,
+        "trades": trades,
+        "total_return_pct": 0,
+        "annualized_return_pct": 0,
+        "max_drawdown_pct": 0,
+        "sharpe_ratio": 0,
+        "n_trades": len(trades),
+        "win_rate_pct": 0,
+        "final_equity": budget,
     }
     if len(ec) == 0:
         return empty
@@ -98,8 +98,13 @@ def metrics(ec, trades, budget=BUDGET):
     sh = (dr.mean() / dr.std()) * np.sqrt(252) if len(dr) > 1 and dr.std() > 0 else 0.0
     dd = ((ec["equity"].cummax() - ec["equity"]) / ec["equity"].cummax()).max()
     return {
-        "equity_curve": ec, "trades": trades, "final_equity": round(last, 2),
-        "total_return_pct": round(ret * 100, 2), "annualized_return_pct": round(ann * 100, 2),
-        "max_drawdown_pct": round(dd * 100, 2), "sharpe_ratio": round(sh, 2),
-        "n_trades": len(trades), "win_rate_pct": round(wr * 100, 1),
+        "equity_curve": ec,
+        "trades": trades,
+        "final_equity": round(last, 2),
+        "total_return_pct": round(ret * 100, 2),
+        "annualized_return_pct": round(ann * 100, 2),
+        "max_drawdown_pct": round(dd * 100, 2),
+        "sharpe_ratio": round(sh, 2),
+        "n_trades": len(trades),
+        "win_rate_pct": round(wr * 100, 1),
     }

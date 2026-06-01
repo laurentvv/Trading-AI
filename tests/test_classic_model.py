@@ -1,7 +1,5 @@
 import unittest
 import shutil
-from pathlib import Path
-from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -15,12 +13,14 @@ from src.classic_model import (
 
 def _make_features(n=300, seed=42):
     np.random.seed(seed)
-    X = pd.DataFrame({
-        "feat1": np.random.randn(n),
-        "feat2": np.random.randn(n),
-        "feat3": np.random.randn(n),
-        "feat4": np.random.randn(n),
-    })
+    X = pd.DataFrame(
+        {
+            "feat1": np.random.randn(n),
+            "feat2": np.random.randn(n),
+            "feat3": np.random.randn(n),
+            "feat4": np.random.randn(n),
+        }
+    )
     y = pd.Series(np.where(X["feat1"] + X["feat2"] > 0, 1, 0))
     return X, y
 
@@ -47,9 +47,7 @@ class TestClassicModel(unittest.TestCase):
         X, y = _make_features(n=300)
         model, scaler, metrics, _ = train_ensemble_model(X, y)
         today = pd.Timestamp.now()
-        out_model, out_scaler, out_date = retrain_if_stale(
-            model, scaler, X, y, today, max_age_days=60
-        )
+        out_model, out_scaler, out_date = retrain_if_stale(model, scaler, X, y, today, max_age_days=60)
         self.assertIs(out_model, model)
         self.assertIs(out_scaler, scaler)
 
@@ -57,9 +55,7 @@ class TestClassicModel(unittest.TestCase):
         X, y = _make_features(n=300)
         model, scaler, metrics, _ = train_ensemble_model(X, y)
         old_date = pd.Timestamp("2020-01-01")
-        out_model, out_scaler, out_date = retrain_if_stale(
-            model, scaler, X, y, old_date, max_age_days=60
-        )
+        out_model, out_scaler, out_date = retrain_if_stale(model, scaler, X, y, old_date, max_age_days=60)
         self.assertIsNot(out_model, model)
 
     def test_retrain_bypasses_cache(self):

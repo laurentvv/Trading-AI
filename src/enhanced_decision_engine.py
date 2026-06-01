@@ -271,8 +271,12 @@ class EnhancedDecisionEngine:
     MIN_CONFIDENCE_FOR_ACTION = 0.20
     MIN_CONFIDENCE_FOR_SELL = 0.40
 
-    def __init__(self, base_weights: Dict[str, float] = None, config: Dict = None,
-                 regime_adjustments: Dict[str, Dict[str, float]] = None):
+    def __init__(
+        self,
+        base_weights: Dict[str, float] = None,
+        config: Dict = None,
+        regime_adjustments: Dict[str, Dict[str, float]] = None,
+    ):
         """
         Initialize the enhanced decision engine.
 
