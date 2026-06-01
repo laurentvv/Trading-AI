@@ -185,7 +185,7 @@ Follow these steps to set up your local development environment.
     You must create and activate the `.venv` before installing the foundation models.
     ```bash
     uv venv
-    source .venv/bin/activate  # On Windows, use `.venv\Scripts\activate`
+    source .venv/bin/activate  # On Windows, use `.\.venv\Scripts\activate.ps1`
     ```
 
 4.  **Install Foundation Models:**
