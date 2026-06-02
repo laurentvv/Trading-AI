@@ -10,8 +10,8 @@ from llm_client import TEXT_LLM_MODEL, _query_ollama
 try:
     from crawl4ai import AsyncWebCrawler
 except ImportError:
-    # Handle if not strictly available or loading failure
     AsyncWebCrawler = None
+
 
 logger = logging.getLogger(__name__)
 

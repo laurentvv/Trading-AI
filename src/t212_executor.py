@@ -123,7 +123,7 @@ def get_t212_positions():
     """Fetch all open positions from T212 with live prices."""
     try:
         headers = get_auth_header()
-        resp = requests.get(f"{_get_t212_base_url()}/equity/positions", headers=headers, timeout=10)
+        resp = _t212_session.get(f"{_get_t212_base_url()}/equity/positions", headers=headers, timeout=10)
         if resp.status_code == 200:
             return resp.json()
     except Exception as e:
@@ -135,7 +135,7 @@ def get_t212_account_summary():
     """Fetch account summary from T212 (cash, total value, P&L)."""
     try:
         headers = get_auth_header()
-        resp = requests.get(f"{_get_t212_base_url()}/equity/account/summary", headers=headers, timeout=10)
+        resp = _t212_session.get(f"{_get_t212_base_url()}/equity/account/summary", headers=headers, timeout=10)
         if resp.status_code == 200:
             return resp.json()
     except Exception as e:
@@ -150,7 +150,7 @@ def get_t212_order_history(ticker=None, limit=50):
         params = f"?limit={limit}"
         if ticker:
             params += f"&ticker={ticker}"
-        resp = requests.get(f"{_get_t212_base_url()}/equity/history/orders{params}", headers=headers, timeout=10)
+        resp = _t212_session.get(f"{_get_t212_base_url()}/equity/history/orders{params}", headers=headers, timeout=10)
         if resp.status_code == 200:
             return resp.json()
     except Exception as e:
@@ -333,7 +333,7 @@ def get_t212_price(ticker_yahoo: str) -> float | None:
         env = os.getenv("T212_ENV", "demo").lower()
         base_url = f"https://{env}.trading212.com/api/v0"
         headers = get_auth_header()
-        resp = requests.get(f"{base_url}/equity/positions", headers=headers, timeout=5)
+        resp = _t212_session.get(f"{base_url}/equity/positions", headers=headers, timeout=5)
         if resp.status_code == 200:
             for pos in resp.json():
                 if pos["instrument"]["ticker"] == t212_ticker:
@@ -384,13 +384,15 @@ def get_real_price_eur(ticker_yahoo=None):
     raise ValueError(f"Could not retrieve price for {target} from any source")
 
 
+_t212_session = requests.Session()
+
 def safe_request(method: str, url: str, **kwargs) -> requests.Response | None:
     """
     Execute an HTTP request with error handling and retry logic.
     """
     for attempt in range(3):
         try:
-            resp = requests.request(method, url, **kwargs)
+            resp = _t212_session.request(method, url, **kwargs)
             if resp.status_code == 429 or (resp.status_code == 400 and "TooManyRequests" in resp.text):
                 wait = (attempt + 1) * 2
                 logger.warning(f"⚠️ Rate limit atteint, attente de {wait}s...")

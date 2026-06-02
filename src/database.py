@@ -184,6 +184,32 @@ def insert_model_signal(
         conn.close()
 
 
+
+def insert_transactions_batch(transactions: list[tuple]):
+    """
+    Inserts multiple transactions in a single batch using executemany.
+    Format of each tuple: (date, ticker, type, quantity, price, cost, signal_source, reason)
+    """
+    conn = sqlite3.connect(DB_PATH, timeout=5.0)
+    try:
+        cursor = conn.cursor()
+        cursor.executemany(
+            '''
+            INSERT INTO transactions
+            (date, ticker, type, quantity, price, cost, signal_source, reason)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''',
+            transactions
+        )
+        conn.commit()
+        logger.info(f"Inserted batch of {len(transactions)} transactions.")
+    except Exception as e:
+        logger.error(f"Error inserting transactions batch: {e}")
+        conn.rollback()
+    finally:
+        conn.close()
+
+
 def get_portfolio_history(ticker: str = "QQQ") -> pd.DataFrame:
     """Retrieves the full portfolio history for a given ticker as a DataFrame."""
     conn = sqlite3.connect(DB_PATH, timeout=5.0)

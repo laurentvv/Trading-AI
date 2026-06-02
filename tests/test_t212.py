@@ -85,7 +85,7 @@ class TestSafeRequest(unittest.TestCase):
 
         self.safe_request = safe_request
 
-    @patch("requests.request")
+    @patch("src.t212_executor._t212_session.request")
     def test_safe_request_success(self, mock_request):
         # Arrange
         mock_resp = MagicMock()
@@ -100,7 +100,7 @@ class TestSafeRequest(unittest.TestCase):
         mock_request.assert_called_once_with("GET", "http://test.com")
 
     @patch("time.sleep")
-    @patch("requests.request")
+    @patch("src.t212_executor._t212_session.request")
     def test_safe_request_rate_limit(self, mock_request, mock_sleep):
         # Arrange
         mock_resp_429 = MagicMock()
@@ -121,7 +121,7 @@ class TestSafeRequest(unittest.TestCase):
         mock_sleep.assert_called_once()
 
     @patch("time.sleep")
-    @patch("requests.request")
+    @patch("src.t212_executor._t212_session.request")
     def test_safe_request_exception(self, mock_request, mock_sleep):
         # Arrange
         from requests.exceptions import Timeout
@@ -138,7 +138,7 @@ class TestSafeRequest(unittest.TestCase):
         self.assertEqual(mock_sleep.call_count, 3)
 
     @patch("time.sleep")
-    @patch("requests.request")
+    @patch("src.t212_executor._t212_session.request")
     def test_safe_request_exception_then_success(self, mock_request, mock_sleep):
         # Arrange
         from requests.exceptions import ConnectionError
