@@ -60,7 +60,7 @@ def show_simulation_report():
 
         # Last 10 trades
         last_tx = tx_df.tail(10)
-        for _, row in last_tx.iterrows():
+        for row in last_tx.itertuples(index=False):
             color = "green" if row["type"] == "BUY" else "red"
             table.add_row(
                 str(row["date"]),

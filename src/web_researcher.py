@@ -8,7 +8,9 @@ from typing import List, Dict
 from llm_client import TEXT_LLM_MODEL, _query_ollama
 
 try:
-    from crawl4ai import AsyncWebCrawler
+    from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
+    from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
+    from crawl4ai.content_filter_strategy import PruningContentFilter
 except ImportError:
     AsyncWebCrawler = None
 
@@ -140,50 +142,38 @@ async def fetch_and_clean(search_results: List[Dict[str, str]]) -> List[Dict[str
             )
         return pages_content
 
+
     try:
-        async with AsyncWebCrawler() as crawler:
+        browser_config = BrowserConfig(verbose=True)
+        run_config = CrawlerRunConfig(
+            cache_mode=CacheMode.BYPASS,
+            markdown_generator=DefaultMarkdownGenerator(
+                content_filter=PruningContentFilter(threshold=0.45, threshold_type="dynamic", min_word_threshold=50)
+            )
+        )
+        async with AsyncWebCrawler(config=browser_config) as crawler:
             for res in search_results:
                 url = res["url"]
                 logger.info(f"Extraction de : {url}...")
                 try:
                     # Set a timeout for crawling
-                    result = await asyncio.wait_for(crawler.arun(url=url), timeout=30.0)
+                    result = await asyncio.wait_for(crawler.arun(url=url, config=run_config), timeout=30.0)
                     if result.success:
-                        content = getattr(
-                            result,
-                            "markdown_links_removed",
-                            getattr(result, "markdown_fit", ""),
-                        )
+                        content = result.markdown.fit_markdown if result.markdown else ""
                         if not content:
-                            content = result.markdown
+                            content = result.markdown.raw_markdown if result.markdown else "No content extracted"
 
                         pages_content.append({"url": url, "content": content})
                     else:
                         logger.warning(f"Failed to crawl {url}. Using snippet.")
-                        pages_content.append(
-                            {
-                                "url": url,
-                                "content": f"Title: {res['title']}\nSnippet: {res['body']}",
-                            }
-                        )
+                        pages_content.append({"url": url, "content": f"Title: {res['title']} - Snippet: {res['body']}"})
                 except Exception as e:
                     logger.error(f"Error crawling {url}: {e}. Using snippet.")
-                    pages_content.append(
-                        {
-                            "url": url,
-                            "content": f"Title: {res['title']}\nSnippet: {res['body']}",
-                        }
-                    )
+                    pages_content.append({"url": url, "content": f"Title: {res['title']} - Snippet: {res['body']}"})
     except Exception as e:
         logger.error(f"Failed to initialize crawler: {e}. Falling back to snippets.")
         for res in search_results:
-            pages_content.append(
-                {
-                    "url": res["url"],
-                    "content": f"Title: {res['title']}\nSnippet: {res['body']}",
-                }
-            )
-
+            pages_content.append({"url": res["url"], "content": f"Title: {res['title']} - Snippet: {res['body']}"})
     return pages_content
 
 

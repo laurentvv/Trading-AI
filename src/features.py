@@ -195,7 +195,7 @@ def create_features(data: pd.DataFrame, macro_context: dict = None) -> pd.DataFr
     # but its 'Target' value is irrelevant and will be ignored.
 
     # Ensure the dataframe is sorted by index (date) to maintain order
-    df.sort_index(inplace=True)
+    df = df.sort_index()
     return df
 
 

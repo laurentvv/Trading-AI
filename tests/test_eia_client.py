@@ -31,7 +31,7 @@ class TestEIAClientRequests(unittest.TestCase):
     def tearDown(self):
         self.env_patcher.stop()
 
-    @patch("eia_client.requests.get")
+    @patch("requests.Session.get")
     def test_make_request_success(self, mock_get):
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -50,7 +50,7 @@ class TestEIAClientRequests(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(len(result), 2)
 
-    @patch("eia_client.requests.get")
+    @patch("requests.Session.get")
     def test_get_refinery_utilization(self, mock_get):
         mock_response = MagicMock()
         mock_response.status_code = 200
@@ -71,7 +71,7 @@ class TestEIAClientRequests(unittest.TestCase):
         self.assertFalse(df.empty)
         self.assertEqual(df["value"].iloc[0], 90.0)  # Average of 85 and 95
 
-    @patch("eia_client.requests.get")
+    @patch("requests.Session.get")
     def test_get_brent_spot_price(self, mock_get):
         mock_response = MagicMock()
         mock_response.status_code = 200
