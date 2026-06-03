@@ -66,7 +66,7 @@ class OilBenchModel:
 
         for name, ticker in tickers.items():
             try:
-                data = yf.download(ticker, period=f"{self.config.lookback_days}d", progress=False)
+                data = yf.download(ticker, period=f"{self.config.lookback_days}d", progress=False, multi_level_index=False)
                 if data.empty:
                     result[name] = {"price": None, "change_pct": None}
                     continue

@@ -38,6 +38,7 @@ class EIAClient:
     }
 
     def __init__(self):
+        self.session = requests.Session()
         self.api_key: str = os.getenv("EIA_API_KEY", "")
         self._cache: dict[str, EIACacheEntry] = {}
 
@@ -374,7 +375,7 @@ class EIAClient:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                resp = requests.get(url, params=all_params, timeout=15)
+                resp = self.session.get(url, params=all_params, timeout=15)
                 if resp.status_code == 200:
                     body = resp.json()
                     data_rows = body.get("response", {}).get("data", [])

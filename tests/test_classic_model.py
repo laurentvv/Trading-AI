@@ -36,34 +36,33 @@ class TestClassicModel(unittest.TestCase):
 
     def test_walk_forward_returns_valid_tuple(self):
         X, y = _make_features(n=300)
-        model, scaler, metrics, feat_imp = train_ensemble_model(X, y, walk_forward=True)
-        self.assertIsNotNone(model)
-        self.assertIsNotNone(scaler)
+        pipeline, metrics, feat_imp = train_ensemble_model(X, y, walk_forward=True)
+        self.assertIsNotNone(pipeline)
+        self.assertTrue(hasattr(pipeline, "named_steps"))
         self.assertIsInstance(metrics, dict)
         self.assertIn("f1", metrics)
         self.assertIn("accuracy", metrics)
 
     def test_retrain_if_stale_skips_young_model(self):
         X, y = _make_features(n=300)
-        model, scaler, metrics, _ = train_ensemble_model(X, y)
+        pipeline, metrics, _ = train_ensemble_model(X, y)
         today = pd.Timestamp.now()
-        out_model, out_scaler, out_date = retrain_if_stale(model, scaler, X, y, today, max_age_days=60)
-        self.assertIs(out_model, model)
-        self.assertIs(out_scaler, scaler)
+        out_pipeline, out_date = retrain_if_stale(pipeline, X, y, today, max_age_days=60)
+        self.assertIs(out_pipeline, pipeline)
 
     def test_retrain_if_stale_retrains_old_model(self):
         X, y = _make_features(n=300)
-        model, scaler, metrics, _ = train_ensemble_model(X, y)
+        pipeline, metrics, _ = train_ensemble_model(X, y)
         old_date = pd.Timestamp("2020-01-01")
-        out_model, out_scaler, out_date = retrain_if_stale(model, scaler, X, y, old_date, max_age_days=60)
-        self.assertIsNot(out_model, model)
+        out_pipeline, out_date = retrain_if_stale(pipeline, X, y, old_date, max_age_days=60)
+        self.assertIsNot(out_pipeline, pipeline)
 
     def test_retrain_bypasses_cache(self):
         X, y = _make_features(n=300, seed=1)
-        model1, scaler1, _, _ = train_ensemble_model(X, y, walk_forward=True)
+        pipeline1, _, _ = train_ensemble_model(X, y, walk_forward=True)
         X2, y2 = _make_features(n=300, seed=2)
-        model2, scaler2, _, _ = train_ensemble_model(X2, y2, walk_forward=True, skip_cache=True)
-        self.assertIsNot(model1, model2)
+        pipeline2, _, _ = train_ensemble_model(X2, y2, walk_forward=True, skip_cache=True)
+        self.assertIsNot(pipeline1, pipeline2)
 
 
 if __name__ == "__main__":
