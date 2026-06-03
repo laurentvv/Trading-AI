@@ -577,8 +577,8 @@ class EnhancedTradingSystem:
             raise
 
     def _execute_hypothetical_trade(self, analysis_results, current_price, analysis_date, is_simulation=False):
-        pending_transactions = []
         """Executes a hypothetical trade based on the signal with strict simulation logic."""
+        pending_transactions = []
         signal = analysis_results["risk_adjusted_signal"]
         transaction_cost_pct = 0.001  # 0.1%
 
