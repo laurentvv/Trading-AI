@@ -6,8 +6,8 @@
 
 1. **Classic Quantitative Model** — Ensemble of RandomForest/GradientBoosting/LogisticRegression trained on technical indicators and macroeconomic data
 2. **TimesFM 2.5 (Google Research)** — Foundation model for time series forecasting
-3. **Textual LLM (Gemma 4:e4b via Ollama)** — Contextual analysis of raw data and real-time news via AlphaEar skill
-4. **Visual LLM (Gemma 4:e4b)** — Direct analysis of technical chart patterns
+3. **Textual LLM (Gemma 4 12B (Unsloth) via Ollama)** — Contextual analysis of raw data and real-time news via AlphaEar skill
+4. **Visual LLM (Gemma 4 12B (Unsloth))** — Direct analysis of technical chart patterns
 5. **Sentiment Analysis** — Hybrid analysis combining Alpha Vantage and AlphaEar social trends
 6. **Decentralized Sentiment (Hyperliquid)** — Real-time blockchain data (Funding Rate, Open Interest) for Oil/WTI contrarian signals
 
@@ -25,7 +25,7 @@
 | Package Manager | **uv** (Astral) |
 | ML/Data | pandas, numpy, scikit-learn, yfinance, shap |
 | Deep Learning | PyTorch, TimesFM 2.5, JAX |
-| LLM | Ollama (Gemma 4:e4b) |
+| LLM | Ollama (Gemma 4 12B (Unsloth)) |
 | Visualization | matplotlib, seaborn, mplfinance |
 | API Integration | Trading 212 API, Alpha Vantage, AlphaEar (skill), **Hyperliquid SDK** |
 | Utilities | python-dotenv, schedule, rich, tqdm |
@@ -71,7 +71,7 @@ Trading-AI/
 ### Prerequisites
 - Python 3.12+
 - **uv** package manager (https://astral.sh/uv)
-- **Ollama** running locally with `gemma4:e4b` pulled
+- **Ollama** running locally with `hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M` pulled
 - Alpha Vantage API key (in `.env`)
 - Trading 212 API credentials (in `.env.t212`, for live trading)
 

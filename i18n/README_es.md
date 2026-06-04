@@ -69,9 +69,9 @@ El sistema utiliza un enfoque innovador para maximizar la precisión del modelo:
 El sistema fusiona ocho señales distintas:
 1.  **Modelo Cuantitativo Clásico**: Conjunto de RandomForest/GradientBoosting/LogisticRegression entrenado en indicadores técnicos y macroeconómicos.
 2.  **TimesFM 2.5 (Google Research)**: Modelo de base de vanguardia para la previsión de series temporales.
-3.  **Modelo Oil-Bench (Gemma 4:e4b)**: Modelo especializado en energía que fusiona datos fundamentales de la **EIA** (Existencias, Importaciones, Utilización de refinerías) y el sentimiento para el trading de WTI.
-4.  **LLM Textual (Gemma 4:e4b)**: Análisis contextual de datos brutos, noticias en tiempo real a través de la herramienta **AlphaEar**, e integración de **investigación web macroeconómica** dinámica.
-5.  **LLM Visual (Gemma 4:e4b)**: Análisis directo de gráficos técnicos (`enhanced_trading_chart.png`).
+3.  **Modelo Oil-Bench (Gemma 4 12B (Unsloth))**: Modelo especializado en energía que fusiona datos fundamentales de la **EIA** (Existencias, Importaciones, Utilización de refinerías) y el sentimiento para el trading de WTI.
+4.  **LLM Textual (Gemma 4 12B (Unsloth))**: Análisis contextual de datos brutos, noticias en tiempo real a través de la herramienta **AlphaEar**, e integración de **investigación web macroeconómica** dinámica.
+5.  **LLM Visual (Gemma 4 12B (Unsloth))**: Análisis directo de gráficos técnicos (`enhanced_trading_chart.png`).
 6.  **Análisis de Sentimiento**: Análisis híbrido que combina Alpha Vantage y tendencias actuales de **AlphaEar** (Weibo, WallstreetCN).
 7.  **Datos Descentralizados (Hyperliquid)**: Análisis del sentimiento especulativo sobre el Petróleo (WTI) a través de la *Tasa de Financiación* e *Interés Abierto*.
 8.  **Modelo de Vincent Ganne**: Análisis geopolítico y cross-asset (WTI, Brent, Gas, DXY, MA200) para detectar suelos macroeconómicos.
@@ -148,7 +148,7 @@ Siga estos pasos para configurar su entorno de desarrollo local.
 
 - Python 3.12+ (vía `uv`)
 - [Ollama](https://ollama.com/) instalado y funcionando localmente.
-- Modelo LLM descargado: `ollama pull gemma4:e4b`
+- Modelo LLM descargado: `ollama pull hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M`
 
 ### ⚙️ Instalación
 

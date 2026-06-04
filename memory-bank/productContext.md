@@ -14,8 +14,8 @@ L'utilisateur exécutera un seul script depuis la ligne de commande. Le script :
     - **Modèle Classique** (Scikit-Learn : RandomForest, GradientBoosting, LogisticRegression).
     - **TimesFM 2.5** (Google Research) : prévision probabiliste de séries temporelles.
     - **TensorTrade / PPO** : agent de Reinforcement Learning via stable-baselines3 (gymnasium).
-    - **LLM Texte** (Gemma 4:e4b via Ollama) : analyse contextuelle enrichie par recherche web (Crawl4AI).
-    - **LLM Visuel** (Gemma 4:e4b) : analyse directe du graphique technique.
+    - **LLM Texte** (Gemma 4 12B (Unsloth) via Ollama) : analyse contextuelle enrichie par recherche web (Crawl4AI).
+    - **LLM Visuel** (Gemma 4 12B (Unsloth)) : analyse directe du graphique technique.
     - **Sentiment Analysis** : hybride Alpha Vantage + AlphaEar (tendances finance multi-sources).
     - **Hyperliquid** : sentiment décentralisé (Funding Rate, Open Interest sur perps WTI).
     - **Vincent Ganne Model** : validation géopolitique et cross-asset (exclusif Nasdaq, signal BUY uniquement).

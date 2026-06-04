@@ -69,9 +69,9 @@ Sistem menggunakan pendekatan inovatif untuk memaksimalkan akurasi model:
 Sistem menggabungkan delapan sinyal berbeda:
 1.  **Model Kuantitatif Klasik**: Ensemble RandomForest/GradientBoosting/LogisticRegression yang dilatih pada indikator teknis dan makroekonomi.
 2.  **TimesFM 2.5 (Google Research)**: Model fondasi mutakhir untuk peramalan deret waktu (time-series).
-3.  **Model Oil-Bench (Gemma 4:e4b)**: Model khusus energi yang menggabungkan data fundamental **EIA** (Stok, Impor, Utilisasi Kilang) dan sentimen untuk perdagangan WTI.
-4.  **LLM Tekstual (Gemma 4:e4b)**: Analisis kontekstual dari data mentah, berita real-time melalui skill **AlphaEar**, dan integrasi **riset web makro-ekonomi** yang dinamis.
-5.  **LLM Visual (Gemma 4:e4b)**: Analisis langsung grafik teknis (`enhanced_trading_chart.png`).
+3.  **Model Oil-Bench (Gemma 4 12B (Unsloth))**: Model khusus energi yang menggabungkan data fundamental **EIA** (Stok, Impor, Utilisasi Kilang) dan sentimen untuk perdagangan WTI.
+4.  **LLM Tekstual (Gemma 4 12B (Unsloth))**: Analisis kontekstual dari data mentah, berita real-time melalui skill **AlphaEar**, dan integrasi **riset web makro-ekonomi** yang dinamis.
+5.  **LLM Visual (Gemma 4 12B (Unsloth))**: Analisis langsung grafik teknis (`enhanced_trading_chart.png`).
 6.  **Analisis Sentimen**: Analisis hybrid yang menggabungkan Alpha Vantage dan tren "panas" dari **AlphaEar** (Weibo, WallstreetCN).
 7.  **Data Terdesentralisasi (Hyperliquid)**: Analisis sentimen spekulatif pada Minyak (WTI) melalui *Funding Rate* dan *Open Interest*.
 8.  **Model Vincent Ganne**: Analisis geopolitik dan lintas-aset (WTI, Brent, Gas, DXY, MA200) untuk mendeteksi titik terendah makroekonomi.
@@ -148,7 +148,7 @@ Ikuti langkah-langkah berikut untuk menyiapkan lingkungan pengembangan lokal And
 
 - Python 3.12+ (melalui `uv`)
 - [Ollama](https://ollama.com/) terinstal dan berjalan secara lokal.
-- Model LLM yang telah diunduh: `ollama pull gemma4:e4b`
+- Model LLM yang telah diunduh: `ollama pull hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M`
 
 ### ⚙️ Instalasi
 

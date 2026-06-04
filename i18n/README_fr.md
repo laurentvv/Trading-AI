@@ -69,9 +69,9 @@ Le système utilise une approche innovante pour maximiser la précision des mod�
 Le système fusionne huit signaux distincts :
 1.  **Modèle Quantitatif Classique** : Ensemble RandomForest/GradientBoosting/LogisticRegression entraîné sur indicateurs techniques et macroéconomiques.
 2.  **TimesFM 2.5 (Google Research)** : Modèle de fondation de pointe pour la prévision de séries temporelles.
-3.  **Modèle Oil-Bench (Gemma 4:e4b)** : Modèle spécialisé dans l'énergie fusionnant les données fondamentales de l'**EIA** (Stocks, Imports, Raffineries) et le sentiment pour le trading du WTI.
-4.  **LLM Textuel (Gemma 4:e4b)** : Analyse contextuelle des données brutes, des actualités en temps réel via le skill **AlphaEar**, et intégration de **recherches web macro-économiques** dynamiques.
-5.  **LLM Visuel (Gemma 4:e4b)** : Analyse directe des graphiques techniques (`enhanced_trading_chart.png`).
+3.  **Modèle Oil-Bench (Gemma 4 12B (Unsloth))** : Modèle spécialisé dans l'énergie fusionnant les données fondamentales de l'**EIA** (Stocks, Imports, Raffineries) et le sentiment pour le trading du WTI.
+4.  **LLM Textuel (Gemma 4 12B (Unsloth))** : Analyse contextuelle des données brutes, des actualités en temps réel via le skill **AlphaEar**, et intégration de **recherches web macro-économiques** dynamiques.
+5.  **LLM Visuel (Gemma 4 12B (Unsloth))** : Analyse directe des graphiques techniques (`enhanced_trading_chart.png`).
 6.  **Sentiment Analysis** : Analyse hybride combinant Alpha Vantage et les tendances "hot" d'**AlphaEar** (Weibo, WallstreetCN).
 7.  **Données Décentralisées (Hyperliquid)** : Analyse du sentiment spéculatif sur le Pétrole (WTI) via le *Funding Rate* et l'*Open Interest*.
 8.  **Modèle Vincent Ganne** : Analyse géopolitique et cross-asset (WTI, Brent, Gaz, DXY, MA200) pour la détection de points bas macroéconomiques.
@@ -147,7 +147,7 @@ Suivez ces étapes pour mettre en place votre environnement de développement lo
 
 - Python 3.12+ (via `uv`)
 - [Ollama](https://ollama.com/) installé et en cours d'exécution localement.
-- Modèle LLM : `ollama pull gemma4:e4b`
+- Modèle LLM : `ollama pull hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M`
 
 ### ⚙️ Installation
 

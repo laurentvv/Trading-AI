@@ -10,8 +10,8 @@ logger = logging.getLogger(__name__)
 
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
 OLLAMA_BASE_URL = "http://localhost:11434"
-TEXT_LLM_MODEL = "gemma4:e4b"
-VISUAL_LLM_MODEL = "gemma4:e4b"
+TEXT_LLM_MODEL = "hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M"
+VISUAL_LLM_MODEL = "hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M"
 
 
 def check_ollama_health(timeout: int = 5) -> bool:
@@ -148,9 +148,8 @@ def get_visual_llm_decision(image_path: Path) -> dict:
         "prompt": prompt.strip(),
         "images": [image_base64],
         "stream": False,
-        "format": "json",
         "options": {"temperature": 0.1},
-        "system": "You are a geometric chart analyst. Return ONLY JSON.",
+        "system": "<|think|> You are a geometric chart analyst. Return ONLY JSON.",
     }
     return _query_ollama(payload)
 
@@ -171,6 +170,10 @@ def _query_ollama(payload: dict, max_retries: int = 3, expected_keys: list = Non
 
             response_data = response.json()
             raw_output = response_data.get("response", "").strip()
+
+            # Remove thought channel if present (Gemma 4 specific)
+            if "<channel|>" in raw_output:
+                raw_output = raw_output.split("<channel|>")[-1].strip()
 
             if not raw_output or raw_output == "{}":
                 logger.warning(f"Attempt {attempt + 1}: Empty or trivial response from LLM.")

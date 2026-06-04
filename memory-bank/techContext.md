@@ -7,7 +7,8 @@
     - **Scikit-learn**: Quantitative models (RandomForest, etc.) with `TimeSeriesSplit`.
     - **TimesFM**: Foundation model for time-series forecasting (Google Research).
     - **stable-baselines3 (PPO)**: Reinforcement Learning agent via custom Gymnasium environment (TensorTrade integration).
-    - **Ollama**: Local serving of **Gemma 4 (e4b)** for text and visual chart analysis.
+    - **Ollama**: Local serving of **Gemma 4 12B (Unsloth)** for text and visual chart analysis.
+    - *Note:* The model uses the `<|think|>` token in the system prompt to activate its advanced chain-of-thought reasoning mode for better accuracy.
 - **Data & Research Architecture**:
     - **yfinance**: Market data download.
     - **pandas-datareader**: Macroeconomic data (FRED).
@@ -22,7 +23,7 @@
 - Entry point: `main.py`.
 
 ## 3. Technical Constraints & Assumptions
-- **Ollama**: Must be running locally with `gemma4:e4b`.
+- **Ollama**: Must be running locally with `hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M` (Thinking mode enabled via `<|think|>` token).
 - **Trading 212 API**: Specific quantity precision required per instrument (e.g., 2 decimals for CRUDl_EQ, 4 for SXRVd_EQ). API response structure may omit `averagePrice` — code uses fallback calculation (`currentValue / quantity`).
 - **Operating System**: win32 (optimized for Windows terminal with **UTF-8 logging** to support emojis).
 - **Network**: Required for initial API calls (Yahoo, FRED, Alpha Vantage, Hyperliquid).

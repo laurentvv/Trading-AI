@@ -25,7 +25,7 @@ Le moteur fusionne un modèle quantitatif classique, un LLM textuel (Gemma 4), u
 ### Prerequisites
 
 - Python 3.12+ (via `uv`)
-- Ollama fonctionnant localement avec `gemma4:e4b`
+- Ollama fonctionnant localement avec `hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M`
 - Clé API Alpha Vantage (pour la macroéconomie et le sentiment)
 
 ### Installation
@@ -61,7 +61,7 @@ uv run main.py --t212
 uv run schedule.py
 ```
 
-The system now uses **Gemma 4:e4b** for enhanced cognitive analysis and integrates the **AlphaEar** skill for real-time financial news context and **Hyperliquid** for decentralized sentiment.
+The system now uses **hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M** for enhanced cognitive analysis and integrates the **AlphaEar** skill for real-time financial news context and **Hyperliquid** for decentralized sentiment.
 
 The scheduler will run in the background, perform periodic analysis (every 30 minutes), and execute trades on Trading 212. All activities are logged in `scheduler.log`.
 
@@ -106,3 +106,4 @@ The system uses an **Injection de Dépendance** pattern where the orchestrator l
 *   **Documentation-Driven Development:** The `memory-bank/` directory contains documentation about the project's evolution, architecture, and context.
 *   **Configuration:** Key parameters and constants are defined at the beginning of the scripts.
 *   **Error Handling:** The code includes robust error handling for API requests (Hyperliquid, yfinance, FRED), file operations (atomic JSON writes), and data structure validations (Pandas Series/Float fixes).(Pandas Series/Float fixes).
+

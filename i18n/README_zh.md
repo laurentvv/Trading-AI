@@ -69,9 +69,9 @@
 系統融合了八個不同的信號：
 1.  **經典量化模型**：在技術和宏觀經濟指標上訓練的 RandomForest/GradientBoosting/LogisticRegression 集成。
 2.  **TimesFM 2.5 (Google Research)**：用於時間序列預測的最先進基礎模型。
-3.  **Oil-Bench 模型 (Gemma 4:e4b)**：能源專業模型，融合了 **EIA** 基本面數據（庫存、進口、煉油廠利用率）和 WTI 交易情緒。
-4.  **文本 LLM (Gemma 4:e4b)**：對原始數據進行背景分析，通過 **AlphaEar** 技能獲取即時新聞，並整合動態的 **宏觀經濟網絡研究**。
-5.  **視覺 LLM (Gemma 4:e4b)**：直接分析技術圖表 (`enhanced_trading_chart.png`)。
+3.  **Oil-Bench 模型 (Gemma 4 12B (Unsloth))**：能源專業模型，融合了 **EIA** 基本面數據（庫存、進口、煉油廠利用率）和 WTI 交易情緒。
+4.  **文本 LLM (Gemma 4 12B (Unsloth))**：對原始數據進行背景分析，通過 **AlphaEar** 技能獲取即時新聞，並整合動態的 **宏觀經濟網絡研究**。
+5.  **視覺 LLM (Gemma 4 12B (Unsloth))**：直接分析技術圖表 (`enhanced_trading_chart.png`)。
 6.  **情緒分析**：結合 Alpha Vantage 和來自 **AlphaEar** (微博、華爾街見聞) 的「熱點」趨勢的混合分析。
 7.  **去中心化數據 (Hyperliquid)**：通過 *資金費率* 和 *未平倉合約* 分析原油 (WTI) 的投機情緒。
 8.  **Vincent Ganne 模型**：地緣政治和跨資產分析（WTI、布倫特原油、天然氣、DXY、MA200），用於檢測宏觀經濟底部。
@@ -148,7 +148,7 @@ Trading-AI/
 
 - Python 3.12+ (通過 `uv`)
 - 已安裝並在本地運行的 [Ollama](https://ollama.com/)。
-- 已下載的 LLM 模型：`ollama pull gemma4:e4b`
+- 已下載的 LLM 模型：`ollama pull hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M`
 
 ### ⚙️ 安裝
 

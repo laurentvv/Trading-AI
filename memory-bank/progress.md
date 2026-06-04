@@ -7,7 +7,7 @@
 - **Architecture Modulaire (BaseModel)**: Interface standardisée pour tous les modèles IA, permettant un ajout facile de nouveaux signaux sans modifier le moteur de décision.
 - **Configuration Centralisée (`scheduler_config.json`)**: Tous les seuils techniques, de risque et les poids sont désormais pilotables via JSON, sans toucher au code.
 - **Logging Standardisé**: Remplacement des `print()` par `logging` dans tout le pipeline d'exécution Trading 212.
-- **Moteur Hybride Gemma 4**: Utilisation de `gemma4:e4b` pour une analyse tri-modale (texte, vision, news) plus fine.
+- **Moteur Hybride Gemma 4**: Utilisation de `hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M` pour une analyse tri-modale (texte, vision, news) plus fine.
 - **Skill AlphaEar News**: Récupération des tendances financières "hot" (Weibo, WallstreetCN) intégrée au flux décisionnel.
 - **Nouveau Scheduler Autonome**: Script `schedule.py` gérant les horaires de marché (8h30-18h00) et l'intervalle de 30 minutes avec dashboard live.
 
@@ -113,13 +113,13 @@
   * Forçage de l'utilisation du signal filtré par le risk manager pour l'exécution réelle.
   * Correction de bugs mineurs (`MarketDataManager` tuple, encodage Windows).
 - **2026-04-10**: Migration Cognitive et News
-  * Passage de Gemma 3 à **Gemma 4:e4b** pour une meilleure synthèse.
+  * Passage de Gemma 3 à **Gemma 4 12B (Unsloth)** pour une meilleure synthèse.
   * Intégration du skill **AlphaEar** via `src/news_fetcher.py`.
   * Création de `schedule.py` pour remplacer l'ancien scheduler complexe.
   * Optimisation des seuils de décision dans `EnhancedDecisionEngine` et `AdvancedRiskManager`.
   * Amélioration du logging du backtester pour une transparence quotidienne.
 - **2026-04-13**: Optimisation et Robustesse du Système.
-  * Migration vers **Gemma 4 (e4b)** pour l'analyse textuelle et visuelle.
+  * Migration vers **Gemma 4 12B (Unsloth)** pour l'analyse textuelle et visuelle.
   * Intégration d'**Hyperliquid** pour le sentiment décentralisé sur le pétrole (Funding Rate, Open Interest).
   * Correction du cycle d'installation (TimesFM doit être patché avant `uv sync`).
   * Support de l'encodage **UTF-8** pour les logs Windows (emojis).

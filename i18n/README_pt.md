@@ -69,9 +69,9 @@ O sistema utiliza uma abordagem inovadora para maximizar a precisão do modelo:
 O sistema funde oito sinais distintos:
 1.  **Modelo Quantitativo Clássico**: Conjunto de RandomForest/GradientBoosting/LogisticRegression treinado em indicadores técnicos e macroeconômicos.
 2.  **TimesFM 2.5 (Google Research)**: Modelo de base de última geração para previsão de séries temporais.
-3.  **Modelo Oil-Bench (Gemma 4:e4b)**: Modelo especializado em energia que funde dados fundamentais da **EIA** (Estoques, Importações, Utilização de refinarias) e sentimento para o trading de WTI.
-4.  **LLM Textual (Gemma 4:e4b)**: Análise contextual de dados brutos, notícias em tempo real via ferramenta **AlphaEar** e integração de **pesquisa web macroeconômica** dinâmica.
-5.  **LLM Visual (Gemma 4:e4b)**: Análise direta de gráficos técnicos (`enhanced_trading_chart.png`).
+3.  **Modelo Oil-Bench (Gemma 4 12B (Unsloth))**: Modelo especializado em energia que funde dados fundamentais da **EIA** (Estoques, Importações, Utilização de refinarias) e sentimento para o trading de WTI.
+4.  **LLM Textual (Gemma 4 12B (Unsloth))**: Análise contextual de dados brutos, notícias em tempo real via ferramenta **AlphaEar** e integração de **pesquisa web macroeconômica** dinâmica.
+5.  **LLM Visual (Gemma 4 12B (Unsloth))**: Análise direta de gráficos técnicos (`enhanced_trading_chart.png`).
 6.  **Análise de Sentimento**: Análise híbrida que combina Alpha Vantage e tendências atuais da **AlphaEar** (Weibo, WallstreetCN).
 7.  **Dados Descentralizados (Hyperliquid)**: Análise do sentimento especulativo sobre o Petróleo (WTI) via *Taxa de Financiamento* e *Interesse Aberto*.
 8.  **Modelo de Vincent Ganne**: Análise geopolítica e cross-asset (WTI, Brent, Gás, DXY, MA200) para detectar fundos macroeconômicos.
@@ -148,7 +148,7 @@ Siga estas etapas para configurar seu ambiente de desenvolvimento local.
 
 - Python 3.12+ (via `uv`)
 - [Ollama](https://ollama.com/) instalado e rodando localmente.
-- Modelo LLM baixado: `ollama pull gemma4:e4b`
+- Modelo LLM baixado: `ollama pull hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M`
 
 ### ⚙️ Instalação
 

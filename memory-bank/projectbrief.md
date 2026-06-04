@@ -7,7 +7,7 @@ L'objectif principal de ce projet est de développer un système de support à l
 Le système remplit les fonctions clés suivantes :
 - **Architecture Tri-Modale** : Fusion de signaux provenant de :
     1. Un ensemble de modèles **Scikit-learn** (RandomForest, GradientBoosting, LogisticRegression) validés par `TimeSeriesSplit`.
-    2. Une analyse contextuelle et visuelle via **Gemma 4 (e4b)**.
+    2. Une analyse contextuelle et visuelle via **Gemma 4 12B (Unsloth)**.
     3. Une prédiction temporelle via **TimesFM (Google Research)**.
 - **Unified Interface** : Un point d'entrée unique (`main.py`) pour l'entraînement et l'analyse.
 - **Mode Simulation (Paper Trading)** : Un mode de test réaliste avec capital fictif de 1000 € et historique persistant dans une base de données SQLite.
