@@ -37,8 +37,7 @@ def _load_cached_model(cache_hash: str):
                 cached = pickle.load(f)
             logger.info(f"Modele classique charge depuis le cache (hash={cache_hash[:12]}...)")
             return (
-                cached["model"],
-                cached["scaler"],
+                cached["pipeline"],
                 cached["metrics"],
                 cached.get("feature_importance"),
             )
@@ -47,14 +46,13 @@ def _load_cached_model(cache_hash: str):
     return None
 
 
-def _save_model_cache(cache_hash: str, model, scaler, metrics, feature_importance, train_date: str = None):
+def _save_model_cache(cache_hash: str, pipeline, metrics, feature_importance, train_date: str = None):
     path = _cache_path(cache_hash)
     try:
         with open(path, "wb") as f:
             pickle.dump(
                 {
-                    "model": model,
-                    "scaler": scaler,
+                    "pipeline": pipeline,
                     "metrics": metrics,
                     "feature_importance": feature_importance,
                     "train_date": train_date or datetime.now().isoformat(),
@@ -94,7 +92,7 @@ def train_ensemble_model(X: pd.DataFrame, y: pd.Series, walk_forward: bool = Fal
         skip_cache: If True, bypass the model cache and force retraining.
 
     Returns:
-        Tuple of (best_model, scaler, metrics_dict, feature_importance_df_or_None).
+        Tuple of (pipeline, metrics_dict, feature_importance_df_or_None).
     """
     cache_hash = _data_hash(X, y)
     if not skip_cache:
@@ -169,8 +167,9 @@ def train_ensemble_model(X: pd.DataFrame, y: pd.Series, walk_forward: bool = Fal
                 {"feature": X.columns, "importance": best_model.feature_importances_}
             ).sort_values("importance", ascending=False)
 
-        _save_model_cache(cache_hash, best_model, scaler_wf, best_metrics, feature_importance)
-        return best_model, scaler_wf, best_metrics, feature_importance
+        pipeline = Pipeline([("scaler", scaler_wf), ("model", best_model)])
+        _save_model_cache(cache_hash, pipeline, best_metrics, feature_importance)
+        return pipeline, best_metrics, feature_importance
 
     X_train, X_test, y_train, y_test = train_test_split(X_imputed, y_clean, test_size=0.2, shuffle=False)
 
@@ -218,12 +217,13 @@ def train_ensemble_model(X: pd.DataFrame, y: pd.Series, walk_forward: bool = Fal
             {"feature": X.columns, "importance": best_model.feature_importances_}
         ).sort_values("importance", ascending=False)
 
-    _save_model_cache(cache_hash, best_model, scaler, metrics, feature_importance)
-    return best_model, scaler, metrics, feature_importance
+    pipeline = Pipeline([("scaler", scaler), ("model", best_model)])
+    _save_model_cache(cache_hash, pipeline, metrics, feature_importance)
+    return pipeline, metrics, feature_importance
 
 
 def retrain_if_stale(
-    model, scaler, X_recent: pd.DataFrame, y_recent: pd.Series, last_train_date, max_age_days: int = 60
+    pipeline, X_recent: pd.DataFrame, y_recent: pd.Series, last_train_date, max_age_days: int = 60
 ) -> tuple:
     """Retrain the ensemble model if it is older than *max_age_days*.
 
@@ -245,22 +245,20 @@ def retrain_if_stale(
 
     age_days = (pd.Timestamp.now() - last_train_date).days
     if age_days < max_age_days:
-        return model, scaler, last_train_date
+        return pipeline, last_train_date
 
     logger.info(f"Classic ML model stale ({age_days} days old). Retraining with {len(X_recent)} rows...")
-    new_model, new_scaler, metrics, _ = train_ensemble_model(X_recent, y_recent, walk_forward=True, skip_cache=True)
+    new_pipeline, metrics, _ = train_ensemble_model(X_recent, y_recent, walk_forward=True, skip_cache=True)
     logger.info(f"Retrained. F1={metrics.get('f1', 0):.3f}")
-    return new_model, new_scaler, pd.Timestamp.now()
+    return new_pipeline, pd.Timestamp.now()
 
 
-def get_classic_prediction(model, scaler, latest_features: pd.DataFrame) -> tuple[int, float]:
+def get_classic_prediction(pipeline, latest_features: pd.DataFrame) -> tuple[int, float]:
     latest_features_imputed = latest_features.ffill().bfill().fillna(0)
     latest_features_imputed = latest_features_imputed.replace([np.inf, -np.inf], np.nan).fillna(0)
 
-    latest_features_scaled = scaler.transform(latest_features_imputed)
-
-    prediction = model.predict(latest_features_scaled)[0]
-    probabilities = model.predict_proba(latest_features_scaled)[0]
+    prediction = pipeline.predict(latest_features_imputed)[0]
+    probabilities = pipeline.predict_proba(latest_features_imputed)[0]
     confidence = max(probabilities)
 
     return prediction, confidence

@@ -35,7 +35,7 @@ from chart_generator import generate_chart_image
 
 from database import (
     init_db,
-    insert_transaction,
+    insert_transactions_batch,
     insert_portfolio_state,
     get_latest_portfolio_state,
 )
@@ -221,7 +221,7 @@ class EnhancedTradingSystem:
 
         if len(y.unique()) < 2:
             logger.warning("Données insuffisantes pour l'entraînement - moins de 2 classes")
-            return None, None
+            return None
 
         # Check if we have enough valid data
         valid_data_count = (~y.isnull()).sum()
@@ -229,19 +229,19 @@ class EnhancedTradingSystem:
             logger.warning(
                 f"Données insuffisantes pour l'entraînement - seulement {valid_data_count} échantillons valides"
             )
-            return None, None
+            return None
 
         try:
             # Entraînement du modèle
-            classic_model, scaler, metrics, _ = train_ensemble_model(X, y)
+            classic_pipeline, metrics, _ = train_ensemble_model(X, y)
             logger.info("Modèle classique entraîné avec succès")
-            return classic_model, scaler
+            return classic_pipeline
         except Exception as e:
             logger.error(f"Erreur lors de l'entraînement du modèle: {e}")
-            return None, None
+            return None
 
     def get_model_predictions(
-        self, data_with_features, classic_model, scaler, vg_indicators=None, wti_data=None, nasdaq_data=None
+        self, data_with_features, classic_pipeline, vg_indicators=None, wti_data=None, nasdaq_data=None
     ):
         """Obtient les prédictions de tous les modèles."""
         logger.info("Génération des prédictions des modèles...")
@@ -249,16 +249,19 @@ class EnhancedTradingSystem:
         latest_data = data_with_features.tail(1)
 
         # 1. Prédiction du modèle classique
-        if classic_model is not None and scaler is not None:
+        if classic_pipeline is not None:
             try:
-                feature_cols = [col for col in scaler.feature_names_in_ if col in latest_data.columns]
+                if hasattr(classic_pipeline, "named_steps"):
+                    feature_cols = [col for col in classic_pipeline.named_steps["scaler"].feature_names_in_ if col in latest_data.columns]
+                else:
+                    feature_cols = list(latest_data.columns)
                 latest_features = latest_data[feature_cols]
 
                 # Log feature information
                 logger.info(f"Features disponibles pour prédiction: {len(feature_cols)}")
                 logger.info(f"NaN dans les features: {latest_features.isnull().sum().sum()}")
 
-                classic_pred, classic_conf = get_classic_prediction(classic_model, scaler, latest_features)
+                classic_pred, classic_conf = get_classic_prediction(classic_pipeline, latest_features)
                 logger.info(f"Prédiction classique: {classic_pred}, confiance: {classic_conf:.3f}")
             except Exception as e:
                 logger.error(f"Erreur lors de la prédiction classique: {e}")
@@ -529,7 +532,7 @@ class EnhancedTradingSystem:
             ) = self.prepare_data_and_features()
 
             # 2. Entraînement du modèle classique
-            classic_model, scaler = self.train_classic_model(data_with_features)
+            classic_model = self.train_classic_model(data_with_features)
 
             # 3. Prédictions de tous les modèles
 
@@ -540,7 +543,6 @@ class EnhancedTradingSystem:
             model_predictions = self.get_model_predictions(
                 data_with_features,
                 classic_model,
-                scaler,
                 vg_indicators=vg_indicators,
                 wti_data=wti_data,
                 nasdaq_data=nasdaq_data,
@@ -578,6 +580,7 @@ class EnhancedTradingSystem:
 
     def _execute_hypothetical_trade(self, analysis_results, current_price, analysis_date, is_simulation=False):
         """Executes a hypothetical trade based on the signal with strict simulation logic."""
+        pending_transactions = []
         signal = analysis_results["risk_adjusted_signal"]
         transaction_cost_pct = 0.001  # 0.1%
 
@@ -608,16 +611,7 @@ class EnhancedTradingSystem:
             cost_val = current_cash * transaction_cost_pct
             quantity = (current_cash - cost_val) / current_price
 
-            insert_transaction(
-                date=analysis_date.strftime("%Y-%m-%d %H:%M:%S"),
-                ticker=self.ticker,
-                type="BUY",
-                quantity=quantity,
-                price=current_price,
-                cost=current_cash,
-                signal_source=analysis_results["enhanced_decision"].final_signal,
-                reason=f"Consensus Score: {analysis_results['enhanced_decision'].consensus_score:.2f}",
-            )
+            pending_transactions.append((analysis_date.strftime("%Y-%m-%d %H:%M:%S"), self.ticker, "BUY", quantity, current_price, current_cash, analysis_results["enhanced_decision"].final_signal, f"Consensus Score: {analysis_results['enhanced_decision'].consensus_score:.2f}"))
             new_position = quantity
             new_cash = 0
             trades.append(
@@ -636,16 +630,7 @@ class EnhancedTradingSystem:
             cost_val = sell_val * transaction_cost_pct
             new_cash = sell_val - cost_val
 
-            insert_transaction(
-                date=analysis_date.strftime("%Y-%m-%d %H:%M:%S"),
-                ticker=self.ticker,
-                type="SELL",
-                quantity=current_position,
-                price=current_price,
-                cost=new_cash,
-                signal_source=analysis_results["enhanced_decision"].final_signal,
-                reason=f"P&L Trade: {((current_price / last_tx[3]) - 1) * 100:+.2f}%",
-            )
+            pending_transactions.append((analysis_date.strftime("%Y-%m-%d %H:%M:%S"), self.ticker, "SELL", current_position, current_price, new_cash, analysis_results["enhanced_decision"].final_signal, f"P&L Trade: {((current_price / last_tx[3]) - 1) * 100:+.2f}%"))
             new_position = 0
             trades.append(
                 {
@@ -667,6 +652,8 @@ class EnhancedTradingSystem:
             total_value=total_value,
             benchmark_value=benchmark_value,
         )
+        if pending_transactions:
+            insert_transactions_batch(pending_transactions)
         return trades
 
     def update_performance_monitoring(self, analysis_results, current_etf_price, trades):

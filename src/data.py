@@ -14,6 +14,7 @@ from hyperliquid.utils import constants
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 load_dotenv()
+yf.config.network.retries = 2
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,7 @@ def _yf_download(*args, **kwargs):
             f"Skipping for {_YF_CIRCUIT_BREAKER_COOLDOWN - int(_time.time() - _yf_download_tracker['last_failure'])}s."
         )
     try:
-        result = yf.download(*args, **kwargs)
+        result = yf.download(*args, **kwargs, multi_level_index=False)
         _yf_record_success(_yf_download_tracker)
         return result
     except Exception:
@@ -458,9 +459,9 @@ def get_alpha_vantage_data(
             return pd.DataFrame()
 
         df = pd.DataFrame(df_list)
-        df.sort_values("date", inplace=True)
-        df.reset_index(drop=True, inplace=True)
-        df.rename(columns={"value": function.lower()}, inplace=True)
+        df = df.sort_values("date")
+        df = df.reset_index(drop=True)
+        df = df.rename(columns={"value": function.lower()})
 
         logger.info(f"Successfully fetched {len(df)} data points for {function} ({symbol}).")
         # Save to cache
@@ -684,10 +685,10 @@ def get_fred_data_via_pdr(series_id: str, force_refresh: bool = False) -> pd.Dat
         # FRED data via pandas-datareader has the series name as the column name
         value_col = data.columns[0]
         df = data[[value_col]].reset_index()
-        df.rename(columns={"DATE": "date", value_col: "value"}, inplace=True)
+        df = df.rename(columns={"DATE": "date", value_col: "value"})
         df["date"] = pd.to_datetime(df["date"])
-        df.sort_values("date", inplace=True)
-        df.reset_index(drop=True, inplace=True)
+        df = df.sort_values("date")
+        df = df.reset_index(drop=True)
 
         logger.info(f"Successfully fetched {len(df)} data points for FRED series {series_id} via pandas-datareader.")
         # Save to cache
@@ -888,8 +889,9 @@ def fetch_macro_data_for_date(date: pd.Timestamp, force_refresh: bool = False) -
 
             if not df.empty:
                 # Get the most recent value before or on the analysis date
-                df["date"] = pd.to_datetime(df["date"])
-                valid_data = df[df["date"] <= date]
+                df["date"] = pd.to_datetime(df["date"], utc=True).dt.tz_convert(None)
+                date_naive = pd.Timestamp(date).tz_localize(None) if pd.Timestamp(date).tz is not None else pd.Timestamp(date)
+                valid_data = df[df["date"] <= date_naive]
 
                 if not valid_data.empty:
                     latest_value = valid_data.iloc[-1]["value"]

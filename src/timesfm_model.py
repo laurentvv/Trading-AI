@@ -15,6 +15,8 @@ try:
     # import timesfm
     from timesfm.timesfm_2p5.timesfm_2p5_torch import TimesFM_2p5_200M_torch
     from timesfm.configs import ForecastConfig
+    import torch
+    torch.set_float32_matmul_precision('high')
 
     TIMESFM_2P5_AVAILABLE = True
     logger.info("API TimesFM 2.5 (Torch) chargée avec succès.")

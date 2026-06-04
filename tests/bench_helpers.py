@@ -32,7 +32,7 @@ def download(ticker: str) -> pd.DataFrame:
     except Exception:
         import yfinance as yf
 
-        raw = yf.download(ticker, period="10y", auto_adjust=True, progress=False)
+        raw = yf.download(ticker, period="10y", auto_adjust=True, progress=False, multi_level_index=False)
         if isinstance(raw.columns, pd.MultiIndex):
             raw.columns = [c[0] for c in raw.columns]
         return strip_tz(raw[["Close"]].dropna())
