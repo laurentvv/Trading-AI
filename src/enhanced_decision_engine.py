@@ -252,6 +252,8 @@ class VincentGanneModel(BaseModel):
         confidence = score / max_score if max_score > 0 else 0
 
         # HARD BLOCK: If Oil is too high, it's NOT a market bottom (Vincent Ganne rule)
+        wti = indicators.get("WTI_price")
+        brent = indicators.get("Brent_price")
         oil_is_too_high = (wti and wti >= 94) or (brent and brent >= 95)
 
         if oil_is_too_high:
