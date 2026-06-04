@@ -889,8 +889,9 @@ def fetch_macro_data_for_date(date: pd.Timestamp, force_refresh: bool = False) -
 
             if not df.empty:
                 # Get the most recent value before or on the analysis date
-                df["date"] = pd.to_datetime(df["date"])
-                valid_data = df[df["date"] <= date]
+                df["date"] = pd.to_datetime(df["date"], utc=True).dt.tz_convert(None)
+                date_naive = pd.Timestamp(date).tz_localize(None) if pd.Timestamp(date).tz is not None else pd.Timestamp(date)
+                valid_data = df[df["date"] <= date_naive]
 
                 if not valid_data.empty:
                     latest_value = valid_data.iloc[-1]["value"]

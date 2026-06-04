@@ -221,7 +221,7 @@ class EnhancedTradingSystem:
 
         if len(y.unique()) < 2:
             logger.warning("Données insuffisantes pour l'entraînement - moins de 2 classes")
-            return None, None
+            return None
 
         # Check if we have enough valid data
         valid_data_count = (~y.isnull()).sum()
@@ -229,7 +229,7 @@ class EnhancedTradingSystem:
             logger.warning(
                 f"Données insuffisantes pour l'entraînement - seulement {valid_data_count} échantillons valides"
             )
-            return None, None
+            return None
 
         try:
             # Entraînement du modèle
@@ -238,7 +238,7 @@ class EnhancedTradingSystem:
             return classic_pipeline
         except Exception as e:
             logger.error(f"Erreur lors de l'entraînement du modèle: {e}")
-            return None, None
+            return None
 
     def get_model_predictions(
         self, data_with_features, classic_pipeline, vg_indicators=None, wti_data=None, nasdaq_data=None
@@ -251,7 +251,10 @@ class EnhancedTradingSystem:
         # 1. Prédiction du modèle classique
         if classic_pipeline is not None:
             try:
-                feature_cols = [col for col in classic_pipeline.named_steps["scaler"].feature_names_in_ if col in latest_data.columns]
+                if hasattr(classic_pipeline, "named_steps"):
+                    feature_cols = [col for col in classic_pipeline.named_steps["scaler"].feature_names_in_ if col in latest_data.columns]
+                else:
+                    feature_cols = list(latest_data.columns)
                 latest_features = latest_data[feature_cols]
 
                 # Log feature information
@@ -529,7 +532,7 @@ class EnhancedTradingSystem:
             ) = self.prepare_data_and_features()
 
             # 2. Entraînement du modèle classique
-            classic_model, scaler = self.train_classic_model(data_with_features)
+            classic_model = self.train_classic_model(data_with_features)
 
             # 3. Prédictions de tous les modèles
 
@@ -540,7 +543,6 @@ class EnhancedTradingSystem:
             model_predictions = self.get_model_predictions(
                 data_with_features,
                 classic_model,
-                scaler,
                 vg_indicators=vg_indicators,
                 wti_data=wti_data,
                 nasdaq_data=nasdaq_data,

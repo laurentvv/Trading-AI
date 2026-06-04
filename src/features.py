@@ -111,7 +111,7 @@ def _align_macro_data(market_data: pd.DataFrame, macro_data_dict: dict) -> pd.Da
     # Forward-fill macro data to propagate the latest known values
     for col in macro_data_dict.keys():
         if col in combined_df.columns:
-            combined_df[col] = combined_df[col].ffill()  # Updated from deprecated fillna(method='ffill')
+            combined_df[col] = combined_df[col].infer_objects(copy=False).ffill()
 
     return combined_df
 

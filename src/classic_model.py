@@ -37,8 +37,7 @@ def _load_cached_model(cache_hash: str):
                 cached = pickle.load(f)
             logger.info(f"Modele classique charge depuis le cache (hash={cache_hash[:12]}...)")
             return (
-                cached["model"],
-                cached["scaler"],
+                cached["pipeline"],
                 cached["metrics"],
                 cached.get("feature_importance"),
             )
