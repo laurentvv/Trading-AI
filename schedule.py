@@ -17,20 +17,9 @@ END_HOUR = 18
 END_MINUTE = 0
 
 # Setup Logging
-if sys.stdout.encoding != "utf-8":
-    try:
-        sys.stdout.reconfigure(encoding="utf-8")
-    except (AttributeError, Exception):
-        pass
+from src.bootstrap import setup_environment
+setup_environment("scheduler.log")
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[
-        RotatingFileHandler("scheduler.log", maxBytes=1_000_000, backupCount=3, encoding="utf-8"),
-        logging.StreamHandler(sys.stdout),
-    ],
-)
 logger = logging.getLogger("TradingScheduler")
 console = Console()
 

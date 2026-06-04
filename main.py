@@ -24,25 +24,13 @@ from enhanced_trading_example import EnhancedTradingSystem
 from t212_executor import execute_t212_trade, load_portfolio_state as load_t212_state
 from database import get_latest_portfolio_state, get_latest_transaction
 from llm_client import check_ollama_health
+from bootstrap import setup_environment
 
 # Load environment
 load_dotenv()
 
 # Setup logging
-if sys.stdout.encoding != "utf-8":
-    try:
-        sys.stdout.reconfigure(encoding="utf-8")
-    except (AttributeError, Exception):
-        pass
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[
-        RotatingFileHandler("trading.log", maxBytes=5_000_000, backupCount=5, encoding="utf-8"),
-        logging.StreamHandler(sys.stdout),
-    ],
-)
+setup_environment("trading.log")
 logger = logging.getLogger("TradingAI")
 
 

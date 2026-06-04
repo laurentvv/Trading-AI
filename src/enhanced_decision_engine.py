@@ -125,24 +125,18 @@ class VincentGanneModel(BaseModel):
             metadata=eval_result,
         )
 
-    def evaluate(self, indicators: dict) -> dict:
-        """
-        Evaluates the current indicators against Vincent Ganne's rules.
-        Distinguishes between Minimum Technical Level and Ideal/Strong Signal.
-        """
-        score = 0
-        max_score = 0
-        reasons = []
-
+    def _evaluate_oil(self, indicators: dict) -> tuple[float, float, list[str]]:
+        score, max_score, reasons = 0.0, 0.0, []
+        
         # 1. WTI Oil (CRITICAL - Priority 1)
         wti = indicators.get("WTI_price")
         if wti:
             max_score += 10
             if wti < self.thresholds["WTI"]["ideal"]:
-                score += 10  # FULL POINTS for IDEAL level
+                score += 10
                 reasons.append(f"WTI STRONG SIGNAL: Ideal level reached ({wti:.2f} <= 80$)")
             elif wti < self.thresholds["WTI"]["max"]:
-                score += 5  # HALF POINTS for Minimum Technical Level
+                score += 5
                 reasons.append(f"WTI Minimum validation ({wti:.2f} < 94$)")
             else:
                 reasons.append(f"WTI TOO HIGH ({wti:.2f} >= 94$)")
@@ -169,9 +163,13 @@ class VincentGanneModel(BaseModel):
                 score += 2.5
                 reasons.append(f"Brent Spread NORMAL: Moderate tension (${brent_spread:.2f})")
             elif brent_spread > 15:
-                # No points, just a reason
                 reasons.append(f"Brent Spread EXTREME: Physical Scarcity (${brent_spread:.2f})")
+                
+        return score, max_score, reasons
 
+    def _evaluate_gas_and_urea(self, indicators: dict) -> tuple[float, float, list[str]]:
+        score, max_score, reasons = 0.0, 0.0, []
+        
         # 3. Natural Gas TTF (Priority 3)
         gas = indicators.get("NaturalGas_price")
         if gas:
@@ -190,7 +188,12 @@ class VincentGanneModel(BaseModel):
             if urea < self.thresholds["Urea"]["max"]:
                 score += 4
                 reasons.append("Urea Minimum validation (Supply chain relief)")
+                
+        return score, max_score, reasons
 
+    def _evaluate_macro(self, indicators: dict) -> tuple[float, float, list[str]]:
+        score, max_score, reasons = 0.0, 0.0, []
+        
         # US 2Y vs Fed Rate (Normalization)
         yield_2y = indicators.get("US2Y_yield")
         fed_rate = indicators.get("Fed_rate")
@@ -210,7 +213,7 @@ class VincentGanneModel(BaseModel):
             elif dxy < self.thresholds["DXY"]["max"]:
                 score += 1.5
                 reasons.append(f"DXY Minimum validation ({dxy:.2f})")
-
+                
         # Confirmation Technicals (MA200)
         for idx in ["SP500", "Nasdaq", "DowJones", "TechSector"]:
             if indicators.get(f"{idx}_above_ma200"):
@@ -220,10 +223,30 @@ class VincentGanneModel(BaseModel):
         # ENRICHMENT 2026: Hyperliquid Contrarian Signal (Funding Rate)
         funding = indicators.get("HL_OIL_funding")
         if funding is not None:
-            # A very negative funding rate on OIL suggests extreme bearishness (Short Squeeze potential)
             if funding < -0.05:  # Extreme negative
                 score += 2
                 reasons.append(f"Hyperliquid Contrarian: Extreme negative funding ({funding:.2f}%)")
+                
+        return score, max_score, reasons
+
+    def evaluate(self, indicators: dict) -> dict:
+        """
+        Evaluates the current indicators against Vincent Ganne's rules.
+        Distinguishes between Minimum Technical Level and Ideal/Strong Signal.
+        """
+        score = 0
+        max_score = 0
+        reasons = []
+
+        # Aggregate scores from helpers
+        o_score, o_max, o_reasons = self._evaluate_oil(indicators)
+        score += o_score; max_score += o_max; reasons.extend(o_reasons)
+        
+        gu_score, gu_max, gu_reasons = self._evaluate_gas_and_urea(indicators)
+        score += gu_score; max_score += gu_max; reasons.extend(gu_reasons)
+        
+        m_score, m_max, m_reasons = self._evaluate_macro(indicators)
+        score += m_score; max_score += m_max; reasons.extend(m_reasons)
 
         # FINAL DECISION LOGIC
         confidence = score / max_score if max_score > 0 else 0
@@ -287,18 +310,10 @@ class EnhancedDecisionEngine:
                 {"trending": {"grebenkov": 1.5, "timesfm": 1.2, "classic": 0.7},
                  "ranging": {"classic": 1.5, "tensortrade": 1.3, "grebenkov": 0.6}}
         """
+        from src.config_weights import DEFAULT_BASE_WEIGHTS
+
         self.config = config or {}
-        self.base_weights = base_weights or {
-            "classic": 0.13,
-            "llm_text": 0.21,
-            "llm_visual": 0.19,
-            "sentiment": 0.16,
-            "timesfm": 0.20,
-            "vincent_ganne": 0.05,
-            "oil_bench": 0.05,
-            "tensortrade": 0.05,
-            "grebenkov": 0.05,
-        }
+        self.base_weights = base_weights or DEFAULT_BASE_WEIGHTS.copy()
 
         # Initialize models with config thresholds
         vg_thresholds = self.config.get("model_thresholds", {}).get("vincent_ganne")
@@ -467,6 +482,45 @@ class EnhancedDecisionEngine:
 
         return decision
 
+    def _convert_legacy_inputs(self, timestamp, decisions, classic_pred, classic_conf, legacy_models, vincent_ganne_indicators):
+        if classic_pred is not None:
+            decisions.append(
+                ModelDecision(
+                    signal="BUY" if classic_pred == 1 else "SELL",
+                    confidence=classic_conf,
+                    strength=self._normalize_signal("BUY" if classic_pred == 1 else "SELL"),
+                    timestamp=timestamp,
+                    model_name="classic",
+                    reasoning="Quantitative model prediction",
+                )
+            )
+
+        for model_name, dec in legacy_models.items():
+            if dec:
+                decisions.append(
+                    ModelDecision(
+                        signal=dec.get("signal", "HOLD"),
+                        confidence=dec.get("confidence", 0.0),
+                        strength=self._normalize_signal(dec.get("signal", "HOLD")),
+                        timestamp=timestamp,
+                        model_name=model_name,
+                        reasoning=dec.get("analysis", f"{model_name} analysis"),
+                    )
+                )
+
+        if vincent_ganne_indicators:
+            vg_decision = self.vincent_ganne_model.evaluate(vincent_ganne_indicators)
+            decisions.append(
+                ModelDecision(
+                    signal=vg_decision["signal"],
+                    confidence=vg_decision["confidence"],
+                    strength=self._normalize_signal(vg_decision["signal"]),
+                    timestamp=timestamp,
+                    model_name="vincent_ganne",
+                    reasoning=vg_decision["analysis"],
+                )
+            )
+
     def make_enhanced_decision(
         self,
         classic_pred: int = None,
@@ -486,22 +540,6 @@ class EnhancedDecisionEngine:
         """
         Enhanced decision making with consensus validation and risk management.
         Supports both legacy explicit parameters and new generic model results list.
-
-        Args:
-            classic_pred: Classic model prediction (0 or 1)
-            classic_conf: Classic model confidence
-            text_llm_decision: Text LLM decision dict
-            visual_llm_decision: Visual LLM decision dict
-            sentiment_decision: Sentiment analysis decision dict
-            timesfm_decision: TimesFM forecasting decision dict
-            vincent_ganne_indicators: Indicators for Vincent Ganne model
-            oil_bench_decision: Oil Bench model decision dict
-            market_data: Current market indicators
-            adaptive_weights: Optional adaptive weights for models
-            generic_model_results: List of ModelDecision objects (New API)
-
-        Returns:
-            HybridDecision object with detailed decision information
         """
         timestamp = datetime.now()
         market_data = market_data or {}
@@ -533,18 +571,6 @@ class EnhancedDecisionEngine:
 
         # If we have legacy parameters, convert them and add to decisions
         if not generic_model_results:
-            if classic_pred is not None:
-                decisions.append(
-                    ModelDecision(
-                        signal="BUY" if classic_pred == 1 else "SELL",
-                        confidence=classic_conf,
-                        strength=self._normalize_signal("BUY" if classic_pred == 1 else "SELL"),
-                        timestamp=timestamp,
-                        model_name="classic",
-                        reasoning="Quantitative model prediction",
-                    )
-                )
-
             legacy_models = {
                 "llm_text": text_llm_decision,
                 "llm_visual": visual_llm_decision,
@@ -554,32 +580,7 @@ class EnhancedDecisionEngine:
                 "oil_bench": oil_bench_decision,
                 "grebenkov": grebenkov_decision,
             }
-
-            for model_name, dec in legacy_models.items():
-                if dec:
-                    decisions.append(
-                        ModelDecision(
-                            signal=dec.get("signal", "HOLD"),
-                            confidence=dec.get("confidence", 0.0),
-                            strength=self._normalize_signal(dec.get("signal", "HOLD")),
-                            timestamp=timestamp,
-                            model_name=model_name,
-                            reasoning=dec.get("analysis", f"{model_name} analysis"),
-                        )
-                    )
-
-            if vincent_ganne_indicators:
-                vg_decision = self.vincent_ganne_model.evaluate(vincent_ganne_indicators)
-                decisions.append(
-                    ModelDecision(
-                        signal=vg_decision["signal"],
-                        confidence=vg_decision["confidence"],
-                        strength=self._normalize_signal(vg_decision["signal"]),
-                        timestamp=timestamp,
-                        model_name="vincent_ganne",
-                        reasoning=vg_decision["analysis"],
-                    )
-                )
+            self._convert_legacy_inputs(timestamp, decisions, classic_pred, classic_conf, legacy_models, vincent_ganne_indicators)
 
         if not decisions:
             logger.warning("No model decisions provided to EnhancedDecisionEngine")

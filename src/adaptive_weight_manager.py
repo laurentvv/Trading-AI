@@ -90,18 +90,15 @@ class AdaptiveWeightManager:
             min_observations: Minimum observations needed for weight adjustment
             config: Optional configuration dictionary
         """
+        from src.config_weights import DEFAULT_BASE_WEIGHTS
+
         self.db_path = db_path
         self.config = config or {}
-        self.base_weights = base_weights or {
-            "classic": 0.13,
-            "llm_text": 0.21,
-            "llm_visual": 0.19,
-            "sentiment": 0.16,
-            "timesfm": 0.20,
-            "vincent_ganne": 0.05,
-            "oil_bench": 0.05,
-            "tensortrade": 0.05,
-        }
+        
+        # Adaptive weight manager might receive less default weights but we align it
+        # with the central config (excluding grebenkov if it was missing here, but it's cleaner to use one source)
+        # It's fine to have grebenkov in adaptive manager too, it will just not be updated if no data.
+        self.base_weights = base_weights or DEFAULT_BASE_WEIGHTS.copy()
         self.lookback_days = lookback_days
         self.min_observations = min_observations
 
@@ -152,24 +149,23 @@ class AdaptiveWeightManager:
     def _init_database(self):
         """Initialize performance tracking database"""
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-
-            # Create performance tracking table
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS model_performance_history (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    date TEXT NOT NULL,
-                    model_name TEXT NOT NULL,
-                    signal_predicted TEXT,
-                    actual_outcome INTEGER,
-                    return_1d REAL,
-                    return_5d REAL,
-                    confidence REAL,
-                    market_regime TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                # Create performance tracking table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS model_performance_history (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        date TEXT NOT NULL,
+                        model_name TEXT NOT NULL,
+                        signal_predicted TEXT,
+                        actual_outcome INTEGER,
+                        return_1d REAL,
+                        return_5d REAL,
+                        confidence REAL,
+                        market_regime TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
 
             # Create aggregated performance table
             cursor.execute("""

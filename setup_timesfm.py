@@ -6,7 +6,7 @@ import stat
 from pathlib import Path
 
 
-def on_rm_error(func, path, exc_info):
+def on_rm_error(func, path, *args):
     """
     Handler for shutil.rmtree error on Windows (Read-only files).
     """

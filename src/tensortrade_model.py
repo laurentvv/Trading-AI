@@ -96,7 +96,7 @@ class SimpleTradingEnv(gym.Env):
         obs = self._get_obs()
         return obs, reward, done, False, {}
 
-    def reset(self, seed=None, options=None):
+    def reset(self, seed=None, **kwargs):
         self.current_step = 20
         self.hold_count = 0
         self.in_position = 0.0
