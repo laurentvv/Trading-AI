@@ -14,6 +14,15 @@
 ...
 
 ## 5. Corrections Récentes
+- **2026-06-06**: Ré-activation du mode pensée Gemma (`<|think|>`)
+  * **Contexte** : Le token `<|think|>` avait été retiré des prompts système en mai 2026 pour neutraliser un bug d'extraction JSON (débris `<|channel>thought` corrompant les réponses). L'analyse rétrospective a montré que la **vraie** défense est le schéma JSON strict (`additionalProperties: false`) passé via le paramètre `format` d'Ollama — pas l'absence du token.
+  * **Changement** : Ré-introduction de `"<|think|> "` en préfixe du system prompt aux 4 sites d'appel production : `src/llm_client.py:188` (texte), `:236` (visuel), `src/oil_bench_model.py:158` (oil bench), `src/web_researcher.py:205` (recherche web). Suffixe défensif `"...never add a 'thought' key."` **conservé** comme seconde couche.
+  * **Validation (branche `think-mode`)** :
+    - 12/12 tests mockés pytest OK (`test_llm_client`, `test_llm_prompts`, `test_oil_bench_model`).
+    - `tests/check_llm_json.py` : 6/10 cas OK — **tous** les cas schema-strict passent avec `<|think|>` actif (`v3_schema`, `v6_schema`, `v7_schema_strict`, `oil_v1_buggy`, `oil_v2_fixed`, `oil_v3_schema`). Les 4 échecs sont sur des variantes `format:json` (loose) qui **ne sont pas** utilisées en production.
+    - `uv run main.py --t212` : exit 0, 4.66 min total, 2 nouvelles lignes dans `trading_journal.csv` (CRUDP.PA HOLD 19.16%, SXRV.DE BUY 35.18%), zéro erreur `"Could not find valid JSON"` dans `trading.log`.
+  * **Décision** : Documentée dans `docs/ADR-001-think-mode-dual-layer-defence.md` (défense bi-couche, preuves du harness, procédure de reversal).
+  * **Branche** : `think-mode` (créée pour la validation, fusionnée sur `main`).
 - **2026-05-15**: Intégration Données T212 Hybrides (Live Price + Portfolio Sync)
   * **`_inject_t212_live_price()`** dans `src/data.py` : Après le chargement des données Yahoo (OHLCV historique), la dernière barre Close/High/Low des ETFs T212 est patchée avec le prix live Trading 212 (via `/equity/positions`). Ne s'applique qu'aux tickers mappés (`SXRV.DE`, `SXRV.FRK`, `CRUDP.PA`). L'indice (^NDX, ^VIX, CL=F) n'est pas affecté.
   * **`sync_state_from_t212()`** dans `src/t212_executor.py` : Nouvelle fonction qui reconstruit l'état du portefeuille directement depuis les données T212 réelles (`/equity/positions` pour les positions ouvertes, `/equity/history/orders` pour le P&L réalisé). Utilise un matching FIFO pour les lots d'achat.

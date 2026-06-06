@@ -202,7 +202,7 @@ def generate_search_query(ticker: str, latest_data: pd.DataFrame = None, use_cac
         "stream": False,
         "format": SCHEMA_SEARCH_QUERY,
         "options": {"temperature": 0.4, "num_predict": 512},
-        "system": "You are a professional financial researcher. Be precise and focus on current market catalysts. Output ONLY the requested JSON object — never add a 'thought' key.",
+        "system": "<|think|> You are a professional financial researcher. Be precise and focus on current market catalysts. Output ONLY the requested JSON object — never add a 'thought' key.",
     }
 
     try:

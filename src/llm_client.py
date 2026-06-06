@@ -185,7 +185,7 @@ def get_llm_decision(
         "stream": False,
         "format": SCHEMA_TRADING_DECISION,
         "options": {"temperature": 0.4, "num_predict": 1024},
-        "system": "You are an expert financial analyst. Your task is to analyze market data and news to provide a trading decision in a valid JSON format. Output ONLY the JSON object requested — never add a 'thought' key.",
+        "system": "<|think|> You are an expert financial analyst. Your task is to analyze market data and news to provide a trading decision in a valid JSON format. Output ONLY the JSON object requested — never add a 'thought' key.",
     }
     return _query_ollama(payload)
 
@@ -233,7 +233,7 @@ def get_visual_llm_decision(image_path: Path) -> dict:
         "stream": False,
         "format": SCHEMA_TRADING_DECISION,
         "options": {"temperature": 0.1, "num_predict": 1024},
-        "system": "You are a geometric chart analyst. Return ONLY the requested JSON object — never add a 'thought' key.",
+        "system": "<|think|> You are a geometric chart analyst. Return ONLY the requested JSON object — never add a 'thought' key.",
     }
     return _query_ollama(payload)
 

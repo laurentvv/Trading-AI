@@ -5,6 +5,34 @@ format json, etc.) et affiche la réponse brute + resultat du parsing.
 Permet de reproduire le bug "Could not find valid JSON with keys ['query']"
 sans faire tourner tout le pipeline de trading.
 
+Note (re-enablement du 2026-06-06) :
+    Le token `<|think|>` a été ré-introduit dans les 4 prompts système
+    de production (src/llm_client.py, src/oil_bench_model.py,
+    src/web_researcher.py) sur la branche `think-mode`. Les cas `*_v1_buggy`
+    ci-dessous correspondent désormais au chemin **production** (avec
+    `<|think|>` actif) ; les cas `v2_fixed` / `v3_schema` restent exécutés
+    comme références défensives (sans `<|think|>` / avec schema strict seul).
+
+    Deux issues sont acceptables :
+      * Tous les cas OK → Gemma 4 12B produit un JSON propre même avec
+        `<|think|>`, la défense par `format: SCHEMA_*` suffit.
+      * Les `*_v1_buggy` échouent avec le symptôme historique (débris
+        `<|channel>thought` dans le JSON) → validation négative réussie :
+        on confirme que c'est la contrainte de schéma qui porte la
+        sécurité, pas l'absence du token. Le script exit non-zéro mais
+        le résumé reste informatif.
+
+Résultats mesurés au moment de la ré-activation (2026-06-06, commit de
+référence sur la branche `think-mode`) :
+      * OK  : query_v6_schema, query_v7_schema_strict,
+              decision_v3_schema, oil_v1_buggy, oil_v2_fixed, oil_v3_schema
+      * FAIL: query_v1_prod_buggy, query_v4_strict,
+              decision_v1_buggy, decision_v2_fixed
+    Tous les cas schema-strict passent avec `<|think|>` actif. Tous les
+    échecs concernent des variantes `format:json` (loose) — non utilisées
+    en production. La défense par schéma strict est donc confirmée comme
+    la couche porteuse ; voir `docs/ADR-001-think-mode-dual-layer-defence.md`.
+
 Usage:
     uv run tests/check_llm_json.py                # tous les cas
     uv run tests/check_llm_json.py --filter query # filtrer par cas
