@@ -8,9 +8,11 @@ import logging
 import sys
 import argparse
 import csv
+import threading
 from datetime import datetime
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from dotenv import load_dotenv
 from rich.console import Console
 from rich.panel import Panel
@@ -33,6 +35,39 @@ load_dotenv()
 setup_environment("trading.log")
 logger = logging.getLogger("TradingAI")
 
+# Cycle timeout: 15 minutes per ticker. Prevents infinite hangs on LLM calls.
+CYCLE_TIMEOUT_SECONDS = 15 * 60
+
+# Per-ticker locks preventing concurrent execution of run_trading_analysis
+# on the same ticker (defense against orphan threads from a previous cycle
+# timeout that may still be running). Keyed by ticker symbol.
+_TICKER_LOCKS: dict[str, threading.Lock] = {}
+_TICKER_LOCKS_GUARD = threading.Lock()
+
+
+def _get_ticker_lock(ticker: str) -> threading.Lock:
+    """Returns (or creates) a per-ticker lock for serializing T212 trades."""
+    with _TICKER_LOCKS_GUARD:
+        lock = _TICKER_LOCKS.get(ticker)
+        if lock is None:
+            lock = threading.Lock()
+            _TICKER_LOCKS[ticker] = lock
+        return lock
+
+
+# Cancel events per ticker: set by the cycle timeout handler so the orphan
+# worker thread can bail out before placing a real T212 order.
+_TICKER_CANCEL_EVENTS: dict[str, threading.Event] = {}
+
+
+def _get_cancel_event(ticker: str) -> threading.Event:
+    """Returns (or creates) a per-ticker cancel event."""
+    ev = _TICKER_CANCEL_EVENTS.get(ticker)
+    if ev is None:
+        ev = threading.Event()
+        _TICKER_CANCEL_EVENTS[ticker] = ev
+    return ev
+
 
 def check_setup() -> bool:
     """Vérifie si TimesFM 2.5 est correctement installé et patché"""
@@ -52,7 +87,12 @@ def check_setup() -> bool:
     return True
 
 
-def run_trading_analysis(ticker: str, is_simulation: bool = False, is_t212: bool = False):
+def run_trading_analysis(
+    ticker: str,
+    is_simulation: bool = False,
+    is_t212: bool = False,
+    cancel_event: threading.Event | None = None,
+):
     if not check_setup():
         return
 
@@ -140,16 +180,39 @@ def run_trading_analysis(ticker: str, is_simulation: bool = False, is_t212: bool
 
             if signal in ["BUY", "STRONG_BUY", "SELL", "STRONG_SELL"]:
                 exec_signal = "BUY" if "BUY" in signal else "SELL"
-                console.print(
-                    f"[bold yellow]🚀 Execution of the signal on Trading 212 for {ticker}... (original: {signal})[/bold yellow]"
-                )
-                execute_t212_trade(
-                    exec_signal,
-                    confidence,
-                    ticker=ticker,
-                    analysis_date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    signal_source="IA_HYBRID_T212",
-                )
+
+                # --- Safety: cancel check + per-ticker lock ---
+                # If the cycle has been cancelled (timeout from main loop),
+                # do NOT place a real T212 order — the user has already been
+                # told "HOLD appliqué". This prevents orphan threads from
+                # executing real-money trades after the panel has been shown.
+                if cancel_event is not None and cancel_event.is_set():
+                    logger.warning(
+                        f"⏱ Cycle for {ticker} was cancelled — skipping T212 {exec_signal} "
+                        f"(original signal was {signal}) to avoid orphan-thread trade"
+                    )
+                    console.print(
+                        f"[bold orange3]⏱ T212 {exec_signal} SKIPPED: cycle was cancelled by timeout[/bold orange3]"
+                    )
+                else:
+                    ticker_lock = _get_ticker_lock(ticker)
+                    with ticker_lock:
+                        # Re-check cancel_event after acquiring the lock —
+                        # protects against the case where the lock was held
+                        # by an orphan from a previous cycle that just released it.
+                        if cancel_event is not None and cancel_event.is_set():
+                            logger.warning(f"⏱ Cancel detected after lock — skipping T212 {exec_signal}")
+                        else:
+                            console.print(
+                                f"[bold yellow]🚀 Execution of the signal on Trading 212 for {ticker}... (original: {signal})[/bold yellow]"
+                            )
+                            execute_t212_trade(
+                                exec_signal,
+                                confidence,
+                                ticker=ticker,
+                                analysis_date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                signal_source="IA_HYBRID_T212",
+                            )
             else:
                 console.print(f"[bold blue]ℹ️ No trade executed (Signal is {signal})[/bold blue]")
 
@@ -297,7 +360,48 @@ if __name__ == "__main__":
     start_time = time.time()
 
     for t in args.ticker:
-        run_trading_analysis(t, args.simul, args.t212)
+        ticker_start = time.time()
+        # Per-ticker cancel event: set on cycle timeout so the orphan worker
+        # can bail out before placing a real T212 order. Persisted across
+        # cycles so an orphan from cycle N is still visible to cycle N+1.
+        cancel_event = _get_cancel_event(t)
+        cancel_event.clear()  # Reset for this cycle
+
+        # Per-ticker lock prevents two concurrent run_trading_analysis on the
+        # same ticker (orphan thread from cycle N + new thread from cycle N+1).
+        # IMPORTANT: We do NOT use `with ThreadPoolExecutor(...)` because
+        # __exit__ calls shutdown(wait=True) which would block on timeout.
+        # Instead we explicitly shutdown(wait=False) so the next ticker can
+        # proceed immediately. The orphan thread keeps running but is gated
+        # by the cancel_event check + the per-ticker lock before any T212 trade.
+        ex = ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"cycle_{t}")
+        future = ex.submit(run_trading_analysis, t, args.simul, args.t212, cancel_event)
+        try:
+            future.result(timeout=CYCLE_TIMEOUT_SECONDS)
+            ex.shutdown(wait=True)
+        except FuturesTimeoutError:
+            elapsed = time.time() - ticker_start
+            cancel_event.set()  # Signal the orphan worker to bail before T212 trade
+            logger.error(
+                f"Cycle timeout ({CYCLE_TIMEOUT_SECONDS}s) reached for {t} after {elapsed:.1f}s — "
+                f"cancel_event set; orphan thread will skip T212 execution"
+            )
+            ex.shutdown(wait=False)  # Do NOT block — daemon thread keeps running
+            console = Console()
+            console.print(
+                Panel(
+                    f"[bold red]⏱ Cycle timeout for {t} ({elapsed:.1f}s > {CYCLE_TIMEOUT_SECONDS}s)[/bold red]\n"
+                    f"Le cycle a été interrompu. Le signal HOLD est appliqué par défaut.\n"
+                    f"L'event d'annulation a été armé : le thread orphelin ne pourra\n"
+                    f"pas passer d'ordre T212 réel même s'il termine l'analyse.",
+                    title="Cycle Timeout",
+                    border_style="red",
+                )
+            )
+        except Exception as cycle_exc:
+            logger.error(f"Unexpected error during cycle for {t}: {cycle_exc}")
+            cancel_event.set()
+            ex.shutdown(wait=False)
 
     duration = time.time() - start_time
     logging.info(f"Total execution time: {duration:.2f} seconds ({duration / 60:.2f} minutes)")

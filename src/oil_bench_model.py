@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import yfinance as yf
 
 from eia_client import EIAClient
-from llm_client import TEXT_LLM_MODEL, _query_ollama
+from llm_client import TEXT_LLM_MODEL, _query_ollama, SCHEMA_OIL_ALLOCATION
 
 logger = logging.getLogger(__name__)
 
@@ -153,8 +153,9 @@ Return ONLY a JSON object:
             "model": TEXT_LLM_MODEL,
             "prompt": prompt,
             "stream": False,
-            "format": "json",
-            "system": "You are a senior commodity quantitative analyst specializing in WTI Crude Oil. Return ONLY valid JSON.",
+            "format": SCHEMA_OIL_ALLOCATION,
+            "options": {"temperature": 0.1, "num_predict": 1024},
+            "system": "You are a senior commodity quantitative analyst specializing in WTI Crude Oil. Return ONLY valid JSON — never add a 'thought' key.",
         }
         return _query_ollama(payload, expected_keys=["allocation", "reasoning"])
 

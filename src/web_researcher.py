@@ -1,11 +1,16 @@
 import asyncio
 from ddgs import DDGS
+import hashlib
+import json
 import logging
+import math
+import re
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
+from pathlib import Path
 from dotenv import load_dotenv
 from typing import List, Dict
-from llm_client import TEXT_LLM_MODEL, _query_ollama
+from llm_client import TEXT_LLM_MODEL, _query_ollama, SCHEMA_SEARCH_QUERY
 
 try:
     from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
@@ -16,6 +21,113 @@ except ImportError:
 
 
 logger = logging.getLogger(__name__)
+
+# --- Search query cache (24h) ---
+SEARCH_QUERY_CACHE_DIR = Path("data_cache") / "search_queries"
+SEARCH_QUERY_CACHE_TTL_HOURS = 24
+
+# Strict ticker validation: allow letters, digits, ., -, ^, = (e.g. CL=F, ^NDX, BRK.B)
+# Reject path separators, dots followed by path segments, etc.
+_TICKER_RE = re.compile(r"^[A-Za-z0-9.\-\^=]{1,16}$")
+
+# Patterns that indicate an LLM-generated query is invalid (also applied to cached values).
+_INVALID_QUERY_PATTERNS = ["execution failed", "error", "unexpected", "llm", "failed"]
+
+
+def _validate_ticker(ticker: str) -> str:
+    """Validates and returns a safe ticker. Raises ValueError on invalid input."""
+    if not isinstance(ticker, str) or not _TICKER_RE.match(ticker):
+        raise ValueError(f"Invalid ticker (path traversal risk): {ticker!r}")
+    return ticker
+
+
+def get_fallback_search_query(ticker: str) -> str:
+    """Canonical fallback query — single source of truth, used by all callers."""
+    return f"Macroeconomic forecast and market analysis for {ticker}"
+
+
+def _data_signature(latest_data: pd.DataFrame | None) -> str:
+    """Short signature of recent price action to invalidate cache on regime change.
+
+    Returns an empty string when no data is provided (cache key degrades to ticker+date).
+    Buckets close into ~2% log bands and RSI into 10-unit bands — small noise won't bust
+    the cache, but a 10% gap or volatility regime change will.
+    """
+    if latest_data is None or latest_data.empty:
+        return ""
+    try:
+        last = latest_data.iloc[-1]
+        close = float(last["Close"])
+        rsi = float(last.get("RSI", 50))
+        # Log2 bucketing: each bucket is ~1.4% wide (2^(1/50) ≈ 1.014).
+        # close=100 -> bucket=332, close=102 -> bucket=333, close=120 -> bucket=343
+        close_bucket = int(math.log2(max(close, 1e-6)) * 50)
+        rsi_bucket = int(rsi // 10)
+        sig = f"c{close_bucket}_r{rsi_bucket}"
+        # Tiny hash to keep filename short
+        return hashlib.md5(sig.encode("utf-8")).hexdigest()[:8]
+    except Exception:
+        return ""
+
+
+def _search_query_cache_path(ticker: str, data_sig: str = "") -> Path:
+    """Cache filename — includes data signature so regime changes invalidate."""
+    _validate_ticker(ticker)
+    safe_ticker = re.sub(r"[^A-Za-z0-9.\-]", "_", ticker)
+    today = datetime.now().strftime("%Y-%m-%d")
+    if data_sig:
+        return SEARCH_QUERY_CACHE_DIR / f"{safe_ticker}_{today}_{data_sig}.json"
+    return SEARCH_QUERY_CACHE_DIR / f"{safe_ticker}_{today}.json"
+
+
+def _is_query_valid(query) -> bool:
+    """Re-applies the invalid_patterns filter on any candidate query (cached or fresh)."""
+    if not query or not isinstance(query, str):
+        return False
+    q_lower = query.lower()
+    return not any(p in q_lower for p in _INVALID_QUERY_PATTERNS)
+
+
+def _load_cached_search_query(ticker: str, data_sig: str = "") -> str | None:
+    """Returns the cached search query if it exists, is fresh, and passes sanitization."""
+    cache_file = _search_query_cache_path(ticker, data_sig)
+    if not cache_file.exists():
+        return None
+    try:
+        with open(cache_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        cached_at = datetime.fromisoformat(data["cached_at"])
+        age = datetime.now() - cached_at
+        if age < timedelta(hours=SEARCH_QUERY_CACHE_TTL_HOURS):
+            query = data.get("query")
+            if _is_query_valid(query):
+                logger.info(
+                    f"Using cached search query for {ticker} (age={age.total_seconds()/3600:.1f}h): '{query}'"
+                )
+                return query
+            else:
+                logger.warning(
+                    f"Cached search query for {ticker} failed sanitization, treating as cache miss."
+                )
+        else:
+            logger.info(f"Search query cache for {ticker} expired (age={age.total_seconds()/3600:.1f}h).")
+    except Exception as e:
+        logger.warning(f"Failed to read search query cache for {ticker}: {e}")
+    return None
+
+
+def _save_cached_search_query(ticker: str, query: str, data_sig: str = "") -> None:
+    """Persists a *successful* LLM-generated search query to disk.
+
+    IMPORTANT: must never be called with the fallback query — see review Finding #4.
+    """
+    cache_file = _search_query_cache_path(ticker, data_sig)
+    try:
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(cache_file, "w", encoding="utf-8") as f:
+            json.dump({"cached_at": datetime.now().isoformat(), "query": query}, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.warning(f"Failed to save search query cache for {ticker}: {e}")
 
 
 class _GrokipediaFilter(logging.Filter):
@@ -32,11 +144,25 @@ logging.getLogger("crawl4ai").addFilter(_GrokipediaFilter())
 load_dotenv()
 
 
-def generate_search_query(ticker: str, latest_data: pd.DataFrame = None) -> str:
+def generate_search_query(ticker: str, latest_data: pd.DataFrame = None, use_cache: bool = True) -> str:
     """
     Uses the LLM to generate the most relevant web search query for a given ticker.
     Integrates current date and recent price action for temporal relevance.
+
+    Cache strategy (24h TTL, keyed by ticker + date + price-bucket signature):
+    - Successful LLM-generated queries are cached.
+    - Fallback queries are NEVER cached — see review Finding #4.
+    - Cache keys include a price-action signature so a regime change invalidates.
+    - Set ``use_cache=False`` to force regeneration (e.g. for tests).
     """
+    _validate_ticker(ticker)
+    data_sig = _data_signature(latest_data)
+
+    if use_cache:
+        cached = _load_cached_search_query(ticker, data_sig)
+        if cached:
+            return cached
+
     current_date = datetime.now().strftime("%B %Y")
     logger.info(f"Generating dynamic web search query for {ticker} ({current_date})...")
 
@@ -74,24 +200,26 @@ def generate_search_query(ticker: str, latest_data: pd.DataFrame = None) -> str:
         "model": TEXT_LLM_MODEL,
         "prompt": prompt.strip(),
         "stream": False,
-        "format": "json",
-        "system": "You are a professional financial researcher. Be precise and focus on current market catalysts.",
+        "format": SCHEMA_SEARCH_QUERY,
+        "options": {"temperature": 0.4, "num_predict": 512},
+        "system": "You are a professional financial researcher. Be precise and focus on current market catalysts. Output ONLY the requested JSON object — never add a 'thought' key.",
     }
 
     try:
         response = _query_ollama(payload, expected_keys=["query"])
         query = response.get("query")
-        invalid_patterns = ["execution failed", "error", "unexpected", "llm", "failed"]
-        if query and not any(p in str(query).lower() for p in invalid_patterns):
+        if _is_query_valid(query):
             logger.info(f"Generated search query: '{query}'")
+            if use_cache:
+                _save_cached_search_query(ticker, query, data_sig)
             return query
         logger.warning(f"Requete de recherche invalide ignoree: '{query}'")
     except Exception as e:
         logger.error(f"Failed to generate search query: {e}")
 
-    # Fallback
-    fallback_query = f"Macroeconomic forecast and market analysis for {ticker}"
-    logger.warning(f"Using fallback search query: '{fallback_query}'")
+    # Fallback — NEVER cached (would poison 24h after a single LLM failure).
+    fallback_query = get_fallback_search_query(ticker)
+    logger.warning(f"Using fallback search query (not cached): '{fallback_query}'")
     return fallback_query
 
 

@@ -1,4 +1,6 @@
 import pandas as pd
+import matplotlib
+matplotlib.use("Agg")  # Headless backend — safe for use inside worker threads
 import mplfinance as mpf
 import logging
 from pathlib import Path

@@ -8,7 +8,7 @@
     - **TimesFM**: Foundation model for time-series forecasting (Google Research).
     - **stable-baselines3 (PPO)**: Reinforcement Learning agent via custom Gymnasium environment (TensorTrade integration).
     - **Ollama**: Local serving of **Gemma 4 12B (Unsloth)** for text and visual chart analysis.
-    - *Note:* The model uses the `<|think|>` token in the system prompt to activate its advanced chain-of-thought reasoning mode for better accuracy.
+    - *Note:* The model's thinking mode is **disabled** in production (no `<|think|>` token in system prompts). Strict JSON schemas (`additionalProperties: false`) are passed via Ollama's `format` parameter to constrain output to exactly the required keys (`SCHEMA_TRADING_DECISION`, `SCHEMA_SEARCH_QUERY`, `SCHEMA_OIL_ALLOCATION`). This prevents the model from leaking `<|channel>thought` debris into JSON responses — the root cause of the May 2026 "Could not find valid JSON with keys" extraction failures.
 - **Data & Research Architecture**:
     - **yfinance**: Market data download.
     - **pandas-datareader**: Macroeconomic data (FRED).
@@ -23,7 +23,7 @@
 - Entry point: `main.py`.
 
 ## 3. Technical Constraints & Assumptions
-- **Ollama**: Must be running locally with `hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M` (Thinking mode enabled via `<|think|>` token).
+- **Ollama**: Must be running locally with `hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M` (Thinking mode **disabled** — strict JSON schema enforcement via `format` parameter instead).
 - **Trading 212 API**: Specific quantity precision required per instrument (e.g., 2 decimals for CRUDl_EQ, 4 for SXRVd_EQ). API response structure may omit `averagePrice` — code uses fallback calculation (`currentValue / quantity`).
 - **Operating System**: win32 (optimized for Windows terminal with **UTF-8 logging** to support emojis).
 - **Network**: Required for initial API calls (Yahoo, FRED, Alpha Vantage, Hyperliquid).

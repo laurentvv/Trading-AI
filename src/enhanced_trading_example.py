@@ -15,6 +15,7 @@ import subprocess
 import json
 import sys
 import os
+from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 
 # Imports des modules existants
@@ -29,7 +30,7 @@ from features import create_technical_indicators, create_features, select_featur
 from classic_model import train_ensemble_model, get_classic_prediction
 from llm_client import get_llm_decision, get_visual_llm_decision
 from sentiment_analysis import get_sentiment_decision_from_score
-from web_researcher import generate_search_query, get_web_context_sync
+from web_researcher import generate_search_query, get_web_context_sync, get_fallback_search_query
 
 from chart_generator import generate_chart_image
 
@@ -243,8 +244,16 @@ class EnhancedTradingSystem:
     def get_model_predictions(
         self, data_with_features, classic_pipeline, vg_indicators=None, wti_data=None, nasdaq_data=None
     ):
-        """Obtient les prédictions de tous les modèles."""
-        logger.info("Génération des prédictions des modèles...")
+        """Obtient les prédictions de tous les modèles.
+
+        Architecture parallèle :
+        - Phase A (parallèle) : news + search_query + visual_llm + timesfm/tensortrade/grebenkov
+        - Phase B (dès que search_query done) : web_context
+        - Phase C (dès que news + web_context done) : text_llm_decision
+
+        Les appels LLM indépendants tournent dans un ThreadPoolExecutor.
+        """
+        logger.info("Génération des prédictions des modèles (parallèle)...")
 
         latest_data = data_with_features.tail(1)
 
@@ -277,82 +286,229 @@ class EnhancedTradingSystem:
             title=f"{self.ticker} - Enhanced Analysis Chart",
         )
 
-        # 3. Analyse de sentiment et News (Déplacé avant le LLM pour servir de contexte)
-        logger.info("Fetching live news and sentiment...")
-        headlines = []
-        sentiment_score = 0
-        try:
-            script_path = Path(__file__).parent / "news_fetcher.py"
-            python_executable = sys.executable
-            process = subprocess.run(
-                [
-                    python_executable,
-                    str(script_path),
-                    self.ticker,
-                    ALPHA_VANTAGE_API_KEY,
-                ],
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-            if process.returncode != 0:
-                logger.error(f"News fetcher failed (exit {process.returncode}): {process.stderr[:500]}")
-            else:
-                news_data = json.loads(process.stdout)
-                headlines = news_data.get("headlines", [])
-                sentiment_score = news_data.get("sentiment", 0)
-                if not headlines:
-                    logger.warning(f"News fetcher returned 0 headlines. stderr: {process.stderr[:300]}")
-                logger.info(
-                    f"Successfully fetched {len(headlines)} news headlines. Sentiment score: {sentiment_score:.2f}"
+        # ============================================================
+        # PHASE A : lancement en parallèle des tâches indépendantes
+        # ============================================================
+        # Sequential critical path: 240 (search) + 30 (web) + 90 (news wait)
+        # + 240 (text_llm) = 600s. Then visual_llm (300s) and 3 cpu_models
+        # (180s each, parallel) are awaited in finalisation, adding at most
+        # 300s. Total worst case: 600 + 300 = 900s = CYCLE_TIMEOUT_SECONDS.
+        # We use 6 workers: 4 LLM-capable tasks + 3 CPU-model tasks = 7 in flight,
+        # but LLM calls serialize inside Ollama anyway so 6 workers is fine.
+        executor = ThreadPoolExecutor(max_workers=6, thread_name_prefix="model_pred")
+
+        # Tâche A1 : fetch news (subprocess ~30s)
+        def _fetch_news_task():
+            headlines = []
+            sentiment_score = 0
+            try:
+                script_path = Path(__file__).parent / "news_fetcher.py"
+                python_executable = sys.executable
+                process = subprocess.run(
+                    [
+                        python_executable,
+                        str(script_path),
+                        self.ticker,
+                        ALPHA_VANTAGE_API_KEY,
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
                 )
+                if process.returncode != 0:
+                    logger.error(f"News fetcher failed (exit {process.returncode}): {process.stderr[:500]}")
+                else:
+                    news_data = json.loads(process.stdout)
+                    headlines = news_data.get("headlines", [])
+                    sentiment_score = news_data.get("sentiment", 0)
+                    if not headlines:
+                        logger.warning(f"News fetcher returned 0 headlines. stderr: {process.stderr[:300]}")
+                    logger.info(
+                        f"Successfully fetched {len(headlines)} news headlines. Sentiment score: {sentiment_score:.2f}"
+                    )
+            except Exception as e:
+                logger.error(f"Failed to fetch news: {e}")
+            return headlines, sentiment_score
+
+        # Tâche A2 : generate_search_query (LLM ~2min)
+        def _search_query_task():
+            try:
+                return generate_search_query(self.analysis_ticker, latest_data=data_with_features)
+            except ValueError as e:
+                logger.error(f"Ticker validation failed: {e}")
+                return get_fallback_search_query(self.analysis_ticker)
+            except Exception as e:
+                logger.error(f"Search query generation failed: {e}")
+                return get_fallback_search_query(self.analysis_ticker)
+
+        # Tâche A3 : visual LLM (LLM ~3min)
+        def _visual_llm_task():
+            if not chart_generated:
+                return {"signal": "HOLD", "confidence": 0.0, "analysis": "Chart generation failed."}
+            try:
+                return get_visual_llm_decision(self.chart_output_path)
+            except Exception as e:
+                logger.error(f"Visual LLM failed: {e}")
+                return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Visual LLM error: {e}"}
+
+        # Tâches A4/A5/A6 : CPU models indépendants (1 future chacun)
+        def _timesfm_task():
+            try:
+                return get_timesfm_prediction(data_with_features)
+            except Exception as e:
+                logger.error(f"TimesFM failed: {e}")
+                return {"signal": "HOLD", "confidence": 0.0, "analysis": f"TimesFM error: {e}"}
+
+        def _tensortrade_task():
+            try:
+                return get_tensortrade_prediction(data_with_features)
+            except Exception as e:
+                logger.error(f"TensorTrade failed: {e}")
+                return {"signal": "HOLD", "confidence": 0.0, "analysis": f"TensorTrade error: {e}"}
+
+        def _grebenkov_task():
+            try:
+                grebenkov_data = {
+                    "hist_data": data_with_features,
+                    "wti_data": wti_data,
+                    "nasdaq_data": nasdaq_data,
+                    "ticker": self.ticker,
+                }
+                grebenkov_result = self.grebenkov_model.predict(grebenkov_data)
+                return {
+                    "signal": grebenkov_result.signal,
+                    "confidence": grebenkov_result.confidence,
+                    "reasoning": grebenkov_result.reasoning,
+                }
+            except Exception as e:
+                logger.error(f"Grebenkov failed: {e}")
+                return {"signal": "HOLD", "confidence": 0.0, "reasoning": f"Grebenkov error: {e}"}
+
+        logger.info("Lancement des tâches parallèles : news, search_query, visual_llm, 3 cpu_models")
+        news_future = executor.submit(_fetch_news_task)
+        search_query_future = executor.submit(_search_query_task)
+        visual_llm_future = executor.submit(_visual_llm_task)
+        timesfm_future = executor.submit(_timesfm_task)
+        tensortrade_future = executor.submit(_tensortrade_task)
+        grebenkov_future = executor.submit(_grebenkov_task)
+
+        # ============================================================
+        # PHASE B : web_context dès que search_query est prêt
+        # ============================================================
+        # Timeout search_query : 240s (4 min). Cache hit returns in ~1ms.
+        logger.info("Attente du search_query pour lancer le web_research...")
+        try:
+            search_query = search_query_future.result(timeout=240)
+        except TimeoutError:
+            logger.error("Search query LLM timeout (240s) — using canonical fallback")
+            search_query = get_fallback_search_query(self.analysis_ticker)
         except Exception as e:
-            logger.error(f"Failed to fetch news: {e}")
+            logger.error(f"Search query future failed: {e}")
+            search_query = get_fallback_search_query(self.analysis_ticker)
+
+        logger.info("Début de la recherche Web Macro (timeout global 30s)...")
+        # IMPORTANT: pas de `with` block — __exit__ appelle shutdown(wait=True)
+        # qui bloquerait après le TimeoutError, défaisant le timeout lui-même.
+        web_ex = ThreadPoolExecutor(max_workers=1, thread_name_prefix="web_research")
+        web_future = web_ex.submit(get_web_context_sync, search_query)
+        try:
+            web_context = web_future.result(timeout=30)
+            web_ex.shutdown(wait=True)
+        except TimeoutError:
+            logger.error("Web research outer timeout (30s) — using empty context")
+            web_context = ""
+            web_ex.shutdown(wait=False)  # orphan thread continues but doesn't block
+        except Exception as e:
+            logger.error(f"Web research failed: {e}")
+            web_context = ""
+            web_ex.shutdown(wait=False)
+        logger.info("Recherche Web Macro terminée.")
+
+        # ============================================================
+        # PHASE C : text_llm_decision dépend de headlines + web_context
+        # ============================================================
+        logger.info("Attente des news pour lancer le text LLM...")
+        try:
+            headlines, sentiment_score = news_future.result(timeout=90)
+        except TimeoutError:
+            logger.error("News fetch timeout (90s) — using empty headlines")
+            headlines, sentiment_score = [], 0
+        except Exception as e:
+            logger.error(f"News future failed: {e}")
+            headlines, sentiment_score = [], 0
 
         sentiment_decision = get_sentiment_decision_from_score(sentiment_score)
 
-        # Web Research pour contexte Macro
-        logger.info("Début de la recherche Web Macro...")
-        search_query = generate_search_query(self.analysis_ticker, latest_data=data_with_features)
-        web_context = get_web_context_sync(search_query)
-        logger.info("Recherche Web Macro terminée.")
-
-        # 4. Prédictions LLM (Maintenant avec le contexte des news et web)
-        text_llm_decision = get_llm_decision(
+        # Text LLM with outer timeout — _query_ollama has 600s internal timeout,
+        # we cap at 240s here so the total sequential budget stays under 900s.
+        # IMPORTANT: pas de `with` block — voir web_ex ci-dessus pour la raison.
+        logger.info("Querying textual LLM for decision (timeout 240s, autres modèles en parallèle)...")
+        text_ex = ThreadPoolExecutor(max_workers=1, thread_name_prefix="text_llm")
+        text_future = text_ex.submit(
+            get_llm_decision,
             latest_data,
             headlines=headlines,
             web_context=web_context,
             vg_indicators=vg_indicators,
             ticker=self.ticker,
         )
-        visual_llm_decision = (
-            get_visual_llm_decision(self.chart_output_path)
-            if chart_generated
-            else {
-                "signal": "HOLD",
-                "confidence": 0.0,
-                "analysis": "Chart generation failed.",
-            }
-        )
+        try:
+            text_llm_decision = text_future.result(timeout=240)
+            text_ex.shutdown(wait=True)
+        except TimeoutError:
+            logger.error("Text LLM outer timeout (240s) — HOLD fallback")
+            text_llm_decision = {"signal": "HOLD", "confidence": 0.0, "analysis": "Text LLM timeout", "failed": True}
+            text_ex.shutdown(wait=False)
+        except Exception as e:
+            logger.error(f"Text LLM failed: {e}")
+            text_llm_decision = {"signal": "HOLD", "confidence": 0.0, "analysis": f"Text LLM error: {e}", "failed": True}
+            text_ex.shutdown(wait=False)
 
-        # 5. Prédictions TimesFM
-        logger.info("Génération de la prédiction TimesFM...")
-        timesfm_decision = get_timesfm_prediction(data_with_features)
-        tensortrade_decision = get_tensortrade_prediction(data_with_features)
+        # ============================================================
+        # FINALISATION : récupération des résultats parallèles
+        # Sequential critical path so far: 240 (search) + 30 (web) + 90 (news)
+        # + 240 (text) = 600s. Finalisation adds at most 300s for visual_llm
+        # (cpu_models are parallel and bounded at 180s each, well under 300s).
+        # Total worst case: 600 + 300 = 900s ≤ CYCLE_TIMEOUT_SECONDS.
+        # ============================================================
+        logger.info("Attente des résultats parallèles restants (visual_llm + 3 cpu_models)...")
+        try:
+            visual_llm_decision = visual_llm_future.result(timeout=300)
+        except TimeoutError:
+            logger.error("Visual LLM timeout (300s) — HOLD fallback")
+            visual_llm_decision = {"signal": "HOLD", "confidence": 0.0, "analysis": "Visual LLM timeout"}
+        except Exception as e:
+            logger.error(f"Visual LLM future failed: {e}")
+            visual_llm_decision = {"signal": "HOLD", "confidence": 0.0, "analysis": f"Visual LLM error: {e}"}
 
-        logger.info("Génération de la prédiction Grebenkov ARP...")
-        grebenkov_data = {
-            "hist_data": data_with_features,
-            "wti_data": wti_data,
-            "nasdaq_data": nasdaq_data,
-            "ticker": self.ticker,
-        }
-        grebenkov_result = self.grebenkov_model.predict(grebenkov_data)
-        grebenkov_decision = {
-            "signal": grebenkov_result.signal,
-            "confidence": grebenkov_result.confidence,
-            "reasoning": grebenkov_result.reasoning,
-        }
+        try:
+            timesfm_decision = timesfm_future.result(timeout=180)
+        except TimeoutError:
+            logger.error("TimesFM timeout (180s) — HOLD fallback")
+            timesfm_decision = {"signal": "HOLD", "confidence": 0.0, "analysis": "TimesFM timeout"}
+        except Exception as e:
+            logger.error(f"TimesFM future failed: {e}")
+            timesfm_decision = {"signal": "HOLD", "confidence": 0.0, "analysis": f"TimesFM error: {e}"}
+
+        try:
+            tensortrade_decision = tensortrade_future.result(timeout=180)
+        except TimeoutError:
+            logger.error("TensorTrade timeout (180s) — HOLD fallback")
+            tensortrade_decision = {"signal": "HOLD", "confidence": 0.0, "analysis": "TensorTrade timeout"}
+        except Exception as e:
+            logger.error(f"TensorTrade future failed: {e}")
+            tensortrade_decision = {"signal": "HOLD", "confidence": 0.0, "analysis": f"TensorTrade error: {e}"}
+
+        try:
+            grebenkov_decision = grebenkov_future.result(timeout=180)
+        except TimeoutError:
+            logger.error("Grebenkov timeout (180s) — HOLD fallback")
+            grebenkov_decision = {"signal": "HOLD", "confidence": 0.0, "reasoning": "Grebenkov timeout"}
+        except Exception as e:
+            logger.error(f"Grebenkov future failed: {e}")
+            grebenkov_decision = {"signal": "HOLD", "confidence": 0.0, "reasoning": f"Grebenkov error: {e}"}
+
+        executor.shutdown(wait=False)
 
         return {
             "classic": {"prediction": classic_pred, "confidence": classic_conf},

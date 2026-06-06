@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 import json
 import sqlite3
+import matplotlib
+matplotlib.use("Agg")  # Headless backend — avoids "main thread is not in main loop" when called from worker threads
 import matplotlib.pyplot as plt
 import smtplib
 from email.mime.text import MIMEText

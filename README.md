@@ -90,11 +90,17 @@ Unlike classic trading algorithms that panic as soon as volatility explodes, thi
 - **Dated Brent Spread**: Monitoring of physical market tension via the spread between Brent Spot (Dated) and Brent Futures.
 - **Network Resilience**: yfinance circuit breaker with separate trackers (info vs. download), 10s timeout on all network calls.
 - **Cache Auto-Invalidation**: Parquet cache auto-detects staleness (> 2 days) and forces a refresh. Use `refresh_cache.py` for manual cache clearing.
-- **Advanced Cognition**: Use of **Gemma 4** for better technical/fundamental synthesis.
+- **LLM Call Parallelization**: Independent model calls (`text_llm`, `visual_llm`, `search_query`, `timesfm`, `tensortrade`, `grebenkov`) run in a `ThreadPoolExecutor` to overlap Ollama inference with I/O. Critical path typically 4–6 min on CPU vs 10+ min sequential.
+- **24h Search-Query Cache**: The LLM-generated web-search query is cached under `data_cache/search_queries/<ticker>_<date>_<price-sig>.json`. Keyed by date + a price-action signature (log2 bucketing of close + RSI bucket), so a regime change invalidates it. Fallback queries are **never** cached (one transient Ollama failure cannot poison the cache for 24h).
+- **Hard Cycle Timeout**: Each ticker cycle is wrapped in a 15-min budget (`CYCLE_TIMEOUT_SECONDS` in `main.py`). On timeout, the worker thread is `shutdown(wait=False)` so the next ticker starts immediately; HOLD is applied to the timed-out ticker. Individual futures have their own per-task timeouts (search 240s, visual 300s, text 240s, CPU models 180s each, news 90s, web crawl 30s).
+- **Orphan-Thread Safety**: On cycle timeout, a per-ticker `threading.Event` is set so the orphan worker bails out before any `execute_t212_trade` call — preventing real-money trades after the user has been shown the "HOLD appliqué" panel. A per-ticker `threading.Lock` further serializes T212 order placement, eliminating double-trade risk under scheduler overlap or duplicate `--ticker` invocations.
+- **LLM Failure Sentinel**: When `_query_ollama` exhausts all retries, the fallback dict carries a `"failed": True` flag so downstream consensus logic can distinguish "model chose HOLD" from "model crashed" (currently propagated but not filtered — a known follow-up).
+- **Advanced Cognition**: Use of **Gemma 4 12B** with strict JSON-schema-constrained output (`additionalProperties: false`) — disables the model's thinking mode to prevent `<|channel>thought` debris from corrupting structured responses. Schemas defined in `src/llm_client.py` (`SCHEMA_TRADING_DECISION`, `SCHEMA_SEARCH_QUERY`, `SCHEMA_OIL_ALLOCATION`).
 - **News & Blockchain Sentiment**: Integration of **AlphaEar** and **Hyperliquid** to capture social and speculative sentiment.
 - **Automated Scheduler**: `schedule.py` script for continuous execution (8:30 AM - 6:00 PM) on a server.
 - **Advanced Risk Management**: Automatic signal adjustment based on volatility and market regime.
 - **Production Backtesting**: Standalone backtest engine (`backtest_prod.py`) replaying real prod signals against real prices with T212 fees — no external dependencies.
+- **Debug Dump Control**: Set `TRADING_DEBUG_DUMP=0` to disable the capped (5 MB) `data_cache/llm_debug_fail.txt` LLM-failure dump.
 
 ### 💻 Tech Stack
 
@@ -103,14 +109,16 @@ Unlike classic trading algorithms that panic as soon as volatility explodes, thi
 - **Machine Learning**: `scikit-learn`, `shap`
 - **AI & LLM**: `requests`, `ollama`
 - **Web Scraping & Search**: `beautifulsoup4`, `duckduckgo_search`, `crawl4ai`
-- **Visualization**: `matplotlib`, `seaborn`, `mplfinance`
+- **Visualization**: `matplotlib` (Agg backend for thread safety), `seaborn`, `mplfinance`
 - **Utilities**: `tqdm`, `rich`, `python-dotenv`, `schedule`
 
 ### ⚙️ Performance & Hardware
 The system is designed to be **performant on consumer hardware** without requiring a dedicated GPU.
-- **CPU Only**: LLM inference (Gemma 4 via Ollama) and TimesFM are optimized for fast CPU execution if enough RAM is available.
-- **Recommended RAM**: 16 GB minimum (32 GB suggested to run Gemma 4 comfortably).
-- **Execution Time**: ~2 to 5 minutes for a full cycle (including web crawling, ML training, TimesFM predictions, and 3 LLM analyses).
+- **CPU Only**: LLM inference (Gemma 4 12B Q4_K_M via Ollama) and TimesFM run entirely on CPU. Throughput is ~3–4 tokens/s on a modern 8-core CPU.
+- **Recommended RAM**: 16 GB minimum (32 GB suggested to run Gemma 4 12B comfortably alongside TimesFM and TensorTrade).
+- **Ollama Concurrency**: Set `OLLAMA_NUM_PARALLEL=8` (already in the recommended `.env`) so multiple LLM calls can share model load. With the default 4 GB context budget, parallel slots get ~512 tokens each — Ollama will serialize if prompts exceed the per-slot ctx, but the `ThreadPoolExecutor` keeps the wall-clock overlap beneficial for I/O-bound steps (news fetch, web crawl, CPU models).
+- **Execution Time**: ~6 to 9 minutes per ticker on CPU (cold), ~3 to 5 minutes per ticker with search-query cache hit. Default runs two tickers (CRUDP.PA + SXRV.DE), so plan ~15 min total.
+- **Cycle Timeout**: Each ticker cycle is bounded at 15 min (`CYCLE_TIMEOUT_SECONDS`). If exceeded, HOLD is applied and the next ticker starts immediately.
 - **API Speed**: Ultra-fast Trading 212 integration (<1s for live price recovery).
 
 ---
@@ -141,11 +149,17 @@ Trading-AI/
 │   ├── tensortrade_model.py         # Reinforcement Learning (PPO) signal
 │   ├── timesfm_model.py             # TimesFM 2.5 time-series forecasting integration
 │   └── web_researcher.py            # Macro-economic web scraping with Crawl4AI
-├── tests/                           # Test and validation scripts
-│   ├── test_full_cycle.py           # End-to-end T212 buy/wait/sell test
+├── data_cache/                       # All caches (gitignored)
+│   ├── *.parquet                     # OHLCV data per ticker (yfinance)
+│   ├── macro/                        # Macro time series (FRED, multi-source)
+│   ├── search_queries/               # 24h LLM search-query cache (per ticker+date+price-sig)
+│   └── llm_debug_fail.txt            # Capped (5 MB) LLM failure dump — disable with TRADING_DEBUG_DUMP=0
+├── tests/                            # Test and validation scripts
+│   ├── test_full_cycle.py            # End-to-end T212 buy/wait/sell test
 │   ├── test_enhanced_decision_engine.py # Tests for the hybrid fusion engine
-│   ├── check_live.py                # Live market prices verification script
-│   └── ...                          # Other unit and integration tests
+│   ├── check_llm_json.py             # LLM JSON-schema diagnostic (tests all 4 Ollama call sites)
+│   ├── check_live.py                 # Live market prices verification script
+│   └── ...                           # Other unit and integration tests
 ├── i18n/                            # Internationalization (Translated READMEs)
 ├── assets/                          # Static assets (images, banners)
 ├── memory-bank/                     # AI assistant memory and context

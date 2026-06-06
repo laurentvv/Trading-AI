@@ -5,6 +5,7 @@ import pandas as pd
 import base64
 from pathlib import Path
 import time
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +13,87 @@ OLLAMA_API_URL = "http://localhost:11434/api/generate"
 OLLAMA_BASE_URL = "http://localhost:11434"
 TEXT_LLM_MODEL = "hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M"
 VISUAL_LLM_MODEL = "hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M"
+
+# JSON schemas used as Ollama `format` parameter. Using a strict schema
+# (additionalProperties: false) physically prevents the Gemma thinking model
+# from adding a "thought" key — the root cause of the JSON extraction failures.
+SCHEMA_TRADING_DECISION = {
+    "type": "object",
+    "properties": {
+        "signal": {"type": "string", "enum": ["BUY", "SELL", "HOLD"]},
+        "confidence": {"type": "number"},
+        "analysis": {"type": "string"},
+    },
+    "required": ["signal", "confidence", "analysis"],
+    "additionalProperties": False,
+}
+
+SCHEMA_SEARCH_QUERY = {
+    "type": "object",
+    "properties": {"query": {"type": "string"}},
+    "required": ["query"],
+    "additionalProperties": False,
+}
+
+SCHEMA_OIL_ALLOCATION = {
+    "type": "object",
+    "properties": {
+        "allocation": {"type": "number"},
+        "reasoning": {"type": "string"},
+    },
+    "required": ["allocation", "reasoning"],
+    "additionalProperties": False,
+}
+
+# Thinking-mode debris tokens emitted by Gemma 4 when schema enforcement
+# is bypassed or when the model leaks reasoning into JSON string values.
+# Single source of truth — used by both _query_ollama (prefix strip) and
+# _find_dict_with_keys (recursive string-value scrub).
+_THINKING_TOKENS = (
+    "<channel|>", "<|channel|>", "<|thought|>", "<thought>", "</thought>",
+    "thought|", "<|channel>thought", "<|channel>thought}", "<|channel>thought|>",
+    "<|start|>", "<|end|>", "<|channel|response>",
+)
+
+
+def _fallback_decision(expected_keys: list, *, reason: str = "all_retries_failed") -> dict:
+    """Canonical HOLD fallback returned when LLM retries are exhausted.
+
+    The ``failed`` flag and ``failure_reason`` are emitted for observability
+    (logs, metrics, future filtering). They are NOT yet consumed by the
+    consensus aggregator in ``enhanced_decision_engine.py`` — a downstream
+    consumer must be added before this flag can be relied upon to exclude
+    the vote from the weighted aggregation.
+    """
+    out = {k: "HOLD" if k == "signal" else 0.0 if k == "confidence" else "" for k in expected_keys}
+    out["failed"] = True
+    out["failure_reason"] = reason
+    return out
+
+
+# Cap the debug-fail dump file to 5 MB so it can never fill the disk.
+# Disable entirely by setting TRADING_DEBUG_DUMP=0 in the environment.
+_LLM_DEBUG_FILE = Path("data_cache") / "llm_debug_fail.txt"
+_LLM_DEBUG_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
+
+
+def _dump_llm_failure(model_name: str, attempt: int, expected_keys: list, raw_output: str) -> None:
+    """Appends a failure record to the debug file, with size cap.
+
+    Skipped entirely if env TRADING_DEBUG_DUMP=0 or if the file already exceeds cap.
+    """
+    if os.environ.get("TRADING_DEBUG_DUMP", "1") == "0":
+        return
+    try:
+        _LLM_DEBUG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        if _LLM_DEBUG_FILE.exists() and _LLM_DEBUG_FILE.stat().st_size >= _LLM_DEBUG_MAX_BYTES:
+            return  # Cap reached — silently drop further dumps
+        with open(_LLM_DEBUG_FILE, "a", encoding="utf-8") as f:
+            f.write(f"\n\n--- FAIL ATTEMPT {attempt} ({model_name}) ---\n")
+            f.write(f"Expected keys: {expected_keys}\n")
+            f.write(raw_output)
+    except OSError as e:
+        logger.warning(f"Could not write LLM debug dump: {e}")
 
 
 def check_ollama_health(timeout: int = 5) -> bool:
@@ -101,8 +183,9 @@ def get_llm_decision(
         "model": TEXT_LLM_MODEL,
         "prompt": prompt,
         "stream": False,
-        "format": "json",
-        "system": "You are an expert financial analyst. Your task is to analyze market data and news to provide a trading decision in a valid JSON format.",
+        "format": SCHEMA_TRADING_DECISION,
+        "options": {"temperature": 0.4, "num_predict": 1024},
+        "system": "You are an expert financial analyst. Your task is to analyze market data and news to provide a trading decision in a valid JSON format. Output ONLY the JSON object requested — never add a 'thought' key.",
     }
     return _query_ollama(payload)
 
@@ -148,10 +231,81 @@ def get_visual_llm_decision(image_path: Path) -> dict:
         "prompt": prompt.strip(),
         "images": [image_base64],
         "stream": False,
-        "options": {"temperature": 0.1},
-        "system": "<|think|> You are a geometric chart analyst. Return ONLY JSON.",
+        "format": SCHEMA_TRADING_DECISION,
+        "options": {"temperature": 0.1, "num_predict": 1024},
+        "system": "You are a geometric chart analyst. Return ONLY the requested JSON object — never add a 'thought' key.",
     }
     return _query_ollama(payload)
+
+
+def _extract_json_objects(text: str) -> list:
+    """Extract all top-level JSON objects from a string."""
+    objs = []
+    decoder = json.JSONDecoder()
+    pos = 0
+    while pos < len(text):
+        start = text.find("{", pos)
+        if start == -1:
+            break
+        try:
+            obj, end = decoder.raw_decode(text[start:])
+            if isinstance(obj, dict):
+                objs.append(obj)
+            pos = start + end
+        except (json.JSONDecodeError, ValueError):
+            pos += 1
+    return objs
+
+
+def _find_dict_with_keys(node, expected_keys: list, _depth: int = 0):
+    """Recursively search a parsed JSON node for a dict containing all expected keys.
+
+    The Gemma thinking model sometimes wraps its real answer inside a ``"thought"``
+    string value (e.g. ``{"thought": "<channel|>```json{\\"query\\": \\"...\\"}```"} ``).
+    This helper drills into string values, strips thinking/markdown debris, and
+    looks for the first nested dict that has every required key.
+
+    Returns the matched dict (with lowercased keys) or ``None``.
+    """
+    if _depth > 6:
+        return None
+
+    if isinstance(node, dict):
+        normalized = {str(k).lower(): v for k, v in node.items()}
+        if all(k.lower() in normalized for k in expected_keys):
+            return normalized
+        for v in node.values():
+            found = _find_dict_with_keys(v, expected_keys, _depth + 1)
+            if found is not None:
+                return found
+        return None
+
+    if isinstance(node, str):
+        cleaned = node
+        for tok in _THINKING_TOKENS:
+            cleaned = cleaned.replace(tok, "")
+        # Markdown JSON blocks first.
+        for marker in ("```json", "```"):
+            if marker in cleaned:
+                for block in cleaned.split(marker)[1:]:
+                    inner = block.split("```")[0]
+                    for obj in _extract_json_objects(inner):
+                        found = _find_dict_with_keys(obj, expected_keys, _depth + 1)
+                        if found is not None:
+                            return found
+        # Bare JSON inside the string.
+        for obj in _extract_json_objects(cleaned):
+            found = _find_dict_with_keys(obj, expected_keys, _depth + 1)
+            if found is not None:
+                return found
+
+    if isinstance(node, list):
+        for v in node:
+            found = _find_dict_with_keys(v, expected_keys, _depth + 1)
+            if found is not None:
+                return found
+
+    return None
 
 
 def _query_ollama(payload: dict, max_retries: int = 3, expected_keys: list = None) -> dict:
@@ -171,38 +325,66 @@ def _query_ollama(payload: dict, max_retries: int = 3, expected_keys: list = Non
             response_data = response.json()
             raw_output = response_data.get("response", "").strip()
 
-            # Remove thought channel if present (Gemma 4 specific)
-            if "<channel|>" in raw_output:
-                raw_output = raw_output.split("<channel|>")[-1].strip()
-
             if not raw_output or raw_output == "{}":
                 logger.warning(f"Attempt {attempt + 1}: Empty or trivial response from LLM.")
                 continue
 
-            # Robust JSON extraction (in case of markdown or preamble)
-            json_str = raw_output
-            if "```json" in json_str:
-                json_str = json_str.split("```json")[1].split("```")[0].strip()
-            elif "```" in json_str:
-                json_str = json_str.split("```")[1].split("```")[0].strip()
+            # Robust JSON extraction
+            # 1. Strip internal thinking tokens ONLY when they appear as a true
+            #    prefix (before any '{'). When they appear inside a JSON string
+            #    value (e.g. {"thought": "<|channel>thought}..."}), they are
+            #    valid JSON and must NOT be stripped — otherwise we corrupt the
+            #    structure and lose keys like "query".
+            first_brace = raw_output.find("{")
+            if first_brace > 0:
+                prefix = raw_output[:first_brace]
+                if any(tag in prefix for tag in _THINKING_TOKENS):
+                    raw_output = raw_output[first_brace:].strip()
+            elif first_brace == -1:
+                # No JSON object at all — strip thinking debris as a last resort.
+                for tag in _THINKING_TOKENS:
+                    if tag in raw_output:
+                        raw_output = raw_output.split(tag)[-1].strip()
+                        break
 
-            # Find first { and last } if still failing
-            if "{" in json_str and "}" in json_str:
-                start = json_str.find("{")
-                end = json_str.rfind("}") + 1
-                json_str = json_str[start:end]
+            # 2. Extract potential JSON candidates using markdown or raw extraction
+            candidates = []
+            if "```json" in raw_output:
+                candidates.extend([b.split("```")[0].strip() for b in raw_output.split("```json")[1:]])
+            elif "```" in raw_output:
+                candidates.extend([b.split("```")[0].strip() for b in raw_output.split("```")[1:]])
+            
+            # 3. Use JSONDecoder to find all valid JSON objects (handles multiple or nested)
+            decoder = json.JSONDecoder()
+            pos = 0
+            while pos < len(raw_output):
+                try:
+                    start = raw_output.find('{', pos)
+                    if start == -1: break
+                    obj, end_idx = decoder.raw_decode(raw_output[start:])
+                    # obj is already a parsed dictionary or list
+                    if isinstance(obj, dict):
+                        candidates.append(obj)
+                    pos = start + end_idx
+                except (json.JSONDecodeError, ValueError):
+                    pos += 1
 
-            try:
-                llm_output = json.loads(json_str)
-            except json.JSONDecodeError:
-                logger.error(f"Attempt {attempt + 1}: Could not parse JSON. Output: {raw_output[:100]}...")
-                continue
+            if not candidates:
+                # Last resort: try the whole thing
+                candidates = [raw_output]
 
-            # Normalize keys to lowercase for robustness
-            llm_output = {k.lower(): v for k, v in llm_output.items()}
+            llm_output = None
+            for item in candidates:
+                parsed = _find_dict_with_keys(item, expected_keys)
+                if parsed is not None:
+                    llm_output = parsed
+                    break
 
-            if not all(key.lower() in llm_output for key in expected_keys):
-                logger.warning(f"Attempt {attempt + 1}: Missing keys in {list(llm_output.keys())}")
+            if llm_output is None:
+                logger.error(f"Attempt {attempt + 1}: Could not find valid JSON with keys {expected_keys}. Raw (first 500 chars): {raw_output[:500]}")
+                # Capped debug dump (5 MB max, env-gated)
+                if len(raw_output) > 500:
+                    _dump_llm_failure(model_name, attempt + 1, expected_keys, raw_output)
                 continue
 
             logger.info(f"LLM decision ({model_name}) received and validated.")
@@ -214,7 +396,7 @@ def _query_ollama(payload: dict, max_retries: int = 3, expected_keys: list = Non
                 time.sleep(2 * (attempt + 1))
             else:
                 logger.error(f"All {max_retries} attempts failed for LLM ({model_name}).")
-                # Default response fallback
-                return {k: "HOLD" if k == "signal" else 0.0 if k == "confidence" else "" for k in expected_keys}
+                return _fallback_decision(expected_keys, reason=f"exception: {type(e).__name__}")
 
-    return {k: "HOLD" if k == "signal" else 0.0 if k == "confidence" else "" for k in expected_keys}
+    return _fallback_decision(expected_keys, reason="retries_exhausted_no_valid_json")
+
