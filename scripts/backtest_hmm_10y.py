@@ -21,7 +21,7 @@ def run_benchmark():
 
     print(f"Données téléchargées : {len(data)} jours de trading.")
 
-    model = HMMDecisionModel(lookback=100, baum_welch_iterations=5)
+    model = HMMDecisionModel(lookback=252, baum_welch_iterations=5)
 
     # Portfolio setup
     initial_capital = 10000.0

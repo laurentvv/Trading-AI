@@ -154,15 +154,20 @@ class HMMDecisionModel(BaseModel):
                 obs.append(1)
         return obs
 
-    def _identify_bullish_state(self, B: np.ndarray) -> int:
+    def _identify_bullish_state(self, B: np.ndarray) -> int | None:
         """
-        Identifie quel état caché (0 ou 1) correspond au marché "Haussier" (Bullish).
-        On part du principe que l'état haussier a une plus forte probabilité d'émettre
-        l'observation "2" (Forte hausse).
+        Identifie quel état caché correspond au marché "Haussier" (Bullish).
+        Vérifie également que les états sont significativement différenciés.
+        Retourne None si les états sont trop similaires.
         """
-        # B shape is (N_states, V_vocab_size)
-        # B[:, 2] is the probability of emitting "Up" for each state
-        return int(np.argmax(B[:, 2]))
+        bullish_state = int(np.argmax(B[:, 2]))
+        bearish_state = int(np.argmin(B[:, 2]))
+
+        # Check if the states actually learned distinct behaviors
+        if abs(B[bullish_state, 2] - B[bearish_state, 2]) < 0.05:
+            return None
+
+        return bullish_state
 
     def predict(self, data: Dict[str, Any]) -> ModelResult:
         try:
@@ -197,15 +202,21 @@ class HMMDecisionModel(BaseModel):
             # 4. Identification du sens des états
             bullish_state = self._identify_bullish_state(B)
 
-            # 5. Décision
-            # Plus bestprob est élevée par rapport aux probabilités typiques (qui tendent vers 0 exponentiellement),
-            # plus on est confiant, mais c'est difficile à normaliser simplement.
-            # On va donner une confiance arbitraire basée sur la distinction des matrices B
+            if bullish_state is None:
+                return ModelResult(
+                    "HOLD", 0.0, "Les régimes HMM ne sont pas clairement séparables (différence trop faible)"
+                )
 
-            # Différence de probabilité d'émettre "Up" entre l'état haussier et baissier
-            confidence = float(abs(B[0, 2] - B[1, 2]))
-            # Normaliser la confiance entre 0.3 et 0.8 pour rester réaliste dans le système
-            confidence = min(max(confidence + 0.3, 0.4), 0.8)
+            bearish_state = int(np.argmin(B[:, 2]))
+
+            # 5. Décision
+            # La confiance est basée sur la séparation des états : plus l'état haussier a une
+            # probabilité d'émission "Up" nettement supérieure au pire état baissier, plus le régime est clair.
+            state_separation = float(B[bullish_state, 2] - B[bearish_state, 2])
+
+            # Normalisation : state_separation est généralement entre 0.05 et ~0.4.
+            # On le mappe vers une confiance entre 0.2 et 0.8 de manière proportionnelle.
+            confidence = min(max(state_separation * 2.0, 0.2), 0.8)
 
             if current_state == bullish_state:
                 signal = "BUY"

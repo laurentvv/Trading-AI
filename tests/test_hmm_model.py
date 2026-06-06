@@ -43,7 +43,9 @@ class TestHMMModel(unittest.TestCase):
         self.assertAlmostEqual(np.sum(new_A[0]), 1.0)
 
         self.assertEqual(new_B.shape, (2, 3))
-        self.assertAlmostEqual(np.sum(new_B[0]), 1.0)
+        # Ensure that every row (state) in emission matrix sums to 1.0
+        for i in range(2):
+            self.assertAlmostEqual(np.sum(new_B[i]), 1.0)
 
     def test_model_predict(self):
         model = HMMDecisionModel(n_states=2, lookback=20, baum_welch_iterations=2)
