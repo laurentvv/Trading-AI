@@ -535,6 +535,7 @@ class EnhancedDecisionEngine:
         vincent_ganne_indicators: Dict = None,
         oil_bench_decision: Dict = None,
         grebenkov_decision: Dict = None,
+        hmm_decision: Dict = None,
         market_data: Dict = None,
         adaptive_weights: Dict[str, float] = None,
         generic_model_results: List[ModelDecision] = None,
@@ -581,6 +582,7 @@ class EnhancedDecisionEngine:
                 "tensortrade": tensortrade_decision,
                 "oil_bench": oil_bench_decision,
                 "grebenkov": grebenkov_decision,
+                "hmm_model": hmm_decision,
             }
             self._convert_legacy_inputs(timestamp, decisions, classic_pred, classic_conf, legacy_models, vincent_ganne_indicators)
 

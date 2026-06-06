@@ -45,6 +45,7 @@ from tensortrade_model import get_tensortrade_prediction
 from eia_client import EIAClient
 from oil_bench_model import OilBenchModel
 from grebenkov_model import GrebenkovTrendModel
+from hmm_model import HMMDecisionModel
 
 # Imports des nouveaux modules d'amélioration
 from enhanced_decision_engine import EnhancedDecisionEngine
@@ -99,6 +100,7 @@ class EnhancedTradingSystem:
 
         # Initialisation des composants améliorés avec injection de config
         self.grebenkov_model = GrebenkovTrendModel()
+        self.hmm_model = HMMDecisionModel()
         self.decision_engine = EnhancedDecisionEngine(config=self.config)
         self.risk_manager = AdvancedRiskManager(config=self.config)
         self.weight_manager = AdaptiveWeightManager(config=self.config)
@@ -384,6 +386,22 @@ class EnhancedTradingSystem:
                 logger.error(f"Grebenkov failed: {e}")
                 return {"signal": "HOLD", "confidence": 0.0, "reasoning": f"Grebenkov error: {e}"}
 
+        def _hmm_task():
+            try:
+                hmm_data = {
+                    "hist_data": data_with_features,
+                    "ticker": self.ticker,
+                }
+                hmm_result = self.hmm_model.predict(hmm_data)
+                return {
+                    "signal": hmm_result.signal,
+                    "confidence": hmm_result.confidence,
+                    "reasoning": hmm_result.reasoning,
+                }
+            except Exception as e:
+                logger.error(f"HMM Model failed: {e}")
+                return {"signal": "HOLD", "confidence": 0.0, "reasoning": f"HMM error: {e}"}
+
         logger.info("Lancement des tâches parallèles : news, search_query, visual_llm, 3 cpu_models")
         news_future = executor.submit(_fetch_news_task)
         search_query_future = executor.submit(_search_query_task)
@@ -391,6 +409,7 @@ class EnhancedTradingSystem:
         timesfm_future = executor.submit(_timesfm_task)
         tensortrade_future = executor.submit(_tensortrade_task)
         grebenkov_future = executor.submit(_grebenkov_task)
+        hmm_future = executor.submit(_hmm_task)
 
         # ============================================================
         # PHASE B : web_context dès que search_query est prêt
@@ -508,6 +527,15 @@ class EnhancedTradingSystem:
             logger.error(f"Grebenkov future failed: {e}")
             grebenkov_decision = {"signal": "HOLD", "confidence": 0.0, "reasoning": f"Grebenkov error: {e}"}
 
+        try:
+            hmm_decision = hmm_future.result(timeout=180)
+        except TimeoutError:
+            logger.error("HMM Model timeout (180s) — HOLD fallback")
+            hmm_decision = {"signal": "HOLD", "confidence": 0.0, "reasoning": "HMM timeout"}
+        except Exception as e:
+            logger.error(f"HMM future failed: {e}")
+            hmm_decision = {"signal": "HOLD", "confidence": 0.0, "reasoning": f"HMM error: {e}"}
+
         executor.shutdown(wait=False)
 
         return {
@@ -518,6 +546,7 @@ class EnhancedTradingSystem:
             "timesfm": timesfm_decision,
             "tensortrade": tensortrade_decision,
             "grebenkov": grebenkov_decision,
+            "hmm_model": hmm_decision,
         }
 
     def perform_enhanced_analysis(
@@ -614,6 +643,7 @@ class EnhancedTradingSystem:
             vincent_ganne_indicators=effective_vg_indicators,
             oil_bench_decision=oil_bench_decision,
             grebenkov_decision=model_predictions["grebenkov"],
+            hmm_decision=model_predictions["hmm_model"],
             market_data=market_data,
             adaptive_weights=weight_adjustment.model_weights,
         )
