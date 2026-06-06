@@ -155,7 +155,7 @@ Return ONLY a JSON object:
             "stream": False,
             "format": SCHEMA_OIL_ALLOCATION,
             "options": {"temperature": 0.1, "num_predict": 1024},
-            "system": "You are a senior commodity quantitative analyst specializing in WTI Crude Oil. Return ONLY valid JSON — never add a 'thought' key.",
+            "system": "<|think|> You are a senior commodity quantitative analyst specializing in WTI Crude Oil. Return ONLY valid JSON — never add a 'thought' key.",
         }
         return _query_ollama(payload, expected_keys=["allocation", "reasoning"])
 

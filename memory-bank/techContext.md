@@ -8,7 +8,10 @@
     - **TimesFM**: Foundation model for time-series forecasting (Google Research).
     - **stable-baselines3 (PPO)**: Reinforcement Learning agent via custom Gymnasium environment (TensorTrade integration).
     - **Ollama**: Local serving of **Gemma 4 12B (Unsloth)** for text and visual chart analysis.
-    - *Note:* The model's thinking mode is **disabled** in production (no `<|think|>` token in system prompts). Strict JSON schemas (`additionalProperties: false`) are passed via Ollama's `format` parameter to constrain output to exactly the required keys (`SCHEMA_TRADING_DECISION`, `SCHEMA_SEARCH_QUERY`, `SCHEMA_OIL_ALLOCATION`). This prevents the model from leaking `<|channel>thought` debris into JSON responses — the root cause of the May 2026 "Could not find valid JSON with keys" extraction failures.
+    - *Note:* The model's **thinking mode is enabled** (`<|think|>` token present in all four production system prompts since 2026-06-06). Output safety is provided by a **dual-layer JSON defence**:
+        - **Layer 1 (load-bearing)**: Strict JSON schemas (`additionalProperties: false`) passed via Ollama's `format` parameter, enforced **server-side**. Schemas: `SCHEMA_TRADING_DECISION`, `SCHEMA_SEARCH_QUERY`, `SCHEMA_OIL_ALLOCATION` in `src/llm_client.py` / `src/oil_bench_model.py`. This is what actually neutralises the May 2026 `<|channel>thought` JSON-debris defect.
+        - **Layer 2 (belt-and-braces)**: Each system prompt ends with `"...never add a 'thought' key."` — kept as a redundant safeguard against any future regression of Layer 1.
+        - **Validation evidence**: `tests/check_llm_json.py` shows that schema-strict cases produce clean JSON with `<|think|>` active; only the loose `format:json` cases leak `<|channel>thought` debris. See `docs/ADR-001-think-mode-dual-layer-defence.md` for the full harness results and reversal procedure.
 - **Data & Research Architecture**:
     - **yfinance**: Market data download.
     - **pandas-datareader**: Macroeconomic data (FRED).
@@ -23,7 +26,7 @@
 - Entry point: `main.py`.
 
 ## 3. Technical Constraints & Assumptions
-- **Ollama**: Must be running locally with `hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M` (Thinking mode **disabled** — strict JSON schema enforcement via `format` parameter instead).
+- **Ollama**: Must be running locally with `hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M` (Thinking mode **enabled** — `<|think|>` token in system prompts; safety guaranteed by the dual-layer JSON defence, not by suppressing the token).
 - **Trading 212 API**: Specific quantity precision required per instrument (e.g., 2 decimals for CRUDl_EQ, 4 for SXRVd_EQ). API response structure may omit `averagePrice` — code uses fallback calculation (`currentValue / quantity`).
 - **Operating System**: win32 (optimized for Windows terminal with **UTF-8 logging** to support emojis).
 - **Network**: Required for initial API calls (Yahoo, FRED, Alpha Vantage, Hyperliquid).
