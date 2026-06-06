@@ -112,11 +112,11 @@ class TestLLMPrompts(unittest.TestCase):
         print("\n" + "=" * 50)
         print("🌐 RÉSULTAT DU TRAITEMENT DU CONTEXTE WEB :")
         print("=" * 50)
-        print(f"Signal: {result['signal']} | Confidence: {result['confidence']}")
-        print(f"Analysis: {result['analysis']}")
+        print(f"Signal: {result.signal} | Confidence: {result.confidence}")
+        print(f"Analysis: {result.reasoning}")
         print("=" * 50)
 
-        self.assertEqual(result["signal"], "BUY")
+        self.assertEqual(result.signal, "BUY")
 
 
 if __name__ == "__main__":

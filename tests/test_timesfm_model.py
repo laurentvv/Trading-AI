@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 from src.timesfm_model import get_timesfm_prediction, TimesFMModel
+from src.enhanced_decision_engine import ModelResult
 
 
 class TestTimesFMModelWrapper(unittest.TestCase):
@@ -13,19 +14,21 @@ class TestTimesFMModelWrapper(unittest.TestCase):
     @patch("src.timesfm_model.TimesFMModel")
     def test_get_timesfm_prediction_success(self, mock_timesfm_model_class):
         mock_instance = MagicMock()
-        mock_prediction = {
-            "signal": "BUY",
-            "confidence": 0.8,
-            "analysis": "Mock analysis",
-            "predictions": [115.0],
-        }
+        mock_prediction = ModelResult(
+            signal="BUY",
+            confidence=0.8,
+            reasoning="Mock analysis",
+            metadata={"predictions": [115.0]}
+        )
         mock_instance.predict.return_value = mock_prediction
         mock_timesfm_model_class.get_instance.return_value = mock_instance
 
         result = get_timesfm_prediction(self.dummy_df)
 
         mock_timesfm_model_class.get_instance.assert_called_once()
-        mock_instance.predict.assert_called_once_with(self.dummy_df, ticker="default")
+        mock_instance.predict.assert_called_once()
+        args, kwargs = mock_instance.predict.call_args
+        self.assertEqual(args[0]["ticker"], "default")
         self.assertEqual(result, mock_prediction)
 
     @patch("src.timesfm_model.TimesFMModel")
@@ -34,9 +37,9 @@ class TestTimesFMModelWrapper(unittest.TestCase):
 
         result = get_timesfm_prediction(self.dummy_df)
 
-        self.assertEqual(result["signal"], "HOLD")
-        self.assertEqual(result["confidence"], 0.0)
-        self.assertTrue("Model error" in result["analysis"])
+        self.assertEqual(result.signal, "HOLD")
+        self.assertEqual(result.confidence, 0.0)
+        self.assertTrue("Model error" in result.reasoning)
 
 
 class TestPositionTracking(unittest.TestCase):
@@ -57,8 +60,8 @@ class TestPositionTracking(unittest.TestCase):
 
         model.model = FakeModel()
         df = pd.DataFrame({"Close": np.linspace(100, 105, 30)})
-        result = model.predict(df, ticker="TEST")
-        self.assertEqual(result["signal"], "HOLD")
+        result = model.predict({"df": df, "ticker": "TEST"})
+        self.assertEqual(result.signal, "HOLD")
 
     def test_position_tracking_no_sell_when_flat(self):
         model = TimesFMModel.__new__(TimesFMModel)
@@ -76,8 +79,8 @@ class TestPositionTracking(unittest.TestCase):
 
         model.model = FakeModel()
         df = pd.DataFrame({"Close": np.linspace(105, 100, 30)})
-        result = model.predict(df, ticker="TEST")
-        self.assertEqual(result["signal"], "HOLD")
+        result = model.predict({"df": df, "ticker": "TEST"})
+        self.assertEqual(result.signal, "HOLD")
 
 
 class TestAdaptiveThreshold(unittest.TestCase):
@@ -115,13 +118,15 @@ class TestGetTimesFmPredictionPassesTicker(unittest.TestCase):
     @patch("src.timesfm_model.TimesFMModel")
     def test_get_timesfm_prediction_passes_ticker(self, mock_cls):
         mock_instance = MagicMock()
-        mock_instance.predict.return_value = {"signal": "HOLD", "confidence": 0.0, "analysis": ""}
+        mock_instance.predict.return_value = ModelResult("HOLD", 0.0, "")
         mock_cls.get_instance.return_value = mock_instance
 
         df = pd.DataFrame({"Close": [100, 105, 110]})
         get_timesfm_prediction(df, ticker="MY_TICKER")
 
-        mock_instance.predict.assert_called_once_with(df, ticker="MY_TICKER")
+        mock_instance.predict.assert_called_once()
+        args, kwargs = mock_instance.predict.call_args
+        self.assertEqual(args[0]["ticker"], "MY_TICKER")
 
 
 if __name__ == "__main__":

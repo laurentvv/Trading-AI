@@ -21,8 +21,6 @@ class GrebenkovTrendModel(BaseModel):
         rho: float = 1 / 20,
         vol_window: int = 40,
         corr_window: int = 750,
-        stop_loss_pct: float = 0.10,
-        trailing_stop_pct: float = 0.05,
         atr_lookback: int = 14,
     ):
         self.eta = eta
@@ -30,16 +28,12 @@ class GrebenkovTrendModel(BaseModel):
         self.vol_window = vol_window
         self.corr_window = corr_window
         self.target_volatility = 0.15
-        self.stop_loss_pct = stop_loss_pct
-        self.trailing_stop_pct = trailing_stop_pct
         self.atr_lookback = atr_lookback
-        self._peak_price = None
         self._position_type = "FLAT"
         self._last_ticker = None
 
     def reset(self):
-        """Reset internal state (peak price, position, last ticker). Called automatically on ticker change."""
-        self._peak_price = None
+        """Reset internal state (position, last ticker). Called automatically on ticker change."""
         self._position_type = "FLAT"
         self._last_ticker = None
 
@@ -85,20 +79,7 @@ class GrebenkovTrendModel(BaseModel):
             if hist_data is None or hist_data.empty:
                 return ModelResult("HOLD", 0.0, "Missing hist_data for Grebenkov model")
 
-            current_price = float(hist_data["Close"].iloc[-1])
 
-            if self._position_type == "LONG" and self._peak_price is not None:
-                self._peak_price = max(self._peak_price, current_price)
-
-            if self._check_stop_loss(current_price):
-                self._position_type = "FLAT"
-                self._peak_price = None
-                return ModelResult(
-                    "SELL",
-                    0.9,
-                    f"Grebenkov Stop-Loss triggered at {current_price:.2f} "
-                    f"(stop={self.stop_loss_pct * 100:.0f}%, trail={self.trailing_stop_pct * 100:.0f}%)",
-                )
 
             if wti_data is None or nasdaq_data is None or wti_data.empty or nasdaq_data.empty:
                 logger.warning(
@@ -151,10 +132,8 @@ class GrebenkovTrendModel(BaseModel):
 
             if result.signal == "BUY":
                 self._position_type = "LONG"
-                self._peak_price = current_price
             elif result.signal == "SELL":
                 self._position_type = "FLAT"
-                self._peak_price = None
 
             return result
 
@@ -200,16 +179,6 @@ class GrebenkovTrendModel(BaseModel):
         chunks = tr[: len(tr) - len(tr) % self.atr_lookback].reshape(-1, self.atr_lookback)
         atr_vals = chunks.mean(axis=1)
         return float(np.median(atr_vals)) if len(atr_vals) > 0 else 1.0
-
-    def _check_stop_loss(self, current_price: float) -> bool:
-        if self._position_type == "LONG" and self._peak_price is not None:
-            drawdown = (self._peak_price - current_price) / self._peak_price
-            if drawdown >= self.stop_loss_pct:
-                return True
-            trailing_level = self._peak_price * (1 - self.trailing_stop_pct)
-            if current_price <= trailing_level:
-                return True
-        return False
 
     def _weight_to_signal(self, weight: float, raw_phi: float, hist_data: pd.DataFrame = None) -> ModelResult:
         """Convert a continuous target weight into a discrete BUY/SELL/HOLD signal.

@@ -78,9 +78,17 @@ def baum_welch(
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     T = len(obs_seq)
 
-    A = np.ones((N_states, N_states)) / N_states
-    B = np.ones((N_states, V_vocab_size)) / V_vocab_size
-    pi = np.ones(N_states) / N_states
+    # Initialisation aléatoire pour briser la symétrie
+    np.random.seed(42) # Reproductibilité
+    
+    A = np.random.rand(N_states, N_states)
+    A = A / A.sum(axis=1, keepdims=True)
+    
+    B = np.random.rand(N_states, V_vocab_size)
+    B = B / B.sum(axis=1, keepdims=True)
+    
+    pi = np.random.rand(N_states)
+    pi = pi / pi.sum()
 
     for _ in range(iterations):
         P_O, alpha = forward(obs_seq, N_states, pi, A, B)

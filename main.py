@@ -11,7 +11,6 @@ import csv
 import threading
 from datetime import datetime
 from pathlib import Path
-from logging.handlers import RotatingFileHandler
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from dotenv import load_dotenv
 from rich.console import Console

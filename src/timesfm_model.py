@@ -2,8 +2,9 @@ import logging
 import os
 import numpy as np
 import pandas as pd
-from typing import Dict
+from typing import Dict, Any
 from dotenv import load_dotenv
+from src.enhanced_decision_engine import BaseModel, ModelResult
 
 load_dotenv()
 
@@ -25,7 +26,7 @@ except ImportError:
     logger.error("API TimesFM 2.5 non trouvée. Veuillez lancer 'python setup_timesfm.py' pour l'installer.")
 
 
-class TimesFMModel:
+class TimesFMModel(BaseModel):
     """Wrapper pour le modèle TimesFM 2.5 de Google Research"""
 
     _instance = None
@@ -103,20 +104,22 @@ class TimesFMModel:
         realised_vol = float(np.std(returns))
         return max(0.005, realised_vol * self.vol_multiplier)
 
-    def predict(self, df: pd.DataFrame, horizon: int = 5, ticker: str = "default") -> Dict:
+    def predict(self, data: Dict[str, Any]) -> ModelResult:
         """Generate a trading signal from TimesFM 2.5 price forecast.
 
         Uses an ATR-adaptive threshold and position-aware filtering to avoid
         redundant BUY (when already LONG) or SELL (when FLAT) signals.
         """
         if not self.initialized or self.model is None:
-            return {
-                "signal": "HOLD",
-                "confidence": 0.0,
-                "analysis": "Model not initialized.",
-            }
+            return ModelResult("HOLD", 0.0, "Model not initialized.")
 
         try:
+            df = data.get("df")
+            horizon = data.get("horizon", 5)
+            ticker = data.get("ticker", "default")
+
+            if df is None or df.empty:
+                return ModelResult("HOLD", 0.0, "No data provided.")
             prices = df["Close"].values
             if len(prices) > 1024:
                 prices = prices[-1024:]
@@ -157,23 +160,23 @@ class TimesFMModel:
 
             logger.info(f"TimesFM 2.5 prediction: {signal} ({confidence:.2f})")
 
-            return {
-                "signal": signal,
-                "confidence": round(float(confidence), 2),
-                "analysis": analysis,
-                "predictions": predictions.tolist(),
-            }
+            return ModelResult(
+                signal=signal,
+                confidence=round(float(confidence), 2),
+                reasoning=analysis,
+                metadata={"predictions": predictions.tolist()},
+            )
 
         except Exception as e:
             logger.error(f"Erreur prédiction TimesFM 2.5: {e}")
-            return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Error: {e}"}
+            return ModelResult("HOLD", 0.0, f"Error: {e}")
 
 
-def get_timesfm_prediction(df: pd.DataFrame, ticker: str = "default") -> Dict:
+def get_timesfm_prediction(df: pd.DataFrame, ticker: str = "default") -> ModelResult:
     """Convenience wrapper: get a TimesFM prediction for *ticker* using the singleton model."""
     try:
         model = TimesFMModel.get_instance()
-        return model.predict(df, ticker=ticker)
+        return model.predict({"df": df, "ticker": ticker})
     except Exception as e:
         logger.error(f"TimesFM prediction failed: {e}")
-        return {"signal": "HOLD", "confidence": 0.0, "analysis": f"Model error: {e}"}
+        return ModelResult("HOLD", 0.0, f"Model error: {e}")

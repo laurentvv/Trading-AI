@@ -14,6 +14,11 @@
 ...
 
 ## 5. Corrections Récentes
+- **2026-06-06**: Standardisation `ModelResult`, Centralisation du Risque et Code Health Grade B
+  * **Contexte** : Hétérogénéité des retours des modèles (certains renvoyaient des dicts, d'autres des tuples) et logique de gestion des pertes (anti-loss) éparpillée dans plusieurs modèles individuels.
+  * **Changement** : Transition totale vers la dataclass `ModelResult` pour les 11 modèles de l'ensemble (incluant Grebenkov, TensorTrade, TimesFM, Ollama). Retrait de la gestion de l'anti-loss/trailing-stop des modèles individuels pour la confier exclusivement à `AdvancedRiskManager`.
+  * **Qualité** : Audit du projet via le skill `python-health-audit`. Nettoyage de tous les codes morts/imports inutilisés trouvés par Ruff et Vulture (Grade B validé). Exclusion de `vendor/` pour le suivi qualité.
+  * **Tests** : Suite pytest à 100% de succès après adaptation des tests à l'usage d'attributs objets.
 - **2026-06-06**: Ré-activation du mode pensée Gemma (`<|think|>`)
   * **Contexte** : Le token `<|think|>` avait été retiré des prompts système en mai 2026 pour neutraliser un bug d'extraction JSON (débris `<|channel>thought` corrompant les réponses). L'analyse rétrospective a montré que la **vraie** défense est le schéma JSON strict (`additionalProperties: false`) passé via le paramètre `format` d'Ollama — pas l'absence du token.
   * **Changement** : Ré-introduction de `"<|think|> "` en préfixe du system prompt aux 4 sites d'appel production : `src/llm_client.py:188` (texte), `:236` (visuel), `src/oil_bench_model.py:158` (oil bench), `src/web_researcher.py:205` (recherche web). Suffixe défensif `"...never add a 'thought' key."` **conservé** comme seconde couche.

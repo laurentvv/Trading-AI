@@ -12,28 +12,24 @@
 </p>
 
 <p align="center">
-  <img src="../assets/banner.png" alt="Banner Trading AI Hybrid" width="100%"/>
+  <img src="../assets/banner.png" alt="Hybrid AI Trading Banner" width="100%"/>
 </p>
 
 <div align="center">
   <br />
-  <h1>📈 Sistem Trading AI Hybrid 📈</h1>
+  <h1>📈 Hybrid AI Trading System 📈</h1>
   <p>
-    Sistem pendukung keputusan ahli untuk perdagangan ETF NASDAQ dan Minyak (WTI), memanfaatkan kecerdasan buatan hybrid tri-modal untuk sinyal perdagangan yang kuat dan bernuansa.
+    Sistem pendukung keputusan pakar untuk trading ETF NASDAQ dan Minyak (WTI), memanfaatkan kecerdasan buatan hibrida tri-modal untuk sinyal trading yang kuat dan bernuansa.
   </p>
 </div>
 
 <div align="center">
 
-[![Status Proyek](https://img.shields.io/badge/status-dalam--pengembangan-green.svg)](https://github.com/laurentvv/Trading-AI)
-[![Versi Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Lisensi](https://img.shields.io/badge/license-MIT-lightgrey.svg)](https://opensource.org/licenses/MIT)
+[![Project Status](https://img.shields.io/badge/status-in--development-green.svg)](https://github.com/laurentvv/Trading-AI)
+[![Python Version](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)](https://opensource.org/licenses/MIT)
 
 </div>
-
-<p align="center">
-  <img src="../enhanced_performance_dashboard.png" alt="Dashboard Performa" width="800"/>
-</p>
 
 ---
 
@@ -41,16 +37,17 @@
 
 - [🌟 Tentang Proyek](#-tentang-proyek)
   - [✨ Fitur Utama](#-fitur-utama)
-  - [💻 Stack Teknologi](#-stack-teknologi)
+  - [💻 Tech Stack](#-tech-stack)
   - [⚙️ Performa & Perangkat Keras](#️-performa--perangkat-keras)
 - [📂 Struktur Proyek](#-struktur-proyek)
 - [🚀 Mulai Cepat](#-mulai-cepat)
   - [✅ Prasyarat](#-prasyarat)
   - [⚙️ Instalasi](#️-instalasi)
 - [🛠️ Penggunaan](#️-penggunaan)
-  - [Analisis Manual](#-analisis-manual)
-  - [Analisis Otomatis dengan Penjadwal Cerdas](#-analisis-otomatis-dengan-penjadwal-cerdas)
-- [🤝 Berkontribusi](#-berkontribusi)
+  - [Mode Simulasi (Paper Trading)](#mode-simulasi-paper-trading)
+  - [Eksekusi Nyata (Trading 212)](#eksekusi-nyata-trading-212)
+- [🧪 Backtesting Produksi](#-backtesting-produksi)
+- [🤝 Kontribusi](#-kontribusi)
 - [📜 Lisensi](#-lisensi)
 - [📧 Kontak](#-kontak)
 
@@ -58,101 +55,146 @@
 
 ## 🌟 Tentang Proyek
 
-Proyek ini adalah sistem pendukung keputusan ahli untuk perdagangan ETF, menggunakan pendekatan AI hybrid tri-modal. Sistem ini dirancang untuk memberikan analisis yang komprehensif dan kuat dengan menggabungkan beberapa perspektif AI.
+Proyek ini adalah sistem pendukung keputusan pakar untuk trading ETF, menggunakan pendekatan AI hibrida tri-modal. Sistem ini dirancang untuk memberikan analisis komprehensif dan kuat dengan menggabungkan beberapa perspektif AI.
 
-### 🚀 Strategi Dual-Ticker (Analisis vs Trading)
+### 🚀 Strategi Dual-Ticker (Analisis vs. Trading)
 Sistem menggunakan pendekatan inovatif untuk memaksimalkan akurasi model:
-- **Analisis High-Fidelity**: Model AI menganalisis **indeks referensi global** (`^NDX` untuk Nasdaq, `CL=F` untuk Minyak Mentah WTI). Indeks ini menawarkan riwayat yang lebih panjang dan tren yang "lebih murni", tanpa kebisingan terkait jam perdagangan atau biaya ETF.
-- **Eksekusi ETF**: Pesanan nyata ditempatkan pada ticker yang sesuai di **Trading 212** (`SXRV.DE`, `CRUDP.PA`), menggunakan **harga live T212** (via API posisi) untuk penentuan ukuran posisi.
+- **Analisis Akurasi Tinggi**: Model AI menganalisis **indeks referensi global** (`^NDX` untuk Nasdaq, `CL=F` untuk Minyak Mentah WTI). Indeks ini menawarkan riwayat yang lebih panjang dan tren yang lebih "murni", tanpa kebisingan terkait jam trading atau biaya ETF.
+- **Eksekusi ETF**: Pesanan nyata ditempatkan pada ticker yang sesuai di **Trading 212** (`SXRV.DE`, `CRUDP.PA`), menggunakan **harga langsung T212** (via API posisi) untuk menentukan ukuran posisi. Status portofolio disinkronkan langsung dari T212 (`sync_state_from_t212()`), dan harga langsung dimasukkan ke dalam alur kerja analisis (`_inject_t212_live_price()` di `src/data.py`).
 
-### 🧠 Mesin AI Hybrid
-Sistem menggabungkan delapan sinyal berbeda:
-1.  **Model Kuantitatif Klasik**: Ensemble RandomForest/GradientBoosting/LogisticRegression yang dilatih pada indikator teknis dan makroekonomi.
-2.  **TimesFM 2.5 (Google Research)**: Model fondasi mutakhir untuk peramalan deret waktu (time-series).
-3.  **Model Oil-Bench (Gemma 4 12B (Unsloth))**: Model khusus energi yang menggabungkan data fundamental **EIA** (Stok, Impor, Utilisasi Kilang) dan sentimen untuk perdagangan WTI.
-4.  **LLM Tekstual (Gemma 4 12B (Unsloth))**: Analisis kontekstual dari data mentah, berita real-time melalui skill **AlphaEar**, dan integrasi **riset web makro-ekonomi** yang dinamis.
-5.  **LLM Visual (Gemma 4 12B (Unsloth))**: Analisis langsung grafik teknis (`enhanced_trading_chart.png`).
-6.  **Analisis Sentimen**: Analisis hybrid yang menggabungkan Alpha Vantage dan tren "panas" dari **AlphaEar** (Weibo, WallstreetCN).
-7.  **Data Terdesentralisasi (Hyperliquid)**: Analisis sentimen spekulatif pada Minyak (WTI) melalui *Funding Rate* dan *Open Interest*.
-8.  **Model Vincent Ganne**: Analisis geopolitik dan lintas-aset (WTI, Brent, Gas, DXY, MA200) untuk mendeteksi titik terendah makroekonomi.
+### 🧠 Mesin AI Hibrida
+Sistem menggabungkan sebelas sinyal berbeda:
+1.  **Model Kuantitatif Klasik**: Ansambel RandomForest/GradientBoosting/LogisticRegression yang dilatih dengan indikator teknikal dan makroekonomi.
+2.  **TimesFM 2.5 (Google Research)**: Model fondasi mutakhir untuk peramalan deret waktu.
+3.  **TensorTrade / PPO (Reinforcement Learning)**: Agen RL (stable-baselines3) yang melatih kebijakan PPO dalam lingkungan trading Gymnasium kustom dengan persistensi antar siklus.
+4.  **Model Oil-Bench (Gemma 4 12B (Unsloth))**: Model khusus energi yang menggabungkan data fundamental **EIA** (Stok, Impor, Utilisasi Kilang) dan sentimen untuk trading WTI.
+5.  **LLM Tekstual (Gemma 4 12B (Unsloth))**: Analisis kontekstual dari data mentah, berita waktu nyata melalui keahlian **AlphaEar**, dan integrasi **riset web makro-ekonomi** dinamis.
+6.  **LLM Visual (Gemma 4 12B (Unsloth))**: Analisis langsung pada grafik teknikal (`enhanced_trading_chart.png`).
+7.  **Analisis Sentimen**: Analisis hibrida yang menggabungkan Alpha Vantage dan tren "panas" dari **AlphaEar** (Weibo, WallstreetCN).
+8.  **Data Terdesentralisasi (Hyperliquid)**: Analisis sentimen spekulatif pada Minyak (WTI) melalui *Funding Rate* dan *Open Interest*.
+9.  **Model Vincent Ganne**: Analisis geopolitik dan lintas aset (WTI, Brent, Gas, DXY, MA200) untuk mendeteksi titik terendah makroekonomi.
+10. **Model Grebenkov**: Model matematis Mengikuti Tren yang dikalibrasi untuk analisis lintas aset menggunakan Paritas Risiko Agnostik.
+11. **Mesin Fusi Hibrida**: Meta-model yang mengorkestrasi pembobotan dinamis dan konsensus kognitif di antara semua sub-model.
 
-Tujuannya adalah untuk menghasilkan keputusan akhir (`BUY`, `SELL`, `HOLD`) dengan prioritas mutlak pada **Akurasi Utama**.
+Tujuannya adalah menghasilkan keputusan akhir (`BUY`, `SELL`, `HOLD`) dengan prioritas mutlak pada **Akurasi Pertama**.
 
-### 🧘 Filosofi Keputusan: "Kewaspadaan Kognitif"
-Berbeda dengan algoritma perdagangan klasik yang panik segera setelah volatilitas meledak, sistem ini menerapkan pendekatan investor yang terinformasi:
-- **Konsensus Kuat Diperlukan**: Model kuantitatif (Klasik) mungkin memberi sinyal jual (`SELL`), tetapi jika model kognitif (LLM Teks, Visi, TimesFM) tetap netral, sistem akan lebih memilih `HOLD`.
-- **Filter Kepercayaan**: Keputusan pergerakan (Beli atau Jual) hanya divalidasi jika kepercayaan global melebihi ambang batas keamanan (umumnya 40%). Di bawah ini, sistem menganggap sinyal sebagai "kebisingan" dan tetap dalam posisi siaga.
-- **Perlindungan Modal**: Dalam mode risiko `VERY_HIGH`, `HOLD` berfungsi sebagai perisai. Ini mencegah memasuki pasar yang tidak stabil dan menghindari keluar sebelum waktunya pada koreksi teknis sederhana jika fundamental (Berita/Visi/Hyperliquid) tidak mengonfirmasi kehancuran yang akan datang.
+### 🧘 Filosofi Keputusan: "Kehati-hatian Kognitif"
+Berbeda dengan algoritme trading klasik yang panik begitu volatilitas melonjak, sistem ini menerapkan pendekatan investor yang terinformasi:
+- **Diperlukan Konsensus Kuat**: Model kuantitatif (Klasik) mungkin menyuarakan bahaya (`SELL`), tetapi jika model kognitif (LLM Teks, Visual, TimesFM) tetap netral, sistem akan lebih memilih `HOLD`.
+- **Filter Kepercayaan**: Keputusan pergerakan (Beli atau Jual) hanya divalidasi jika kepercayaan global melampaui ambang batas keamanan (umumnya 40%). Di bawah ini, sistem menganggap sinyal sebagai "kebisingan" dan tetap bersiaga.
+- **Perlindungan Modal**: Dalam mode risiko `VERY_HIGH`, `HOLD` berfungsi sebagai perisai. Ini mencegah masuk ke pasar yang tidak stabil dan menghindari keluar terlalu cepat pada koreksi teknis sederhana jika fundamental (Berita/Visual/Hyperliquid) tidak mengkonfirmasi jatuhnya pasar dalam waktu dekat.
 
 ### ✨ Fitur Utama
 
-- **Pendekatan Dual-Ticker**: Analisis indeks, perdagangkan ETF.
-- **Harga Live T212**: Pemulihan harga EUR real-time melalui API Trading 212 (0,2 detik), dengan fallback yfinance dan cache parquet.
-- **Dated Brent Spread**: Pemantauan ketegangan pasar fisik melalui selisih antara Brent Spot (Dated) dan Brent Futures.
-- **Ketahanan Jaringan**: Pemutus arus (circuit breaker) yfinance dengan pelacak terpisah (info vs download), timeout 10 detik pada semua panggilan jaringan.
-- **Kognisi Tingkat Lanjut**: Penggunaan **Gemma 4** untuk sintesis teknis/fundamental yang lebih baik.
-- **Sentimen Berita & Blockchain**: Integrasi **AlphaEar** dan **Hyperliquid** untuk menangkap sentimen sosial dan spekulatif.
-- **Penjadwal Otomatis**: Skrip `schedule.py` untuk eksekusi berkelanjutan (08.30 - 18.00) di server.
-- **Manajemen Risiko Lanjutan**: Penyesuaian sinyal otomatis berdasarkan volatilitas dan rezim pasar.
+- **Pendekatan Dual-Ticker**: Menganalisis indeks, trading pada ETF.
+- **Harga Langsung T212**: Pemulihan harga EUR secara real-time melalui API Trading 212 (0,2 dtk), dengan cadangan yfinance dan cache parquet.
+- **Spread Brent Tertanggal**: Pemantauan ketegangan pasar fisik melalui spread antara Brent Spot (Dated) dan Brent Futures.
+- **Ketahanan Jaringan**: Pemutus arus yfinance dengan pelacak terpisah (info vs unduhan), batas waktu 10 dtk pada semua panggilan jaringan.
+- **Auto-Invalidasi Cache**: Cache parquet secara otomatis mendeteksi data usang (> 2 hari) dan memaksa pembaruan. Gunakan `refresh_cache.py` untuk membersihkan cache secara manual.
+- **Paralelisasi Panggilan LLM**: Panggilan model independen (`text_llm`, `visual_llm`, `search_query`, `timesfm`, `tensortrade`, `grebenkov`) berjalan dalam `ThreadPoolExecutor` untuk menumpuk inferensi Ollama dengan I/O. Jalur kritis biasanya memakan waktu 4–6 menit pada CPU vs 10+ menit secara sekuensial.
+- **Cache Pencarian-Query 24 Jam**: Kueri pencarian web yang dihasilkan oleh LLM di-cache di bawah `data_cache/search_queries/<ticker>_<date>_<price-sig>.json`. Diberi kunci berdasarkan tanggal + tanda tangan aksi harga (log2 bucketing dari penutupan + bucket RSI), sehingga perubahan rezim akan membatalkannya. Kueri cadangan **tidak pernah** di-cache (satu kegagalan sementara Ollama tidak akan meracuni cache selama 24 jam).
+- **Batas Waktu Siklus Keras**: Setiap siklus ticker dibatasi oleh anggaran 15 menit (`CYCLE_TIMEOUT_SECONDS` di `main.py`). Jika melampaui batas waktu, thread pekerja akan di-`shutdown(wait=False)` sehingga ticker berikutnya segera dimulai; HOLD diterapkan pada ticker yang kehabisan waktu. Masing-masing *future* memiliki batas waktunya sendiri per tugas (pencarian 240 dtk, visual 300 dtk, teks 240 dtk, model CPU 180 dtk masing-masing, berita 90 dtk, perayapan web 30 dtk).
+- **Keamanan Utas Yatim (Orphan-Thread Safety)**: Saat batas waktu siklus tercapai, `threading.Event` per-ticker ditetapkan sehingga pekerja yang yatim keluar sebelum panggilan `execute_t212_trade` apa pun — mencegah perdagangan uang sungguhan setelah pengguna ditunjukkan panel "HOLD appliqué". Sebuah `threading.Lock` per-ticker lebih lanjut menserialisasi penempatan pesanan T212, menghilangkan risiko perdagangan ganda di bawah tumpang tindih penjadwal atau pemanggilan ganda `--ticker`.
+- **Penjaga Kegagalan LLM (LLM Failure Sentinel)**: Ketika `_query_ollama` menghabiskan semua percobaan ulang, kamus cadangan membawa bendera `"failed": True` sehingga logika konsensus hilir dapat membedakan "model memilih HOLD" dari "model mogok" (saat ini disebarkan tetapi tidak disaring — sebuah tindak lanjut yang diketahui).
+- **Kognisi Lanjutan**: Penggunaan **Gemma 4 12B** dengan **pertahanan JSON lapis ganda**:
+  1. **Penerapan skema sisi server** (`format: SCHEMA_*` dengan `additionalProperties: false`) — lapisan penahan beban utama; diteruskan melalui parameter `format` Ollama di setiap lokasi panggilan. Skema didefinisikan di `src/llm_client.py` (`SCHEMA_TRADING_DECISION`, `SCHEMA_SEARCH_QUERY`, `SCHEMA_OIL_ALLOCATION`).
+  2. **Akhiran prompt sistem defensif** (`"...never add a 'thought' key."`) — garis pertahanan kedua yang redundan-tapi-tidak-berbahaya, dipertahankan sebagai pengaman ganda terhadap regresi lapisan skema di masa mendatang.
 
-### 💻 Stack Teknologi
+  Token penalaran `<|think|>` **aktif** di keempat prompt sistem produksi (diaktifkan kembali pada 2026-06-06 di `main` setelah validasi di cabang `think-mode`). Lapisan skemalah yang sebenarnya menetralisir cacat puing-JSON dari `<|channel>thought` historis (akar masalah Mei 2026): `tests/check_llm_json.py` mengonfirmasi bahwa kasus-kasus yang ketat terhadap skema (`v3_schema`, `v6_schema`, `v7_schema_strict`) menghasilkan JSON bersih bahkan saat `<|think|>` diaktifkan, sementara varian `format:json` yang longgar akan gagal. Lihat `docs/ADR-001-think-mode-dual-layer-defence.md` untuk analisis selengkapnya dan prosedur pengembalian.
+- **Sentimen Berita & Blockchain**: Integrasi **AlphaEar** dan **Hyperliquid** untuk menangkap sentimen sosial dan spekulatif.
+- **Penjadwal Otomatis**: Skrip `schedule.py` untuk eksekusi berkelanjutan (08:30 - 18:00) pada server.
+- **Manajemen Risiko Terpusat**: `AdvancedRiskManager` memusatkan logika Anti-Loss (Stop-Loss) dan Trailing Stop. Model individu tidak lagi mengelola risiko ini, memastikan strategi perlindungan modal yang terpadu dan ketat di berbagai rezim pasar.
+- **Kontrak Data yang Ketat**: Semua model AI sepenuhnya distandarisasi untuk mengembalikan dataclass `ModelResult` yang strongly-typed (`signal`, `confidence`, `reasoning`), memastikan keseragaman 100% di seluruh mesin konsensus.
+- **Kesehatan Kode Diaudit**: Proyek mempertahankan standar kesehatan kode **Nilai B** melalui audit otomatis (0 dead code, indeks pemeliharaan tinggi).
+- **Backtesting Produksi**: Mesin backtest mandiri (`backtest_prod.py`) yang memutar ulang sinyal produksi nyata terhadap harga nyata dengan biaya T212 — tanpa ketergantungan eksternal.
+- **Kontrol Pembuangan Debug**: Atur `TRADING_DEBUG_DUMP=0` untuk menonaktifkan pembuangan (dump) kegagalan LLM yang dibatasi (5 MB) `data_cache/llm_debug_fail.txt`.
+
+### 💻 Tech Stack
 
 - **Bahasa**: `Python 3.12+`
-- **Perhitungan & Data**: `pandas`, `numpy`, `yfinance`, `pyarrow`, `pandas_datareader`, `hyperliquid-python-sdk`
+- **Kalkulasi & Data**: `pandas`, `numpy`, `yfinance`, `pyarrow`, `pandas_datareader`, `hyperliquid-python-sdk`
 - **Machine Learning**: `scikit-learn`, `shap`
 - **AI & LLM**: `requests`, `ollama`
 - **Web Scraping & Pencarian**: `beautifulsoup4`, `duckduckgo_search`, `crawl4ai`
-- **Visualisasi**: `matplotlib`, `seaborn`, `mplfinance`
+- **Visualisasi**: `matplotlib` (Backend Agg untuk keamanan thread), `seaborn`, `mplfinance`
 - **Utilitas**: `tqdm`, `rich`, `python-dotenv`, `schedule`
 
 ### ⚙️ Performa & Perangkat Keras
-Sistem dirancang untuk **berkinerja pada perangkat keras konsumen** tanpa memerlukan GPU khusus.
-- **Hanya CPU**: Inferensi LLM (Gemma 4 via Ollama) dan TimesFM dioptimalkan untuk eksekusi CPU yang cepat jika RAM yang tersedia cukup.
-- **RAM yang Direkomendasikan**: Minimum 16 GB (disarankan 32 GB untuk menjalankan Gemma 4 dengan nyaman).
-- **Waktu Eksekusi**: ~2 hingga 5 menit untuk siklus penuh (termasuk web crawling, pelatihan ML, prediksi TimesFM, dan 3 analisis LLM).
-- **Kecepatan API**: Integrasi Trading 212 ultra-cepat (<1 detik untuk pemulihan harga live).
+Sistem ini dirancang agar **berperforma tinggi pada perangkat keras konsumen** tanpa memerlukan GPU khusus.
+- **Hanya CPU**: Inferensi LLM (Gemma 4 12B Q4_K_M via Ollama) dan TimesFM berjalan sepenuhnya pada CPU. Throughput adalah sekitar 3–4 token/dtk pada CPU 8-inti modern.
+- **RAM Direkomendasikan**: Minimal 16 GB (disarankan 32 GB untuk menjalankan Gemma 4 12B dengan nyaman berdampingan dengan TimesFM dan TensorTrade).
+- **Konkurensi Ollama**: Atur `OLLAMA_NUM_PARALLEL=8` (sudah disarankan di `.env`) sehingga panggilan LLM ganda dapat berbagi beban model. Dengan anggaran konteks default 4 GB, slot paralel masing-masing mendapatkan ~512 token — Ollama akan menserialisasi jika prompt melampaui konteks per slot, tetapi `ThreadPoolExecutor` menjaga tumpang tindih waktu dinding tetap bermanfaat untuk langkah-langkah yang terikat I/O (pengambilan berita, perayapan web, model CPU).
+- **Waktu Eksekusi**: ~6 hingga 9 menit per ticker pada CPU (keadaan dingin), ~3 hingga 5 menit per ticker saat mengenai cache kueri pencarian. Standar eksekusi menjalankan dua ticker (CRUDP.PA + SXRV.DE), jadi perkirakan total ~15 menit.
+- **Batas Waktu Siklus**: Setiap siklus ticker dibatasi pada 15 menit (`CYCLE_TIMEOUT_SECONDS`). Jika terlampaui, HOLD akan diterapkan dan ticker berikutnya akan langsung dimulai.
+- **Kecepatan API**: Integrasi Trading 212 ultra-cepat (<1 dtk untuk pemulihan harga langsung).
 
 ---
 
 ## 📂 Struktur Proyek
 
-Proyek diatur secara modular untuk pemeliharaan yang lebih baik.
+Proyek ini disusun secara modular untuk pemeliharaan yang lebih baik.
 
 ```
 Trading-AI/
-├── src/                     # Modul inti
-│   ├── eia_client.py               # Klien data fundamental energi
-│   ├── oil_bench_model.py          # Model khusus energi
-│   ├── enhanced_decision_engine.py # Mesin fusi dan model Vincent Ganne
-│   ├── advanced_risk_manager.py    # Manajemen risiko sadar tren
-│   ├── adaptive_weight_manager.py  # Manajemen bobot model dinamis
-│   ├── t212_executor.py            # Eksekusi nyata di Trading 212
-│   ├── timesfm_model.py            # Integrasi TimesFM 2.5
-│   └── ...                         # Data, Fitur, Klien LLM
-├── tests/                   # Skrip pengujian dan validasi
-├── data_cache/              # Data pasar dan makro (Parquet)
-├── main.py                  # Titik masuk tunggal (Analisis & Trading)
-├── schedule.py              # Penjadwal langsung (08.30 - 18.00)
-├── backtest_engine.py       # Mesin backtesting historis
-├── .env                     # Kunci API (Alpha Vantage, T212, EIA)
-└── README.md                # Dokumentasi ini
+├── src/                             # Modul inti
+│   ├── adaptive_weight_manager.py   # Pembobotan model dinamis berdasarkan performa
+│   ├── advanced_risk_manager.py     # Manajemen risiko dan sizing yang menyadari tren
+│   ├── chart_generator.py           # Menghasilkan grafik teknikal untuk LLM visual
+│   ├── classic_model.py             # Ansambel model kuantitatif Scikit-learn
+│   ├── data.py                      # Pengambilan data, caching, dan prapemrosesan
+│   ├── database.py                  # Manajemen basis data SQLite untuk metrik
+│   ├── eia_client.py                # Klien API Energy Information Administration
+│   ├── enhanced_decision_engine.py  # Mesin fusi hibrida yang mengorkestrasi semua model
+│   ├── features.py                  # Rekayasa fitur teknikal dan makroekonomi
+│   ├── grebenkov_model.py           # Model matematis pengikut tren (Agnostic Risk Parity)
+│   ├── llm_client.py                # Integrasi Ollama untuk inferensi LLM lokal
+│   ├── news_fetcher.py              # Pengambilan dan penguraian berita keuangan
+│   ├── oil_bench_model.py           # Model trading WTI khusus energi
+│   ├── performance_monitor.py       # Pelacakan akurasi model dan riwayat
+│   ├── sentiment_analysis.py        # Integrasi sentimen Alpha Vantage & AlphaEar
+│   ├── t212_executor.py             # Eksekusi nyata API Trading 212 dan portofolio
+│   ├── tensortrade_model.py         # Sinyal Reinforcement Learning (PPO)
+│   ├── timesfm_model.py             # Integrasi peramalan deret waktu TimesFM 2.5
+│   └── web_researcher.py            # Web scraping makro-ekonomi dengan Crawl4AI
+├── data_cache/                       # Semua cache (diabaikan oleh git)
+│   ├── *.parquet                     # Data OHLCV per ticker (yfinance)
+│   ├── macro/                        # Deret waktu makro (FRED, multi-sumber)
+│   ├── search_queries/               # Cache kueri pencarian LLM 24 jam (per ticker+tanggal+tanda-harga)
+│   └── llm_debug_fail.txt            # Pembuangan kegagalan LLM dibatasi (5 MB) — nonaktifkan via TRADING_DEBUG_DUMP=0
+├── tests/                            # Skrip pengujian dan validasi
+│   ├── test_full_cycle.py            # Tes ujung-ke-ujung beli/tunggu/jual T212
+│   ├── test_enhanced_decision_engine.py # Tes untuk mesin fusi hibrida
+│   ├── check_llm_json.py             # Diagnostik skema-JSON LLM (menguji ke-4 lokasi panggilan Ollama)
+│   ├── check_live.py                 # Skrip verifikasi harga pasar langsung
+│   └── ...                           # Tes unit dan integrasi lainnya
+├── i18n/                            # Internasionalisasi (README Terjemahan)
+├── assets/                          # Aset statis (gambar, spanduk)
+├── memory-bank/                     # Memori asisten AI dan konteks
+├── backtest_prod.py                 # Mesin backtest produksi mandiri
+├── main.py                          # Titik masuk tunggal (Analisis & Trading)
+├── pyproject.toml                   # Konfigurasi dan dependensi proyek (uv)
+├── refresh_cache.py                 # Utilitas CLI untuk memaksa pembaruan cache Parquet
+├── schedule.py                      # Penjadwal langsung untuk eksekusi otomatis
+├── setup_timesfm.py                 # Skrip instalasi untuk vendor TimesFM 2.5
+├── .env.example                     # Contoh variabel lingkungan
+└── README.md                        # Dokumentasi ini
 ```
 
 ---
 
 ## 🚀 Mulai Cepat
 
-Ikuti langkah-langkah berikut untuk menyiapkan lingkungan pengembangan lokal Anda.
+Ikuti langkah-langkah ini untuk menyiapkan lingkungan pengembangan lokal Anda.
 
 ### ✅ Prasyarat
 
 - Python 3.12+ (melalui `uv`)
 - [Ollama](https://ollama.com/) terinstal dan berjalan secara lokal.
-- Model LLM yang telah diunduh: `ollama pull hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M`
+- Mengunduh model LLM: `ollama pull hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M`
 
 ### ⚙️ Instalasi
 
-1.  **Clone repositori:**
+1.  **Klon repositori:**
     ```sh
     git clone https://github.com/laurentvv/Trading-AI.git
     cd Trading-AI
@@ -160,24 +202,31 @@ Ikuti langkah-langkah berikut untuk menyiapkan lingkungan pengembangan lokal And
 2.  **Instal `uv` (jika belum dilakukan):**
     Lihat [astral.sh/uv](https://astral.sh/uv) untuk instruksi instalasi.
 
-3.  **Instal dan Patch TimesFM 2.5 (Langkah KRUSIAL):**
-    Jalankan skrip instalasi untuk mengkloning model ke `vendor/` dan menerapkan patch:
+3.  **Buat dan aktifkan virtual environment (Langkah KRUSIAL):**
+    Anda harus membuat dan mengaktifkan `.venv` sebelum menginstal model fondasi.
+    ```bash
+    uv venv
+    source .venv/bin/activate  # Di Windows, gunakan `.\.venv\Scripts\activate.ps1`
+    ```
+
+4.  **Instal Model Fondasi:**
+    Jalankan skrip instalasi untuk mengkloning model ke dalam `vendor/` dan menerapkan tambalan (patch):
     ```bash
     python setup_timesfm.py
     ```
 
-4.  **Inisialisasi dan sinkronkan lingkungan:**
+5.  **Inisialisasi dan sinkronkan lingkungan:**
     ```bash
     uv sync
     ```
 
-5.  **Instal browser untuk riset web (Crawl4AI):**
+6.  **Instal browser untuk riset Web (Crawl4AI):**
     ```bash
     uv run python -m playwright install chromium
     ```
 
-6.  **Konfigurasikan kunci API Anda:**
-    Buat file `.env` di root proyek:
+7.  **Konfigurasikan kunci API Anda:**
+    Buat file `.env` di akar proyek:
     ```
     ALPHA_VANTAGE_API_KEY="KUNCI_ANDA"
     EIA_API_KEY="KUNCI_ANDA"
@@ -187,11 +236,11 @@ Ikuti langkah-langkah berikut untuk menyiapkan lingkungan pengembangan lokal And
 
 ## 🛠️ Penggunaan
 
-Sistem melatih modelnya pada data terbaru pada setiap eksekusi sebelum memberikan keputusan.
+Sistem melatih model-modelnya pada data terbaru di setiap eksekusi sebelum memberikan keputusan.
 
 ### Mode Simulasi (Paper Trading)
 
-Untuk menguji sistem tanpa risiko dengan modal fiktif sebesar €1000, gunakan flag `--simul`. Sistem akan mengelola riwayat beli dan jual yang ketat.
+Untuk menguji sistem tanpa risiko dengan modal fiktif sebesar €1000, gunakan bendera `--simul`. Sistem akan mengelola riwayat beli dan jual yang ketat.
 
 ```sh
 # Jalankan analisis simulasi (Default: SXRV.DE - Nasdaq 100 EUR)
@@ -203,20 +252,41 @@ uv run main.py --ticker CRUDP.PA --simul
 
 ### Eksekusi Nyata (Trading 212)
 
-Sistem sekarang **terintegrasi penuh** dengan Trading 212:
-- **Verifikasi Portofolio**: Sebelum tindakan apa pun, robot berkonsultasi dengan uang tunai dan posisi nyata Anda.
-- **Manajemen API**: Termasuk mekanisme percobaan ulang otomatis terhadap batas permintaan (Rate Limiting).
+Sistem ini sekarang **sepenuhnya terintegrasi** dengan Trading 212:
+- **Verifikasi Portofolio**: Sebelum mengambil tindakan apa pun, robot berkonsultasi dengan uang tunai dan posisi nyata Anda.
+- **Manajemen API**: Termasuk mekanisme coba lagi (retry) otomatis terhadap batasan permintaan (Rate Limiting).
 
 ```sh
-# Jalankan analisis dengan eksekusi nyata (Demo atau Real sesuai .env)
+# Jalankan analisis dengan eksekusi nyata (Demo atau Real berdasarkan .env)
 uv run main.py --t212
 ```
 
 ---
 
-## 🤝 Berkontribusi
+## 🧪 Backtesting Produksi
 
-Kontribusi sangat disambut! Jangan ragu untuk melakukan fork pada proyek dan membuka Pull Request.
+Sistem ini mencakup **mesin backtest produksi mandiri** (`backtest_prod.py`) yang memutar ulang sinyal produksi sebenarnya dari `logs_prod/trading_journal.csv` terhadap harga nyata dari file Parquet `data_cache/`.
+
+### Fitur
+- **Sinyal nyata**: Memutar ulang keputusan pasti dari mesin hibrida 11-model.
+- **Harga nyata**: Menggunakan data OHLCV ETF aktual (SXRV.DE, CRUDP.PA) — bukan proksi AS.
+- **Biaya T212**: Mensimulasikan model biaya per transaksi Trading 212 sebesar 0,1%.
+- **Perbandingan dasar**: Secara otomatis menghitung performa beli-dan-tahan (buy-and-hold) sebagai patokan.
+- **Metrik**: Rasio Sharpe, Penarikan Maksimum (Maximum Drawdown), Tingkat Kemenangan (Win Rate), Alpha, Total Imbal Hasil (Total Return) per ticker.
+
+### Penggunaan
+
+```bash
+uv run python backtest_prod.py
+```
+
+Hasil disimpan ke `logs_prod/backtest_report.json` beserta kurva ekuitas CSV.
+
+---
+
+## 🤝 Kontribusi
+
+Kontribusi dipersilakan! Jangan ragu untuk me-fork proyek ini dan membuka Pull Request.
 
 ---
 
@@ -228,4 +298,4 @@ Didistribusikan di bawah Lisensi MIT.
 
 ## 📧 Kontak
 
-Link Proyek: [https://github.com/laurentvv/Trading-AI](https://github.com/laurentvv/Trading-AI)
+Tautan Proyek: [https://github.com/laurentvv/Trading-AI](https://github.com/laurentvv/Trading-AI)

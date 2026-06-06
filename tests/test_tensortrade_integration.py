@@ -62,8 +62,8 @@ class TestTensorTradeIntegration(unittest.TestCase):
         df = _make_df(100)
         tensortrade_result = get_tensortrade_prediction(df)
 
-        self.assertIn("signal", tensortrade_result)
-        self.assertIn("confidence", tensortrade_result)
+        self.assertTrue(hasattr(tensortrade_result, "signal"))
+        self.assertTrue(hasattr(tensortrade_result, "confidence"))
 
         engine = EnhancedDecisionEngine()
 
@@ -102,12 +102,12 @@ class TestTensorTradeIntegration(unittest.TestCase):
         tensortrade_result = get_tensortrade_prediction(df)
 
         engine = EnhancedDecisionEngine()
-        td_signal = tensortrade_result.get("signal", "HOLD")
+        td_signal = getattr(tensortrade_result, "signal", "HOLD")
         td_strength = engine._normalize_signal(td_signal)
 
         decision = ModelDecision(
             signal=td_signal,
-            confidence=tensortrade_result["confidence"],
+            confidence=getattr(tensortrade_result, "confidence", 0.0),
             strength=td_strength,
             timestamp=datetime.now(),
             model_name="tensortrade",
@@ -122,10 +122,10 @@ class TestTensorTradeIntegration(unittest.TestCase):
 
         df = _make_df(100)
         result = get_tensortrade_prediction(df)
-        self.assertNotIn("analysis", result)
+        self.assertFalse(hasattr(result, "analysis"))
 
-        analysis = result.get("analysis", "TensorTrade RL policy output")
-        self.assertEqual(analysis, "TensorTrade RL policy output")
+        analysis = getattr(result, "reasoning", "TensorTrade RL policy output")
+        self.assertIn("PPO predicted", analysis)
 
 
 if __name__ == "__main__":

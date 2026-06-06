@@ -1,9 +1,10 @@
 import logging
+from src.enhanced_decision_engine import ModelResult
 
 logger = logging.getLogger(__name__)
 
 
-def get_sentiment_decision_from_score(sentiment_score: float) -> dict:
+def get_sentiment_decision_from_score(sentiment_score: float) -> ModelResult:
     """
     Converts a sentiment score to a trading decision.
     """
@@ -19,4 +20,4 @@ def get_sentiment_decision_from_score(sentiment_score: float) -> dict:
 
     analysis = f"Sentiment score from news API is {sentiment_score:.2f}."
 
-    return {"signal": signal, "confidence": confidence, "analysis": analysis}
+    return ModelResult(signal=signal, confidence=confidence, reasoning=analysis)

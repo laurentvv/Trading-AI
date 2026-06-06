@@ -48,7 +48,7 @@ from grebenkov_model import GrebenkovTrendModel
 from hmm_model import HMMDecisionModel
 
 # Imports des nouveaux modules d'amélioration
-from enhanced_decision_engine import EnhancedDecisionEngine
+from enhanced_decision_engine import EnhancedDecisionEngine, ModelResult
 from advanced_risk_manager import AdvancedRiskManager
 from adaptive_weight_manager import AdaptiveWeightManager
 from performance_monitor import PerformanceMonitor
@@ -476,11 +476,11 @@ class EnhancedTradingSystem:
             text_ex.shutdown(wait=True)
         except TimeoutError:
             logger.error("Text LLM outer timeout (240s) — HOLD fallback")
-            text_llm_decision = {"signal": "HOLD", "confidence": 0.0, "analysis": "Text LLM timeout", "failed": True}
+            text_llm_decision = ModelResult("HOLD", 0.0, "Text LLM timeout", {"failed": True})
             text_ex.shutdown(wait=False)
         except Exception as e:
             logger.error(f"Text LLM failed: {e}")
-            text_llm_decision = {"signal": "HOLD", "confidence": 0.0, "analysis": f"Text LLM error: {e}", "failed": True}
+            text_llm_decision = ModelResult("HOLD", 0.0, f"Text LLM error: {e}", {"failed": True})
             text_ex.shutdown(wait=False)
 
         # ============================================================
@@ -495,46 +495,46 @@ class EnhancedTradingSystem:
             visual_llm_decision = visual_llm_future.result(timeout=300)
         except TimeoutError:
             logger.error("Visual LLM timeout (300s) — HOLD fallback")
-            visual_llm_decision = {"signal": "HOLD", "confidence": 0.0, "analysis": "Visual LLM timeout"}
+            visual_llm_decision = ModelResult("HOLD", 0.0, "Visual LLM timeout")
         except Exception as e:
             logger.error(f"Visual LLM future failed: {e}")
-            visual_llm_decision = {"signal": "HOLD", "confidence": 0.0, "analysis": f"Visual LLM error: {e}"}
+            visual_llm_decision = ModelResult("HOLD", 0.0, f"Visual LLM error: {e}")
 
         try:
             timesfm_decision = timesfm_future.result(timeout=180)
         except TimeoutError:
             logger.error("TimesFM timeout (180s) — HOLD fallback")
-            timesfm_decision = {"signal": "HOLD", "confidence": 0.0, "analysis": "TimesFM timeout"}
+            timesfm_decision = ModelResult("HOLD", 0.0, "TimesFM timeout")
         except Exception as e:
             logger.error(f"TimesFM future failed: {e}")
-            timesfm_decision = {"signal": "HOLD", "confidence": 0.0, "analysis": f"TimesFM error: {e}"}
+            timesfm_decision = ModelResult("HOLD", 0.0, f"TimesFM error: {e}")
 
         try:
             tensortrade_decision = tensortrade_future.result(timeout=180)
         except TimeoutError:
             logger.error("TensorTrade timeout (180s) — HOLD fallback")
-            tensortrade_decision = {"signal": "HOLD", "confidence": 0.0, "analysis": "TensorTrade timeout"}
+            tensortrade_decision = ModelResult("HOLD", 0.0, "TensorTrade timeout")
         except Exception as e:
             logger.error(f"TensorTrade future failed: {e}")
-            tensortrade_decision = {"signal": "HOLD", "confidence": 0.0, "analysis": f"TensorTrade error: {e}"}
+            tensortrade_decision = ModelResult("HOLD", 0.0, f"TensorTrade error: {e}")
 
         try:
             grebenkov_decision = grebenkov_future.result(timeout=180)
         except TimeoutError:
             logger.error("Grebenkov timeout (180s) — HOLD fallback")
-            grebenkov_decision = {"signal": "HOLD", "confidence": 0.0, "reasoning": "Grebenkov timeout"}
+            grebenkov_decision = ModelResult("HOLD", 0.0, "Grebenkov timeout")
         except Exception as e:
             logger.error(f"Grebenkov future failed: {e}")
-            grebenkov_decision = {"signal": "HOLD", "confidence": 0.0, "reasoning": f"Grebenkov error: {e}"}
+            grebenkov_decision = ModelResult("HOLD", 0.0, f"Grebenkov error: {e}")
 
         try:
             hmm_decision = hmm_future.result(timeout=180)
         except TimeoutError:
             logger.error("HMM Model timeout (180s) — HOLD fallback")
-            hmm_decision = {"signal": "HOLD", "confidence": 0.0, "reasoning": "HMM timeout"}
+            hmm_decision = ModelResult("HOLD", 0.0, "HMM timeout")
         except Exception as e:
             logger.error(f"HMM future failed: {e}")
-            hmm_decision = {"signal": "HOLD", "confidence": 0.0, "reasoning": f"HMM error: {e}"}
+            hmm_decision = ModelResult("HOLD", 0.0, f"HMM error: {e}")
 
         executor.shutdown(wait=False)
 
