@@ -19,7 +19,7 @@
   <br />
   <h1>📈 Hybrid AI Trading System 📈</h1>
   <p>
-    An expert decision-support system for NASDAQ and Oil (WTI) ETF trading, leveraging a tri-modal hybrid artificial intelligence for robust and nuanced trading signals.
+    An expert decision-support system for NASDAQ and Oil (WTI) ETF trading, leveraging an 11-model hybrid artificial intelligence for robust and nuanced trading signals.
   </p>
 </div>
 
@@ -54,7 +54,7 @@
 
 ## 🌟 About the Project
 
-This project is an expert decision-support system for ETF trading, using a tri-modal hybrid AI approach. It is designed to provide a comprehensive and robust analysis by combining several AI perspectives.
+This project is an expert decision-support system for ETF trading, using an 11-model hybrid AI approach. It is designed to provide a comprehensive and robust analysis by combining several AI perspectives.
 
 ### 🚀 Dual-Ticker Strategy (Analysis vs. Trading)
 The system uses an innovative approach to maximize model accuracy:
@@ -62,7 +62,7 @@ The system uses an innovative approach to maximize model accuracy:
 - **ETF Execution**: Real orders are placed on the corresponding tickers on **Trading 212** (`SXRV.DE`, `CRUDP.PA`), using **T212 live prices** (via positions API) for position sizing. Portfolio state is synchronized directly from T212 (`sync_state_from_t212()`), and live prices are injected into the analysis pipeline (`_inject_t212_live_price()` in `src/data.py`).
 
 ### 🧠 Hybrid AI Engine
-The system merges eleven distinct signals:
+The system merges eleven distinct signals (plus a meta-model):
 1.  **Classic Quantitative Model**: RandomForest/GradientBoosting/LogisticRegression ensemble trained on technical and macroeconomic indicators.
 2.  **TimesFM 2.5 (Google Research)**: State-of-the-art foundation model for time-series forecasting.
 3.  **TensorTrade / PPO (Reinforcement Learning)**: RL agent (stable-baselines3) training a PPO policy in a custom Gymnasium trading environment with persistence across cycles.
@@ -73,7 +73,8 @@ The system merges eleven distinct signals:
 8.  **Decentralized Data (Hyperliquid)**: Analysis of speculative sentiment on Oil (WTI) via *Funding Rate* and *Open Interest*.
 9.  **Vincent Ganne Model**: Geopolitical and cross-asset analysis (WTI, Brent, Gas, DXY, MA200) for detecting macroeconomic bottoms.
 10. **Grebenkov Model**: Trend-Following mathematical model calibrated for cross-asset analysis using Agnostic Risk Parity.
-11. **Hybrid Fusion Engine**: The meta-model orchestrating dynamic weighting and cognitive consensus across all sub-models.
+11. **Hidden Markov Model (HMM)**: Probabilistic model for market regime detection (bullish/bearish) based on historical price variations.
+12. **Hybrid Fusion Engine**: The meta-model orchestrating dynamic weighting and cognitive consensus across all sub-models.
 
 The goal is to produce a final decision (`BUY`, `SELL`, `HOLD`) with an absolute priority on **Accuracy First**.
 
@@ -138,18 +139,23 @@ Trading-AI/
 ├── src/                             # Core modules
 │   ├── adaptive_weight_manager.py   # Dynamic model weighting based on performance
 │   ├── advanced_risk_manager.py     # Trend-Aware risk management and sizing
+│   ├── bootstrap.py                 # Core initialization logic
 │   ├── chart_generator.py           # Generates technical charts for visual LLM
 │   ├── classic_model.py             # Scikit-learn quantitative models ensemble
+│   ├── config_weights.py            # Base weights configuration for the hybrid engine
 │   ├── data.py                      # Data fetching, caching, and preprocessing
 │   ├── database.py                  # SQLite database management for metrics
 │   ├── eia_client.py                # Energy Information Administration API client
 │   ├── enhanced_decision_engine.py  # Hybrid fusion engine orchestrating all models
+│   ├── enhanced_trading_example.py  # Example scripts for model utilization
 │   ├── features.py                  # Technical and macroeconomic feature engineering
 │   ├── grebenkov_model.py           # Trend-Following math model (Agnostic Risk Parity)
+│   ├── hmm_model.py                 # Hidden Markov Model for regime detection
 │   ├── llm_client.py                # Ollama integration for local LLM inference
 │   ├── news_fetcher.py              # Financial news crawling and parsing
 │   ├── oil_bench_model.py           # Energy-specialized WTI trading model
 │   ├── performance_monitor.py       # Tracking model accuracy and history
+│   ├── read_simul.py                # Tools for reading simulation outputs
 │   ├── sentiment_analysis.py        # Alpha Vantage & AlphaEar sentiment integration
 │   ├── t212_executor.py             # Trading 212 API real execution and portfolio
 │   ├── tensortrade_model.py         # Reinforcement Learning (PPO) signal
