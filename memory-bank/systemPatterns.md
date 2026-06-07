@@ -18,6 +18,9 @@ The application follows a modular, ensemble-based architecture orchestrated by t
 6.  **Monitoring Layer (`src/performance_monitor.py`)**: Generates real-time performance reports and visual dashboards.
 
 ## 2. Key Design Patterns
+- **ModelResult Standardisation**: All AI models are fully standardized to return a strongly-typed `ModelResult` dataclass (`signal`, `confidence`, `reasoning`). This guarantees 100% data contract uniformity across the consensus engine.
+- **Centralized Risk Management**: Anti-Loss (Stop-Loss) and Trailing Stop logic are strictly centralized within the `AdvancedRiskManager`. Individual models (e.g., Grebenkov) no longer manage these risks, ensuring a unified capital protection strategy.
+- **Automated Code Health Auditing**: The project maintains a strict Grade B health standard (0 dead code/imports) via the `python-health-audit` skill, ensuring high maintainability.
 - **Accuracy First (Confidence Filter)**: A strict security pattern where BUY/SELL signals are only executed if global confidence exceeds a 40% threshold. Between 20-40%, signals are automatically downgraded to HOLD to avoid market noise.
 - **Unidirectional Macro Validation (VG Model)**: A specialized pattern where the Vincent Ganne model only generates `BUY` or `HOLD` signals. It acts as a safety gate for Nasdaq entries based on energy price stability but never forces a `SELL`.
 - **Temporal & Ticker-Aware Prompting**: The LLM Client uses a dynamic prompting strategy that injects the current month/year, the specific ticker name, and 5-day price trends into both search queries and decision prompts to minimize hallucinations and maximize context relevance.

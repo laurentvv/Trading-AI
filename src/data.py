@@ -202,7 +202,7 @@ def get_etf_data(ticker: str, period: str = "5y", force_refresh: bool = False) -
                 logger.info(f"Attempt {attempt + 1}/{max_retries} to download data...")
 
                 # Download main ticker first
-                ticker_data = _yf_download(ticker, period="max", auto_adjust=True, timeout=YF_TIMEOUT)
+                ticker_data = _yf_download(ticker, period=period, auto_adjust=True, timeout=YF_TIMEOUT)
                 if ticker_data.empty:
                     raise ValueError(f"No data found for ticker {ticker}")
 

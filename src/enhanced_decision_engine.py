@@ -240,13 +240,19 @@ class VincentGanneModel(BaseModel):
 
         # Aggregate scores from helpers
         o_score, o_max, o_reasons = self._evaluate_oil(indicators)
-        score += o_score; max_score += o_max; reasons.extend(o_reasons)
+        score += o_score
+        max_score += o_max
+        reasons.extend(o_reasons)
         
         gu_score, gu_max, gu_reasons = self._evaluate_gas_and_urea(indicators)
-        score += gu_score; max_score += gu_max; reasons.extend(gu_reasons)
+        score += gu_score
+        max_score += gu_max
+        reasons.extend(gu_reasons)
         
         m_score, m_max, m_reasons = self._evaluate_macro(indicators)
-        score += m_score; max_score += m_max; reasons.extend(m_reasons)
+        score += m_score
+        max_score += m_max
+        reasons.extend(m_reasons)
 
         # FINAL DECISION LOGIC
         confidence = score / max_score if max_score > 0 else 0
@@ -499,14 +505,23 @@ class EnhancedDecisionEngine:
 
         for model_name, dec in legacy_models.items():
             if dec:
+                if hasattr(dec, "signal"):
+                    signal_val = getattr(dec, "signal", "HOLD")
+                    conf_val = getattr(dec, "confidence", 0.0)
+                    reason_val = getattr(dec, "reasoning", f"{model_name} analysis")
+                else:
+                    signal_val = dec.get("signal", "HOLD")
+                    conf_val = dec.get("confidence", 0.0)
+                    reason_val = dec.get("analysis", f"{model_name} analysis")
+                
                 decisions.append(
                     ModelDecision(
-                        signal=dec.get("signal", "HOLD"),
-                        confidence=dec.get("confidence", 0.0),
-                        strength=self._normalize_signal(dec.get("signal", "HOLD")),
+                        signal=signal_val,
+                        confidence=conf_val,
+                        strength=self._normalize_signal(signal_val),
                         timestamp=timestamp,
                         model_name=model_name,
-                        reasoning=dec.get("analysis", f"{model_name} analysis"),
+                        reasoning=reason_val,
                     )
                 )
 
@@ -535,6 +550,7 @@ class EnhancedDecisionEngine:
         vincent_ganne_indicators: Dict = None,
         oil_bench_decision: Dict = None,
         grebenkov_decision: Dict = None,
+        hmm_decision: Dict = None,
         market_data: Dict = None,
         adaptive_weights: Dict[str, float] = None,
         generic_model_results: List[ModelDecision] = None,
@@ -581,6 +597,7 @@ class EnhancedDecisionEngine:
                 "tensortrade": tensortrade_decision,
                 "oil_bench": oil_bench_decision,
                 "grebenkov": grebenkov_decision,
+                "hmm_model": hmm_decision,
             }
             self._convert_legacy_inputs(timestamp, decisions, classic_pred, classic_conf, legacy_models, vincent_ganne_indicators)
 

@@ -6,6 +6,7 @@ import base64
 from pathlib import Path
 import time
 import os
+from src.enhanced_decision_engine import ModelResult
 
 logger = logging.getLogger(__name__)
 
@@ -173,7 +174,7 @@ def get_llm_decision(
     web_context: str = None,
     vg_indicators: dict = None,
     ticker: str = "Unknown",
-) -> dict:
+) -> ModelResult:
     """
     Queries the textual LLM via Ollama to get a trading decision.
     """
@@ -187,16 +188,23 @@ def get_llm_decision(
         "options": {"temperature": 0.4, "num_predict": 1024},
         "system": "<|think|> You are an expert financial analyst. Your task is to analyze market data and news to provide a trading decision in a valid JSON format. Output ONLY the JSON object requested — never add a 'thought' key.",
     }
-    return _query_ollama(payload)
+    
+    result_dict = _query_ollama(payload)
+    return ModelResult(
+        signal=result_dict.get("signal", "HOLD"),
+        confidence=result_dict.get("confidence", 0.0),
+        reasoning=result_dict.get("analysis", "No analysis"),
+        metadata=result_dict,
+    )
 
 
-def get_visual_llm_decision(image_path: Path) -> dict:
+def get_visual_llm_decision(image_path: Path) -> ModelResult:
     """
     Queries the visual LLM via Ollama with a chart image.
     """
     if not image_path.exists():
         logger.error(f"Chart image not found: {image_path}")
-        return {"signal": "HOLD", "confidence": 0.0, "analysis": "Chart image missing."}
+        return ModelResult("HOLD", 0.0, "Chart image missing.")
 
     logger.info(f"Querying visual LLM with image {image_path}...")
 
@@ -205,11 +213,7 @@ def get_visual_llm_decision(image_path: Path) -> dict:
             image_base64 = base64.b64encode(image_file.read()).decode("utf-8")
     except Exception as e:
         logger.error(f"Could not read or encode image {image_path}: {e}")
-        return {
-            "signal": "HOLD",
-            "confidence": 0.0,
-            "analysis": f"Error reading image: {e}",
-        }
+        return ModelResult("HOLD", 0.0, f"Error reading image: {e}")
 
     prompt = """
     ACT AS A PROFESSIONAL CHART ANALYST. Analyze the attached price chart image.
@@ -235,7 +239,14 @@ def get_visual_llm_decision(image_path: Path) -> dict:
         "options": {"temperature": 0.1, "num_predict": 1024},
         "system": "<|think|> You are a geometric chart analyst. Return ONLY the requested JSON object — never add a 'thought' key.",
     }
-    return _query_ollama(payload)
+    
+    result_dict = _query_ollama(payload)
+    return ModelResult(
+        signal=result_dict.get("signal", "HOLD"),
+        confidence=result_dict.get("confidence", 0.0),
+        reasoning=result_dict.get("analysis", "No analysis"),
+        metadata=result_dict,
+    )
 
 
 def _extract_json_objects(text: str) -> list:
@@ -360,7 +371,8 @@ def _query_ollama(payload: dict, max_retries: int = 3, expected_keys: list = Non
             while pos < len(raw_output):
                 try:
                     start = raw_output.find('{', pos)
-                    if start == -1: break
+                    if start == -1:
+                        break
                     obj, end_idx = decoder.raw_decode(raw_output[start:])
                     # obj is already a parsed dictionary or list
                     if isinstance(obj, dict):

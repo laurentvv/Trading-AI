@@ -87,16 +87,16 @@ class TestInsufficientData(unittest.TestCase):
     def test_returns_hold_with_low_confidence(self):
         df = _make_df(n=30)
         result = get_tensortrade_prediction(df)
-        self.assertEqual(result["signal"], "HOLD")
-        self.assertEqual(result["confidence"], 0.5)
+        self.assertEqual(result.signal, "HOLD")
+        self.assertEqual(result.confidence, 0.5)
 
 
 class TestMissingCloseColumn(unittest.TestCase):
     def test_returns_hold_with_zero_confidence(self):
         df = pd.DataFrame({"Open": np.random.rand(100)})
         result = get_tensortrade_prediction(df)
-        self.assertEqual(result["signal"], "HOLD")
-        self.assertEqual(result["confidence"], 0.0)
+        self.assertEqual(result.signal, "HOLD")
+        self.assertEqual(result.confidence, 0.0)
 
 
 class TestLowercaseCloseColumn(unittest.TestCase):
@@ -105,8 +105,8 @@ class TestLowercaseCloseColumn(unittest.TestCase):
         _mock_ppo_setup(mock_ppo_cls, action=1)
         df = _make_df(n=100, close_col="close")
         result = get_tensortrade_prediction(df)
-        self.assertIn(result["signal"], ["BUY", "SELL", "HOLD"])
-        self.assertTrue(0.0 <= result["confidence"] <= 1.0)
+        self.assertIn(result.signal, ["BUY", "SELL", "HOLD"])
+        self.assertTrue(0.0 <= result.confidence <= 1.0)
 
 
 class TestSuccessfulPrediction(unittest.TestCase):
@@ -115,8 +115,8 @@ class TestSuccessfulPrediction(unittest.TestCase):
         _mock_ppo_setup(mock_ppo_cls, action=2, probs=np.array([[0.1, 0.3, 0.6]]))
         df = _make_df(n=100)
         result = get_tensortrade_prediction(df)
-        self.assertEqual(result["signal"], "SELL")
-        self.assertAlmostEqual(result["confidence"], 0.6)
+        self.assertEqual(result.signal, "SELL")
+        self.assertAlmostEqual(result.confidence, 0.6)
 
 
 class TestEnvStepLogic(unittest.TestCase):
@@ -181,8 +181,8 @@ class TestExceptionHandling(unittest.TestCase):
         mock_ppo_cls.load = MagicMock(side_effect=RuntimeError("PPO crash"))
         df = _make_df(n=100)
         result = get_tensortrade_prediction(df)
-        self.assertEqual(result["signal"], "HOLD")
-        self.assertEqual(result["confidence"], 0.0)
+        self.assertEqual(result.signal, "HOLD")
+        self.assertEqual(result.confidence, 0.0)
 
 
 class TestModelPersistence(unittest.TestCase):

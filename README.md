@@ -102,7 +102,9 @@ Unlike classic trading algorithms that panic as soon as volatility explodes, thi
   The `<|think|>` reasoning token is **active** in all four production system prompts (re-enabled 2026-06-06 on `main` after validation on `think-mode` branch). The schema layer is what actually neutralises the historical `<|channel>thought` JSON-debris defect (May 2026 root cause): `tests/check_llm_json.py` confirms that schema-strict cases (`v3_schema`, `v6_schema`, `v7_schema_strict`) produce clean JSON even with `<|think|>` enabled, while the loose `format:json` variants fail. See `docs/ADR-001-think-mode-dual-layer-defence.md` for the full analysis and reversal procedure.
 - **News & Blockchain Sentiment**: Integration of **AlphaEar** and **Hyperliquid** to capture social and speculative sentiment.
 - **Automated Scheduler**: `schedule.py` script for continuous execution (8:30 AM - 6:00 PM) on a server.
-- **Advanced Risk Management**: Automatic signal adjustment based on volatility and market regime.
+- **Centralized Risk Management**: The `AdvancedRiskManager` centralizes Anti-Loss (Stop-Loss) and Trailing Stop logic. Individual models no longer manage these risks, ensuring a unified and strict capital protection strategy across varying market regimes.
+- **Strict Data Contracts**: All AI models are fully standardized to return a strongly-typed `ModelResult` dataclass (`signal`, `confidence`, `reasoning`), ensuring 100% uniformity across the consensus engine.
+- **Code Health Audited**: Project maintains a **Grade B** code health standard via automated audits (0 dead code, high maintainability index).
 - **Production Backtesting**: Standalone backtest engine (`backtest_prod.py`) replaying real prod signals against real prices with T212 fees — no external dependencies.
 - **Debug Dump Control**: Set `TRADING_DEBUG_DUMP=0` to disable the capped (5 MB) `data_cache/llm_debug_fail.txt` LLM-failure dump.
 

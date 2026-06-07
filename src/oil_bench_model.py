@@ -5,6 +5,8 @@ import yfinance as yf
 
 from eia_client import EIAClient
 from llm_client import TEXT_LLM_MODEL, _query_ollama, SCHEMA_OIL_ALLOCATION
+from enhanced_decision_engine import BaseModel, ModelResult
+from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +23,21 @@ class OilBenchConfig:
     lookback_days: int = 5
 
 
-class OilBenchModel:
+class OilBenchModel(BaseModel):
     def __init__(self, config: OilBenchConfig = None):
         self.config = config or OilBenchConfig()
         self.eia_client = EIAClient()
+
+    def predict(self, data: Dict[str, Any]) -> ModelResult:
+        ticker = data.get("ticker", "CL=F")
+        headlines = data.get("headlines")
+        
+        result_dict = self.analyze(ticker, headlines)
+        return ModelResult(
+            signal=result_dict["signal"],
+            confidence=result_dict["confidence"],
+            reasoning=result_dict["analysis"],
+        )
 
     def analyze(self, ticker: str, headlines: list = None) -> dict:
         if not EIAClient.is_oil_ticker(ticker):

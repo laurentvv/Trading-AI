@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import gymnasium as gym
 from stable_baselines3 import PPO
+from src.enhanced_decision_engine import ModelResult
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +166,7 @@ class SimpleTradingEnv(gym.Env):
         ).astype(np.float32)
 
 
-def get_tensortrade_prediction(df: pd.DataFrame) -> dict:
+def get_tensortrade_prediction(df: pd.DataFrame) -> ModelResult:
     """
     Génère une prédiction RL basée sur l'action actuelle via PPO (stable-baselines3).
     Le modèle est persisté entre les appels pour accumuler l'apprentissage.
@@ -175,12 +176,12 @@ def get_tensortrade_prediction(df: pd.DataFrame) -> dict:
     try:
         if len(df) < 50:
             logger.warning("Pas assez de données pour TensorTrade, retour au neutre.")
-            return {"signal": "HOLD", "confidence": 0.5}
+            return ModelResult("HOLD", 0.5, "Not enough data for TensorTrade")
 
         close_col = "Close" if "Close" in df.columns else "close"
         if close_col not in df.columns:
             logger.warning("Colonne Close manquante, TensorTrade ignoré.")
-            return {"signal": "HOLD", "confidence": 0.0}
+            return ModelResult("HOLD", 0.0, "Missing Close column")
 
         data = df.copy()
 
@@ -245,11 +246,11 @@ def get_tensortrade_prediction(df: pd.DataFrame) -> dict:
 
         logger.info(f"TensorTrade prédiction finale : {signal} (Confiance: {confidence:.2f})")
 
-        return {"signal": signal, "confidence": confidence}
+        return ModelResult(signal=signal, confidence=confidence, reasoning=f"PPO predicted action {action} with prob {confidence:.2f}")
 
     except Exception as e:
         logger.error(f"Erreur lors de l'exécution de TensorTrade: {e}")
         import traceback
 
         logger.debug(traceback.format_exc())
-        return {"signal": "HOLD", "confidence": 0.0}
+        return ModelResult("HOLD", 0.0, f"TensorTrade Error: {e}")

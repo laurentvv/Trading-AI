@@ -39,64 +39,6 @@ class TestGrebenkovTrendModel(unittest.TestCase):
         self.assertLessEqual(result.confidence, 1.0)
 
 
-class TestResetClearsState(unittest.TestCase):
-    def test_reset_clears_state(self):
-        model = GrebenkovTrendModel()
-        model._position_type = "LONG"
-        model._peak_price = 150.0
-        model._last_ticker = "AAPL"
-        model.reset()
-        self.assertIsNone(model._peak_price)
-        self.assertEqual(model._position_type, "FLAT")
-        self.assertIsNone(model._last_ticker)
-
-
-class TestAutoResetOnTickerChange(unittest.TestCase):
-    def test_auto_reset_on_ticker_change(self):
-        model = GrebenkovTrendModel()
-        data1 = _make_data(ticker="SXRV.DE")
-        model.predict(data1)
-        self.assertEqual(model._last_ticker, "SXRV.DE")
-        model._peak_price = 999.0
-        model._position_type = "LONG"
-
-        data2 = _make_data(ticker="AAPL")
-        model.predict(data2)
-        self.assertEqual(model._last_ticker, "AAPL")
-        self.assertNotEqual(model._peak_price, 999.0)
-
-    def test_no_reset_same_ticker(self):
-        model = GrebenkovTrendModel()
-        data = _make_data(ticker="SXRV.DE")
-        model.predict(data)
-        ticker_before = model._last_ticker
-        model.predict(data)
-        self.assertEqual(model._last_ticker, ticker_before)
-        self.assertNotEqual(model._last_ticker, None)
-
-
-class TestStopLossTriggersSell(unittest.TestCase):
-    def test_stop_loss_triggers_sell(self):
-        model = GrebenkovTrendModel(stop_loss_pct=0.10)
-        model._position_type = "LONG"
-        model._peak_price = 100.0
-        model._last_ticker = "SXRV.DE"
-        data = _make_data()
-        data["hist_data"] = pd.DataFrame({"Close": [85.0] * 800}, index=data["hist_data"].index)
-        result = model.predict(data)
-        self.assertEqual(result.signal, "SELL")
-
-
-class TestTrailingStopTriggersSell(unittest.TestCase):
-    def test_trailing_stop_triggers_sell(self):
-        model = GrebenkovTrendModel(trailing_stop_pct=0.05)
-        model._position_type = "LONG"
-        model._peak_price = 100.0
-        model._last_ticker = "SXRV.DE"
-        data = _make_data()
-        data["hist_data"] = pd.DataFrame({"Close": [93.0] * 800}, index=data["hist_data"].index)
-        result = model.predict(data)
-        self.assertEqual(result.signal, "SELL")
 
 
 class TestATRAdaptiveThreshold(unittest.TestCase):

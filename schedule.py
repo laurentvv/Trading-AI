@@ -2,11 +2,11 @@ import time
 import subprocess
 import logging
 from datetime import datetime, timedelta
-from logging.handlers import RotatingFileHandler
 import sys
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+from src.bootstrap import setup_environment
 
 # Configuration
 TICKERS = ["SXRV.DE", "CRUDP.PA"]
@@ -17,7 +17,6 @@ END_HOUR = 18
 END_MINUTE = 0
 
 # Setup Logging
-from src.bootstrap import setup_environment
 setup_environment("scheduler.log")
 
 logger = logging.getLogger("TradingScheduler")
