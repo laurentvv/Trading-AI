@@ -68,7 +68,7 @@ El sistema fusiona once señales distintas:
 2.  **TimesFM 2.5 (Google Research)**: Modelo fundacional de última generación para la predicción de series temporales.
 3.  **TensorTrade / PPO (Aprendizaje por Refuerzo)**: Agente de RL (stable-baselines3) que entrena una política PPO en un entorno de trading personalizado de Gymnasium con persistencia a través de ciclos.
 4.  **Modelo Oil-Bench (Gemma 4 12B (Unsloth))**: Modelo especializado en energía que fusiona datos fundamentales de la **EIA** (Existencias, Importaciones, Utilización de refinerías) y el sentimiento para el trading de WTI.
-5.  **LLM Textual (Gemma 4 12B (Unsloth))**: Análisis contextual de datos crudos, noticias en tiempo real a través de la habilidad **AlphaEar**, e integración de **investigación web macroeconómica** dinámica.
+5.  **LLM Textual (Gemma 4 12B (Unsloth))**: Análisis contextual de datos brutos, noticias en tiempo real a través de la habilidad **AlphaEar**, e integración de **búsqueda web macroeconómica** dinámica. Consume explícitamente el informe nocturno del **Morning Brief** para adquirir una conciencia fundamental profunda antes de tomar decisiones.
 6.  **LLM Visual (Gemma 4 12B (Unsloth))**: Análisis directo de gráficos técnicos (`enhanced_trading_chart.png`).
 7.  **Análisis de Sentimiento**: Análisis híbrido combinando Alpha Vantage y tendencias "candentes" de **AlphaEar** (Weibo, WallstreetCN).
 8.  **Datos Descentralizados (Hyperliquid)**: Análisis del sentimiento especulativo sobre el Petróleo (WTI) a través de la *Tasa de Fondeo* (Funding Rate) y el *Interés Abierto* (Open Interest).
@@ -100,7 +100,8 @@ A diferencia de los algoritmos de trading clásicos que entran en pánico tan pr
   1. **Aplicación de esquemas del lado del servidor** (`format: SCHEMA_*` con `additionalProperties: false`) — la capa que soporta la carga; pasada a través del parámetro `format` de Ollama en cada sitio de llamada. Esquemas definidos en `src/llm_client.py` (`SCHEMA_TRADING_DECISION`, `SCHEMA_SEARCH_QUERY`, `SCHEMA_OIL_ALLOCATION`).
   2. **Sufijo de indicador de sistema defensivo** (`"...never add a 'thought' key."`) — segunda línea redundante pero inofensiva, mantenida como precaución extrema contra cualquier regresión futura de la capa del esquema.
 
-  El token de razonamiento `<|think|>` está **activo** en las cuatro instrucciones de sistema de producción (reactivado el 2026-06-06 en `main` después de la validación en la rama `think-mode`). La capa de esquema es lo que realmente neutraliza el defecto histórico de residuos JSON `<|channel>thought` (causa raíz en mayo de 2026): `tests/check_llm_json.py` confirma que los casos estrictos de esquemas (`v3_schema`, `v6_schema`, `v7_schema_strict`) producen JSON limpio incluso con `<|think|>` habilitado, mientras que las variantes sueltas `format:json` fallan. Consulte `docs/ADR-001-think-mode-dual-layer-defence.md` para el análisis completo y el procedimiento de reversión.
+  El token de razonamiento `<|think|>` está **activo** en los cuatro prompts del sistema de producción (reactivado el 2026-06-06 en `main` tras validación en la rama `think-mode`). La capa de esquema es lo que realmente neutraliza el defecto histórico de residuos JSON `<|channel>thought` (causa raíz de mayo de 2026): `tests/check_llm_json.py` confirma que los casos de esquema estricto (`v3_schema`, `v6_schema`, `v7_schema_strict`) producen JSON limpio incluso con `<|think|>` activado, mientras que las variantes laxas `format:json` fallan. Consulta `docs/ADR-001-think-mode-dual-layer-defence.md` para el análisis completo y el procedimiento de reversión.
+- **Agente Autónomo Morning Brief**: Un proceso nocturno basado en `smolagents` (`morning_brief/morning_brief.py`) programado para ejecutarse automáticamente a la 01:00 AM a través de `schedule.py`. Analiza de forma independiente los registros diarios de la API, descarga datos fundamentales de inventarios de la EIA y arbitra un debate *Bull vs Bear*. El informe en formato markdown generado (`morning_market_brief.md`) se inyecta automáticamente en el prompt del sistema del LLM Textual durante el ciclo de trading diario, otorgando a la IA principal una memoria contextual y una conciencia fundamental profundas sin ralentizar la ejecución en el mercado en vivo.
 - **Sentimiento de Noticias y Blockchain**: Integración de **AlphaEar** y **Hyperliquid** para capturar el sentimiento social y especulativo.
 - **Planificador Automatizado**: Script `schedule.py` para ejecución continua (8:30 AM - 6:00 PM) en un servidor.
 - **Gestión de Riesgos Centralizada**: El `AdvancedRiskManager` centraliza la lógica Anti-Pérdida (Stop-Loss) y Trailing Stop. Los modelos individuales ya no gestionan estos riesgos, lo que garantiza una estrategia de protección de capital unificada y estricta a través de varios regímenes de mercado.
@@ -121,7 +122,7 @@ A diferencia de los algoritmos de trading clásicos que entran en pánico tan pr
 
 ### ⚙️ Rendimiento y Hardware
 El sistema está diseñado para ser **eficiente en hardware de consumo** sin requerir una GPU dedicada.
-- **Solo CPU**: La inferencia de LLM (Gemma 4 12B Q4_K_M a través de Ollama) y TimesFM se ejecutan completamente en la CPU. El rendimiento es de ~3–4 tokens/s en una CPU moderna de 8 núcleos.
+- **Solo CPU**: La inferencia de LLM (Gemma 4 12B Q6_K a través de Ollama) y TimesFM se ejecutan completamente en la CPU. El rendimiento es de ~3–4 tokens/s en una CPU moderna de 8 núcleos.
 - **RAM Recomendada**: 16 GB como mínimo (se sugieren 32 GB para ejecutar Gemma 4 12B cómodamente junto con TimesFM y TensorTrade).
 - **Concurrencia de Ollama**: Establezca `OLLAMA_NUM_PARALLEL=8` (ya incluido en el archivo `.env` recomendado) para que múltiples llamadas a LLM puedan compartir la carga del modelo. Con el presupuesto de contexto predeterminado de 4 GB, los *slots* paralelos obtienen ~512 tokens cada uno — Ollama serializará si los *prompts* exceden el ctx por slot, pero el `ThreadPoolExecutor` mantiene la superposición en el reloj de pared beneficiosa para pasos limitados por E/S (obtención de noticias, rastreo web, modelos CPU).
 - **Tiempo de Ejecución**: ~6 a 9 minutos por ticker en CPU (frío), ~3 a 5 minutos por ticker con acierto en la caché de consulta de búsqueda. El valor predeterminado ejecuta dos tickers (CRUDP.PA + SXRV.DE), por lo que se estima ~15 min en total.
@@ -136,6 +137,9 @@ El proyecto está organizado de manera modular para un mejor mantenimiento.
 
 ```
 Trading-AI/
+├── morning_brief/                   # Agente autónomo nocturno para un análisis fundamental profundo
+│   ├── morning_brief.py             # Orquestador del agente y configuración de smolagents
+│   └── output/                      # Informes diarios en markdown generados (morning_market_brief.md)
 ├── src/                             # Módulos principales
 │   ├── adaptive_weight_manager.py   # Ponderación dinámica de modelos basada en el rendimiento
 │   ├── advanced_risk_manager.py     # Gestión de riesgos y dimensionamiento basados en tendencias
@@ -190,7 +194,7 @@ Siga estos pasos para configurar su entorno de desarrollo local.
 
 - Python 3.12+ (a través de `uv`)
 - [Ollama](https://ollama.com/) instalado y funcionando localmente.
-- Modelo LLM descargado: `ollama pull hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M`
+- Modelo LLM descargado: `ollama pull hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K`
 
 ### ⚙️ Instalación
 

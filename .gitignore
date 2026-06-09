@@ -50,3 +50,4 @@ api_keys.txt
 config.ini
 secrets.json
 logs_prod/trading.log.1
+alerte-wti-main/

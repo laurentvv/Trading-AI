@@ -71,7 +71,7 @@ Trading-AI/
 ### Prerequisites
 - Python 3.12+
 - **uv** package manager (https://astral.sh/uv)
-- **Ollama** running locally with `hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M` pulled
+- **Ollama** running locally with `hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K` pulled
 - Alpha Vantage API key (in `.env`)
 - Trading 212 API credentials (in `.env.t212`, for live trading)
 

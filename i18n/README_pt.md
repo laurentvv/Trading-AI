@@ -70,7 +70,7 @@ O sistema funde oito sinais distintos:
 1.  **Modelo Quantitativo Clássico**: Conjunto de RandomForest/GradientBoosting/LogisticRegression treinado em indicadores técnicos e macroeconômicos.
 2.  **TimesFM 2.5 (Google Research)**: Modelo de base de última geração para previsão de séries temporais.
 3.  **Modelo Oil-Bench (Gemma 4 12B (Unsloth))**: Modelo especializado em energia que funde dados fundamentais da **EIA** (Estoques, Importações, Utilização de refinarias) e sentimento para o trading de WTI.
-4.  **LLM Textual (Gemma 4 12B (Unsloth))**: Análise contextual de dados brutos, notícias em tempo real via ferramenta **AlphaEar** e integração de **pesquisa web macroeconômica** dinâmica.
+4.  **LLM Textual (Gemma 4 12B (Unsloth))**: Análise contextual de dados brutos, notícias em tempo real através da skill **AlphaEar**, e integração de **pesquisa web macroeconômica** dinâmica. Ele consome explicitamente o relatório noturno **Morning Brief** para adquirir uma profunda consciência fundamental antes de tomar decisões.
 5.  **LLM Visual (Gemma 4 12B (Unsloth))**: Análise direta de gráficos técnicos (`enhanced_trading_chart.png`).
 6.  **Análise de Sentimento**: Análise híbrida que combina Alpha Vantage e tendências atuais da **AlphaEar** (Weibo, WallstreetCN).
 7.  **Dados Descentralizados (Hyperliquid)**: Análise do sentimento especulativo sobre o Petróleo (WTI) via *Taxa de Financiamento* e *Interesse Aberto*.
@@ -91,7 +91,8 @@ Ao contrário dos algoritmos de trading clássicos que entram em pânico assim q
 - **Spread do Brent Dated**: Monitorização da tensão no mercado físico através do diferencial entre o Brent Spot (Dated) e os Futuros de Brent.
 - **Resiliência de Rede**: Interruptor automático do yfinance com rastreadores separados (informação vs. download), tempo limite de 10s em todas as chamadas de rede.
 - **Cognição Avançada**: Uso do **Gemma 4** para melhor síntese técnica/fundamental.
-- **Notícias e Sentimento Blockchain**: Integração do **AlphaEar** e **Hyperliquid** para capturar o sentimento social e especulativo.
+- **Agente Autônomo Morning Brief**: Um processo noturno baseado no `smolagents` (`morning_brief/morning_brief.py`) agendado para rodar automaticamente à 01:00 AM via `schedule.py`. Ele analisa de forma independente os logs diários da API, faz o download de dados fundamentais de inventários da EIA e arbitra um debate *Bull vs Bear*. O relatório markdown gerado (`morning_market_brief.md`) é automaticamente injetado no prompt do sistema do LLM Textual durante o ciclo diário de negociação, concedendo à IA principal uma profunda memória contextual e consciência fundamental sem desacelerar a execução no mercado em tempo real.
+- **Sentimento de Notícias e Blockchain**: Integração do **AlphaEar** e **Hyperliquid** para capturar o sentimento social e especulativo.
 - **Agendador Automatizado**: Script `schedule.py` para execução contínua (8:30 - 18:00) em um servidor.
 - **Gestão de Riscos Avançada**: Ajuste automático de sinais com base na volatilidade e no regime de mercado.
 
@@ -107,7 +108,7 @@ Ao contrário dos algoritmos de trading clássicos que entram em pânico assim q
 
 ### ⚙️ Desempenho e Hardware
 O sistema foi projetado para ser **eficiente em hardware de consumo** sem a necessidade de uma GPU dedicada.
-- **Apenas CPU**: A inferência de LLM (Gemma 4 via Ollama) e o TimesFM são otimizados para execução rápida em CPU se houver RAM suficiente disponível.
+- **Apenas CPU**: A inferência do LLM (Gemma 4 12B Q6_K via Ollama) e do TimesFM rodam inteiramente na CPU. A taxa de transferência é de ~3–4 tokens/s em uma CPU moderna de 8 núcleos.
 - **RAM Recomendada**: Mínimo de 16 GB (sugere-se 32 GB para rodar o Gemma 4 confortavelmente).
 - **Tempo de Execução**: ~2 a 5 minutos para um ciclo completo (incluindo rastreamento web, treinamento de ML, previsões TimesFM e 3 análises de LLM).
 - **Velocidade da API**: Integração ultra-rápida com a Trading 212 (<1s para recuperação de preço ao vivo).
@@ -148,7 +149,7 @@ Siga estas etapas para configurar seu ambiente de desenvolvimento local.
 
 - Python 3.12+ (via `uv`)
 - [Ollama](https://ollama.com/) instalado e rodando localmente.
-- Modelo LLM baixado: `ollama pull hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M`
+- Modelo LLM baixado: `ollama pull hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K`
 
 ### ⚙️ Instalação
 

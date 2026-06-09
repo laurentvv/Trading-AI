@@ -7,7 +7,7 @@
 - **Architecture Modulaire (BaseModel)**: Interface standardisée pour tous les modèles IA, permettant un ajout facile de nouveaux signaux sans modifier le moteur de décision.
 - **Configuration Centralisée (`scheduler_config.json`)**: Tous les seuils techniques, de risque et les poids sont désormais pilotables via JSON, sans toucher au code.
 - **Logging Standardisé**: Remplacement des `print()` par `logging` dans tout le pipeline d'exécution Trading 212.
-- **Moteur Hybride Gemma 4**: Utilisation de `hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M` pour une analyse tri-modale (texte, vision, news) plus fine.
+- **Moteur Hybride Gemma 4**: Utilisation de `hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K` pour une analyse tri-modale (texte, vision, news) plus fine.
 - **Skill AlphaEar News**: Récupération des tendances financières "hot" (Weibo, WallstreetCN) intégrée au flux décisionnel.
 - **Nouveau Scheduler Autonome**: Script `schedule.py` gérant les horaires de marché (8h30-18h00) et l'intervalle de 30 minutes avec dashboard live.
 

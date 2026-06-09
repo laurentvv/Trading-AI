@@ -67,7 +67,7 @@ The system merges eleven distinct signals (plus a meta-model):
 2.  **TimesFM 2.5 (Google Research)**: State-of-the-art foundation model for time-series forecasting.
 3.  **TensorTrade / PPO (Reinforcement Learning)**: RL agent (stable-baselines3) training a PPO policy in a custom Gymnasium trading environment with persistence across cycles.
 4.  **Oil-Bench Model (Gemma 4 12B (Unsloth))**: Energy-specialized model merging **EIA** fundamental data (Stocks, Imports, Refinery utilization) and sentiment for WTI trading.
-5.  **Textual LLM (Gemma 4 12B (Unsloth))**: Contextual analysis of raw data, real-time news via the **AlphaEar** skill, and integration of dynamic **macro-economic web research**.
+5.  **Textual LLM (Gemma 4 12B (Unsloth))**: Contextual analysis of raw data, real-time news via the **AlphaEar** skill, and integration of dynamic **macro-economic web research**. It explicitly consumes the overnight **Morning Brief** report to gain deep fundamental awareness before making decisions.
 6.  **Visual LLM (Gemma 4 12B (Unsloth))**: Direct analysis of technical charts (`enhanced_trading_chart.png`).
 7.  **Sentiment Analysis**: Hybrid analysis combining Alpha Vantage and "hot" trends from **AlphaEar** (Weibo, WallstreetCN).
 8.  **Decentralized Data (Hyperliquid)**: Analysis of speculative sentiment on Oil (WTI) via *Funding Rate* and *Open Interest*.
@@ -101,6 +101,7 @@ Unlike classic trading algorithms that panic as soon as volatility explodes, thi
   2. **Defensive system-prompt suffix** (`"...never add a 'thought' key."`) — redundant-but-harmless second line, kept as belt-and-braces against any future regression of the schema layer.
 
   The `<|think|>` reasoning token is **active** in all four production system prompts (re-enabled 2026-06-06 on `main` after validation on `think-mode` branch). The schema layer is what actually neutralises the historical `<|channel>thought` JSON-debris defect (May 2026 root cause): `tests/check_llm_json.py` confirms that schema-strict cases (`v3_schema`, `v6_schema`, `v7_schema_strict`) produce clean JSON even with `<|think|>` enabled, while the loose `format:json` variants fail. See `docs/ADR-001-think-mode-dual-layer-defence.md` for the full analysis and reversal procedure.
+- **Autonomous Morning Brief Agent**: An overnight `smolagents`-based workflow (`morning_brief/morning_brief.py`) scheduled to run automatically at 01:00 AM via `schedule.py`. It independently crawls daily API logs, downloads fundamental EIA inventory data, and arbitrates a *Bull vs Bear* debate. The resulting markdown report (`morning_market_brief.md`) is automatically injected into the Textual LLM's system prompt during the daily trading cycle, granting the main AI deep contextual memory and fundamental awareness without slowing down live market execution.
 - **News & Blockchain Sentiment**: Integration of **AlphaEar** and **Hyperliquid** to capture social and speculative sentiment.
 - **Automated Scheduler**: `schedule.py` script for continuous execution (8:30 AM - 6:00 PM) on a server.
 - **Centralized Risk Management**: The `AdvancedRiskManager` centralizes Anti-Loss (Stop-Loss) and Trailing Stop logic. Individual models no longer manage these risks, ensuring a unified and strict capital protection strategy across varying market regimes.
@@ -121,7 +122,7 @@ Unlike classic trading algorithms that panic as soon as volatility explodes, thi
 
 ### ⚙️ Performance & Hardware
 The system is designed to be **performant on consumer hardware** without requiring a dedicated GPU.
-- **CPU Only**: LLM inference (Gemma 4 12B Q4_K_M via Ollama) and TimesFM run entirely on CPU. Throughput is ~3–4 tokens/s on a modern 8-core CPU.
+- **CPU Only**: LLM inference (Gemma 4 12B Q6_K via Ollama) and TimesFM run entirely on CPU. Throughput is ~3–4 tokens/s on a modern 8-core CPU.
 - **Recommended RAM**: 16 GB minimum (32 GB suggested to run Gemma 4 12B comfortably alongside TimesFM and TensorTrade).
 - **Ollama Concurrency**: Set `OLLAMA_NUM_PARALLEL=8` (already in the recommended `.env`) so multiple LLM calls can share model load. With the default 4 GB context budget, parallel slots get ~512 tokens each — Ollama will serialize if prompts exceed the per-slot ctx, but the `ThreadPoolExecutor` keeps the wall-clock overlap beneficial for I/O-bound steps (news fetch, web crawl, CPU models).
 - **Execution Time**: ~6 to 9 minutes per ticker on CPU (cold), ~3 to 5 minutes per ticker with search-query cache hit. Default runs two tickers (CRUDP.PA + SXRV.DE), so plan ~15 min total.
@@ -136,6 +137,9 @@ The project is organized modularly for better maintainability.
 
 ```
 Trading-AI/
+├── morning_brief/                   # Overnight autonomous agent for deep fundamental analysis
+│   ├── morning_brief.py             # Agent orchestrator and smolagents configuration
+│   └── output/                      # Generated daily markdown reports (morning_market_brief.md)
 ├── src/                             # Core modules
 │   ├── adaptive_weight_manager.py   # Dynamic model weighting based on performance
 │   ├── advanced_risk_manager.py     # Trend-Aware risk management and sizing
@@ -195,7 +199,7 @@ Follow these steps to set up your local development environment.
 
 - Python 3.12+ (via `uv`)
 - [Ollama](https://ollama.com/) installed and running locally.
-- Downloaded LLM model: `ollama pull hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M`
+- Downloaded LLM model: `ollama pull hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K`
 
 ### ⚙️ Installation
 

@@ -67,7 +67,7 @@
 2. **TimesFM 2.5 (Google Research)**：用于时间序列预测的最先进基础模型。
 3. **TensorTrade / PPO (强化学习)**：在自定义 Gymnasium 交易环境中训练 PPO 策略的 RL 代理 (stable-baselines3)，具有跨周期的持久性。
 4. **Oil-Bench 模型 (Gemma 4 12B (Unsloth))**：能源专用模型，融合 **EIA** 基本面数据（库存、进口、炼油厂利用率）和 WTI 交易情绪。
-5. **文本 LLM (Gemma 4 12B (Unsloth))**：分析原始数据的上下文、通过 **AlphaEar** 技能获取的实时新闻，并整合动态的**宏观经济网络研究**。
+5. **文本 LLM (Gemma 4 12B (Unsloth))**：分析原始数据的上下文，通过 **AlphaEar** 技能获取实时新闻，并集成动态的**宏观经济网络研究**。它会显式读取隔夜的 **Morning Brief** 报告，以在做出决策前获得深入的宏观基本面认知。
 6. **视觉 LLM (Gemma 4 12B (Unsloth))**：直接分析技术图表（`enhanced_trading_chart.png`）。
 7. **情绪分析**：结合 Alpha Vantage 和来自 **AlphaEar**（微博、华尔街见闻）“热门”趋势的混合分析。
 8. **去中心化数据 (Hyperliquid)**：通过*资金费率 (Funding Rate)*和*未平仓合约 (Open Interest)*分析石油 (WTI) 的投机情绪。
@@ -99,8 +99,9 @@
   1. **服务端模式强制执行**（`format: SCHEMA_*` 和 `additionalProperties: false`）——承载层；在每个调用站点的 Ollama 的 `format` 参数中传递。模式在 `src/llm_client.py` 中定义（`SCHEMA_TRADING_DECISION`, `SCHEMA_SEARCH_QUERY`, `SCHEMA_OIL_ALLOCATION`）。
   2. **防御性系统提示后缀**（`"...never add a 'thought' key."`）——冗余但无害的第二道防线，保留以防未来模式层的任何退化。
 
-  在所有四个生产环境的系统提示中，`<|think|>` 推理 token 都是**激活**的（在 `think-mode` 分支上验证后，于 2026-06-06 在 `main` 分支上重新启用）。模式层实际中和了历史遗留的 `<|channel>thought` JSON 碎片缺陷（2026 年 5 月的根本原因）：`tests/check_llm_json.py` 证实了严格模式用例（`v3_schema`, `v6_schema`, `v7_schema_strict`）即使在启用 `<|think|>` 的情况下也能产生干净的 JSON，而宽松的 `format:json` 变体则会失败。请参阅 `docs/ADR-001-think-mode-dual-layer-defence.md` 获取完整的分析和撤销程序。
-- **新闻与区块链情绪**：整合 **AlphaEar** 和 **Hyperliquid**，以捕获社交和投机情绪。
+  在所有四个生产环境的系统提示中，  `<|think|>` 推理 token 在所有四个生产系统提示词中**均处于激活状态**（在 `think-mode` 分支上验证后，于 2026-06-06 在 `main` 分支上重新启用）。Schema 层是真正中和历史遗留的 `<|channel>thought` JSON 碎片缺陷（2026 年 5 月的根本原因）的机制：`tests/check_llm_json.py` 证实了严格遵循 schema 的用例（`v3_schema`、`v6_schema`、`v7_schema_strict`）即使在启用 `<|think|>` 的情况下也能生成干净的 JSON，而宽松的 `format:json` 变体则会失败。如需完整的分析和回滚流程，请参阅 `docs/ADR-001-think-mode-dual-layer-defence.md`。
+- **自主晨报代理 (Autonomous Morning Brief Agent)**：这是一个基于 `smolagents` 的隔夜工作流 (`morning_brief/morning_brief.py`)，由 `schedule.py` 在凌晨 1:00 自动触发。它能独立爬取每日API日志、下载EIA基本面库存数据，并推演*牛市与熊市*的辩论。生成的报告 (`morning_market_brief.md`) 将在白天交易周期内自动注入到文本LLM的系统提示词中，赋予主AI深度记忆与基本面认知，且不会拖慢实时市场执行速度。
+- **新闻与区块链情绪**：集成 **AlphaEar** 和 **Hyperliquid**，以捕捉社交和投机情绪。
 - **自动调度器**：`schedule.py` 脚本用于在服务器上持续执行（上午 8:30 - 下午 6:00）。
 - **集中式风险管理**：`AdvancedRiskManager` 集中管理止损（Anti-Loss）和追踪止损逻辑。个体模型不再管理这些风险，确保了在不同市场机制下统一且严格的资本保护策略。
 - **严格的数据契约**：所有 AI 模型完全标准化以返回强类型的 `ModelResult` 数据类（`signal`, `confidence`, `reasoning`），确保了共识引擎间 100% 的一致性。
@@ -120,7 +121,7 @@
 
 ### ⚙️ 性能与硬件
 系统设计为在**消费者硬件上表现出色**，无需专用 GPU。
-- **仅 CPU**：LLM 推理（通过 Ollama 运行的 Gemma 4 12B Q4_K_M）和 TimesFM 完全在 CPU 上运行。在现代 8 核 CPU 上的吞吐量约为 3–4 tokens/秒。
+- **仅 CPU**：LLM 推理（通过 Ollama 运行的 Gemma 4 12B Q6_K）和 TimesFM 完全在 CPU 上运行。在现代 8 核 CPU 上，吞吐量约为 3–4 tokens/s。
 - **推荐内存**：最低 16 GB（建议 32 GB，以便舒适地同时运行 Gemma 4 12B、TimesFM 和 TensorTrade）。
 - **Ollama 并发**：设置 `OLLAMA_NUM_PARALLEL=8`（已包含在推荐的 `.env` 中），使得多个 LLM 调用能够分担模型负载。使用默认的 4 GB 上下文预算，并行槽位每个将获得 ~512 个 tokens——如果提示符超出了单槽位上下文，Ollama 将会进行序列化，但 `ThreadPoolExecutor` 仍能使挂钟重叠在 I/O 密集型步骤（新闻获取、网络爬取、CPU 模型）中保持收益。
 - **执行时间**：在 CPU 上每个标的（冷启动）约需 6 到 9 分钟，如果命中搜索查询缓存，每个标的约需 3 到 5 分钟。默认运行两个标的（CRUDP.PA + SXRV.DE），因此总计需要大约 15 分钟。
@@ -135,6 +136,9 @@
 
 ```
 Trading-AI/
+├── morning_brief/                   # 隔夜自动代理，用于深度基本面分析
+│   ├── morning_brief.py             # 代理编排与 smolagents 配置
+│   └── output/                      # 生成的每日 Markdown 报告 (morning_market_brief.md)
 ├── src/                             # 核心模块
 │   ├── adaptive_weight_manager.py   # 基于表现的动态模型权重管理
 │   ├── advanced_risk_manager.py     # 趋势感知的风险管理和仓位控制
@@ -189,7 +193,7 @@ Trading-AI/
 
 - Python 3.12+ (通过 `uv`)
 - 已在本地安装并运行 [Ollama](https://ollama.com/)。
-- 已下载 LLM 模型: `ollama pull hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M`
+- 已下载 LLM 模型: `ollama pull hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K`
 
 ### ⚙️ 安装步骤
 

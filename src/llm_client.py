@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
 OLLAMA_BASE_URL = "http://localhost:11434"
-TEXT_LLM_MODEL = "hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M"
-VISUAL_LLM_MODEL = "hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M"
+TEXT_LLM_MODEL = "hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K"
+VISUAL_LLM_MODEL = "hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K"
 
 # JSON schemas used as Ollama `format` parameter. Using a strict schema
 # (additionalProperties: false) physically prevents the Gemma thinking model
@@ -106,6 +106,20 @@ def check_ollama_health(timeout: int = 5) -> bool:
         return False
 
 
+def get_morning_brief_context() -> str:
+    """Reads the morning brief report if it was generated within the last 24 hours."""
+    brief_path = Path("morning_brief/output/morning_market_brief.md")
+    if brief_path.exists():
+        if time.time() - brief_path.stat().st_mtime < 86400:
+            try:
+                with open(brief_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                    return f"\n**Overnight AI Morning Brief (Extremely Important Context):**\n{content}\n"
+            except Exception as e:
+                logger.warning(f"Failed to read morning brief: {e}")
+    return ""
+
+
 def construct_llm_prompt(
     latest_data: pd.DataFrame,
     headlines: list = None,
@@ -119,6 +133,7 @@ def construct_llm_prompt(
     data = latest_data.iloc[0]
     news_text = "\n".join([f"- {h}" for h in headlines[:15]]) if headlines else "No recent news available."
     web_text = f"\n**Web Research / Macro Context:**\n{web_context}" if web_context else ""
+    brief_text = get_morning_brief_context()
 
     # Déterminer le contexte de l'actif
     asset_type = "OIL (WTI)" if "CRUD" in ticker.upper() or "CL=F" in ticker.upper() else "NASDAQ-100"
@@ -149,7 +164,7 @@ def construct_llm_prompt(
     - Long-term Trend: {"Bullish" if data["Trend_Long"] == 1 else "Bearish" if data["Trend_Long"] == -1 else "Neutral"}
     {hl_text}
     **Recent News Headlines:**
-    {news_text}{web_text}
+    {news_text}{web_text}{brief_text}
 
     **Decision Rules for {asset_type}:**
     1. Priority: ACCURACY. If news contradict technicals or signals are weak/mixed, default to HOLD.
