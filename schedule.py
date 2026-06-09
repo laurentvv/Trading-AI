@@ -36,9 +36,9 @@ def is_market_open():
     end_time = now.replace(hour=END_HOUR, minute=END_MINUTE, second=0, microsecond=0)
 
     if now < start_time:
-        return False, f"Avant marché (Attente {START_HOUR}:{START_MINUTE})"
+        return False, f"Avant marché (Attente {START_HOUR:02d}:{START_MINUTE:02d})"
     if now > end_time:
-        return False, f"Après marché (Fermé depuis {END_HOUR}:{END_MINUTE})"
+        return False, f"Après marché (Fermé depuis {END_HOUR:02d}:{END_MINUTE:02d})"
 
     return True, "Marché Ouvert"
 
@@ -97,7 +97,7 @@ def run_morning_brief():
         logger.error(f"💥 Erreur critique lors du Morning Brief : {e}")
 
 
-def get_dashboard(status_msg, last_run, next_run):
+def get_dashboard(status_msg, last_run, next_run, morning_brief_status):
     """Génère un joli dashboard pour la console Windows"""
     table = Table(box=None, expand=True)
     table.add_column("Propriété", style="cyan")
@@ -106,6 +106,7 @@ def get_dashboard(status_msg, last_run, next_run):
     table.add_row("Statut", f"[bold]{status_msg}[/bold]")
     table.add_row("Dernier Run", f"{last_run}")
     table.add_row("Prochain Run", f"[bold green]{next_run}[/bold green]")
+    table.add_row("Morning Brief", f"{morning_brief_status}")
     table.add_row("Tickers", ", ".join(TICKERS))
     table.add_row("Intervalle", f"{INTERVAL_MINUTES} min")
 
@@ -153,6 +154,11 @@ def main():
                         run_morning_brief()
                         last_morning_brief_date = now.date()
 
+            if last_morning_brief_date == now.date():
+                mb_status = "[bold green]Terminé aujourd'hui[/bold green]"
+            else:
+                mb_status = f"[bold yellow]En attente ({MORNING_BRIEF_HOUR:02d}:{MORNING_BRIEF_MINUTE:02d})[/bold yellow]"
+
             # Affichage Dashboard
             console.clear()
             console.print(
@@ -160,6 +166,7 @@ def main():
                     status_display,
                     last_run_time,
                     next_run.strftime("%H:%M:%S") if open_status else "À l'ouverture",
+                    mb_status
                 )
             )
 
