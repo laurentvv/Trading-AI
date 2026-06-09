@@ -68,7 +68,7 @@ Sistem menggabungkan sebelas sinyal berbeda:
 2.  **TimesFM 2.5 (Google Research)**: Model fondasi mutakhir untuk peramalan deret waktu.
 3.  **TensorTrade / PPO (Reinforcement Learning)**: Agen RL (stable-baselines3) yang melatih kebijakan PPO dalam lingkungan trading Gymnasium kustom dengan persistensi antar siklus.
 4.  **Model Oil-Bench (Gemma 4 12B (Unsloth))**: Model khusus energi yang menggabungkan data fundamental **EIA** (Stok, Impor, Utilisasi Kilang) dan sentimen untuk trading WTI.
-5.  **LLM Tekstual (Gemma 4 12B (Unsloth))**: Analisis kontekstual dari data mentah, berita waktu nyata melalui keahlian **AlphaEar**, dan integrasi **riset web makro-ekonomi** dinamis.
+5.  **LLM Tekstual (Gemma 4 12B (Unsloth))**: Analisis kontekstual data mentah, berita real-time via skill **AlphaEar**, dan integrasi **riset web makro-ekonomi** dinamis. Model ini secara eksplisit membaca laporan **Morning Brief** semalaman untuk mendapatkan kesadaran fundamental yang mendalam sebelum membuat keputusan.
 6.  **LLM Visual (Gemma 4 12B (Unsloth))**: Analisis langsung pada grafik teknikal (`enhanced_trading_chart.png`).
 7.  **Analisis Sentimen**: Analisis hibrida yang menggabungkan Alpha Vantage dan tren "panas" dari **AlphaEar** (Weibo, WallstreetCN).
 8.  **Data Terdesentralisasi (Hyperliquid)**: Analisis sentimen spekulatif pada Minyak (WTI) melalui *Funding Rate* dan *Open Interest*.
@@ -100,7 +100,8 @@ Berbeda dengan algoritme trading klasik yang panik begitu volatilitas melonjak, 
   1. **Penerapan skema sisi server** (`format: SCHEMA_*` dengan `additionalProperties: false`) — lapisan penahan beban utama; diteruskan melalui parameter `format` Ollama di setiap lokasi panggilan. Skema didefinisikan di `src/llm_client.py` (`SCHEMA_TRADING_DECISION`, `SCHEMA_SEARCH_QUERY`, `SCHEMA_OIL_ALLOCATION`).
   2. **Akhiran prompt sistem defensif** (`"...never add a 'thought' key."`) — garis pertahanan kedua yang redundan-tapi-tidak-berbahaya, dipertahankan sebagai pengaman ganda terhadap regresi lapisan skema di masa mendatang.
 
-  Token penalaran `<|think|>` **aktif** di keempat prompt sistem produksi (diaktifkan kembali pada 2026-06-06 di `main` setelah validasi di cabang `think-mode`). Lapisan skemalah yang sebenarnya menetralisir cacat puing-JSON dari `<|channel>thought` historis (akar masalah Mei 2026): `tests/check_llm_json.py` mengonfirmasi bahwa kasus-kasus yang ketat terhadap skema (`v3_schema`, `v6_schema`, `v7_schema_strict`) menghasilkan JSON bersih bahkan saat `<|think|>` diaktifkan, sementara varian `format:json` yang longgar akan gagal. Lihat `docs/ADR-001-think-mode-dual-layer-defence.md` untuk analisis selengkapnya dan prosedur pengembalian.
+  Token penalaran `<|think|>` diaktifkan (**active**) di keempat prompt sistem produksi (diaktifkan kembali pada 2026-06-06 di `main` setelah validasi di cabang `think-mode`). Lapisan skema inilah yang benar-benar menetralisir kecacatan historis residu JSON `<|channel>thought` (akar penyebab pada Mei 2026): `tests/check_llm_json.py` mengonfirmasi bahwa kasus skema ketat (`v3_schema`, `v6_schema`, `v7_schema_strict`) menghasilkan JSON yang bersih bahkan dengan `<|think|>` diaktifkan, sementara varian `format:json` longgar gagal. Lihat `docs/ADR-001-think-mode-dual-layer-defence.md` untuk analisis lengkap dan prosedur pengembalian.
+- **Agen Otonom Morning Brief**: Sebuah proses semalaman berbasis `smolagents` (`morning_brief/morning_brief.py`) yang dijadwalkan berjalan otomatis pada 01:00 AM via `schedule.py`. Agen ini secara independen menganalisis log API harian, mengunduh data fundamental inventaris EIA, dan mengarbitrase debat *Bull vs Bear*. Laporan markdown yang dihasilkan (`morning_market_brief.md`) secara otomatis disuntikkan ke dalam prompt sistem LLM Tekstual selama siklus trading harian, memberikan AI utama memori kontekstual dan kesadaran fundamental yang mendalam tanpa memperlambat eksekusi di pasar langsung.
 - **Sentimen Berita & Blockchain**: Integrasi **AlphaEar** dan **Hyperliquid** untuk menangkap sentimen sosial dan spekulatif.
 - **Penjadwal Otomatis**: Skrip `schedule.py` untuk eksekusi berkelanjutan (08:30 - 18:00) pada server.
 - **Manajemen Risiko Terpusat**: `AdvancedRiskManager` memusatkan logika Anti-Loss (Stop-Loss) dan Trailing Stop. Model individu tidak lagi mengelola risiko ini, memastikan strategi perlindungan modal yang terpadu dan ketat di berbagai rezim pasar.
@@ -121,7 +122,7 @@ Berbeda dengan algoritme trading klasik yang panik begitu volatilitas melonjak, 
 
 ### ⚙️ Performa & Perangkat Keras
 Sistem ini dirancang agar **berperforma tinggi pada perangkat keras konsumen** tanpa memerlukan GPU khusus.
-- **Hanya CPU**: Inferensi LLM (Gemma 4 12B Q4_K_M via Ollama) dan TimesFM berjalan sepenuhnya pada CPU. Throughput adalah sekitar 3–4 token/dtk pada CPU 8-inti modern.
+- **Hanya CPU**: Inferensi LLM (Gemma 4 12B Q6_K via Ollama) dan TimesFM berjalan sepenuhnya pada CPU. Throughput adalah sekitar 3–4 token/dtk pada CPU 8-inti modern.
 - **RAM Direkomendasikan**: Minimal 16 GB (disarankan 32 GB untuk menjalankan Gemma 4 12B dengan nyaman berdampingan dengan TimesFM dan TensorTrade).
 - **Konkurensi Ollama**: Atur `OLLAMA_NUM_PARALLEL=8` (sudah disarankan di `.env`) sehingga panggilan LLM ganda dapat berbagi beban model. Dengan anggaran konteks default 4 GB, slot paralel masing-masing mendapatkan ~512 token — Ollama akan menserialisasi jika prompt melampaui konteks per slot, tetapi `ThreadPoolExecutor` menjaga tumpang tindih waktu dinding tetap bermanfaat untuk langkah-langkah yang terikat I/O (pengambilan berita, perayapan web, model CPU).
 - **Waktu Eksekusi**: ~6 hingga 9 menit per ticker pada CPU (keadaan dingin), ~3 hingga 5 menit per ticker saat mengenai cache kueri pencarian. Standar eksekusi menjalankan dua ticker (CRUDP.PA + SXRV.DE), jadi perkirakan total ~15 menit.
@@ -136,6 +137,9 @@ Proyek ini disusun secara modular untuk pemeliharaan yang lebih baik.
 
 ```
 Trading-AI/
+├── morning_brief/                   # Agen otonom semalaman untuk analisis fundamental mendalam
+│   ├── morning_brief.py             # Orkestrator agen dan konfigurasi smolagents
+│   └── output/                      # Laporan markdown yang dihasilkan harian (morning_market_brief.md)
 ├── src/                             # Modul inti
 │   ├── adaptive_weight_manager.py   # Pembobotan model dinamis berdasarkan performa
 │   ├── advanced_risk_manager.py     # Manajemen risiko dan sizing yang menyadari tren
@@ -190,7 +194,7 @@ Ikuti langkah-langkah ini untuk menyiapkan lingkungan pengembangan lokal Anda.
 
 - Python 3.12+ (melalui `uv`)
 - [Ollama](https://ollama.com/) terinstal dan berjalan secara lokal.
-- Mengunduh model LLM: `ollama pull hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M`
+- Mengunduh model LLM: `ollama pull hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K`
 
 ### ⚙️ Instalasi
 

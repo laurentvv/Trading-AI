@@ -15,6 +15,8 @@ START_HOUR = 8
 START_MINUTE = 30
 END_HOUR = 18
 END_MINUTE = 0
+MORNING_BRIEF_HOUR = 1
+MORNING_BRIEF_MINUTE = 0
 
 # Setup Logging
 setup_environment("scheduler.log")
@@ -77,6 +79,24 @@ def run_trading_cycle():
         logger.error(f"💥 Erreur critique dans le scheduler : {e}")
 
 
+def run_morning_brief():
+    """Lance l'exécution du Morning Brief la nuit/au petit matin"""
+    logger.info("🌅 Lancement du Morning Brief")
+    try:
+        cmd = ["uv", "run", "morning_brief/morning_brief.py"]
+        # Redirection des logs vers analyse_morning.log
+        with open("analyse_morning.log", "a", encoding="utf-8") as f:
+            f.write(f"\n--- Lancement {datetime.now().isoformat()} ---\n")
+            result = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, text=True)
+            
+        if result.returncode == 0:
+            logger.info("✅ Morning Brief généré avec succès")
+        else:
+            logger.error(f"❌ Erreur lors du Morning Brief : Code {result.returncode}")
+    except Exception as e:
+        logger.error(f"💥 Erreur critique lors du Morning Brief : {e}")
+
+
 def get_dashboard(status_msg, last_run, next_run):
     """Génère un joli dashboard pour la console Windows"""
     table = Table(box=None, expand=True)
@@ -100,6 +120,7 @@ def get_dashboard(status_msg, last_run, next_run):
 def main():
     last_run_time = "Aucun"
     next_run = datetime.now()
+    last_morning_brief_date = None
 
     console.clear()
     console.print(
@@ -125,6 +146,12 @@ def main():
                 status_display = f"[bold green]ACTIF[/bold green] - {msg}"
             else:
                 status_display = f"[bold yellow]VEILLE[/bold yellow] - {msg}"
+                
+                # Check for Morning Brief outside of trading hours (e.g. 06:00 AM)
+                if now.hour == MORNING_BRIEF_HOUR and now.minute >= MORNING_BRIEF_MINUTE:
+                    if last_morning_brief_date != now.date():
+                        run_morning_brief()
+                        last_morning_brief_date = now.date()
 
             # Affichage Dashboard
             console.clear()

@@ -68,7 +68,7 @@ Le système fusionne onze signaux distincts :
 2.  **TimesFM 2.5 (Google Research)** : Modèle de fondation de pointe pour les prévisions de séries temporelles.
 3.  **TensorTrade / PPO (Apprentissage par Renforcement)** : Agent RL (stable-baselines3) entraînant une politique PPO dans un environnement de trading personnalisé Gymnasium avec persistance entre les cycles.
 4.  **Modèle Oil-Bench (Gemma 4 12B (Unsloth))** : Modèle spécialisé dans l'énergie fusionnant les données fondamentales de l'**EIA** (Stocks, Importations, Utilisation des raffineries) et le sentiment pour le trading du WTI.
-5.  **LLM Textuel (Gemma 4 12B (Unsloth))** : Analyse contextuelle des données brutes, actualités en temps réel via la compétence **AlphaEar**, et intégration de **recherches web macro-économiques** dynamiques.
+5.  **LLM Textuel (Gemma 4 12B (Unsloth))** : Analyse contextuelle des données brutes, actualités en temps réel via la compétence **AlphaEar**, et intégration de **recherches web macro-économiques** dynamiques. Il consomme explicitement le rapport nocturne du **Morning Brief** pour acquérir une conscience fondamentale approfondie avant de prendre ses décisions.
 6.  **LLM Visuel (Gemma 4 12B (Unsloth))** : Analyse directe des graphiques techniques (`enhanced_trading_chart.png`).
 7.  **Analyse de Sentiment** : Analyse hybride combinant Alpha Vantage et les tendances "chaudes" d'**AlphaEar** (Weibo, WallstreetCN).
 8.  **Données Décentralisées (Hyperliquid)** : Analyse du sentiment spéculatif sur le Pétrole (WTI) via le *Funding Rate* et l'*Open Interest*.
@@ -101,6 +101,7 @@ Contrairement aux algorithmes de trading classiques qui paniquent dès que la vo
   2. **Suffixe défensif d'invite système** (`"...never add a 'thought' key."`) — deuxième ligne redondante mais inoffensive, conservée en guise de ceinture de sécurité contre toute régression future de la couche de schéma.
 
   Le token de raisonnement `<|think|>` est **actif** dans les quatre invites système de production (réactivé le 2026-06-06 sur `main` après validation sur la branche `think-mode`). La couche de schéma est ce qui neutralise réellement le défaut historique de résidus JSON `<|channel>thought` (cause première de mai 2026) : `tests/check_llm_json.py` confirme que les cas de schéma strict (`v3_schema`, `v6_schema`, `v7_schema_strict`) produisent un JSON propre même avec `<|think|>` activé, tandis que les variantes non strictes `format:json` échouent. Voir `docs/ADR-001-think-mode-dual-layer-defence.md` pour l'analyse complète et la procédure d'inversion.
+- **Agent Autonome Morning Brief** : Un processus de nuit basé sur `smolagents` (`morning_brief/morning_brief.py`) programmé pour s'exécuter automatiquement à 01h00 via `schedule.py`. Il analyse indépendamment les logs d'API quotidiens, télécharge les données fondamentales des inventaires EIA et arbitre un débat *Bull vs Bear*. Le rapport Markdown généré (`morning_market_brief.md`) est automatiquement injecté dans le Prompt système du LLM Textuel lors du cycle de trading quotidien, offrant à l'IA principale une mémoire contextuelle et une conscience fondamentale approfondies sans ralentir l'exécution sur le marché en direct.
 - **Sentiment Actualités & Blockchain** : Intégration d'**AlphaEar** et d'**Hyperliquid** pour capter les sentiments sociaux et spéculatifs.
 - **Planificateur Automatisé (Scheduler)** : Script `schedule.py` pour l'exécution continue (8h30 - 18h00) sur un serveur.
 - **Gestion des Risques Centralisée** : L'`AdvancedRiskManager` centralise les logiques Anti-Perte (Stop-Loss) et Stop Suiveur (Trailing Stop). Les modèles individuels ne gèrent plus ces risques, assurant une stratégie de protection du capital unifiée et stricte à travers divers régimes de marché.
@@ -121,7 +122,7 @@ Contrairement aux algorithmes de trading classiques qui paniquent dès que la vo
 
 ### ⚙️ Performances & Matériel
 Le système est conçu pour être **performant sur du matériel grand public** sans nécessiter de GPU dédié.
-- **CPU Uniquement** : L'inférence LLM (Gemma 4 12B Q4_K_M via Ollama) et TimesFM s'exécutent entièrement sur le processeur (CPU). Le débit est d'environ 3-4 tokens/s sur un processeur moderne à 8 cœurs.
+- **CPU Uniquement** : L'inférence LLM (Gemma 4 12B Q6_K via Ollama) et TimesFM s'exécutent entièrement sur le processeur (CPU). Le débit est d'environ 3-4 tokens/s sur un processeur moderne à 8 cœurs.
 - **RAM Recommandée** : 16 Go minimum (32 Go suggérés pour faire tourner Gemma 4 12B confortablement avec TimesFM et TensorTrade).
 - **Concurrence Ollama** : Définissez `OLLAMA_NUM_PARALLEL=8` (déjà dans le `.env` recommandé) pour que plusieurs appels LLM puissent partager la charge du modèle. Avec le budget de contexte par défaut de 4 Go, les slots parallèles obtiennent environ 512 tokens chacun — Ollama sérialisera si les requêtes dépassent le contexte par slot, mais le `ThreadPoolExecutor` garde le chevauchement bénéfique pour les étapes liées aux E/S (récupération d'actualités, crawl web, modèles CPU).
 - **Temps d'exécution** : ~6 à 9 minutes par ticker sur CPU (à froid), ~3 à 5 minutes par ticker avec accès au cache de la requête de recherche. L'exécution par défaut traite deux tickers (CRUDP.PA + SXRV.DE), prévoyez donc environ 15 minutes au total.
@@ -136,6 +137,9 @@ Le projet est organisé de manière modulaire pour une meilleure maintenabilité
 
 ```
 Trading-AI/
+├── morning_brief/                   # Agent autonome de nuit pour une analyse fondamentale approfondie
+│   ├── morning_brief.py             # Orchestrateur de l'agent et configuration smolagents
+│   └── output/                      # Rapports markdown générés quotidiennement (morning_market_brief.md)
 ├── src/                             # Modules principaux
 │   ├── adaptive_weight_manager.py   # Pondération dynamique des modèles selon la performance
 │   ├── advanced_risk_manager.py     # Gestion des risques adaptée aux tendances et dimensionnement
@@ -190,7 +194,7 @@ Suivez ces étapes pour configurer votre environnement de développement local.
 
 - Python 3.12+ (via `uv`)
 - [Ollama](https://ollama.com/) installé et en cours d'exécution localement.
-- Modèle LLM téléchargé : `ollama pull hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M`
+- Modèle LLM téléchargé : `ollama pull hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K`
 
 ### ⚙️ Installation
 

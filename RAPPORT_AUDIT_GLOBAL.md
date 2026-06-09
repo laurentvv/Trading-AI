@@ -49,7 +49,7 @@ L'architecture de ce projet est un modèle tri-modal combinant des algorithmes q
 #### `src/llm_client.py`
 - **Rôle :** Création des prompts, appel au LLM local (Ollama) pour l'analyse textuelle et visuelle.
 - **Analyse de l'implémentation :**
-    - Modèle ciblé : `hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M` sur `localhost:11434`.
+    - Modèle ciblé : `hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K` sur `localhost:11434`.
     - `construct_llm_prompt` agrège les données techniques, les titres d'actualité et les informations de recherche web (Hyperliquid ou macro).
     - Le format JSON final est imposé de manière claire.
     - `get_visual_llm_decision` encode une image en Base64 et demande explicitement une analyse chartiste au modèle visuel.

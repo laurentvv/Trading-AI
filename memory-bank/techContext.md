@@ -26,7 +26,7 @@
 - Entry point: `main.py`.
 
 ## 3. Technical Constraints & Assumptions
-- **Ollama**: Must be running locally with `hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M` (Thinking mode **enabled** — `<|think|>` token in system prompts; safety guaranteed by the dual-layer JSON defence, not by suppressing the token).
+- **Ollama**: Must be running locally with `hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K` (Thinking mode **enabled** — `<|think|>` token in system prompts; safety guaranteed by the dual-layer JSON defence, not by suppressing the token).
 - **Trading 212 API**: Specific quantity precision required per instrument (e.g., 2 decimals for CRUDl_EQ, 4 for SXRVd_EQ). API response structure may omit `averagePrice` — code uses fallback calculation (`currentValue / quantity`).
 - **Operating System**: win32 (optimized for Windows terminal with **UTF-8 logging** to support emojis).
 - **Network**: Required for initial API calls (Yahoo, FRED, Alpha Vantage, Hyperliquid).

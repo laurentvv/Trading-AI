@@ -64,14 +64,12 @@ RESET = "\033[0m"
 
 MODELS = [
     "hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M",
-    "gemma4:12b-it-qat",
-    "lfm2.5:8b-a1b-q8_0",
+    "hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K",
 ]
 
 LABELS = {
     MODELS[0]: "A (Q4_K_M prod)",
-    MODELS[1]: "B (QAT)",
-    MODELS[2]: "C (LFM 2.5 8B)",
+    MODELS[1]: "B (Q6_K)",
 }
 
 PROMPTS = {
@@ -515,7 +513,7 @@ def _print_summary(all_results: list[BenchResult], load_times: dict[str, float],
     elif load_b < load_a: score_b += 1
 
     if score_b > score_a:
-        print(f"\n  {GREEN}>>> RECOMMENDATION: Switch to gemma4:12b-it-qat (B){RESET}  [B={score_b} A={score_a}]")
+        print(f"\n  {GREEN}>>> RECOMMENDATION: Switch to hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K (B){RESET}  [B={score_b} A={score_a}]")
     elif score_a > score_b:
         print(f"\n  {YELLOW}>>> RECOMMENDATION: Keep hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M (A){RESET}  [A={score_a} B={score_b}]")
     else:
