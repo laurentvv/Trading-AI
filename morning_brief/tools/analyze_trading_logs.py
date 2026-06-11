@@ -11,6 +11,7 @@ class AnalyzeTradingLogsTool(Tool):
     inputs = {
         "log_path": {
             "type": "string",
+            "nullable": True,
             "description": (
                 "Path to the trading.log file. "
                 "Defaults to the project root trading.log if not specified."
@@ -19,17 +20,19 @@ class AnalyzeTradingLogsTool(Tool):
     }
     output_type = "string"
 
-    def forward(self, log_path: str = "") -> str:
+    def forward(self, log_path: str | None = None) -> str:
         import re
         from pathlib import Path
         from morning_brief.tools import save_tool_result
 
-        if not log_path:
-            log_path = str(
-                Path(__file__).resolve().parents[2] / "trading.log"
-            )
+        project_root = Path(__file__).resolve().parents[2]
 
-        log_file = Path(log_path)
+        if not log_path:
+            log_path = str(project_root / "trading.log")
+
+        log_file = Path(log_path).resolve()
+        if not log_file.is_relative_to(project_root):
+            return "ERROR: log_path must be within the project directory."
         if not log_file.exists() or log_file.stat().st_size == 0:
             result = {
                 "status": "NO_DATA",

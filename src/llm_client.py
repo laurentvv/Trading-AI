@@ -334,11 +334,46 @@ def _find_dict_with_keys(node, expected_keys: list, _depth: int = 0):
     return None
 
 
+def _strip_thinking_prefix(raw_output: str) -> str:
+    first_brace = raw_output.find("{")
+    if first_brace > 0:
+        prefix = raw_output[:first_brace]
+        if any(tag in prefix for tag in _THINKING_TOKENS):
+            return raw_output[first_brace:].strip()
+    elif first_brace == -1:
+        for tag in _THINKING_TOKENS:
+            if tag in raw_output:
+                return raw_output.split(tag)[-1].strip()
+    return raw_output
+
+
+def _extract_json_candidates(raw_output: str) -> list:
+    candidates = []
+    if "```json" in raw_output:
+        candidates.extend([b.split("```")[0].strip() for b in raw_output.split("```json")[1:]])
+    elif "```" in raw_output:
+        candidates.extend([b.split("```")[0].strip() for b in raw_output.split("```")[1:]])
+
+    decoder = json.JSONDecoder()
+    pos = 0
+    while pos < len(raw_output):
+        try:
+            start = raw_output.find("{", pos)
+            if start == -1:
+                break
+            obj, end_idx = decoder.raw_decode(raw_output[start:])
+            if isinstance(obj, dict):
+                candidates.append(obj)
+            pos = start + end_idx
+        except (json.JSONDecodeError, ValueError):
+            pos += 1
+
+    if not candidates:
+        candidates = [raw_output]
+    return candidates
+
+
 def _query_ollama(payload: dict, max_retries: int = 3, expected_keys: list = None) -> dict:
-    """
-    Enhanced helper function to send a request to the Ollama API.
-    Includes robust JSON extraction and error handling.
-    """
     if expected_keys is None:
         expected_keys = ["signal", "confidence", "analysis"]
 
@@ -348,57 +383,13 @@ def _query_ollama(payload: dict, max_retries: int = 3, expected_keys: list = Non
             response = requests.post(OLLAMA_API_URL, json=payload, timeout=600)
             response.raise_for_status()
 
-            response_data = response.json()
-            raw_output = response_data.get("response", "").strip()
-
+            raw_output = response.json().get("response", "").strip()
             if not raw_output or raw_output == "{}":
                 logger.warning(f"Attempt {attempt + 1}: Empty or trivial response from LLM.")
                 continue
 
-            # Robust JSON extraction
-            # 1. Strip internal thinking tokens ONLY when they appear as a true
-            #    prefix (before any '{'). When they appear inside a JSON string
-            #    value (e.g. {"thought": "<|channel>thought}..."}), they are
-            #    valid JSON and must NOT be stripped — otherwise we corrupt the
-            #    structure and lose keys like "query".
-            first_brace = raw_output.find("{")
-            if first_brace > 0:
-                prefix = raw_output[:first_brace]
-                if any(tag in prefix for tag in _THINKING_TOKENS):
-                    raw_output = raw_output[first_brace:].strip()
-            elif first_brace == -1:
-                # No JSON object at all — strip thinking debris as a last resort.
-                for tag in _THINKING_TOKENS:
-                    if tag in raw_output:
-                        raw_output = raw_output.split(tag)[-1].strip()
-                        break
-
-            # 2. Extract potential JSON candidates using markdown or raw extraction
-            candidates = []
-            if "```json" in raw_output:
-                candidates.extend([b.split("```")[0].strip() for b in raw_output.split("```json")[1:]])
-            elif "```" in raw_output:
-                candidates.extend([b.split("```")[0].strip() for b in raw_output.split("```")[1:]])
-            
-            # 3. Use JSONDecoder to find all valid JSON objects (handles multiple or nested)
-            decoder = json.JSONDecoder()
-            pos = 0
-            while pos < len(raw_output):
-                try:
-                    start = raw_output.find('{', pos)
-                    if start == -1:
-                        break
-                    obj, end_idx = decoder.raw_decode(raw_output[start:])
-                    # obj is already a parsed dictionary or list
-                    if isinstance(obj, dict):
-                        candidates.append(obj)
-                    pos = start + end_idx
-                except (json.JSONDecodeError, ValueError):
-                    pos += 1
-
-            if not candidates:
-                # Last resort: try the whole thing
-                candidates = [raw_output]
+            raw_output = _strip_thinking_prefix(raw_output)
+            candidates = _extract_json_candidates(raw_output)
 
             llm_output = None
             for item in candidates:
@@ -409,7 +400,6 @@ def _query_ollama(payload: dict, max_retries: int = 3, expected_keys: list = Non
 
             if llm_output is None:
                 logger.error(f"Attempt {attempt + 1}: Could not find valid JSON with keys {expected_keys}. Raw (first 500 chars): {raw_output[:500]}")
-                # Capped debug dump (5 MB max, env-gated)
                 if len(raw_output) > 500:
                     _dump_llm_failure(model_name, attempt + 1, expected_keys, raw_output)
                 continue

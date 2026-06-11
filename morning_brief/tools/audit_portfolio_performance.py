@@ -1,12 +1,16 @@
 from smolagents import Tool
 
 
-def _resolve_db_path(db_path: str) -> str:
+def _resolve_db_path(db_path: str | None) -> str:
     from pathlib import Path
 
+    project_root = Path(__file__).resolve().parents[2]
     if db_path:
-        return db_path
-    return str(Path(__file__).resolve().parents[2] / "performance_monitor.db")
+        resolved = Path(db_path).resolve()
+        if not resolved.is_relative_to(project_root):
+            raise ValueError("db_path must be within the project directory.")
+        return str(resolved)
+    return str(project_root / "performance_monitor.db")
 
 
 def _fetch_ticker_metrics(cursor, tables) -> list[dict]:
@@ -99,6 +103,7 @@ class AuditPortfolioPerformanceTool(Tool):
     inputs = {
         "db_path": {
             "type": "string",
+            "nullable": True,
             "description": (
                 "Path to performance_monitor.db. "
                 "Defaults to the project root performance_monitor.db if not specified."
@@ -107,7 +112,7 @@ class AuditPortfolioPerformanceTool(Tool):
     }
     output_type = "string"
 
-    def forward(self, db_path: str = "") -> str:
+    def forward(self, db_path: str | None = None) -> str:
         import sqlite3
         from pathlib import Path
         from morning_brief.tools import save_tool_result

@@ -562,6 +562,75 @@ def _execute_buy_order(state, current_pos, ticker, t212_ticker, portfolio, base_
         else:
             logger.error(f"❌ Échec de l'achat : {resp.text}")
 
+def _check_sell_loss_guard(current_value_eur: float, current_pos: dict, state: dict) -> float | None:
+    avg_price = current_pos.get("averagePrice") or current_pos.get("avgPrice") or 0.0
+    total_qty = current_pos["quantityAvailableForTrading"]
+    t212_buy_cost = float(avg_price) * total_qty
+    state_buy_cost = state["active_position"]["buy_budget"] if state.get("active_position") else 0.0
+
+    reference_cost = max(state_buy_cost, t212_buy_cost)
+    if reference_cost == 0.0:
+        reference_cost = current_value_eur
+
+    if current_value_eur < reference_cost * 0.998:
+        logger.warning(
+            f"⚠️ VENTE BLOQUÉE : Perte potentielle détectée. Valeur actuelle: {current_value_eur:.2f}€, Coût d'achat de référence: {reference_cost:.2f}€."
+        )
+        return None
+    return reference_cost
+
+
+def _record_sell_transaction(state, current_value_eur, total_qty, ticker, db_date, signal_source, buy_cost):
+    previous_capital = state.get("current_capital", buy_cost)
+    residual_cash = max(0, previous_capital - buy_cost)
+
+    state["current_capital"] = current_value_eur + residual_cash
+    state["total_realized_pl"] += current_value_eur - buy_cost
+
+    logger.info(f"💰 Détail capital :")
+    logger.info(f"   - Produit vente : {current_value_eur:.2f} €")
+    logger.info(f"   - Cash résiduel récupéré : {residual_cash:.2f} €")
+    logger.info(f"   - Nouveau total : {state['current_capital']:.2f} €")
+
+    entry_time_str = state["active_position"].get("entry_time") if state.get("active_position") else None
+
+    state["active_position"] = None
+
+    if insert_transaction:
+        insert_transaction(
+            date=db_date,
+            ticker=ticker,
+            type="SELL",
+            quantity=total_qty,
+            price=current_value_eur / total_qty if total_qty > 0 else 0,
+            cost=current_value_eur,
+            signal_source=signal_source,
+            reason=f"T212 Confirmed Sale (P&L: {(current_value_eur - buy_cost):+.2f}€, {((current_value_eur / buy_cost) - 1):+.2%})",
+        )
+    return entry_time_str
+
+
+def _update_feedback_loop(entry_time_str, db_date, current_value_eur, buy_cost):
+    if AdaptiveWeightManager is None:
+        return
+    try:
+        wm = AdaptiveWeightManager()
+        entry_date = entry_time_str[:10] if entry_time_str else db_date[:10]
+        actual_outcome = 1 if current_value_eur > buy_cost else 0
+        return_1d = (current_value_eur - buy_cost) / buy_cost if buy_cost > 0 else 0.0
+        updated = wm.update_outcomes_for_date(
+            date=entry_date,
+            actual_outcome=actual_outcome,
+            return_1d=return_1d,
+        )
+        if updated > 0:
+            logger.info(
+                f"📊 Feedback loop: updated {updated} model predictions for {entry_date} (return_1d={return_1d:+.4f})"
+            )
+    except Exception as fb_e:
+        logger.warning(f"Feedback loop failed: {fb_e}")
+
+
 def _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, headers, db_date, signal_source):
     if not state.get("active_position") and not current_pos:
         logger.warning(f"⚠️ Pas de position active pour {t212_ticker}.")
@@ -573,25 +642,10 @@ def _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, heade
         save_portfolio_state(state, t212_ticker)
         return
 
-    # Vente de TOUTE la quantité possédée sur T212
     total_qty = current_pos["quantityAvailableForTrading"]
     current_value_eur = current_pos["walletImpact"]["currentValue"]
 
-    # Anti-Loss Protection: Prevent selling at a loss
-    avg_price = current_pos.get("averagePrice") or current_pos.get("avgPrice") or 0.0
-    t212_buy_cost = float(avg_price) * total_qty
-    state_buy_cost = state["active_position"]["buy_budget"] if state.get("active_position") else 0.0
-
-    # Use the maximum of state cost and T212 cost as reference to be conservative
-    reference_cost = max(state_buy_cost, t212_buy_cost)
-    if reference_cost == 0.0:
-        reference_cost = current_value_eur  # Fallback if we can't find a cost
-
-    # Add a small tolerance (0.2%) for bid/ask spread and rounding to avoid blocking minor break-even trades
-    if current_value_eur < reference_cost * 0.998:
-        logger.warning(
-            f"⚠️ VENTE BLOQUÉE : Perte potentielle détectée. Valeur actuelle: {current_value_eur:.2f}€, Coût d'achat de référence: {reference_cost:.2f}€."
-        )
+    if _check_sell_loss_guard(current_value_eur, current_pos, state) is None:
         return
 
     logger.info(f"📉 Vente de TOUTE la position sur {t212_ticker} ({total_qty} actions)")
@@ -601,56 +655,10 @@ def _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, heade
 
     if sell_resp is not None and sell_resp.status_code in [200, 201, 202]:
         logger.info("✅ Vente effectuée.")
-        # Calcul précis du nouveau capital en incluant le cash non-investi (résiduel)
         buy_cost = state["active_position"]["buy_budget"] if state.get("active_position") else current_value_eur
-
-        previous_capital = state.get("current_capital", buy_cost)
-        residual_cash = max(0, previous_capital - buy_cost)
-
-        state["current_capital"] = current_value_eur + residual_cash
-        state["total_realized_pl"] += current_value_eur - buy_cost
-
-        logger.info(f"💰 Détail capital {t212_ticker} :")
-        logger.info(f"   - Produit vente : {current_value_eur:.2f} €")
-        logger.info(f"   - Cash résiduel récupéré : {residual_cash:.2f} €")
-        logger.info(f"   - Nouveau total : {state['current_capital']:.2f} €")
-
-        entry_time_str = state["active_position"].get("entry_time") if state.get("active_position") else None
-
-        state["active_position"] = None
+        entry_time_str = _record_sell_transaction(state, current_value_eur, total_qty, ticker, db_date, signal_source, buy_cost)
         save_portfolio_state(state, t212_ticker)
-
-        # --- Enregistrement SQLITE après confirmation ---
-        if insert_transaction:
-            insert_transaction(
-                date=db_date,
-                ticker=ticker,
-                type="SELL",
-                quantity=total_qty,
-                price=current_value_eur / total_qty if total_qty > 0 else 0,
-                cost=current_value_eur,
-                signal_source=signal_source,
-                reason=f"T212 Confirmed Sale (P&L: {(current_value_eur - buy_cost):+.2f}€, {((current_value_eur / buy_cost) - 1):+.2%})",
-            )
-
-        # --- Feedback loop: update adaptive weight manager with trade outcome ---
-        if AdaptiveWeightManager is not None:
-            try:
-                wm = AdaptiveWeightManager()
-                entry_date = entry_time_str[:10] if entry_time_str else db_date[:10]
-                actual_outcome = 1 if current_value_eur > buy_cost else 0
-                return_1d = (current_value_eur - buy_cost) / buy_cost if buy_cost > 0 else 0.0
-                updated = wm.update_outcomes_for_date(
-                    date=entry_date,
-                    actual_outcome=actual_outcome,
-                    return_1d=return_1d,
-                )
-                if updated > 0:
-                    logger.info(
-                        f"📊 Feedback loop: updated {updated} model predictions for {entry_date} (return_1d={return_1d:+.4f})"
-                    )
-            except Exception as fb_e:
-                logger.warning(f"Feedback loop failed: {fb_e}")
+        _update_feedback_loop(entry_time_str, db_date, current_value_eur, buy_cost)
     else:
         if sell_resp is None:
             logger.error("❌ Erreur lors de la vente : réseau (pas de réponse de l'API)")

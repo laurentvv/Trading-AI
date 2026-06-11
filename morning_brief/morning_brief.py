@@ -108,6 +108,13 @@ def validate_markdown_output(final_answer, _memory, agent):
 
 
 def main():
+    project_root = str(Path(__file__).resolve().parents[1])
+    script_dir = str(Path(__file__).resolve().parent)
+    if script_dir in sys.path:
+        sys.path.remove(script_dir)
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+
     import requests
 
     try:
@@ -158,6 +165,7 @@ def main():
         planning_interval=None,
         use_structured_outputs_internally=True,
         final_answer_checks=[validate_markdown_output],
+        executor_kwargs={"timeout_seconds": 120},
     )
 
     task = (
