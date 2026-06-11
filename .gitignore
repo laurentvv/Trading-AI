@@ -38,6 +38,8 @@ $RECYCLE.BIN/
 *.pkl
 *.pickle
 *.db
+*.db-shm
+*.db-wal
 *.log
 *.png
 vendor/
