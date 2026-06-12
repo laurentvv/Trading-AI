@@ -8,8 +8,6 @@ logger = logging.getLogger(__name__)
 
 DB_PATH = Path("trading_history.db")
 
-VALID_MODEL_TYPES = "'classic', 'llm_text', 'llm_visual', 'sentiment', 'hybrid', 'oil_bench', 'vincent_ganne', 'timesfm', 'tensortrade', 'grebenkov'"
-VALID_SIGNALS = "'BUY', 'SELL', 'HOLD', 'STRONG_BUY', 'STRONG_SELL'"
 
 
 def init_db():
@@ -49,13 +47,13 @@ def init_db():
     """)
 
     # Create model_signals table with updated constraints
-    cursor.execute(f"""
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS model_signals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             date TEXT NOT NULL,
             ticker TEXT NOT NULL,
-            model_type TEXT NOT NULL CHECK(model_type IN ({VALID_MODEL_TYPES})),
-            signal TEXT NOT NULL CHECK(signal IN ({VALID_SIGNALS})),
+            model_type TEXT NOT NULL CHECK(model_type IN ('classic', 'llm_text', 'llm_visual', 'sentiment', 'hybrid', 'oil_bench', 'vincent_ganne', 'timesfm', 'tensortrade', 'grebenkov')),
+            signal TEXT NOT NULL CHECK(signal IN ('BUY', 'SELL', 'HOLD', 'STRONG_BUY', 'STRONG_SELL')),
             confidence REAL,
             details TEXT
         )
@@ -239,12 +237,12 @@ def _migrate_model_signals_table():
             cursor.execute("DROP TABLE IF EXISTS model_signals_old")
             cursor.execute("ALTER TABLE model_signals RENAME TO model_signals_old")
 
-            cursor.execute(f"""CREATE TABLE model_signals (
+            cursor.execute("""CREATE TABLE model_signals (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 date TEXT NOT NULL,
                 ticker TEXT NOT NULL,
-                model_type TEXT NOT NULL CHECK(model_type IN ({VALID_MODEL_TYPES})),
-                signal TEXT NOT NULL CHECK(signal IN ({VALID_SIGNALS})),
+                model_type TEXT NOT NULL CHECK(model_type IN ('classic', 'llm_text', 'llm_visual', 'sentiment', 'hybrid', 'oil_bench', 'vincent_ganne', 'timesfm', 'tensortrade', 'grebenkov')),
+                signal TEXT NOT NULL CHECK(signal IN ('BUY', 'SELL', 'HOLD', 'STRONG_BUY', 'STRONG_SELL')),
                 confidence REAL,
                 details TEXT
             )""")
