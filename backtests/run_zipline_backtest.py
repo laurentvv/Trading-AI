@@ -71,7 +71,7 @@ def create_minimal_features(df):
     true_range = ranges.max(axis=1)
     df["ATR_14"] = true_range.rolling(14).mean()
 
-    df.fillna(method="bfill", inplace=True)
+    df.bfill(inplace=True)
     df.fillna(0, inplace=True)
     return df
 
