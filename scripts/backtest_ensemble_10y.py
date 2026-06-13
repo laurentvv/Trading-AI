@@ -25,7 +25,7 @@ def run_ensemble_backtest():
         "Gas": "NG=F",
         "DXY": "DX-Y.NYB",
     }
-    
+
     data = {}
     for name, symbol in tickers.items():
         print(f"Téléchargement {name} ({symbol})...")
@@ -46,7 +46,7 @@ def run_ensemble_backtest():
     hmm_model = HMMDecisionModel(lookback=252, baum_welch_iterations=5)
     grebenkov_model = GrebenkovTrendModel()
     vincent_ganne = VincentGanneModel()
-    
+
     # TimesFM (peut être long à charger)
     try:
         timesfm_model = TimesFMModel.get_instance()
@@ -68,20 +68,20 @@ def run_ensemble_backtest():
     bh_cash = 0.0
 
     history = []
-    
+
     start_idx = 252 # 1 an de lookback
     total_steps = len(df_qqq) - start_idx
-    
+
     print(f"\nDébut du backtest sur {total_steps} jours (cela va être TRÈS long avec TimesFM)...")
     start_time = time.time()
 
     for i in range(start_idx, len(df_qqq)):
         current_date = df_qqq.index[i]
         current_price = float(df_qqq.iloc[i]["Close"])
-        
+
         # Fenêtre glissante
         window_qqq = df_qqq.iloc[i - 252 : i + 1].copy()
-        
+
         # Prépare les données pour les modèles
         model_data = {
             "hist_data": window_qqq,
@@ -89,9 +89,9 @@ def run_ensemble_backtest():
             "wti_data": data["WTI"].iloc[max(0, i-252):i+1] if "WTI" in data else None,
             "nasdaq_data": window_qqq
         }
-        
+
         decisions = []
-        
+
         # 1. HMM
         res_hmm = hmm_model.predict(model_data)
         decisions.append(ModelDecision(
@@ -99,7 +99,7 @@ def run_ensemble_backtest():
             strength=engine._normalize_signal(res_hmm.signal),
             timestamp=datetime.now(), model_name="hmm_model"
         ))
-        
+
         # 2. Grebenkov
         res_greb = grebenkov_model.predict(model_data)
         decisions.append(ModelDecision(
@@ -107,7 +107,7 @@ def run_ensemble_backtest():
             strength=engine._normalize_signal(res_greb.signal),
             timestamp=datetime.now(), model_name="grebenkov"
         ))
-        
+
         # 3. Vincent Ganne
         # Construction des indicateurs macro à l'instant T
         vg_indicators = {}
@@ -120,14 +120,14 @@ def run_ensemble_backtest():
                     valid_data = data[name][data[name].index <= current_date]
                     if not valid_data.empty:
                         vg_indicators[key] = float(valid_data.iloc[-1]["Close"])
-                        
+
         res_vg = vincent_ganne.evaluate(vg_indicators)
         decisions.append(ModelDecision(
             signal=res_vg["signal"], confidence=res_vg["confidence"],
             strength=engine._normalize_signal(res_vg["signal"]),
             timestamp=datetime.now(), model_name="vincent_ganne"
         ))
-        
+
         # 4. TimesFM
         if timesfm_available:
             try:
@@ -150,9 +150,9 @@ def run_ensemble_backtest():
             generic_model_results=decisions,
             market_data=market_data
         )
-        
+
         signal = final_decision.risk_adjusted_signal
-        
+
         # Execution
         if signal in ["BUY", "STRONG_BUY"] and cash > 0:
             position = cash / current_price
@@ -163,14 +163,14 @@ def run_ensemble_backtest():
 
         current_value = cash + (position * current_price)
         bh_current_value = bh_cash + (bh_position * current_price)
-        
+
         history.append({
             "Date": current_date,
             "Value": current_value,
             "BH_Value": bh_current_value,
             "Signal": signal
         })
-        
+
         if (i - start_idx) % 100 == 0:
             elapsed = time.time() - start_time
             print(f"Jour {i - start_idx}/{total_steps} complété en {elapsed:.1f}s... Valeur: {current_value:.2f}$")
@@ -179,10 +179,10 @@ def run_ensemble_backtest():
     df_res = pd.DataFrame(history).set_index("Date")
     final_val = df_res.iloc[-1]["Value"]
     final_bh = df_res.iloc[-1]["BH_Value"]
-    
+
     ret_ens = (final_val - initial_capital) / initial_capital * 100
     ret_bh = (final_bh - initial_capital) / initial_capital * 100
-    
+
     print("\n" + "=" * 50)
     print("RÉSULTATS BACKTEST ENSEMBLE (10 ANS)")
     print("=" * 50)
@@ -190,7 +190,7 @@ def run_ensemble_backtest():
     print(f"Ensemble Final  : {final_val:.2f} $ ({ret_ens:+.2f}%)")
     print(f"Buy & Hold Final: {final_bh:.2f} $ ({ret_bh:+.2f}%)")
     print("=" * 50)
-    
+
     # Graphique
     plt.figure(figsize=(14, 7))
     plt.plot(df_res.index, df_res["Value"], label="Ensemble Model", color="blue", linewidth=2)
@@ -200,7 +200,7 @@ def run_ensemble_backtest():
     plt.ylabel("Valeur du Portefeuille ($)")
     plt.legend()
     plt.grid(True, alpha=0.3)
-    
+
     out_path = Path("ensemble_benchmark_10y.png")
     plt.savefig(out_path)
     print(f"\nGraphique généré : {out_path.absolute()}")

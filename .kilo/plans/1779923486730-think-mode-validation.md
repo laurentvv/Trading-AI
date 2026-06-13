@@ -61,7 +61,7 @@ This is optional but cheap; it gives the test suite a deterministic, mock-free a
    .venv\Scripts\python.exe tests/check_llm_json.py
    ```
    Exercises all 11 cases (3 `*_v1_buggy`, 7 fixed/schema variants, no skip). **Expected outcome for "validation successful":** the harness reports all cases OK — meaning the Gemma model now produces clean JSON even with `<|think|>` active (because the strict `SCHEMA_*` `format:` parameter and the defensive system-prompt suffix still constrain the output).
-   
+
    **Alternative expected outcome (still "validation complete", just informative):** the `*_v1_buggy` cases fail with the original May-2026 JSON-debris symptom — this proves the defect is reproducible and that the schema defence is what's actually keeping production alive. In this case the harness exits non-zero; the plan treats this as a **successful negative-result validation** rather than a failure, and the summary will be reported to the user.
 
 3. **Pre-flight health checks** before the final `--t212` run:

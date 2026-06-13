@@ -703,7 +703,7 @@ def execute_t212_trade(
 
     if current_pos:
         logger.info(f"   - Position détectée : {current_pos['quantity']} actions de {t212_ticker}")
-        
+
         stop_signal = _evaluate_trailing_stop(state, current_pos, t212_ticker)
         if stop_signal:
             signal = stop_signal

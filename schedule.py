@@ -88,7 +88,7 @@ def run_morning_brief():
         with open("analyse_morning.log", "a", encoding="utf-8") as f:
             f.write(f"\n--- Lancement {datetime.now().isoformat()} ---\n")
             result = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, text=True)
-            
+
         if result.returncode == 0:
             logger.info("✅ Morning Brief généré avec succès")
         else:
@@ -147,7 +147,7 @@ def main():
                 status_display = f"[bold green]ACTIF[/bold green] - {msg}"
             else:
                 status_display = f"[bold yellow]VEILLE[/bold yellow] - {msg}"
-                
+
                 # Check for Morning Brief outside of trading hours (e.g. 06:00 AM)
                 if now.hour == MORNING_BRIEF_HOUR and now.minute >= MORNING_BRIEF_MINUTE:
                     if last_morning_brief_date != now.date():
