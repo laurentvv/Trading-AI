@@ -14,5 +14,5 @@ DEFAULT_BASE_WEIGHTS: Dict[str, float] = {
     "tensortrade": 0.05,
     "grebenkov": 0.05,  # From enhanced_decision_engine.py
     "hmm_model": 0.05,
+    "finacumen": 0.15,
 }
-

@@ -131,6 +131,12 @@ The system is designed to be **performant on consumer hardware** without requiri
 
 ---
 
+
+### 🧠 FinAcumen (Financial Memory)
+L'architecture FinAcumen a été intégrée pour doter les modèles IA locaux d'une **mémoire d'expérience** et d'outils déterministes. Cela résout le problème de l'amnésie des LLMs.
+- Lancez `uv run python src/finacumen_main.py --ticker CL=F` pour générer une analyse structurée qui interrogera la base de données vectorielle locale.
+- Le résultat est mis en cache (JSON) et lu automatiquement par `main.py` au cycle suivant pour l'inclure dans le système hybride.
+
 ## 📂 Project Structure
 
 The project is organized modularly for better maintainability.

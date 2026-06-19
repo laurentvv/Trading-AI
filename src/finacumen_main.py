@@ -1,17 +1,21 @@
 import asyncio
 import logging
 import json
+import argparse
 from pathlib import Path
 from datetime import datetime
+
 
 # Importer les composants
 from src.core.memory import FinancialMemory
 from src.agents.annotator import AnnotatorAgent
 from src.agents.solver import SolverAgent
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
 logger = logging.getLogger("finacumen")
-
 
 async def run_finacumen_pipeline(symbol: str, context_details: dict):
     """
@@ -21,7 +25,7 @@ async def run_finacumen_pipeline(symbol: str, context_details: dict):
 
     # 1. Préparation de la mémoire
     memory = FinancialMemory()
-    # Dans un environnement de test, on s'assure d'avoir les données de départ
+    # Dans un environnement de test/init, on s'assure d'avoir les données de départ
     memory.seed_initial_memories()
 
     # 2. Construction du contexte
@@ -43,36 +47,60 @@ async def run_finacumen_pipeline(symbol: str, context_details: dict):
 
     logger.info("Analyse FinAcumen terminée.")
 
-    # Enregistrer le résultat dans la mémoire pour un apprentissage futur (Optionnel, ici simplifié)
-    if result["status"] == "success":
-        # action_taken = result["decision"]
-        # En mode réel, on évaluerait le trade après T jours avant de l'ajouter en tant que Findings ou Cautions
-        pass
-
     return result
 
-
 async def main():
-    # Exemple d'exécution
+    parser = argparse.ArgumentParser(description="Run FinAcumen Experience Memory Analysis")
+    parser.add_argument(
+        "--ticker",
+        type=str,
+        default="WTI",
+        help="Ticker to analyze (default: WTI)",
+    )
+    args = parser.parse_args()
+
+    # TODO: Intégrer de vraies données de marché via src/data.py
     context = {
-        "price_trend": "Down",
-        "recent_news": "EIA reports unexpected massive inventory build",
-        "volatility": "High",
+        "price_trend": "Unknown",
+        "volatility": "Normal",
+        "date": datetime.now().strftime("%Y-%m-%d")
     }
 
-    result = await run_finacumen_pipeline("WTI", context)
+    result = await run_finacumen_pipeline(args.ticker, context)
 
-    # Sauvegarder la trace pour le journal
-    output_dir = Path("logs_prod")
-    output_dir.mkdir(exist_ok=True)
+    # Sauvegarder la trace complète pour le journal
+    output_dir = Path("data_cache/finacumen")
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    with open(output_dir / f"finacumen_trace_{timestamp}.json", "w") as f:
-        json.dump(result, f, indent=2)
+    # Fichier d'état lu par main.py
+    state_file = output_dir / f"finacumen_{args.ticker}.json"
 
-    print("\n--- RÉSULTAT FINACUMEN ---")
-    print(json.dumps(result.get("decision", result), indent=2))
+    if result.get("status") == "success" and "decision" in result:
+        decision = result["decision"]
+        state_data = {
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "ticker": args.ticker,
+            "signal": decision.get("action", "HOLD"),
+            "confidence": decision.get("confidence", 0.0),
+            "analysis": decision.get("reasoning", "Aucune analyse fournie."),
+            "status": "success"
+        }
+    else:
+        state_data = {
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "ticker": args.ticker,
+            "signal": "HOLD",
+            "confidence": 0.0,
+            "analysis": f"FinAcumen n'a pas pu converger: {result.get('reason', 'Erreur inconnue')}",
+            "status": result.get("status", "error")
+        }
 
+    with open(state_file, "w", encoding="utf-8") as f:
+        json.dump(state_data, f, indent=2)
+
+    print(f"\n--- RÉSULTAT FINACUMEN ({args.ticker}) ---")
+    print(json.dumps(state_data, indent=2))
+    print(f"Enregistré dans: {state_file}")
 
 if __name__ == "__main__":
     asyncio.run(main())
