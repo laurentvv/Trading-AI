@@ -3,7 +3,7 @@ import logging
 from typing import Dict, Any
 
 from src.core.tools import NumericalReasoningEngine, AnswerConsolidationGate
-from src.llm_client import TEXT_LLM_MODEL, OLLAMA_API_URL, _strip_thinking_prefix
+from src.llm_client import TEXT_LLM_MODEL, _query_ollama, SCHEMA_FINACUMEN_SOLVER
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +50,7 @@ Call a tool or finish with the final decision.
 - To execute python, return a JSON: {{"python_code": "your code here"}}
 - To return the final answer, return a JSON: {{"action": "BUY|SELL|HOLD", "confidence": 0.0-1.0, "reasoning": "your reasoning"}}
 </Invariants>
+...never add a 'thought' key.
 """
         import requests
 

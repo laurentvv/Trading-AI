@@ -91,7 +91,10 @@ def get_latest_finacumen_signal(ticker: str) -> dict:
     import json
     from datetime import datetime
 
-    state_file = Path("data_cache/finacumen") / f"finacumen_{ticker}.json"
+    import re
+
+    safe_ticker = re.sub(r"[^a-zA-Z0-9_=^.-]", "", ticker)
+    state_file = Path("data_cache/finacumen") / f"finacumen_{safe_ticker}.json"
     if not state_file.exists():
         return None
 

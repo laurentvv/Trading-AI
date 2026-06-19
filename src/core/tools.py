@@ -83,7 +83,26 @@ class NumericalReasoningEngine:
 
     def __init__(self):
         # Espace de noms persistant pour cette session de raisonnement
-        self.namespace: Dict[str, Any] = {"math": __import__("math"), "lookup_ohlc": lookup_ohlc}
+        self.namespace: Dict[str, Any] = {
+            "__builtins__": {
+                "print": print,
+                "range": range,
+                "int": int,
+                "float": float,
+                "str": str,
+                "bool": bool,
+                "list": list,
+                "dict": dict,
+                "len": len,
+                "sum": sum,
+                "min": min,
+                "max": max,
+                "abs": abs,
+                "round": round,
+            },
+            "math": __import__("math"),
+            "lookup_ohlc": lookup_ohlc,
+        }
 
     def execute(self, code: str) -> Dict[str, Any]:
         """

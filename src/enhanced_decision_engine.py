@@ -491,7 +491,7 @@ class EnhancedDecisionEngine:
         return decision
 
     def _convert_legacy_inputs(
-        self, timestamp, decisions, classic_pred, classic_conf, legacy_models, vincent_ganne_indicators
+        self, timestamp, decisions, classic_pred, classic_conf, legacy_models, vincent_ganne_indicators, finacumen_decision=None
     ):
         if classic_pred is not None:
             decisions.append(
@@ -526,6 +526,18 @@ class EnhancedDecisionEngine:
                         reasoning=reason_val,
                     )
                 )
+
+        if finacumen_decision and not finacumen_decision.get("failed"):
+            decisions.append(
+                ModelDecision(
+                    signal=finacumen_decision.get("signal", "HOLD"),
+                    confidence=finacumen_decision.get("confidence", 0.0),
+                    strength=self._normalize_signal(finacumen_decision.get("signal", "HOLD")),
+                    timestamp=timestamp,
+                    model_name="finacumen",
+                    reasoning=finacumen_decision.get("analysis", "FinAcumen analysis"),
+                )
+            )
 
         if vincent_ganne_indicators:
             vg_decision = self.vincent_ganne_model.evaluate(vincent_ganne_indicators)
@@ -601,7 +613,7 @@ class EnhancedDecisionEngine:
                 "oil_bench": oil_bench_decision,
                 "grebenkov": grebenkov_decision,
                 "hmm_model": hmm_decision,
-                "finacumen": finacumen_decision,
+                # "finacumen": finacumen_decision, # handled separately below
             }
             self._convert_legacy_inputs(
                 timestamp, decisions, classic_pred, classic_conf, legacy_models, vincent_ganne_indicators

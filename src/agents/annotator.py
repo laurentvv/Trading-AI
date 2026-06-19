@@ -1,7 +1,7 @@
 import logging
 
 # Adjusting import to use existing LLM integration
-from src.llm_client import TEXT_LLM_MODEL
+from src.llm_client import TEXT_LLM_MODEL, _query_ollama, SCHEMA_FINACUMEN_ANNOTATOR
 
 logger = logging.getLogger(__name__)
 

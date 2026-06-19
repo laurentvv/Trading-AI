@@ -11,11 +11,9 @@ from src.core.memory import FinancialMemory
 from src.agents.annotator import AnnotatorAgent
 from src.agents.solver import SolverAgent
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("finacumen")
+
 
 async def run_finacumen_pipeline(symbol: str, context_details: dict):
     """
@@ -29,7 +27,7 @@ async def run_finacumen_pipeline(symbol: str, context_details: dict):
     memory.seed_initial_memories()
 
     # 2. Construction du contexte
-    current_context = f"Analyze {symbol}. Details: {json.dumps(context_details)}"
+    current_context = f"Analyze {symbol}. Details: {json.dumps(context_details, default=str)}"
 
     # 3. Récupération de la mémoire
     logger.info("Interrogation de la Financial Memory...")
@@ -49,6 +47,7 @@ async def run_finacumen_pipeline(symbol: str, context_details: dict):
 
     return result
 
+
 async def main():
     parser = argparse.ArgumentParser(description="Run FinAcumen Experience Memory Analysis")
     parser.add_argument(
@@ -60,11 +59,7 @@ async def main():
     args = parser.parse_args()
 
     # TODO: Intégrer de vraies données de marché via src/data.py
-    context = {
-        "price_trend": "Unknown",
-        "volatility": "Normal",
-        "date": datetime.now().strftime("%Y-%m-%d")
-    }
+    context = {"price_trend": "Unknown", "volatility": "Normal", "date": datetime.now().strftime("%Y-%m-%d")}
 
     result = await run_finacumen_pipeline(args.ticker, context)
 
@@ -73,7 +68,10 @@ async def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Fichier d'état lu par main.py
-    state_file = output_dir / f"finacumen_{args.ticker}.json"
+    import re
+
+    safe_ticker = re.sub(r"[^a-zA-Z0-9_=^.-]", "", args.ticker)
+    state_file = output_dir / f"finacumen_{safe_ticker}.json"
 
     if result.get("status") == "success" and "decision" in result:
         decision = result["decision"]
@@ -83,7 +81,7 @@ async def main():
             "signal": decision.get("action", "HOLD"),
             "confidence": decision.get("confidence", 0.0),
             "analysis": decision.get("reasoning", "Aucune analyse fournie."),
-            "status": "success"
+            "status": "success",
         }
     else:
         state_data = {
@@ -92,7 +90,7 @@ async def main():
             "signal": "HOLD",
             "confidence": 0.0,
             "analysis": f"FinAcumen n'a pas pu converger: {result.get('reason', 'Erreur inconnue')}",
-            "status": result.get("status", "error")
+            "status": result.get("status", "error"),
         }
 
     with open(state_file, "w", encoding="utf-8") as f:
@@ -101,6 +99,7 @@ async def main():
     print(f"\n--- RÉSULTAT FINACUMEN ({args.ticker}) ---")
     print(json.dumps(state_data, indent=2))
     print(f"Enregistré dans: {state_file}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

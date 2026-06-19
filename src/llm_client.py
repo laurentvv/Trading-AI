@@ -36,6 +36,24 @@ SCHEMA_SEARCH_QUERY = {
     "additionalProperties": False,
 }
 
+SCHEMA_FINACUMEN_SOLVER = {
+    "type": "object",
+    "properties": {
+        "python_code": {"type": ["string", "None"]},
+        "action": {"type": ["string", "None"], "enum": ["BUY", "SELL", "HOLD", None]},
+        "confidence": {"type": ["number", "None"]},
+        "reasoning": {"type": ["string", "None"]},
+    },
+    "additionalProperties": False,
+}
+
+SCHEMA_FINACUMEN_ANNOTATOR = {
+    "type": "object",
+    "properties": {"directives": {"type": "array", "items": {"type": "string"}}},
+    "required": ["directives"],
+    "additionalProperties": False,
+}
+
 SCHEMA_OIL_ALLOCATION = {
     "type": "object",
     "properties": {
@@ -51,9 +69,18 @@ SCHEMA_OIL_ALLOCATION = {
 # Single source of truth — used by both _query_ollama (prefix strip) and
 # _find_dict_with_keys (recursive string-value scrub).
 _THINKING_TOKENS = (
-    "<channel|>", "<|channel|>", "<|thought|>", "<thought>", "</thought>",
-    "thought|", "<|channel>thought", "<|channel>thought}", "<|channel>thought|>",
-    "<|start|>", "<|end|>", "<|channel|response>",
+    "<channel|>",
+    "<|channel|>",
+    "<|thought|>",
+    "<thought>",
+    "</thought>",
+    "thought|",
+    "<|channel>thought",
+    "<|channel>thought}",
+    "<|channel>thought|>",
+    "<|start|>",
+    "<|end|>",
+    "<|channel|response>",
 )
 
 
@@ -203,7 +230,7 @@ def get_llm_decision(
         "options": {"temperature": 0.4, "num_predict": 1024},
         "system": "<|think|> You are an expert financial analyst. Your task is to analyze market data and news to provide a trading decision in a valid JSON format. Output ONLY the JSON object requested — never add a 'thought' key.",
     }
-    
+
     result_dict = _query_ollama(payload)
     return ModelResult(
         signal=result_dict.get("signal", "HOLD"),
@@ -254,7 +281,7 @@ def get_visual_llm_decision(image_path: Path) -> ModelResult:
         "options": {"temperature": 0.1, "num_predict": 1024},
         "system": "<|think|> You are a geometric chart analyst. Return ONLY the requested JSON object — never add a 'thought' key.",
     }
-    
+
     result_dict = _query_ollama(payload)
     return ModelResult(
         signal=result_dict.get("signal", "HOLD"),
@@ -399,7 +426,9 @@ def _query_ollama(payload: dict, max_retries: int = 3, expected_keys: list = Non
                     break
 
             if llm_output is None:
-                logger.error(f"Attempt {attempt + 1}: Could not find valid JSON with keys {expected_keys}. Raw (first 500 chars): {raw_output[:500]}")
+                logger.error(
+                    f"Attempt {attempt + 1}: Could not find valid JSON with keys {expected_keys}. Raw (first 500 chars): {raw_output[:500]}"
+                )
                 if len(raw_output) > 500:
                     _dump_llm_failure(model_name, attempt + 1, expected_keys, raw_output)
                 continue
@@ -416,4 +445,3 @@ def _query_ollama(payload: dict, max_retries: int = 3, expected_keys: list = Non
                 return _fallback_decision(expected_keys, reason=f"exception: {type(e).__name__}")
 
     return _fallback_decision(expected_keys, reason="retries_exhausted_no_valid_json")
-
