@@ -29,9 +29,9 @@ async def main():
 
     if os.path.exists("logs_prod/trading_journal.csv"):
         journal = pd.read_csv("logs_prod/trading_journal.csv")
-        journal["date"] = pd.to_datetime(journal["date"])
-        min_dt = journal["date"].min()
-        max_dt = journal["date"].max()
+        journal["Timestamp"] = pd.to_datetime(journal["Timestamp"])
+        min_dt = journal["Timestamp"].min()
+        max_dt = journal["Timestamp"].max()
         start_date = pytz.UTC.localize(min_dt)
         end_date = pytz.UTC.localize(max_dt)
     else:

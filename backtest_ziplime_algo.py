@@ -9,14 +9,15 @@ async def initialize(context):
     global SIGNALS
     try:
         df = pd.read_csv("logs_prod/trading_journal.csv")
-        df["date"] = pd.to_datetime(df["date"])
-        SIGNALS = df.set_index(["date", "Ticker"])
+        df["Timestamp"] = pd.to_datetime(df["Timestamp"])
+        SIGNALS = df.set_index(["Timestamp", "Ticker"])
+        SIGNALS.index.names = ["date", "Ticker"]
         print(f"Loaded {len(SIGNALS)} signals for ZipLime")
     except Exception as e:
         print("Could not load trading_journal.csv:", e)
         SIGNALS = pd.DataFrame()
 
-    context.tickers = ["AAPL", "WTI"]
+    context.tickers = ["CRUDP.PA", "SXRV.DE"]
 
 
 async def handle_data(context, data):
