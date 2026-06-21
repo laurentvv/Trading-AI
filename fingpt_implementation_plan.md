@@ -27,7 +27,7 @@ L'objectif est d'ajouter FinGPT comme un nouveau modèle de décision indépenda
   - Définir une fonction principale (ex: `get_fingpt_decision(ticker: str, recent_news: str, market_data: dict) -> dict`).
   - **Prompt Engineering :** Formater le prompt en respectant les templates d'instruction spécifiques de FinGPT (qui sont souvent basés sur Llama 2 ou 3) pour l'analyse de sentiment et la prédiction. Fournir les actualités (via `news_fetcher.py`) et les données de marché de base en contexte.
   - **Parsing de la réponse :** Analyser la sortie du modèle pour extraire :
-    - `action` (BUY, SELL, HOLD)
+    - `signal` (BUY, SELL, HOLD)
     - `confidence` (float entre 0.0 et 1.0)
     - `reason` (explication du raisonnement)
   - **Robustesse :** Gérer les timeouts, les exceptions réseau (`requests.RequestException`), et retourner une décision neutre par défaut (`HOLD`, `confidence: 0.0`) en cas d'échec.
@@ -42,7 +42,7 @@ L'objectif est d'ajouter FinGPT comme un nouveau modèle de décision indépenda
 ### Étape 4 : Intégration dans le Moteur de Décision (`src/enhanced_decision_engine.py`)
 * **Action requise :** Intégrer les prédictions de FinGPT au calcul du consensus global.
 * **Détails :**
-  - Dans l'orchestrateur (ex: `enhanced_trading_example.py` ou le script d'exécution principal), appeler `get_fingpt_decision` en amont pour générer la prédiction.
+  - Dans l'orchestrateur (ex: `main.py` ou le script d'exécution principal), appeler `get_fingpt_decision` en amont pour générer la prédiction.
   - Passer cette prédiction dans le dictionnaire `model_predictions` fourni à `EnhancedDecisionEngine.make_enhanced_decision`.
   - La clé utilisée dans `model_predictions` **doit être strictement** `"fingpt"`, afin de correspondre à la clé définie dans `DEFAULT_BASE_WEIGHTS`. Ceci est crucial pour éviter la désynchronisation signalée dans la mémoire du projet.
 
