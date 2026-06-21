@@ -106,4 +106,3 @@ The system uses an **Injection de Dépendance** pattern where the orchestrator l
 *   **Documentation-Driven Development:** The `memory-bank/` directory contains documentation about the project's evolution, architecture, and context.
 *   **Configuration:** Key parameters and constants are defined at the beginning of the scripts.
 *   **Error Handling:** The code includes robust error handling for API requests (Hyperliquid, yfinance, FRED), file operations (atomic JSON writes), and data structure validations (Pandas Series/Float fixes).(Pandas Series/Float fixes).
-

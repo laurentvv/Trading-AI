@@ -6,7 +6,7 @@ Ce document dresse le bilan final du code actuel et fournit une checklist de dé
 
 L'analyse approfondie du code source (`src/t212_executor.py` et `main.py`) confirme que les règles de sécurité exigées pour la PROD sont en grande partie intégrées.
 
-*   ✅ **Bloquer les ventes à perte :** 
+*   ✅ **Bloquer les ventes à perte :**
     *   **Statut : OPÉRATIONNEL**
     *   *Analyse :* La fonction `_check_sell_loss_guard` bloque l'envoi de l'ordre de vente si la valeur actuelle du portefeuille est inférieure à `99.8%` du coût d'achat de référence. Le système ne peut donc pas clôturer une ligne en perte latente, protégeant ainsi le capital.
 *   ✅ **Gestion stricte du Cash (Budget par Ticker) :**

@@ -14,7 +14,7 @@ from hyperliquid.utils import constants
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 load_dotenv()
-yf.config.network.retries = 2
+if hasattr(yf, "config"): yf.config.network.retries = 2
 
 logger = logging.getLogger(__name__)
 

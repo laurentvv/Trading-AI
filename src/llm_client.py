@@ -203,7 +203,7 @@ def get_llm_decision(
         "options": {"temperature": 0.4, "num_predict": 1024},
         "system": "<|think|> You are an expert financial analyst. Your task is to analyze market data and news to provide a trading decision in a valid JSON format. Output ONLY the JSON object requested — never add a 'thought' key.",
     }
-    
+
     result_dict = _query_ollama(payload)
     return ModelResult(
         signal=result_dict.get("signal", "HOLD"),
@@ -254,7 +254,7 @@ def get_visual_llm_decision(image_path: Path) -> ModelResult:
         "options": {"temperature": 0.1, "num_predict": 1024},
         "system": "<|think|> You are a geometric chart analyst. Return ONLY the requested JSON object — never add a 'thought' key.",
     }
-    
+
     result_dict = _query_ollama(payload)
     return ModelResult(
         signal=result_dict.get("signal", "HOLD"),
@@ -416,4 +416,3 @@ def _query_ollama(payload: dict, max_retries: int = 3, expected_keys: list = Non
                 return _fallback_decision(expected_keys, reason=f"exception: {type(e).__name__}")
 
     return _fallback_decision(expected_keys, reason="retries_exhausted_no_valid_json")
-
