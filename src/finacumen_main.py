@@ -100,6 +100,12 @@ async def main():
     print(json.dumps(state_data, indent=2))
     print(f"Enregistré dans: {state_file}")
 
+    if "trajectory" in result:
+        with open(output_dir / f"trajectory_{safe_ticker}.txt", "w", encoding="utf-8") as f:
+            for step in result["trajectory"]:
+                f.write(step + "\n")
+        print(f"Trajectory sauvegardée dans: {output_dir / f'trajectory_{safe_ticker}.txt'}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())

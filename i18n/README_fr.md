@@ -272,7 +272,7 @@ uv run main.py --t212
 Le système intègre un **moteur de backtest de production autonome** (`backtest_prod.py`) qui rejoue les signaux de production réels issus de `logs_prod/trading_journal.csv` face aux prix réels des fichiers Parquet de `data_cache/`.
 
 ### Fonctionnalités
-- **Signaux réels** : Rejoue les décisions exactes du moteur hybride à 11 modèles.
+- **Signaux réels** : Rejoue les décisions exactes du moteur hybride à 12 modèles.
 - **Prix réels** : Utilise les véritables données OHLCV de l'ETF (SXRV.DE, CRUDP.PA) — aucun proxy américain.
 - **Frais T212** : Simule le modèle de frais à 0,1 % par transaction de Trading 212.
 - **Comparatif de référence** : Calcule automatiquement la performance de la stratégie d'achat et conservation (Buy-and-Hold) à titre de référence.

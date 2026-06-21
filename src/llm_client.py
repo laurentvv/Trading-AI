@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
 OLLAMA_BASE_URL = "http://localhost:11434"
-TEXT_LLM_MODEL = "hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K"
+TEXT_LLM_MODEL = "hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M"
 VISUAL_LLM_MODEL = "hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K"
 
 # JSON schemas used as Ollama `format` parameter. Using a strict schema

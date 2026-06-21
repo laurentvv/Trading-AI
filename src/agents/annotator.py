@@ -56,7 +56,7 @@ class AnnotatorAgent:
         from src.llm_client import OLLAMA_API_URL, _strip_thinking_prefix
 
         try:
-            response = requests.post(OLLAMA_API_URL, json=payload, timeout=120)
+            response = requests.post(OLLAMA_API_URL, json=payload, timeout=1800)
             response.raise_for_status()
 
             raw_output = response.json().get("response", "").strip()

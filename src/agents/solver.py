@@ -3,7 +3,7 @@ import logging
 from typing import Dict, Any
 
 from src.core.tools import NumericalReasoningEngine, AnswerConsolidationGate
-from src.llm_client import TEXT_LLM_MODEL, _query_ollama, SCHEMA_FINACUMEN_SOLVER
+from src.llm_client import TEXT_LLM_MODEL, _query_ollama, SCHEMA_FINACUMEN_SOLVER, OLLAMA_API_URL, _strip_thinking_prefix
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ Call a tool or finish with the final decision.
             }
 
             try:
-                response = requests.post(OLLAMA_API_URL, json=payload, timeout=300)
+                response = requests.post(OLLAMA_API_URL, json=payload, timeout=1800)
                 response.raise_for_status()
 
                 raw_output = response.json().get("response", "").strip()

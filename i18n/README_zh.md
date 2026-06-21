@@ -271,7 +271,7 @@ uv run main.py --t212
 系统包含一个**独立的生产环境回测引擎**（`backtest_prod.py`），它可以针对 `data_cache/` 中 Parquet 文件的真实价格重放 `logs_prod/trading_journal.csv` 中的实际生产信号。
 
 ### 特性
-- **真实信号**：重放 11 模型混合引擎的确切决策。
+- **实际信号**：回放 12 模型混合引擎的确切决策。
 - **真实价格**：使用实际的 ETF OHLCV 数据（SXRV.DE, CRUDP.PA）——没有使用美国代理数据。
 - **T212 费用**：模拟 Trading 212 的每笔交易 0.1% 的费用模型。
 - **基准比较**：自动计算买入并持有（buy-and-hold）的表现在作为基准。

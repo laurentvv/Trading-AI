@@ -67,6 +67,27 @@ if not ALPHA_VANTAGE_API_KEY:
     sys.exit(1)
 
 
+def _get_latest_finacumen_signal(ticker: str) -> dict:
+    from pathlib import Path
+    import json
+    from datetime import datetime
+    import re
+
+    safe_ticker = re.sub(r"[^a-zA-Z0-9_=^.-]", "", ticker)
+    state_file = Path("data_cache/finacumen") / f"finacumen_{safe_ticker}.json"
+    if not state_file.exists():
+        return None
+
+    try:
+        with open(state_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        if data.get("date") == datetime.now().strftime("%Y-%m-%d") and data.get("status") == "success":
+            return data
+    except Exception as e:
+        logger.error(f"Error reading FinAcumen state: {e}")
+    return None
+
 class EnhancedTradingSystem:
     """
     Système de trading AI amélioré intégrant tous les nouveaux composants.
@@ -126,6 +147,26 @@ class EnhancedTradingSystem:
             except Exception as e:
                 logger.error(f"Failed to load scheduler_config.json: {e}")
         return {}
+
+    def _run_finacumen_subprocess(self, ticker: str):
+        """Lance l'agent FinAcumen de maniere synchrone (avec timeout) via subprocess."""
+        logger.info(f"Démarrage de l'analyse FinAcumen pour {ticker}...")
+        try:
+            # On laisse le timeout assez long car Ollama peut etre lent.
+            result = subprocess.run(
+                [sys.executable, str(Path(__file__).parent / "finacumen_main.py"), "--ticker", ticker],
+                capture_output=True,
+                text=True,
+                timeout=750
+            )
+            if result.returncode == 0:
+                logger.info(f"FinAcumen terminé avec succès pour {ticker}.")
+            else:
+                logger.error(f"FinAcumen a échoué avec le code {result.returncode}:\n{result.stderr}")
+        except subprocess.TimeoutExpired:
+            logger.error(f"Timeout (750s) dépassé pour FinAcumen sur {ticker}.")
+        except Exception as e:
+            logger.error(f"Erreur lors du lancement de FinAcumen: {e}")
 
     def _initialize_portfolio(self, hist_data):
         """Initializes the portfolio if it doesn't exist."""
@@ -632,7 +673,15 @@ class EnhancedTradingSystem:
                 logger.error(f"OilBench model failed (isolated): {e}")
                 oil_bench_decision = None
 
+        # --- FinAcumen Integration ---
+        # Exécuter FinAcumen pour obtenir la dernière décision via les agents
+        self._run_finacumen_subprocess(self.ticker)
+        finacumen_decision = _get_latest_finacumen_signal(self.ticker)
+        if finacumen_decision:
+            logger.info(f"FinAcumen signal récupéré: {finacumen_decision.get('signal')} (conf={finacumen_decision.get('confidence')})")
+
         enhanced_decision = self.decision_engine.make_enhanced_decision(
+            finacumen_decision=finacumen_decision,
             classic_pred=model_predictions["classic"]["prediction"],
             classic_conf=model_predictions["classic"]["confidence"],
             text_llm_decision=model_predictions["text_llm"],
