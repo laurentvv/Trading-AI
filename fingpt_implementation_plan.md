@@ -17,6 +17,7 @@ L'objectif est d'ajouter FinGPT comme un nouveau modèle de décision indépenda
 ### Étape 1 : Recherche et Configuration du Modèle FinGPT (GGUF)
 * **Action requise :** Le système Ollama nécessite des modèles au format `.gguf`. FinGPT étant principalement distribué sous forme de poids Llama/ChatGLM (LoRA) sur HuggingFace, il faut :
   - Identifier un modèle FinGPT converti en GGUF (par ex. sur HuggingFace Hub, chercher `FinGPT GGUF` ou `FinGPT-Forecaster GGUF`).
+- *model trouvé* : ollama pull hf.co/brodatech/FinGPT-MT-Llama-3-8B-LoRA-GGUF:Q4_K_M
   - *Instruction pour l'agent :* Ajouter un script (ex: dans `scripts/setup_fingpt.sh`) expliquant comment télécharger ce modèle GGUF et créer un `Modelfile` pour Ollama (ex: `FROM ./fingpt.gguf`), puis exécuter `ollama create fingpt -f Modelfile`.
   - Assigner le nom du modèle Ollama (ex: `fingpt:latest`) dans la configuration globale ou locale du modèle.
 
