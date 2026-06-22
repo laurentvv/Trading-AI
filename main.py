@@ -244,7 +244,6 @@ def run_trading_analysis(
                 "timesfm",
                 "tensortrade",
                 "vincent_ganne",
-                "finacumen",
             ]
             for m in model_names:
                 header.append(f"Model_{m}")

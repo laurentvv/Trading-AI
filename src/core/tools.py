@@ -117,7 +117,11 @@ class NumericalReasoningEngine:
 
         error = None
         try:
-            # exec modifie le namespace en place
+            # SECURITY WARNING: exec modifie le namespace en place. 
+            # Ce n'est pas un véritable environnement sandboxé (vulnérabilité à l'évasion).
+            # L'exécution de code généré par LLM comporte des risques de sécurité inhérents.
+            import logging
+            logging.getLogger(__name__).warning("SECURITY: Executing LLM-generated code via exec() without a secure sandbox.")
             exec(code, self.namespace)
         except Exception:
             error = traceback.format_exc()

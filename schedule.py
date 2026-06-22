@@ -104,9 +104,16 @@ def run_morning_brief():
         
         for ticker in TICKERS:
             logger.info(f"Exécution FinAcumen pour {ticker}...")
-            # On timeout à 1 heure (3600s) pour être hyper large.
-            fin_cmd = ["uv", "run", "src/finacumen_main.py", "--ticker", ticker]
-            subprocess.run(fin_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3600)
+            try:
+                # On timeout à 1 heure (3600s) pour être hyper large.
+                fin_cmd = ["uv", "run", "src/finacumen_main.py", "--ticker", ticker]
+                res = subprocess.run(fin_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3600)
+                if res.returncode != 0:
+                    logger.warning(f"⚠️ FinAcumen s'est terminé avec le code d'erreur {res.returncode} pour {ticker}.")
+            except subprocess.TimeoutExpired:
+                logger.error(f"⏱ Timeout (3600s) dépassé pour FinAcumen sur {ticker}.")
+            except Exception as e:
+                logger.error(f"💥 Erreur inattendue lors de l'exécution de FinAcumen pour {ticker}: {e}")
             
             # Récupération du résultat
             state_file = Path("data_cache/finacumen") / f"finacumen_{ticker}.json"
