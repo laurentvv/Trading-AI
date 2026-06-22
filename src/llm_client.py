@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
 OLLAMA_BASE_URL = "http://localhost:11434"
-TEXT_LLM_MODEL = "hf.co/unsloth/gemma-4-12b-it-GGUF:Q4_K_M"
+TEXT_LLM_MODEL = "hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K"
 VISUAL_LLM_MODEL = "hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K"
 
 # JSON schemas used as Ollama `format` parameter. Using a strict schema
@@ -39,11 +39,12 @@ SCHEMA_SEARCH_QUERY = {
 SCHEMA_FINACUMEN_SOLVER = {
     "type": "object",
     "properties": {
-        "python_code": {"type": ["string", "None"]},
-        "action": {"type": ["string", "None"], "enum": ["BUY", "SELL", "HOLD", None]},
-        "confidence": {"type": ["number", "None"]},
-        "reasoning": {"type": ["string", "None"]},
+        "python_code": {"type": "string"},
+        "action": {"type": "string", "enum": ["BUY", "SELL", "HOLD", "NONE"]},
+        "confidence": {"type": "number"},
+        "reasoning": {"type": "string"},
     },
+    "required": ["python_code", "action", "confidence", "reasoning"],
     "additionalProperties": False,
 }
 

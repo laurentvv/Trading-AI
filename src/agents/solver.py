@@ -13,7 +13,7 @@ class SolverAgent:
     Main ReAct loop orchestrating the Numerical Reasoning Engine and generating final decisions.
     """
 
-    def __init__(self, model_name: str = TEXT_LLM_MODEL, max_iterations: int = 16):
+    def __init__(self, model_name: str = TEXT_LLM_MODEL, max_iterations: int = 5):
         self.model_name = model_name
         self.max_iterations = max_iterations
         self.engine = NumericalReasoningEngine()
@@ -47,8 +47,9 @@ Call a tool or finish with the final decision.
 <Invariants>
 - "data not available" is never true. Request data via lookup_ohlc tool in python.
 - NEVER submit placeholder text or vague explanations as final_answer. Only a clear and traceable decision is accepted.
-- To execute python, return a JSON: {{"python_code": "your code here"}}
-- To return the final answer, return a JSON: {{"action": "BUY|SELL|HOLD", "confidence": 0.0-1.0, "reasoning": "your reasoning"}}
+- To execute python, return a JSON EXACTLY like this: {{"python_code": "your code here", "action": "NONE", "confidence": 0.0, "reasoning": ""}}
+- To return the final answer, return a JSON EXACTLY like this: {{"python_code": "", "action": "BUY|SELL|HOLD", "confidence": 0.8, "reasoning": "your reasoning"}}
+- You MUST provide ALL 4 keys ("python_code", "action", "confidence", "reasoning") in every response. Use empty strings or "NONE"/0.0 for fields you are not using.
 </Invariants>
 ...never add a 'thought' key.
 """
@@ -63,8 +64,8 @@ Call a tool or finish with the final decision.
                 "model": self.model_name,
                 "prompt": current_prompt,
                 "stream": False,
-                "format": "json",  # Relaxed json structure since it can be python_code OR final answer
-                "options": {"temperature": 0.1, "num_predict": 1024},
+                "format": SCHEMA_FINACUMEN_SOLVER,
+                "options": {"temperature": 0.1, "num_predict": 2048},
                 "system": system_prompt,
             }
 

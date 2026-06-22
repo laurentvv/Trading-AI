@@ -5,6 +5,10 @@ import argparse
 from pathlib import Path
 from datetime import datetime
 
+import sys
+
+# Ensure the project root is in sys.path when running as a subprocess
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # Importer les composants
 from src.core.memory import FinancialMemory
