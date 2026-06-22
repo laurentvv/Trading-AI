@@ -34,8 +34,8 @@ load_dotenv()
 setup_environment("trading.log")
 logger = logging.getLogger("TradingAI")
 
-# Cycle timeout: 15 minutes per ticker. Prevents infinite hangs on LLM calls.
-CYCLE_TIMEOUT_SECONDS = 15 * 60
+# Cycle timeout: 40 minutes per ticker. Prevents infinite hangs on LLM calls.
+CYCLE_TIMEOUT_SECONDS = 40 * 60
 
 # Per-ticker locks preventing concurrent execution of run_trading_analysis
 # on the same ticker (defense against orphan threads from a previous cycle
@@ -84,6 +84,9 @@ def check_setup() -> bool:
         )
         return False
     return True
+
+
+
 
 
 def run_trading_analysis(

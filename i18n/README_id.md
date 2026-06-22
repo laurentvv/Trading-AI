@@ -272,7 +272,7 @@ uv run main.py --t212
 Sistem ini mencakup **mesin backtest produksi mandiri** (`backtest_prod.py`) yang memutar ulang sinyal produksi sebenarnya dari `logs_prod/trading_journal.csv` terhadap harga nyata dari file Parquet `data_cache/`.
 
 ### Fitur
-- **Sinyal nyata**: Memutar ulang keputusan pasti dari mesin hibrida 11-model.
+- **Sinyal nyata**: Memutar ulang keputusan pasti dari mesin hibrida 12-model.
 - **Harga nyata**: Menggunakan data OHLCV ETF aktual (SXRV.DE, CRUDP.PA) — bukan proksi AS.
 - **Biaya T212**: Mensimulasikan model biaya per transaksi Trading 212 sebesar 0,1%.
 - **Perbandingan dasar**: Secara otomatis menghitung performa beli-dan-tahan (buy-and-hold) sebagai patokan.

@@ -93,6 +93,52 @@ def run_morning_brief():
             logger.info("✅ Morning Brief généré avec succès")
         else:
             logger.error(f"❌ Erreur lors du Morning Brief : Code {result.returncode}")
+
+        # --- FinAcumen Daily Run ---
+        logger.info("Lancement de l'analyse profonde FinAcumen (Daily)")
+        import json
+        from pathlib import Path
+        
+        output_file = Path("morning_brief/output/morning_market_brief.md")
+        finacumen_section = "\n\n## 5. Analyse Qualitative Profonde (FinAcumen)\n"
+        
+        for ticker in TICKERS:
+            logger.info(f"Exécution FinAcumen pour {ticker}...")
+            try:
+                # On timeout à 1 heure (3600s) pour être hyper large.
+                fin_cmd = ["uv", "run", "src/finacumen_main.py", "--ticker", ticker]
+                res = subprocess.run(fin_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3600)
+                if res.returncode != 0:
+                    logger.warning(f"⚠️ FinAcumen s'est terminé avec le code d'erreur {res.returncode} pour {ticker}.")
+            except subprocess.TimeoutExpired:
+                logger.error(f"⏱ Timeout (3600s) dépassé pour FinAcumen sur {ticker}.")
+            except Exception as e:
+                logger.error(f"💥 Erreur inattendue lors de l'exécution de FinAcumen pour {ticker}: {e}")
+            
+            # Récupération du résultat
+            state_file = Path("data_cache/finacumen") / f"finacumen_{ticker}.json"
+            
+            if state_file.exists():
+                try:
+                    with open(state_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    
+                    signal = data.get("signal", "N/A")
+                    conf = data.get("confidence", 0.0)
+                    analysis = data.get("analysis", "Aucune analyse disponible.")
+                    finacumen_section += f"\n### {ticker}\n- **Signal:** {signal} (Confiance: {conf})\n- **Analyse:** {analysis}\n"
+                except Exception as e:
+                    finacumen_section += f"\n### {ticker}\n- **Erreur de lecture:** {e}\n"
+            else:
+                finacumen_section += f"\n### {ticker}\n- **Erreur:** Résultat non généré.\n"
+
+        if output_file.exists():
+            with open(output_file, "a", encoding="utf-8") as f:
+                f.write(finacumen_section)
+            logger.info("✅ Résultats FinAcumen ajoutés au Morning Brief.")
+        else:
+            logger.error("❌ Fichier morning_market_brief.md introuvable pour ajouter FinAcumen.")
+
     except Exception as e:
         logger.error(f"💥 Erreur critique lors du Morning Brief : {e}")
 

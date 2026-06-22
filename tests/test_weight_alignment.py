@@ -23,11 +23,14 @@ def test_weight_alignment():
         "vincent_ganne": 0.05,
         "oil_bench": 0.05,
         "tensortrade": 0.05,
+        "grebenkov": 0.05,
+        "hmm_model": 0.05,
+        "finacumen": 0.15,
     }
 
-    # Verify weights sum approximately to 1.04
+    # Verify weights sum approximately to 1.29
     total = sum(expected.values())
-    assert abs(total - 1.04) < 1e-6, f"Weights should sum to 1.04, got {total}"
+    assert abs(total - 1.29) < 1e-6, f"Weights should sum to 1.29, got {total}"
     print(f"PASS: Weights sum to {total}")
 
     for model_name, expected_weight in expected.items():

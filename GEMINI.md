@@ -19,6 +19,7 @@ Le moteur fusionne un modèle quantitatif classique, un LLM textuel (Gemma 4), u
 - **Gestion des Risques "Trend-Aware" :** Le système adapte ses seuils de confiance selon la tendance du marché (plus agressif en Bull Market).
 - **Sizing Progressif :** Exposition dynamique du portefeuille (75% à 100%) basée sur le score de consensus de l'IA.
 - **Verrou Géopolitique :** Blocage automatique des achats si les prix de l'énergie (WTI/Brent) dépassent les seuils critiques de stabilité macroéconomique.
+- **FinAcumen (Mémoire d'Expérience) :** Exécution asynchrone nocturne d'un agent cognitif profond avec 2048 tokens de réflexion, injectant son analyse structurelle dans le Morning Brief pour guider les décisions temps réel.
 
 ## Building and Running
 
