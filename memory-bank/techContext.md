@@ -47,6 +47,10 @@
 - `src/read_simul.py`: Reporting tool for simulation performance.
 - `refresh_cache.py`: CLI utility to force-refresh Parquet cache for all tickers (`^NDX`, `CL=F`, `SXRV.DE`, `CRUDP.PA`).
 - `backtest_prod.py`: Standalone production backtest engine. Replays actual prod signals against real parquet prices with T212 fees. Compares vs buy-and-hold baseline.
+- `audit_prod_logs.py`: Production logs auditor. Validates **all** files in `logs_prod/` (catalogue, SQLite integrity, parquet freshness, JSON/pkl, FinAcumen state) and runs a corrected backtest against `logs_prod/data_cache/` (prod cache, current — unlike `backtest_prod.py` which reads the stale repo-root `data_cache/`). Emits `logs_prod/audit_report.md` with an OK/WARN/FAIL verdict. Run with `uv run python audit_prod_logs.py`.
+- `schedule.py`: The Windows scheduler orchestrator (`start_scheduler.bat`). Runs the real-time loop (calls `main.py` per ticker per interval) **and** the nightly layer: the morning brief (`morning_brief/morning_brief.py`) followed by FinAcumen per ticker (`src/finacumen_main.py`), whose results are appended to `morning_market_brief.md`.
+- `morning_brief/`: Offline morning-brief generator. Coupled to `main.py` **via shared data files** (no import): `tools/analyze_trading_logs.py` parses `trading.log`; `tools/audit_portfolio_performance.py` queries `performance_monitor.db`. Produces `morning_brief/output/morning_market_brief.md`.
+- `src/finacumen_main.py`: Nightly agentic analysis layer (Annotator + Solver ReAct agents over a TF-IDF `FinancialMemory`). Writes `data_cache/finacumen/finacumen_<ticker>.json` state files read by `schedule.py` for the brief. Not a per-cycle consensus vote.
 
 ## 5. Monitoring & Diagnostic
 - **CSV Journal (`trading_journal.csv`)**: (Test Phase) Detailed audit trail of AI reasoning and decisions per individual model.

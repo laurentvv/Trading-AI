@@ -11,6 +11,10 @@
 - End-of-June review: evaluate Sharpe, win rate, per-model accuracy, and decide on weight adjustments.
 
 ### Key Recent Changes
+- **FinAcumen Repaired + Prod Logs Auditor (2026-06-23)**: FinAcumen (`src/finacumen_main.py`) était en `status: timeout` à chaque run prod. Six bugs corrigés dans `src/core/tools.py` (`lookup_ohlc` accepte `str|list`→dict ; indicateurs dérivés rsi/sma/macd ajoutés ; symboles prod mappés ; `pd`/`np` pré-injectés dans le sandbox) et `src/agents/solver.py` (prompt documente la vraie API ; l'observation renvoie `data` quand le LLM oublie `print` ; la branche execute-vs-final-answer se base sur le *contenu* non sur la présence de clé). **Convergence prouvée en live** (Ollama + gemma-4-12b) : CRUDP.PA → HOLD 0.75, SXRV.DE → BUY 0.85, chacun citant des prix réels.
+  - **Chaîne de dépendance documentée** : FinAcumen n'est pas dans le consensus temps réel (`enhanced_decision_engine.py`), MAIS il **contribue au morning brief** qui consomme les sorties de `main.py` via fichiers partagés : `main.py` écrit `trading_journal.csv`/`trading.log`/`performance_monitor.db` → `morning_brief/tools/` les lit → `schedule.py` append la section FinAcumen dans `morning_market_brief.md`. Couplage par données, pas par import.
+  - Nouveau script `audit_prod_logs.py` : valide **tous** les fichiers de `logs_prod/` (catalogue, intégrité SQLite, fraîcheur parquet/JSON/pkl, état FinAcumen) + backtest corrigé (lit `logs_prod/data_cache/`, pas le cache repo-root périmé). Émet `logs_prod/audit_report.md`.
+  - Suite de tests mockés : 20/20 verts (8 tests FinAcumen ajoutés en régression des 6 bugs).
 - **Think Mode Re-enabled (2026-06-06)**: Le token `<|think|>` a été ré-introduit dans les 4 prompts système de production (`src/llm_client.py:188` texte, `:236` visuel, `src/oil_bench_model.py:158` oil, `src/web_researcher.py:205` recherche). Validation complète sur branche `think-mode` puis mergée sur `main`. La sécurité est désormais portée par la **défense bi-couche JSON** (schema strict serveur + suffixe défensif dans le prompt), pas par la suppression du token. Preuves : `tests/check_llm_json.py` → tous les cas schema-strict OK avec `<|think|>` actif ; `uv run main.py --t212` → exit 0, 0 erreur "Could not find valid JSON", 2 nouvelles lignes dans `trading_journal.csv` (CRUDP.PA HOLD 19.16%, SXRV.DE BUY 35.18%), cycle 4.66 min. Voir `docs/ADR-001-think-mode-dual-layer-defence.md`.
 - **PROD Fresh Start (2026-05-29)**: All PROD DBs wiped (`trading_history.db`, `model_performance.db`). `data_cache/tensortrade/` created fresh on first cycle. Kronos references fully removed from code and docs.
 - **TensorTrade PPO Persistence (2026-05-29)**: PPO model now persists to `data_cache/tensortrade/ppo_model.zip` with metadata. Enriched Gymnasium env with 10 features (returns, volatility, RSI, MACD, Bollinger bands). First cycle: 2000 timesteps initial training. Subsequent cycles: load + 500 timestep fine-tune.
@@ -46,6 +50,9 @@
 - [ ] Optimize model weights via backtest_prod.py grid search.
 - [ ] Set HF_TOKEN on PROD server for TimesFM model download.
 - [ ] Explore alternative live price source for ETFs without open T212 positions (SXRV.DE).
+- [x] **[DONE 2026-06-23]** Repair FinAcumen convergence (was `status: timeout` every prod run).
+- [ ] **[Follow-up]** Wire FinAcumen as an 11th per-cycle consensus vote in `enhanced_decision_engine.py` / `model_performance.db` (currently only feeds the morning brief via `schedule.py`).
+- [ ] Fix `backtest_prod.py` stale-source bug (reads repo-root `data_cache/` instead of `logs_prod/data_cache/`); or migrate users to `audit_prod_logs.py`.
 
 ## Decision Log
 - **Nasdaq Exclusivity for VG**: Decided to restrict the Vincent Ganne model to Nasdaq because its energy-price-to-stock-bottom logic is fundamentally a cross-asset indicator for equities, not a directional signal for energy itself.
