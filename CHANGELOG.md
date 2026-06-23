@@ -5,6 +5,28 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/
 
 ## [Unreleased]
 
+### Added — 2026-06-23
+- **`audit_prod_logs.py`** — new standalone auditor that validates **all** files in `logs_prod/` (catalogue, SQLite integrity/row-counts, parquet freshness + June-2026 coverage, JSON search-query caches, pickle models + TensorTrade metadata), runs a **corrected backtest** against the prod cache (`logs_prod/data_cache/`, current — not the stale repo-root `data_cache/`), and a dedicated FinAcumen section (state-file analysis + deterministic tool-chain proof). Emits `logs_prod/audit_report.md` with an OK/WARN/FAIL verdict.
+
+### Fixed — 2026-06-23 — FinAcumen convergence (was `status: timeout` on every prod run)
+FinAcumen (`src/finacumen_main.py`) converged to `status: success` after fixing six bugs in `src/core/tools.py` and `src/agents/solver.py`. Verified live with Ollama + gemma-4-12b: **CRUDP.PA → HOLD 0.75, SXRV.DE → BUY 0.85**, each citing real fetched prices (close, SMA50/200, RSI, MACD).
+- **`lookup_ohlc` API mismatch** — now accepts `indicator: str | list[str]`; a list returns a `{indicator: value}` dict (the form the LLM always generated). A single string still returns a float (backward compatible).
+- **Missing indicators** — added `rsi` (Wilder 14), `sma_50`, `sma_200`, `ema_12`, `ema_26`, `macd`, computed from the yfinance history.
+- **Symbol mapping** — aliases (`WTI`, `NASDAQ`, `NDX`, `BRENT`, `SP500`) plus direct pass-through of any yfinance ticker (`CRUDP.PA`, `SXRV.DE`).
+- **Sandbox `__import__` ban** — `NumericalReasoningEngine` now pre-injects `pd` (pandas) and `np` (numpy) so the LLM never needs `import` (the `__import__` restriction is preserved for security).
+- **Invisible fetched data** — the solver observation now echoes the `data` variable when the LLM assigns `data = lookup_ohlc(...)` without `print`-ing it (the root cause of the prod fetch-loop timeouts).
+- **Branch logic** — the solver now distinguishes *execute* (`python_code` non-empty) from *final answer* (`action in BUY|SELL|HOLD`). Previously it always took the execute branch because `python_code` is a mandatory schema key, so final answers were never accepted.
+- **Solver prompt** — documents the real `lookup_ohlc` signature, tells the LLM to call it **once** then `print`, then decide (no fetch loop). `max_iterations` raised 5 → 6.
+
+### Tests — 2026-06-23
+- `tests/test_finacumen.py` extended from 2 → 8 tests: regression coverage for all six bugs (list→dict, derived indicators, single-string backward compat, pd/np without import, `__import__` still blocked, full LLM-style code in the sandbox). Mocked suite **20/20 green**.
+
+### Known follow-up (not in scope)
+- FinAcumen is repaired and verified converging. It is coupled to the main project **via shared data**: `main.py` writes `trading_journal.csv` / `trading.log` / `performance_monitor.db`, which `morning_brief` reads; `schedule.py` then appends the FinAcumen section into `morning_market_brief.md`. So FinAcumen influences the daily decision brief. It is **not** a per-cycle vote in the real-time consensus (`enhanced_decision_engine.py` / `model_performance.db`); wiring it as an 11th vote is a deliberate follow-up.
+- `backtest_prod.py` still reads the stale repo-root `data_cache/`; use `audit_prod_logs.py` for a backtest against the prod cache.
+
+## [Older]
+
 ### Added — 2026-06-06
 - **Think mode re-enabled on Gemma 4 12B**. The `<|think|>` token is now present in all four production system prompts (`src/llm_client.py:188`, `src/llm_client.py:236`, `src/oil_bench_model.py:158`, `src/web_researcher.py:205`). Restores the model's internal reasoning channel.
 - **Dual-layer JSON defence** documented as the load-bearing architecture for JSON-extraction safety:

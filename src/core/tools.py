@@ -1,78 +1,149 @@
 import logging
 import traceback
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 import yfinance as yf
 import pandas as pd
 from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 
+# Symboles supportés. Tout symbole yfinance valide passe tel quel ; on ajoute
+# juste des alias conviviaux pour les entités nommées dans le prompt FinAcumen.
+_SYMBOL_ALIASES = {
+    "WTI": "CL=F",
+    "CRUDE": "CL=F",
+    "BRENT": "BZ=F",
+    "NASDAQ": "^IXIC",
+    "NDX": "^NDX",
+    "SP500": "^GSPC",
+}
 
-def lookup_ohlc(symbol: str, date: str, indicator: str) -> Optional[float]:
+# Indicateurs dérivés calculés à partir d'un historique OHLCV. Les indicateurs
+# de prix bruts (open/high/low/close/volume) sont lus directement sur la ligne.
+_PRICE_INDICATORS = {"open", "high", "low", "close", "volume"}
+_DERIVED_INDICATORS = {"vwap", "rsi", "sma_50", "sma_200", "ema_12", "ema_26", "macd"}
+
+
+def _compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
+    """Ajoute les colonnes d'indicateurs dérivés à un DataFrame OHLCV trié par date."""
+    out = df.copy()
+    close = out["Close"]
+
+    # VWAP quotidien approximé (typical price) — pas de VWAP intraday dispo ici.
+    out["vwap"] = (out["High"] + out["Low"] + out["Close"]) / 3.0
+
+    # RSI (Wilder, 14 périodes)
+    delta = close.diff()
+    gain = delta.clip(lower=0.0)
+    loss = -delta.clip(upper=0.0)
+    avg_gain = gain.ewm(alpha=1 / 14, min_periods=14, adjust=False).mean()
+    avg_loss = loss.ewm(alpha=1 / 14, min_periods=14, adjust=False).mean()
+    rs = avg_gain / avg_loss.replace(0.0, pd.NA)
+    out["rsi"] = 100.0 - (100.0 / (1.0 + rs))
+
+    # Moyennes mobiles
+    out["sma_50"] = close.rolling(window=50, min_periods=1).mean()
+    out["sma_200"] = close.rolling(window=200, min_periods=1).mean()
+    ema_12 = close.ewm(span=12, adjust=False).mean()
+    ema_26 = close.ewm(span=26, adjust=False).mean()
+    out["ema_12"] = ema_12
+    out["ema_26"] = ema_26
+    out["macd"] = ema_12 - ema_26
+    return out
+
+
+def lookup_ohlc(
+    symbol: str, date: str, indicator: Union[str, List[str]]
+) -> Union[Optional[float], Dict[str, Optional[float]]]:
     """
-    Récupère des données OHLCV ou des indicateurs simples pour un symbole donné.
+    Récupère des données OHLCV ou des indicateurs pour un symbole donné.
     Le modèle ne doit jamais deviner ces prix.
 
     Args:
-        symbol: "WTI" (CL=F) ou "NASDAQ" (^IXIC ou SXRV.DE).
+        symbol: Alias ("WTI", "NASDAQ") ou ticker yfinance direct
+            (ex: "CRUDP.PA", "SXRV.DE", "CL=F").
         date: Format "YYYY-MM-DD" ou "latest".
-        indicator: "open", "high", "low", "close", "volume", "vwap".
+        indicator: Une chaîne unique ("close") OU une liste d'indicateurs
+            (["close", "rsi", "sma_50"]).
+
+    Indicateurs supportés:
+        Prix bruts : open, high, low, close, volume.
+        Dérivés     : vwap, rsi (14), sma_50, sma_200, ema_12, ema_26, macd.
 
     Returns:
-        La valeur demandée ou None si introuvable.
+        - Un ``float`` (ou ``None``) si ``indicator`` est une chaîne unique.
+        - Un ``dict`` {indicateur: valeur} si ``indicator`` est une liste.
+          Les indicateurs inconnus valent ``None`` dans le dict.
     """
-    indicator = indicator.lower()
+    is_list_request = isinstance(indicator, (list, tuple))
+    indicators = [str(i).lower() for i in (indicator if is_list_request else [indicator])]
+    unknown = [i for i in indicators if i not in _PRICE_INDICATORS and i not in _DERIVED_INDICATORS]
+    if unknown:
+        logger.warning(f"lookup_ohlc: indicateurs inconnus ignorés: {unknown}")
 
-    # Mapping des symboles
-    yf_symbol = symbol
-    if symbol.upper() == "WTI":
-        yf_symbol = "CL=F"
-    elif symbol.upper() == "NASDAQ":
-        yf_symbol = "^IXIC"  # Indice de base, ou l'ETF si besoin
+    # Résolution du symbole yfinance
+    yf_symbol = _SYMBOL_ALIASES.get(symbol.upper(), symbol)
 
     try:
+        need_derived = any(i in _DERIVED_INDICATORS for i in indicators)
+        # Fenêtre d'historique : on charge assez de barres pour les moyennes 200.
         if date == "latest":
-            # On prend les 5 derniers jours pour assurer d'avoir une cotation
+            period = "1y" if need_derived else "5d"
             ticker = yf.Ticker(yf_symbol)
-            df = ticker.history(period="5d")
-            if df.empty:
-                return None
-            row = df.iloc[-1]
+            df = ticker.history(period=period)
         else:
-            # Recherche pour une date précise
             target_date = pd.to_datetime(date)
-            start_date = target_date - timedelta(days=2)  # Marge weekend
+            if need_derived:
+                # Récupère ~1 an avant la cible pour calculer SMA200/RSI.
+                start_date = target_date - timedelta(days=400)
+            else:
+                start_date = target_date - timedelta(days=2)
             end_date = target_date + timedelta(days=2)
-
             ticker = yf.Ticker(yf_symbol)
             df = ticker.history(start=start_date.strftime("%Y-%m-%d"), end=end_date.strftime("%Y-%m-%d"))
-            if df.empty:
-                return None
 
-            # Trouver la date la plus proche ou égale
-            df.index = df.index.tz_localize(None)  # Enlever fuseau horaire
+        if df.empty:
+            logger.warning(f"lookup_ohlc({symbol}, {date}): aucune donnée yfinance pour {yf_symbol}")
+            return {i: None for i in indicators} if is_list_request else None
+
+        df.index = df.index.tz_localize(None)  # Enlever fuseau horaire
+        df = df.sort_index()
+
+        # Ligne cible : la plus proche de la date demandée (dernière si "latest").
+        if date == "latest":
+            row = df.iloc[-1]
+        else:
             closest_idx = df.index.get_indexer([target_date], method="nearest")[0]
             row = df.iloc[closest_idx]
 
-        if indicator == "open":
-            return float(row["Open"])
-        if indicator == "high":
-            return float(row["High"])
-        if indicator == "low":
-            return float(row["Low"])
-        if indicator == "close":
-            return float(row["Close"])
-        if indicator == "volume":
-            return float(row["Volume"])
+        # Si on a besoin d'indicateurs dérivés, les calculer sur tout l'historique
+        # puis prélever la même ligne cible.
+        if need_derived:
+            enriched = _compute_indicators(df)
+            if date == "latest":
+                row = enriched.iloc[-1]
+            else:
+                row = enriched.iloc[closest_idx]
 
-        # Approximation du VWAP quotidien typique si demandé
-        if indicator == "vwap":
-            return float((row["High"] + row["Low"] + row["Close"]) / 3.0)
+        def _pick(name: str) -> Optional[float]:
+            name = name.lower()
+            if name in _PRICE_INDICATORS:
+                col = name.capitalize()  # Open/High/Low/Close/Volume
+            else:
+                col = name  # vwap/rsi/sma_50/... (colonnes ajoutées)
+            try:
+                val = row[col] if col in row.index else None
+                return None if pd.isna(val) else float(val)
+            except Exception:
+                return None
 
-        return None
+        values = {i: _pick(i) for i in indicators}
+        if is_list_request:
+            return values
+        return values[indicators[0]]
     except Exception as e:
         logger.error(f"Erreur lookup_ohlc({symbol}, {date}, {indicator}): {e}")
-        return None
+        return {i: None for i in indicators} if is_list_request else None
 
 
 class NumericalReasoningEngine:
@@ -82,7 +153,10 @@ class NumericalReasoningEngine:
     """
 
     def __init__(self):
-        # Espace de noms persistant pour cette session de raisonnement
+        # Espace de noms persistant pour cette session de raisonnement.
+        # ``__import__`` est volontairement absent : le code LLM ne peut pas
+        # importer de modules arbitraires. Les bibliothèques légitimes pour le
+        # raisonnement numérique (pandas, numpy) sont injectées directement.
         self.namespace: Dict[str, Any] = {
             "__builtins__": {
                 "print": print,
@@ -99,8 +173,20 @@ class NumericalReasoningEngine:
                 "max": max,
                 "abs": abs,
                 "round": round,
+                "sorted": sorted,
+                "enumerate": enumerate,
+                "zip": zip,
+                "map": map,
+                "filter": filter,
+                "isinstance": isinstance,
+                "Exception": Exception,
+                "ValueError": ValueError,
+                "TypeError": TypeError,
+                "ZeroDivisionError": ZeroDivisionError,
             },
             "math": __import__("math"),
+            "pd": pd,
+            "np": __import__("numpy"),
             "lookup_ohlc": lookup_ohlc,
         }
 

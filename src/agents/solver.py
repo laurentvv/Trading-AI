@@ -13,7 +13,7 @@ class SolverAgent:
     Main ReAct loop orchestrating the Numerical Reasoning Engine and generating final decisions.
     """
 
-    def __init__(self, model_name: str = TEXT_LLM_MODEL, max_iterations: int = 5):
+    def __init__(self, model_name: str = TEXT_LLM_MODEL, max_iterations: int = 6):
         self.model_name = model_name
         self.max_iterations = max_iterations
         self.engine = NumericalReasoningEngine()
@@ -29,23 +29,53 @@ class SolverAgent:
 {memory_block}
 </Memory_Handling>
 
+<Available_Tools>
+You have a python execution environment. ``pd`` (pandas) and ``np`` (numpy) are
+ALREADY IMPORTED for you — DO NOT write any ``import`` statement (imports are
+disabled and will raise ImportError).
+
+The single data tool is:
+    lookup_ohlc(symbol, date, indicators)
+where:
+  - symbol: a yfinance ticker (e.g. "CRUDP.PA", "SXRV.DE", "CL=F") OR an alias
+            ("WTI", "NASDAQ", "NDX", "BRENT", "SP500").
+  - date:   "latest" or "YYYY-MM-DD".
+  - indicators: a LIST of strings. The function returns a dict
+            {{indicator: value}} for the requested date.
+Supported indicators:
+  - raw price : "open", "high", "low", "close", "volume"
+  - derived   : "vwap", "rsi" (14-period Wilder), "sma_50", "sma_200",
+                "ema_12", "ema_26", "macd"
+
+Example (correct usage):
+    data = lookup_ohlc("CRUDP.PA", "latest", ["close", "rsi", "sma_50", "sma_200"])
+    price = data["close"]; rsi = data["rsi"]
+DO NOT pass a single string. DO NOT redefine lookup_ohlc yourself. DO NOT use
+``import``. Unknown indicators return None in the dict.
+</Available_Tools>
+
 <Think_Steps>
 ### 1. Input Inventory (MANDATORY --- DO NOT proceed to calculation)
-Take a complete inventory of market data before any tool call. List each value (e.g., opening price, VWAP, RSI) with its unit.
+Call ``lookup_ohlc`` ONCE with a LIST of the indicators you need and ALWAYS
+``print()`` the returned dict so you can see the values. Example:
+    data = lookup_ohlc("CRUDP.PA", "latest", ["close", "rsi", "sma_50", "sma_200"])
+    print(data)
 ### 2. Experience Applicability
 {annotator_directives}
 ### 3. Problem Understanding
 Define the expected output type (BUY, SELL, HOLD).
-### 4. Strategy
-Write ALL values as python variables into the Numerical Reasoning Engine before evaluating the trade condition.
-You have access to a python execution environment. You can return python code to be executed by returning a JSON object with "python_code" key.
-The python code can call `lookup_ohlc(symbol, date, indicator)`.
+### 4. Decide (MANDATORY --- DO NOT loop)
+After you have the data, MOVE ON to the final answer. Do not call
+``lookup_ohlc`` more than once. Decide BUY/SELL/HOLD with a concrete
+confidence and a reasoning that cites the fetched numbers.
 ### 5. Next Action
-Call a tool or finish with the final decision.
+Finish with the final decision (do NOT fetch data repeatedly).
 </Think_Steps>
 
 <Invariants>
-- "data not available" is never true. Request data via lookup_ohlc tool in python.
+- "data not available" is never true. Request data via the lookup_ohlc tool in python, then print it.
+- NEVER write an ``import`` statement. ``pd`` and ``np`` are pre-imported.
+- NEVER redefine lookup_ohlc. Always call it with a LIST of indicators, and call it AT MOST ONCE.
 - NEVER submit placeholder text or vague explanations as final_answer. Only a clear and traceable decision is accepted.
 - To execute python, return a JSON EXACTLY like this: {{"python_code": "your code here", "action": "NONE", "confidence": 0.0, "reasoning": ""}}
 - To return the final answer, return a JSON EXACTLY like this: {{"python_code": "", "action": "BUY|SELL|HOLD", "confidence": 0.8, "reasoning": "your reasoning"}}
@@ -84,7 +114,14 @@ Call a tool or finish with the final decision.
                     current_prompt += "\n\nModel Output Error: Invalid JSON. Please output strictly valid JSON according to invariants."
                     continue
 
-                if "python_code" in action_data:
+                # Le schema impose toujours les 4 cles. On distingue :
+                #  - demande d'execution : python_code NON vide
+                #  - reponse finale     : python_code vide ET action != NONE
+                wants_execute = bool(str(action_data.get("python_code", "")).strip())
+                action_val = str(action_data.get("action", "")).upper()
+                is_final_answer = action_val in ("BUY", "SELL", "HOLD")
+
+                if wants_execute:
                     code = action_data["python_code"]
                     trajectory.append(f"Action: execute_python({code})")
 
@@ -93,10 +130,22 @@ Call a tool or finish with the final decision.
                     if result["error"]:
                         output_str += f"Error:\n{result['error']}\n"
 
+                    # Si le code a simplement assigné des donnees sans les afficher
+                    # (cas typique: ``data = lookup_ohlc(...)``), on les renvoie
+                    # explicitement au modele, sinon il boucle sans jamais voir
+                    # ce qu'il a recupere (cause racine des timeouts prod).
+                    ns = self.engine.namespace
+                    if not result["output"]:
+                        fetched = ns.get("data")
+                        if isinstance(fetched, dict):
+                            output_str += f"Fetched data:\n{fetched}\n"
+                        elif fetched is not None:
+                            output_str += f"Fetched data:\n{repr(fetched)}\n"
+
                     trajectory.append(f"Observation: {output_str}")
                     current_prompt += f"\n\nModel:\n{clean_output}\n\nObservation:\n{output_str}"
 
-                elif "action" in action_data and "confidence" in action_data and "reasoning" in action_data:
+                elif is_final_answer and "confidence" in action_data and "reasoning" in action_data:
                     # Final Answer
                     trajectory.append(f"Action: final_answer({action_data})")
 
