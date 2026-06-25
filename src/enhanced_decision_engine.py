@@ -127,7 +127,7 @@ class VincentGanneModel(BaseModel):
 
     def _evaluate_oil(self, indicators: dict) -> tuple[float, float, list[str]]:
         score, max_score, reasons = 0.0, 0.0, []
-        
+
         # 1. WTI Oil (CRITICAL - Priority 1)
         wti = indicators.get("WTI_price")
         if wti:
@@ -164,12 +164,12 @@ class VincentGanneModel(BaseModel):
                 reasons.append(f"Brent Spread NORMAL: Moderate tension (${brent_spread:.2f})")
             elif brent_spread > 15:
                 reasons.append(f"Brent Spread EXTREME: Physical Scarcity (${brent_spread:.2f})")
-                
+
         return score, max_score, reasons
 
     def _evaluate_gas_and_urea(self, indicators: dict) -> tuple[float, float, list[str]]:
         score, max_score, reasons = 0.0, 0.0, []
-        
+
         # 3. Natural Gas TTF (Priority 3)
         gas = indicators.get("NaturalGas_price")
         if gas:
@@ -188,12 +188,12 @@ class VincentGanneModel(BaseModel):
             if urea < self.thresholds["Urea"]["max"]:
                 score += 4
                 reasons.append("Urea Minimum validation (Supply chain relief)")
-                
+
         return score, max_score, reasons
 
     def _evaluate_macro(self, indicators: dict) -> tuple[float, float, list[str]]:
         score, max_score, reasons = 0.0, 0.0, []
-        
+
         # US 2Y vs Fed Rate (Normalization)
         yield_2y = indicators.get("US2Y_yield")
         fed_rate = indicators.get("Fed_rate")
@@ -213,7 +213,7 @@ class VincentGanneModel(BaseModel):
             elif dxy < self.thresholds["DXY"]["max"]:
                 score += 1.5
                 reasons.append(f"DXY Minimum validation ({dxy:.2f})")
-                
+
         # Confirmation Technicals (MA200)
         for idx in ["SP500", "Nasdaq", "DowJones", "TechSector"]:
             if indicators.get(f"{idx}_above_ma200"):
@@ -226,7 +226,7 @@ class VincentGanneModel(BaseModel):
             if funding < -0.05:  # Extreme negative
                 score += 2
                 reasons.append(f"Hyperliquid Contrarian: Extreme negative funding ({funding:.2f}%)")
-                
+
         return score, max_score, reasons
 
     def evaluate(self, indicators: dict) -> dict:
@@ -243,12 +243,12 @@ class VincentGanneModel(BaseModel):
         score += o_score
         max_score += o_max
         reasons.extend(o_reasons)
-        
+
         gu_score, gu_max, gu_reasons = self._evaluate_gas_and_urea(indicators)
         score += gu_score
         max_score += gu_max
         reasons.extend(gu_reasons)
-        
+
         m_score, m_max, m_reasons = self._evaluate_macro(indicators)
         score += m_score
         max_score += m_max
@@ -520,7 +520,7 @@ class EnhancedDecisionEngine:
                     signal_val = dec.get("signal", "HOLD")
                     conf_val = dec.get("confidence", 0.0)
                     reason_val = dec.get("analysis", f"{model_name} analysis")
-                
+
                 decisions.append(
                     ModelDecision(
                         signal=signal_val,

@@ -44,7 +44,7 @@ Les outils sont créés par subclassing `Tool` (approche recommandée par la doc
 
 ### 1.1 `analyze_trading_logs`
 - **Source de données** : `D:\temp\Trading-AI\trading.log` (format Python logging standard)
-- **Logique** : 
+- **Logique** :
   - Parse le fichier avec regex sur les patterns `ERROR`, `WARNING`, `CRITICAL`
   - Extrait les déconnexions API (pattern `circuit breaker`, `timeout`, `connection`, `FRED.*failed`)
   - Détecte le slippage (pattern `slippage` ou écart prix T212 vs Yahoo)

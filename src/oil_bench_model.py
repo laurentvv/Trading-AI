@@ -31,7 +31,7 @@ class OilBenchModel(BaseModel):
     def predict(self, data: Dict[str, Any]) -> ModelResult:
         ticker = data.get("ticker", "CL=F")
         headlines = data.get("headlines")
-        
+
         result_dict = self.analyze(ticker, headlines)
         return ModelResult(
             signal=result_dict["signal"],

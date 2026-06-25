@@ -203,7 +203,7 @@ class NumericalReasoningEngine:
 
         error = None
         try:
-            # SECURITY WARNING: exec modifie le namespace en place. 
+            # SECURITY WARNING: exec modifie le namespace en place.
             # Ce n'est pas un véritable environnement sandboxé (vulnérabilité à l'évasion).
             # L'exécution de code généré par LLM comporte des risques de sécurité inhérents.
             import logging

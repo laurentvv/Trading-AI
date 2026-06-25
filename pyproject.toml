@@ -10,6 +10,8 @@ dependencies = [
     "ddgs>=9.14.4",
     "einops>=0.8.2",
     "feedparser>=6.0.12",
+    "free-llm-api-keys",
+    "httpx>=0.28.1",
     "huggingface-hub>=1.17.0",
     "hyperliquid-python-sdk>=0.23.0",
     "jax>=0.4.0",
@@ -17,6 +19,7 @@ dependencies = [
     "matplotlib>=3.10.9",
     "mplfinance>=0.12.10b0",
     "numpy>=1.26.4,<2.0",
+    "openai>=2.44.0",
     "pandas==2.2.3",
     "pandas-datareader>=0.10.0",
     "pre-commit>=4.6.0",
@@ -48,3 +51,9 @@ target-version = "py312"
 
 [tool.uv.sources]
 timesfm = { path = "vendor/timesfm" }
+free-llm-api-keys = { workspace = true }
+
+[tool.uv.workspace]
+members = [
+    "vendor/free-llm-api-keys-python",
+]

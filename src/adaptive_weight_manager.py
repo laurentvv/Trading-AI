@@ -123,7 +123,7 @@ class AdaptiveWeightManager:
 
         self.db_path = db_path
         self.config = config or {}
-        
+
         # Adaptive weight manager might receive less default weights but we align it
         # with the central config (excluding grebenkov if it was missing here, but it's cleaner to use one source)
         # It's fine to have grebenkov in adaptive manager too, it will just not be updated if no data.
