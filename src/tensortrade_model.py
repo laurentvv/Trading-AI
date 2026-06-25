@@ -18,6 +18,13 @@ _INITIAL_TIMESTEPS = 2000
 _FINE_TUNE_TIMESTEPS = 500
 _FEE_RATE = 0.001
 _COOLDOWN_DAYS = 5
+# PPO confidence cap. The policy distribution collapses toward one
+# near-deterministic action after repeated in-call fine-tuning
+# (_FINE_TUNE_TIMESTEPS each cycle, no entropy regularization), so the raw
+# probs[action] is an over-confident, uncalibrated value (~0.88 systematically
+# in prod). Capping it prevents this single model from inflating the consensus
+# weighted_score and final_confidence. See ADR-002.
+_CONFIDENCE_CAP = 0.75
 # 20 features: diffs(5) + returns(5) + pos(1) + days_since(1) + vol(1) +
 # rsi_14(1) + price_vs_sma(1) + fee_impact(1) + mom_10(1) + mom_20(1) + cum_ret_5(1) + norm_price(1)
 _OBS_SIZE = 20
@@ -241,6 +248,8 @@ def get_tensortrade_prediction(df: pd.DataFrame) -> ModelResult:
             dist = model.policy.get_distribution(obs_tensor)
             probs = dist.distribution.probs.detach().numpy()[0]
             confidence = float(probs[action])
+            # Cap uncalibrated PPO overconfidence (see _CONFIDENCE_CAP).
+            confidence = min(confidence, _CONFIDENCE_CAP)
         except Exception:
             confidence = 0.5
 

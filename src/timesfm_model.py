@@ -140,10 +140,16 @@ class TimesFMModel(BaseModel):
             elif expected_return < -threshold:
                 signal = "SELL"
 
+            # Position-aware de-churn: avoid re-buying when already long.
+            # NOTE: the previous branch also forced SELL -> HOLD when flat, which
+            # was meant to avoid shorting but in practice suppressed EVERY bearish
+            # vote (the default position is FLAT). Over 610 prod predictions this
+            # produced 0 SELL, removing 20% of the consensus weight from the
+            # bearish side and contributing to the structural bullish bias.
+            # A SELL signal here is now a directional vote only; whether to act
+            # on it (close a long, or short) is decided downstream by the risk
+            # manager. See ADR-002.
             if signal == "BUY" and self._get_position(ticker) == "LONG":
-                signal = "HOLD"
-                confidence *= 0.5
-            elif signal == "SELL" and self._get_position(ticker) == "FLAT":
                 signal = "HOLD"
                 confidence *= 0.5
 

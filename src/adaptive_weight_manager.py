@@ -13,6 +13,35 @@ import sqlite3
 
 logger = logging.getLogger(__name__)
 
+# Dead-zone threshold for HOLD "correctness": a HOLD prediction is considered
+# correct when the market barely moved (|return_1d| below this value).
+HOLD_NEUTRAL_RETURN_THRESHOLD = 0.005
+
+
+def _signal_correct_mask(df: pd.DataFrame) -> pd.Series:
+    """Return a boolean mask: was each prediction directionally correct?
+
+    Unlike ``(returns > 0).mean()`` (which measures the market, not the model),
+    this evaluates whether the *signal* matched the realized move:
+
+    - BUY / STRONG_BUY  correct iff return_1d > 0
+    - SELL              correct iff return_1d < 0
+    - HOLD / NEUTRAL    correct iff |return_1d| < HOLD_NEUTRAL_RETURN_THRESHOLD
+
+    Args:
+        df: frame with columns ``signal_predicted`` and ``return_1d``.
+
+    Returns:
+        Boolean Series aligned with ``df`` (NaN returns count as incorrect).
+    """
+    sig = df["signal_predicted"]
+    ret = df["return_1d"]
+    return (
+        (sig.isin(["BUY", "STRONG_BUY"]) & (ret > 0))
+        | (sig.isin(["SELL", "STRONG_SELL"]) & (ret < 0))
+        | (sig.isin(["HOLD", "NEUTRAL"]) & (ret.abs() < HOLD_NEUTRAL_RETURN_THRESHOLD))
+    )
+
 
 @dataclass
 class ModelPerformance:
@@ -330,8 +359,11 @@ class AdaptiveWeightManager:
                 volatility = returns.std()
                 sharpe_ratio = avg_return / volatility if volatility > 0 else 0.0
 
-                # Win rate (percentage of positive returns)
-                win_rate = (returns > 0).mean()
+                # Per-signal win rate: does the predicted direction match the
+                # realized move? (Previously this was ``(returns > 0).mean()``,
+                # which measured the market up-day fraction and was identical
+                # for every model — see ADR-002.)
+                win_rate = float(_signal_correct_mask(df).mean())
 
                 # Maximum drawdown
                 cumulative = (1 + returns).cumprod()
@@ -426,8 +458,9 @@ class AdaptiveWeightManager:
                     volatility = returns.std()
                     sharpe_ratio = avg_return / volatility if volatility > 0 else 0.0
 
-                    # Win rate (percentage of positive returns)
-                    win_rate = (returns > 0).mean()
+                    # Per-signal win rate: direction-correctness of the signal
+                    # (see _signal_correct_mask / ADR-002).
+                    win_rate = float(_signal_correct_mask(group).mean())
 
                     # Maximum drawdown
                     cumulative = (1 + returns).cumprod()

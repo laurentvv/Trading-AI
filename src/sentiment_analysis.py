@@ -7,6 +7,13 @@ logger = logging.getLogger(__name__)
 def get_sentiment_decision_from_score(sentiment_score: float) -> ModelResult:
     """
     Converts a sentiment score to a trading decision.
+
+    The BUY/SELL thresholds here are already symmetric (+/-0.15). In prod
+    (29/05-25/06) this produced 0 SELL over 610 predictions, not because of
+    this branching logic, but because the upstream sentiment_score was never
+    observed below -0.15 — a data-side skew (news provider selection /
+    scoring aggregation) to be investigated separately. Do NOT "fix" it by
+    mirroring the threshold; that would mask the upstream bias. See ADR-002.
     """
     if sentiment_score > 0.15:
         signal = "BUY"

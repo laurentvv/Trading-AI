@@ -1,4 +1,8 @@
-"""Test that weights are aligned between AdaptiveWeightManager and EnhancedDecisionEngine."""
+"""Test that weights are aligned between AdaptiveWeightManager and EnhancedDecisionEngine.
+
+Both modules must read from the single source of truth in config_weights.py
+to avoid configuration drift (ADR-002).
+"""
 
 import sys
 from pathlib import Path
@@ -7,40 +11,29 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from adaptive_weight_manager import AdaptiveWeightManager
 from enhanced_decision_engine import EnhancedDecisionEngine
+from config_weights import DEFAULT_BASE_WEIGHTS
 
 
 def test_weight_alignment():
-    """Verify both modules use the same base weights."""
+    """Verify both modules use the same base weights as config_weights."""
     engine = EnhancedDecisionEngine()
     weight_mgr = AdaptiveWeightManager()
 
-    expected = {
-        "classic": 0.13,
-        "llm_text": 0.21,
-        "llm_visual": 0.19,
-        "sentiment": 0.16,
-        "timesfm": 0.20,
-        "vincent_ganne": 0.05,
-        "oil_bench": 0.05,
-        "tensortrade": 0.05,
-        "grebenkov": 0.05,
-        "hmm_model": 0.05,
-        "finacumen": 0.15,
-    }
-
-    # Verify weights sum approximately to 1.29
-    total = sum(expected.values())
-    assert abs(total - 1.29) < 1e-6, f"Weights should sum to 1.29, got {total}"
-    print(f"PASS: Weights sum to {total}")
-
-    for model_name, expected_weight in expected.items():
+    for model_name, expected_weight in DEFAULT_BASE_WEIGHTS.items():
         eng_weight = engine.base_weights.get(model_name)
         mgr_weight = weight_mgr.base_weights.get(model_name)
-        assert eng_weight == expected_weight, f"Engine {model_name}: expected {expected_weight}, got {eng_weight}"
-        assert mgr_weight == expected_weight, f"Manager {model_name}: expected {expected_weight}, got {mgr_weight}"
-        print(f"PASS: {model_name} = {expected_weight} (both modules aligned)")
+        assert eng_weight == expected_weight, (
+            f"Engine {model_name}: expected {expected_weight}, got {eng_weight}"
+        )
+        assert mgr_weight == expected_weight, (
+            f"Manager {model_name}: expected {expected_weight}, got {mgr_weight}"
+        )
 
-    print("\nAll weight alignment tests passed!")
+    # Sanity: the key we previously forgot to keep aligned is now present in both.
+    assert set(engine.base_weights.keys()) == set(weight_mgr.base_weights.keys()), (
+        "Engine and manager must reference the same set of models"
+    )
+    print(f"PASS: all {len(DEFAULT_BASE_WEIGHTS)} weights aligned (sum={sum(DEFAULT_BASE_WEIGHTS.values())})")
 
 
 if __name__ == "__main__":

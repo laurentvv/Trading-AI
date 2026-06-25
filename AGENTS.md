@@ -71,6 +71,16 @@ PowerShell note: `uv run pytest ...` may fail with "Failed to canonicalize scrip
   - It is **not** an 11th vote in `enhanced_decision_engine.py` / `model_performance.db` (the real-time per-cycle consensus). Wiring it into the consensus (and the T212 budget) is a deliberate follow-up.
 - `backtest_prod.py` reads `data_cache/` (repo root, ends ~2026-05-27) instead of `logs_prod/data_cache/` (prod, current). Its tables come back empty when the journal spans a period not covered by the root cache. Use `audit_prod_logs.py` for a backtest that reads the prod cache.
 
+### 6.1 Resolved follow-ups (ADR-002, branch `fix/decision-model-quality-audit`)
+
+The end-of-June decision-model audit (`docs/ADR-002-decision-model-quality-audit.md`) remediated the structural bullish bias and the market-derived win_rate metric. Items no longer open:
+
+- **win_rate metric** — `adaptive_weight_manager.py` previously scored models with `(returns > 0).mean()` (market up-day fraction, identical for all models). Replaced by per-signal `_signal_correct_mask`.
+- **Bullish bias (5 mechanisms)** — asymmetric SELL threshold (0.40 vs BUY 0.20), BUY-only Super-Consensus Boost, EXIT INERTIA with no stop-loss bypass, timesfm's `SELL→HOLD when FLAT` filter, and uncalibrated tensortrade confidence — all fixed. New invariant: `MIN_CONFIDENCE_FOR_SELL == MIN_CONFIDENCE_FOR_ACTION`, `SUPER_CONSENSUS_BOOST == 0.0`, `hard_stop_drawdown` bypass in `advanced_risk_manager.py`.
+- **Weights** — repondered by `edge_buy` (not the artefact metric). `llm_text` 0.21→0.12 (worst edge), `oil_bench` 0.05→0.08.
+
+Still open after ADR-002: isotonic tensortrade recalibration (cap is interim), upstream sentiment-data skew, unifying the two `regime_adjustments` dicts, FinAcumen consensus wiring, `return_5d` population.
+
 ## 7. Tooling scripts (June 2026)
 
 - `audit_prod_logs.py` — validates **all** files in `logs_prod/` (catalogue, SQLite integrity, parquet freshness, JSON/pkl, FinAcumen state) and runs a corrected backtest against `logs_prod/data_cache/`. Emits `logs_prod/audit_report.md`. Run with `uv run python audit_prod_logs.py`.

@@ -63,7 +63,12 @@ class TestPositionTracking(unittest.TestCase):
         result = model.predict({"df": df, "ticker": "TEST"})
         self.assertEqual(result.signal, "HOLD")
 
-    def test_position_tracking_no_sell_when_flat(self):
+    def test_position_tracking_sell_emitted_when_flat(self):
+        # ADR-002: previously a SELL was forced to HOLD whenever the position
+        # was FLAT, which suppressed every bearish vote in prod (0 SELL over
+        # 610 predictions). A SELL must now be emitted as a directional vote
+        # even from the default FLAT state; the risk manager decides whether
+        # to act on it.
         model = TimesFMModel.__new__(TimesFMModel)
         model.initialized = False
         model.model = None
@@ -80,7 +85,7 @@ class TestPositionTracking(unittest.TestCase):
         model.model = FakeModel()
         df = pd.DataFrame({"Close": np.linspace(105, 100, 30)})
         result = model.predict({"df": df, "ticker": "TEST"})
-        self.assertEqual(result.signal, "HOLD")
+        self.assertEqual(result.signal, "SELL")
 
 
 class TestAdaptiveThreshold(unittest.TestCase):
