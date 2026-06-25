@@ -87,12 +87,15 @@ class TestTensorTradeIntegration(unittest.TestCase):
         self.assertEqual(len(tensortrade_models), 1)
         td = tensortrade_models[0]
         self.assertEqual(td.signal, "BUY")
-        self.assertAlmostEqual(td.confidence, 0.8)
+        # ADR-002: raw PPO prob is 0.8 but capped at _CONFIDENCE_CAP (0.75)
+        # to stop uncalibrated overconfidence from inflating the consensus.
+        self.assertAlmostEqual(td.confidence, 0.75)
 
     def test_tensortrade_weight_in_base_weights(self):
         engine = EnhancedDecisionEngine()
         self.assertIn("tensortrade", engine.base_weights)
-        self.assertEqual(engine.base_weights["tensortrade"], 0.05)
+        # ADR-002: repondéré 0.05 -> 0.04 (confiance non calibrée, edge négatif).
+        self.assertEqual(engine.base_weights["tensortrade"], 0.04)
 
     @patch("tensortrade_model.PPO")
     def test_consensus_score_includes_tensortrade(self, mock_ppo_cls):
