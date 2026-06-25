@@ -154,5 +154,30 @@ class TestAdjustWeightsByRegime(unittest.TestCase):
         self.assertGreater(raw_ratio, base_ratio * 2)
 
 
+class TestBaisRemovalInvariants(unittest.TestCase):
+    """ADR-002: pin the symmetric-confidence and boost-disabled invariants
+    that prevent the structural bullish bias from returning."""
+
+    def setUp(self):
+        self.engine = EnhancedDecisionEngine()
+
+    def test_sell_confidence_threshold_equals_buy(self):
+        # A SELL must not require more conviction than a BUY — the previous
+        # asymmetry (0.40 vs 0.20) suppressed legitimate exits.
+        self.assertEqual(
+            self.engine.MIN_CONFIDENCE_FOR_SELL,
+            self.engine.MIN_CONFIDENCE_FOR_ACTION,
+        )
+
+    def test_super_consensus_boost_disabled(self):
+        # The boost was BUY-only in practice (timesfm never emitted SELL),
+        # so it inflated bullish confidence. Disabled until symmetric.
+        self.assertEqual(self.engine.SUPER_CONSENSUS_BOOST, 0.0)
+
+    def test_bullish_bias_constant_zero(self):
+        self.assertEqual(self.engine.BULLISH_BIAS, 0.0)
+        self.assertEqual(self.engine.QUANT_MODEL_BUY_BONUS, 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()

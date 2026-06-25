@@ -104,9 +104,15 @@ class AdvancedRiskManager:
         if risk_params:
             self.max_drawdown_warning = risk_params.get("max_drawdown_warning", 0.05)
             self.max_drawdown_critical = risk_params.get("max_drawdown_critical", 0.1)
+            self.hard_stop_drawdown = risk_params.get("hard_stop_drawdown", 0.12)
         else:
             self.max_drawdown_warning = 0.05
             self.max_drawdown_critical = 0.1
+            # Hard stop: once an open position is down this far from its entry,
+            # the EXIT INERTIA below is bypassed and a SELL is allowed through.
+            # This is the guard that was missing when CRUDP.PA drifted to -18%
+            # without any exit being permitted. See ADR-002.
+            self.hard_stop_drawdown = 0.12
 
         # Market regime indicators
         self.market_regimes = {
@@ -496,12 +502,24 @@ class AdvancedRiskManager:
         NEW: Position-aware logic (Inertia/Sticky HOLD).
         """
         # 1. SPECIAL CASE: EXIT INERTIA (Sticky HOLD)
-        # If we are holding, we require stronger conviction to SELL
+        # If we are holding, we require stronger conviction to SELL.
+        # BUT a hard stop-loss bypasses inertia: once the position is down
+        # past hard_stop_drawdown from entry, we always allow the SELL through.
+        # Without this, CRUDP.PA drifted to -18% with every SELL squelched to
+        # HOLD by inertia. See ADR-002.
         if is_holding and original_signal in ["SELL", "STRONG_SELL"]:
             # Calculate current performance of the analysis index
             if entry_price_index and price_data is not None:
                 current_index_price = price_data.iloc[-1]
                 index_perf = (current_index_price / entry_price_index) - 1
+
+                # Hard stop: deep underwater -> exit regardless of conviction.
+                if index_perf < -self.hard_stop_drawdown:
+                    return (
+                        original_signal,
+                        f"HARD STOP: position drawdown {index_perf:+.2%} exceeded "
+                        f"-{self.hard_stop_drawdown:.0%}; bypassing exit inertia.",
+                    )
 
                 # If we are in profit on the index, be even MORE sticky (protect the trend)
                 sell_threshold = 0.55 if index_perf > 0 else 0.45

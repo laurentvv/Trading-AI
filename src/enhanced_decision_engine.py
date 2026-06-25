@@ -296,11 +296,18 @@ class EnhancedDecisionEngine:
     CLASSIC_BUY_BONUS_THRESHOLD = 0.4
     TIMESFM_BUY_BONUS_THRESHOLD = 0.2
     QUANT_MODEL_BUY_BONUS = 0.0  # Removed: was +0.1 per quant model, creating structural bullish bias
-    SUPER_CONSENSUS_BOOST = 0.20
+    # Disabled (was 0.20): the boost fired when classic + timesfm agreed on a
+    # non-HOLD signal, but timesfm never emits SELL (position-aware filter),
+    # so this was a BUY-only confidence inflation — a structural bullish bias.
+    # Re-enable only after timesfm can produce SELL symmetrically. See ADR-002.
+    SUPER_CONSENSUS_BOOST = 0.0
 
-    # Confidence thresholds for risk management
+    # Confidence thresholds for risk management.
+    # Symmetric: a SELL requires the SAME conviction as a BUY. The previous
+    # asymmetry (SELL needing 0.40 vs BUY 0.20) suppressed legitimate exits
+    # and contributed to the structural bullish bias (0 SELL on SXRV.DE).
     MIN_CONFIDENCE_FOR_ACTION = 0.20
-    MIN_CONFIDENCE_FOR_SELL = 0.40
+    MIN_CONFIDENCE_FOR_SELL = 0.20
 
     def __init__(
         self,
