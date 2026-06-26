@@ -21,25 +21,16 @@ HOLD_NEUTRAL_RETURN_THRESHOLD = 0.005
 def _signal_correct_mask(df: pd.DataFrame) -> pd.Series:
     """Return a boolean mask: was each prediction directionally correct?
 
-    Unlike ``(returns > 0).mean()`` (which measures the market, not the model),
-    this evaluates whether the *signal* matched the realized move:
-
-    - BUY / STRONG_BUY  correct iff return_1d > 0
-    - SELL              correct iff return_1d < 0
-    - HOLD / NEUTRAL    correct iff |return_1d| < HOLD_NEUTRAL_RETURN_THRESHOLD
-
-    Args:
-        df: frame with columns ``signal_predicted`` and ``return_1d``.
-
-    Returns:
-        Boolean Series aligned with ``df`` (NaN returns count as incorrect).
+    To avoid rewarding blind BUY models in a naturally drifting market,
+    a BUY is only considered correct if the return exceeds the HOLD dead-zone.
+    Otherwise, HOLD was the better risk-adjusted decision.
     """
     sig = df["signal_predicted"]
     ret = df["return_1d"]
     return (
-        (sig.isin(["BUY", "STRONG_BUY"]) & (ret > 0))
-        | (sig.isin(["SELL", "STRONG_SELL"]) & (ret < 0))
-        | (sig.isin(["HOLD", "NEUTRAL"]) & (ret.abs() < HOLD_NEUTRAL_RETURN_THRESHOLD))
+        (sig.isin(["BUY", "STRONG_BUY"]) & (ret > HOLD_NEUTRAL_RETURN_THRESHOLD))
+        | (sig.isin(["SELL", "STRONG_SELL"]) & (ret < -HOLD_NEUTRAL_RETURN_THRESHOLD))
+        | (sig.isin(["HOLD", "NEUTRAL"]) & (ret.abs() <= HOLD_NEUTRAL_RETURN_THRESHOLD))
     )
 
 
@@ -337,16 +328,22 @@ class AdaptiveWeightManager:
                 return None
 
             # Calculate performance metrics
-            # Convert signals to binary (1 for BUY/STRONG_BUY, 0 for others)
-            predicted = (df["signal_predicted"].isin(["BUY", "STRONG_BUY"])).astype(int)
-            actual = df["actual_outcome"]
+            # Dynamically compute actual outcome using the threshold to avoid legacy DB 0/1 bias
+            actual = pd.Series(0, index=df.index)
+            actual[df["return_1d"] > HOLD_NEUTRAL_RETURN_THRESHOLD] = 1
+            actual[df["return_1d"] < -HOLD_NEUTRAL_RETURN_THRESHOLD] = -1
+
+            # Convert signals to -1, 0, 1
+            signal_map = {"STRONG_SELL": -1, "SELL": -1, "HOLD": 0, "NEUTRAL": 0, "BUY": 1, "STRONG_BUY": 1}
+            predicted = df["signal_predicted"].map(signal_map).fillna(0).astype(int)
 
             # Classification metrics
             accuracy = (predicted == actual).mean()
 
+            # Precision/Recall focus on the BUY signal (1) vs non-BUY
             tp = ((predicted == 1) & (actual == 1)).sum()
-            fp = ((predicted == 1) & (actual == 0)).sum()
-            fn = ((predicted == 0) & (actual == 1)).sum()
+            fp = ((predicted == 1) & (actual != 1)).sum()
+            fn = ((predicted != 1) & (actual == 1)).sum()
 
             precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
             recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
@@ -436,16 +433,21 @@ class AdaptiveWeightManager:
                     continue
 
                 # Calculate performance metrics
-                # Convert signals to binary (1 for BUY/STRONG_BUY, 0 for others)
-                predicted = (group["signal_predicted"].isin(["BUY", "STRONG_BUY"])).astype(int)
-                actual = group["actual_outcome"]
+                # Dynamically compute actual outcome using the threshold to avoid legacy DB 0/1 bias
+                actual = pd.Series(0, index=group.index)
+                actual[group["return_1d"] > HOLD_NEUTRAL_RETURN_THRESHOLD] = 1
+                actual[group["return_1d"] < -HOLD_NEUTRAL_RETURN_THRESHOLD] = -1
+
+                # Convert signals to -1, 0, 1
+                signal_map = {"STRONG_SELL": -1, "SELL": -1, "HOLD": 0, "NEUTRAL": 0, "BUY": 1, "STRONG_BUY": 1}
+                predicted = group["signal_predicted"].map(signal_map).fillna(0).astype(int)
 
                 # Classification metrics
                 accuracy = (predicted == actual).mean()
 
                 tp = ((predicted == 1) & (actual == 1)).sum()
-                fp = ((predicted == 1) & (actual == 0)).sum()
-                fn = ((predicted == 0) & (actual == 1)).sum()
+                fp = ((predicted == 1) & (actual != 1)).sum()
+                fn = ((predicted != 1) & (actual == 1)).sum()
 
                 precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
                 recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
@@ -719,7 +721,7 @@ class AdaptiveWeightManager:
 
                     return_1d = (price_next - price_today) / price_today
 
-                    actual_outcome = 1 if return_1d > 0 else 0
+                    actual_outcome = 1 if return_1d > HOLD_NEUTRAL_RETURN_THRESHOLD else (-1 if return_1d < -HOLD_NEUTRAL_RETURN_THRESHOLD else 0)
 
                     cursor.execute(
                         """

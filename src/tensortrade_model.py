@@ -208,11 +208,14 @@ def get_tensortrade_prediction(df: pd.DataFrame) -> ModelResult:
                     logger.info(
                         f"Modèle PPO chargé depuis le cache ({metadata.get('total_timesteps', '?')} timesteps cumulés)"
                     )
-                    model.learn(total_timesteps=_FINE_TUNE_TIMESTEPS)
-                    total_ts = metadata.get("total_timesteps", 0) + _FINE_TUNE_TIMESTEPS
-                    _save_metadata(total_ts, env.observation_space.shape)
-                    model.save(_MODEL_PATH)
-                    logger.info(f"Modèle PPO sauvegardé ({_FINE_TUNE_TIMESTEPS} timesteps ajoutés, total: {total_ts})")
+                    # Désactivé (Juin 2026) : l'entraînement continu (_FINE_TUNE_TIMESTEPS=500)
+                    # à chaque appel sur les mêmes données provoquait un sur-apprentissage
+                    # extrême (policy collapse) et figeait le modèle sur une seule action (BUY).
+                    # model.learn(total_timesteps=_FINE_TUNE_TIMESTEPS)
+                    # total_ts = metadata.get("total_timesteps", 0) + _FINE_TUNE_TIMESTEPS
+                    # _save_metadata(total_ts, env.observation_space.shape)
+                    # model.save(_MODEL_PATH)
+                    # logger.info(f"Modèle PPO sauvegardé ({_FINE_TUNE_TIMESTEPS} timesteps ajoutés, total: {total_ts})")
                 except Exception as e:
                     logger.warning(f"Erreur chargement modèle PPO, retraining from scratch: {e}")
                     model = PPO("MlpPolicy", env, n_steps=64, batch_size=32, verbose=0)
