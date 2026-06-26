@@ -68,9 +68,9 @@ PowerShell note: `uv run pytest ...` may fail with "Failed to canonicalize scrip
 - `_THINKING_TOKENS` list is duplicated between `src/llm_client.py:52-56` and `tests/check_llm_json.py:388-392`. If extended, they must stay in sync — or be unified.
 - `_fallback_decision`'s `failed: True` flag is not consumed by the consensus aggregator (`enhanced_decision_engine.py`). A failed LLM call is currently weighted as a plain HOLD vote — silent HOLD bias if extraction fails intermittently.
 - `tests/check_llm_json.py` returns exit 1 if any case fails, including the documented-to-fail loose-format cases. The harness could be refactored to return 0 when only the expected-failure cases fail.
-- **FinAcumen (June 2026) — repaired; converges; feeds the morning brief (which itself consumes `main.py` outputs), but NOT wired into the real-time consensus.** `src/finacumen_main.py` now converges (`status: success`) after fixing `src/core/tools.py` (`lookup_ohlc` accepts a list of indicators → dict; rsi/sma/macd added; pd/np pre-injected so the sandbox's `__import__` ban is harmless) and `src/agents/solver.py` (prompt documents the real API; observation echoes fetched `data` when the LLM forgets to `print`; the execute-vs-final-answer branch keys on *non-empty* `python_code` / `action in BUY|SELL|HOLD`, not key presence).
+- **FinAcumen (June 2026) — repaired; converges; feeds the morning brief (which itself consumes `main.py` outputs).** `src/finacumen_main.py` now converges (`status: success`) after fixing `src/core/tools.py` (`lookup_ohlc` accepts a list of indicators → dict; rsi/sma/macd added; pd/np pre-injected so the sandbox's `__import__` ban is harmless) and `src/agents/solver.py` (prompt documents the real API; observation echoes fetched `data` when the LLM forgets to `print`; the execute-vs-final-answer branch keys on *non-empty* `python_code` / `action in BUY|SELL|HOLD`, not key presence).
   - **Coupling to the main project** is via shared data files, not a direct import: `main.py` writes `trading_journal.csv` (main.py:222), `trading.log`, and `performance_monitor.db`; `morning_brief/tools/analyze_trading_logs.py` + `morning_brief/tools/audit_portfolio_performance.py` read them; `schedule.py` appends the FinAcumen section into `morning_market_brief.md`. So FinAcumen **does** influence the daily decision brief.
-  - It is **not** an 11th vote in `enhanced_decision_engine.py` / `model_performance.db` (the real-time per-cycle consensus). Wiring it into the consensus (and the T212 budget) is a deliberate follow-up.
+  - **By design**, it is **not** an 11th vote in `enhanced_decision_engine.py` / `model_performance.db` (the real-time per-cycle consensus). Its role is strictly asynchronous and structural for the morning brief.
 - `backtest_prod.py` reads `data_cache/` (repo root, ends ~2026-05-27) instead of `logs_prod/data_cache/` (prod, current). Its tables come back empty when the journal spans a period not covered by the root cache. Use `audit_prod_logs.py` for a backtest that reads the prod cache.
 
 ### 6.1 Resolved follow-ups (Late June 2026 - ADR-002 Suite & Architecture)
@@ -83,7 +83,7 @@ The end-of-June decision-model audit (`docs/ADR-002-decision-model-quality-audit
   - *LLM Visual*: Increased temperature to 0.4 and hardened the prompt to force `HOLD` on ambiguous charts, ending deterministic output spam.
 - **Hybrid LLM Architecture** — `get_llm_decision` now prioritizes a Cloud-based "Frontier Model" via `free-llm-api-keys` (for high-IQ text/macro analysis), with an instant, silent fallback to local Ollama (Gemma 4 12B) on API 503 errors. Vision (VL) strictly remains on Ollama, as free proxies reject image payloads.
 
-Still open after ADR-002: isotonic tensortrade recalibration (cap is interim), upstream sentiment-data skew, unifying the two `regime_adjustments` dicts, FinAcumen consensus wiring, `return_5d` population.
+Still open after ADR-002: isotonic tensortrade recalibration (cap is interim), upstream sentiment-data skew, unifying the two `regime_adjustments` dicts, `return_5d` population.
 
 ## 7. Tooling scripts (June 2026)
 
