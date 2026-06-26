@@ -3,7 +3,7 @@ import logging
 from typing import Dict, Any
 
 from src.core.tools import NumericalReasoningEngine, AnswerConsolidationGate
-from src.llm_client import TEXT_LLM_MODEL, _query_ollama, SCHEMA_FINACUMEN_SOLVER, OLLAMA_API_URL, _strip_thinking_prefix
+from src.llm_client import TEXT_LLM_MODEL, SCHEMA_FINACUMEN_SOLVER, OLLAMA_API_URL, _strip_thinking_prefix
 
 logger = logging.getLogger(__name__)
 

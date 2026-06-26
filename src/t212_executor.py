@@ -587,7 +587,7 @@ def _record_sell_transaction(state, current_value_eur, total_qty, ticker, db_dat
     state["current_capital"] = current_value_eur + residual_cash
     state["total_realized_pl"] += current_value_eur - buy_cost
 
-    logger.info(f"💰 Détail capital :")
+    logger.info("💰 Détail capital :")
     logger.info(f"   - Produit vente : {current_value_eur:.2f} €")
     logger.info(f"   - Cash résiduel récupéré : {residual_cash:.2f} €")
     logger.info(f"   - Nouveau total : {state['current_capital']:.2f} €")

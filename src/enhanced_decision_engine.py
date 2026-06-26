@@ -497,6 +497,37 @@ class EnhancedDecisionEngine:
 
         return decision
 
+    def _calculate_weighted_score(self, decisions: List[ModelDecision], weights: Dict[str, float], market_data: Dict) -> float:
+        weighted_score = sum(d.strength.value * d.confidence * weights.get(d.model_name, 0.25) for d in decisions)
+        return self._adjust_for_market_regime(weighted_score, market_data)
+
+    def _determine_final_signal(self, adjusted_score: float) -> str:
+        if adjusted_score >= self.adaptive_thresholds["strong_buy"]:
+            return "STRONG_BUY"
+        elif adjusted_score >= self.adaptive_thresholds["buy"]:
+            return "BUY"
+        elif adjusted_score <= self.adaptive_thresholds["strong_sell"]:
+            return "STRONG_SELL"
+        elif adjusted_score <= self.adaptive_thresholds["sell"]:
+            return "SELL"
+        return "HOLD"
+        
+    def _calculate_final_confidence(self, adjusted_score: float, consensus_score: float, disagreement_factor: float, decisions: List[ModelDecision]) -> float:
+        base_confidence = abs(adjusted_score) / 2
+        consensus_adjustment = consensus_score * 0.3
+        disagreement_penalty = disagreement_factor * 0.2
+        
+        classic_decision = next((d for d in decisions if d.model_name == "classic"), None)
+        timesfm_decision = next((d for d in decisions if d.model_name == "timesfm"), None)
+        
+        boost = 0.0
+        if classic_decision and timesfm_decision:
+            if (classic_decision.strength.value * timesfm_decision.strength.value) > 0:
+                if classic_decision.confidence > 0.5 and timesfm_decision.confidence > 0.3:
+                    boost = self.SUPER_CONSENSUS_BOOST
+                    
+        return min(1.0, max(0.0, base_confidence + consensus_adjustment - disagreement_penalty + boost))
+
     def _convert_legacy_inputs(self, timestamp, decisions, classic_pred, classic_conf, legacy_models, vincent_ganne_indicators):
         if classic_pred is not None:
             decisions.append(
@@ -621,64 +652,25 @@ class EnhancedDecisionEngine:
                 timestamp=timestamp,
             )
 
-        # Calculate weighted score
-        weighted_score = 0.0
-        for decision in decisions:
-            model_weight = weights.get(decision.model_name, 0.25)
-            signal_value = decision.strength.value
-
-            weighted_score += signal_value * decision.confidence * model_weight
-
-        # Adjust for market regime
-        adjusted_score = self._adjust_for_market_regime(weighted_score, market_data)
-
-        # Calculate consensus metrics
+        # Calculate scores and metrics
+        adjusted_score = self._calculate_weighted_score(decisions, weights, market_data)
         consensus_score = self._calculate_consensus_score(decisions)
         disagreement_factor = self._calculate_disagreement_factor(decisions)
 
-        # Determine final signal based on adjusted score and adaptive thresholds
-        if adjusted_score >= self.adaptive_thresholds["strong_buy"]:
-            final_signal = "STRONG_BUY"
-        elif adjusted_score >= self.adaptive_thresholds["buy"]:
-            final_signal = "BUY"
-        elif adjusted_score <= self.adaptive_thresholds["strong_sell"]:
-            final_signal = "STRONG_SELL"
-        elif adjusted_score <= self.adaptive_thresholds["sell"]:
-            final_signal = "SELL"
-        else:
-            final_signal = "HOLD"
-
-        # Calculate final confidence considering consensus
-        base_confidence = abs(adjusted_score) / 2  # Normalize to 0-1
-        consensus_adjustment = consensus_score * 0.3  # Boost confidence for consensus
-        disagreement_penalty = disagreement_factor * 0.2  # Reduce confidence for disagreement
-
-        # Super-Consensus Boost: if Classic and TimesFM agree on a non-HOLD signal
-        classic_decision = next((d for d in decisions if d.model_name == "classic"), None)
-        timesfm_decision = next((d for d in decisions if d.model_name == "timesfm"), None)
-
-        boost = 0.0
-        if classic_decision and timesfm_decision:
-            if (classic_decision.strength.value * timesfm_decision.strength.value) > 0:
-                # Both agree on BUY or both agree on SELL
-                if classic_decision.confidence > 0.5 and timesfm_decision.confidence > 0.3:
-                    boost = self.SUPER_CONSENSUS_BOOST
-
-        final_confidence = min(
-            1.0,
-            max(
-                0.0,
-                base_confidence + consensus_adjustment - disagreement_penalty + boost,
-            ),
+        # Determine signal and confidence
+        final_signal = self._determine_final_signal(adjusted_score)
+        final_confidence = self._calculate_final_confidence(
+            adjusted_score, consensus_score, disagreement_factor, decisions
         )
 
         # Apply risk management
         risk_adjusted_signal = self._apply_risk_management(final_signal, final_confidence, market_data)
 
         # Generate reasoning
-        reasoning_parts = []
-        reasoning_parts.append(f"Weighted score: {adjusted_score:.3f}")
-        reasoning_parts.append(f"Consensus: {consensus_score:.2f}")
+        reasoning_parts = [
+            f"Weighted score: {adjusted_score:.3f}",
+            f"Consensus: {consensus_score:.2f}"
+        ]
 
         if disagreement_factor > 0.3:
             reasoning_parts.append(f"High disagreement detected ({disagreement_factor:.2f})")

@@ -67,7 +67,7 @@ The system merges twelve distinct signals (plus a meta-model):
 2.  **TimesFM 2.5 (Google Research)**: State-of-the-art foundation model for time-series forecasting.
 3.  **TensorTrade / PPO (Reinforcement Learning)**: RL agent (stable-baselines3) training a PPO policy in a custom Gymnasium trading environment with persistence across cycles.
 4.  **Oil-Bench Model (Gemma 4 12B (Unsloth))**: Energy-specialized model merging **EIA** fundamental data (Stocks, Imports, Refinery utilization) and sentiment for WTI trading.
-5.  **Textual LLM (Gemma 4 12B (Unsloth))**: Contextual analysis of raw data, real-time news via the **AlphaEar** skill, and integration of dynamic **macro-economic web research**. It explicitly consumes the overnight **Morning Brief** report to gain deep fundamental awareness before making decisions.
+5.  **Textual LLM (Hybrid Cloud/Local)**: Contextual analysis of raw data, real-time news via the **AlphaEar** skill, and integration of dynamic **macro-economic web research**. Powered primarily by "Frontier Models" via `free-llm-api-keys`, with an instant fallback to a local **Gemma 4 12B** via Ollama on API failures. It explicitly consumes the overnight **Morning Brief** report to gain deep fundamental awareness.
 6.  **Visual LLM (Gemma 4 12B (Unsloth))**: Direct analysis of technical charts (`enhanced_trading_chart.png`).
 7.  **Sentiment Analysis**: Hybrid analysis combining Alpha Vantage and "hot" trends from **AlphaEar** (Weibo, WallstreetCN).
 8.  **Decentralized Data (Hyperliquid)**: Analysis of speculative sentiment on Oil (WTI) via *Funding Rate* and *Open Interest*.
@@ -87,6 +87,7 @@ Unlike classic trading algorithms that panic as soon as volatility explodes, thi
 
 ### ✨ Key Features
 
+- **Hybrid Cloud/Local LLM Architecture**: `free-llm-api-keys` integration to leverage highly intelligent "Frontier Models" (DeepSeek, Claude, Gemini) for textual analysis, with a 100% robust fallback to local Ollama (which remains the exclusive engine for visual charts).
 - **Dual-Ticker Approach**: Analyze the index, trade the ETF.
 - **T212 Live Prices**: Real-time recovery of EUR prices via the Trading 212 API (0.2s), with yfinance fallback and parquet cache.
 - **Dated Brent Spread**: Monitoring of physical market tension via the spread between Brent Spot (Dated) and Brent Futures.

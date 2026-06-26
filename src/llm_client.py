@@ -219,10 +219,44 @@ def get_llm_decision(
     ticker: str = "Unknown",
 ) -> ModelResult:
     """
-    Queries the textual LLM via Ollama to get a trading decision.
+    Queries a textual LLM to get a trading decision.
+    Tries FreeLLMClient (cloud) first, then falls back to Ollama.
     """
     logger.info(f"Querying textual LLM for {ticker} decision...")
     prompt = construct_llm_prompt(latest_data, headlines, web_context, vg_indicators, ticker)
+    
+    # 1. Try FreeLLMClient
+    try:
+        from free_llm_api_keys import FreeLLMClient
+        # Auto-rotates through available text models
+        client = FreeLLMClient(type="texte")
+        messages = [
+            {"role": "system", "content": "You are an expert financial analyst. Your task is to analyze market data and news to provide a trading decision in a valid JSON format. Output ONLY the JSON object requested."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        logger.info("Trying FreeLLMClient for textual decision...")
+        response_text = client.chat(messages, temperature=0.4, max_tokens=1024)
+        
+        # Parse the JSON
+        candidates = _extract_json_candidates(response_text)
+        expected_keys = ["signal", "confidence", "analysis"]
+        for item in candidates:
+            parsed = _find_dict_with_keys(item, expected_keys)
+            if parsed is not None:
+                logger.info("Successfully got textual decision from FreeLLMClient.")
+                return ModelResult(
+                    signal=parsed.get("signal", "HOLD"),
+                    confidence=parsed.get("confidence", 0.0),
+                    reasoning=parsed.get("analysis", "No analysis"),
+                    metadata=parsed,
+                )
+        logger.warning("FreeLLMClient returned invalid JSON. Falling back to Ollama.")
+    except Exception as e:
+        logger.warning(f"FreeLLMClient failed: {e}. Falling back to Ollama.")
+
+    # 2. Fallback to Ollama
+    logger.info("Using Ollama fallback for textual decision...")
     payload = {
         "model": TEXT_LLM_MODEL,
         "prompt": prompt,
