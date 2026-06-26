@@ -52,6 +52,20 @@ def _compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def _fetch_yfinance_data(yf_symbol: str, date: str, need_derived: bool) -> tuple[pd.DataFrame, Optional[pd.Timestamp]]:
+    if date == "latest":
+        period = "1y" if need_derived else "5d"
+        ticker = yf.Ticker(yf_symbol)
+        df = ticker.history(period=period)
+        target_date = None
+    else:
+        target_date = pd.to_datetime(date)
+        start_date = target_date - timedelta(days=400 if need_derived else 2)
+        end_date = target_date + timedelta(days=2)
+        ticker = yf.Ticker(yf_symbol)
+        df = ticker.history(start=start_date.strftime("%Y-%m-%d"), end=end_date.strftime("%Y-%m-%d"))
+    return df, target_date
+
 def lookup_ohlc(
     symbol: str, date: str, indicator: Union[str, List[str]]
 ) -> Union[Optional[float], Dict[str, Optional[float]]]:
@@ -81,56 +95,29 @@ def lookup_ohlc(
     if unknown:
         logger.warning(f"lookup_ohlc: indicateurs inconnus ignorés: {unknown}")
 
-    # Résolution du symbole yfinance
     yf_symbol = _SYMBOL_ALIASES.get(symbol.upper(), symbol)
 
     try:
         need_derived = any(i in _DERIVED_INDICATORS for i in indicators)
-        # Fenêtre d'historique : on charge assez de barres pour les moyennes 200.
-        if date == "latest":
-            period = "1y" if need_derived else "5d"
-            ticker = yf.Ticker(yf_symbol)
-            df = ticker.history(period=period)
-        else:
-            target_date = pd.to_datetime(date)
-            if need_derived:
-                # Récupère ~1 an avant la cible pour calculer SMA200/RSI.
-                start_date = target_date - timedelta(days=400)
-            else:
-                start_date = target_date - timedelta(days=2)
-            end_date = target_date + timedelta(days=2)
-            ticker = yf.Ticker(yf_symbol)
-            df = ticker.history(start=start_date.strftime("%Y-%m-%d"), end=end_date.strftime("%Y-%m-%d"))
+        df, target_date = _fetch_yfinance_data(yf_symbol, date, need_derived)
 
         if df.empty:
             logger.warning(f"lookup_ohlc({symbol}, {date}): aucune donnée yfinance pour {yf_symbol}")
             return {i: None for i in indicators} if is_list_request else None
 
-        df.index = df.index.tz_localize(None)  # Enlever fuseau horaire
+        df.index = df.index.tz_localize(None)
         df = df.sort_index()
 
-        # Ligne cible : la plus proche de la date demandée (dernière si "latest").
-        if date == "latest":
-            row = df.iloc[-1]
-        else:
-            closest_idx = df.index.get_indexer([target_date], method="nearest")[0]
-            row = df.iloc[closest_idx]
-
-        # Si on a besoin d'indicateurs dérivés, les calculer sur tout l'historique
-        # puis prélever la même ligne cible.
+        closest_idx = -1 if date == "latest" else df.index.get_indexer([target_date], method="nearest")[0]
+        
         if need_derived:
-            enriched = _compute_indicators(df)
-            if date == "latest":
-                row = enriched.iloc[-1]
-            else:
-                row = enriched.iloc[closest_idx]
+            df = _compute_indicators(df)
+            
+        row = df.iloc[closest_idx]
 
         def _pick(name: str) -> Optional[float]:
             name = name.lower()
-            if name in _PRICE_INDICATORS:
-                col = name.capitalize()  # Open/High/Low/Close/Volume
-            else:
-                col = name  # vwap/rsi/sma_50/... (colonnes ajoutées)
+            col = name.capitalize() if name in _PRICE_INDICATORS else name
             try:
                 val = row[col] if col in row.index else None
                 return None if pd.isna(val) else float(val)
@@ -138,9 +125,7 @@ def lookup_ohlc(
                 return None
 
         values = {i: _pick(i) for i in indicators}
-        if is_list_request:
-            return values
-        return values[indicators[0]]
+        return values if is_list_request else values[indicators[0]]
     except Exception as e:
         logger.error(f"Erreur lookup_ohlc({symbol}, {date}, {indicator}): {e}")
         return {i: None for i in indicators} if is_list_request else None

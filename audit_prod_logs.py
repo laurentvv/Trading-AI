@@ -18,7 +18,7 @@ import pickle
 import sqlite3
 import sys
 from collections import Counter
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 
 import numpy as np
@@ -486,7 +486,7 @@ def audit_backtest(journal):
     lines = [
         f"- **Periode:** {start} -> {end}",
         f"- **Signaux journaliers agreges:** {len(daily)}",
-        f"- **Source prix:** `logs_prod/data_cache/` (cache prod, a jour)",
+        "- **Source prix:** `logs_prod/data_cache/` (cache prod, a jour)",
         "",
         "| Ticker | Strategie | Buy&Hold | Alpha | Sharpe (strat) | Win |",
         "|--------|-----------|----------|-------|----------------|-----|",
