@@ -54,8 +54,10 @@ PowerShell note: `uv run pytest ...` may fail with "Failed to canonicalize scrip
 - `docs/ADR-*.md` — architecture decision records
 - `memory-bank/` — long-form context (techContext, activeContext, systemPatterns, progress, projectbrief, productContext, improvement_proposals)
 
-## 5. Branching & commits
+## 5. Branching, Commits & Environment Rules
 
+- **OS Constraint (CRITICAL)**: Both DEV and PROD environments run on **Windows**. Never suggest Linux-only commands like `rm -rf`, `ls`, or `cat`. Use PowerShell equivalents (`Remove-Item -Recurse -Force`, `Get-ChildItem`, etc.) or CMD (`rmdir /s /q`).
+- **Cache Invalidation**: Folders like `data_cache/` and `logs_prod/` are gitignored. When pushing bug fixes related to corrupted data (e.g., TensorTrade policy collapse, broken EIA timestamps), you MUST explicitly remind the user to manually delete the affected caches on the PROD server after `git pull` (e.g., `Remove-Item -Recurse -Force data_cache\tensortrade` or running `uv run python refresh_cache.py`).
 - Long-lived branch: `main` (production state, schema-defended).
 - Validation branches: short-lived feature branches like `think-mode` for risky re-enablements.
 - **Never commit secrets** (`.env*`, `*.db`, `data_cache/`, `logs_prod/` are gitignored — keep them that way).
@@ -71,13 +73,15 @@ PowerShell note: `uv run pytest ...` may fail with "Failed to canonicalize scrip
   - It is **not** an 11th vote in `enhanced_decision_engine.py` / `model_performance.db` (the real-time per-cycle consensus). Wiring it into the consensus (and the T212 budget) is a deliberate follow-up.
 - `backtest_prod.py` reads `data_cache/` (repo root, ends ~2026-05-27) instead of `logs_prod/data_cache/` (prod, current). Its tables come back empty when the journal spans a period not covered by the root cache. Use `audit_prod_logs.py` for a backtest that reads the prod cache.
 
-### 6.1 Resolved follow-ups (ADR-002, branch `fix/decision-model-quality-audit`)
+### 6.1 Resolved follow-ups (Late June 2026 - ADR-002 Suite & Architecture)
 
-The end-of-June decision-model audit (`docs/ADR-002-decision-model-quality-audit.md`) remediated the structural bullish bias and the market-derived win_rate metric. Items no longer open:
+The end-of-June decision-model audit (`docs/ADR-002-decision-model-quality-audit.md`) remediated the structural bullish bias and the market-derived win_rate metric:
 
-- **win_rate metric** — `adaptive_weight_manager.py` previously scored models with `(returns > 0).mean()` (market up-day fraction, identical for all models). Replaced by per-signal `_signal_correct_mask`.
-- **Bullish bias (5 mechanisms)** — asymmetric SELL threshold (0.40 vs BUY 0.20), BUY-only Super-Consensus Boost, EXIT INERTIA with no stop-loss bypass, timesfm's `SELL→HOLD when FLAT` filter, and uncalibrated tensortrade confidence — all fixed. New invariant: `MIN_CONFIDENCE_FOR_SELL == MIN_CONFIDENCE_FOR_ACTION`, `SUPER_CONSENSUS_BOOST == 0.0`, `hard_stop_drawdown` bypass in `advanced_risk_manager.py`.
-- **Weights** — repondered by `edge_buy` (not the artefact metric). `llm_text` 0.21→0.12 (worst edge), `oil_bench` 0.05→0.08.
+- **win_rate metric & Accuracy** — Replaced absolute 0 baseline. A `BUY` is now only rewarded if the return exceeds the `HOLD_NEUTRAL_RETURN_THRESHOLD` (0.5% buffer covering volatility/fees). `HOLD` is rewarded if the market is flat. This stops blindly optimistic models from farming points during slight market drift.
+- **Bullish bias & Overfitting** — 
+  - *TensorTrade*: Disabled continuous `model.learn(total_timesteps=500)` during cached inference, which was causing catastrophic policy collapse (stuck on BUY 1.00). 
+  - *LLM Visual*: Increased temperature to 0.4 and hardened the prompt to force `HOLD` on ambiguous charts, ending deterministic output spam.
+- **Hybrid LLM Architecture** — `get_llm_decision` now prioritizes a Cloud-based "Frontier Model" via `free-llm-api-keys` (for high-IQ text/macro analysis), with an instant, silent fallback to local Ollama (Gemma 4 12B) on API 503 errors. Vision (VL) strictly remains on Ollama, as free proxies reject image payloads.
 
 Still open after ADR-002: isotonic tensortrade recalibration (cap is interim), upstream sentiment-data skew, unifying the two `regime_adjustments` dicts, FinAcumen consensus wiring, `return_5d` population.
 

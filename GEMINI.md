@@ -9,6 +9,7 @@ Ce projet est un système expert d'aide à la décision pour le trading d'ETFs N
 Le moteur fusionne un modèle quantitatif classique, un LLM textuel (Gemma 4), un LLM visuel (analyse de graphiques), le modèle de fondation **TimesFM 2.5** (Google Research), et le **Modèle Vincent Ganne** (Géopolitique & Cross-Asset).
 
 ### Nouveautés majeures :
+- **Architecture LLM Hybride Cloud/Local :** Intégration de `free-llm-api-keys` pour exploiter l'intelligence des "Frontier Models" du cloud sur le texte, avec un fallback de sécurité 100% robuste (et l'exclusivité du traitement graphique) sur Ollama local.
 - **Sécurité Anti-Perte & Trailing Stop :** Blocage automatique des ventes à perte et déclenchement de prises de profits (Stop Suiveur 3%) pour sécuriser le cash.
 - **Inversion du Risque Pétrole :** Le système reconnaît désormais que la haute volatilité est un signal haussier pour le pétrole et booste les scores d'achat en conséquence.
 - **Mémoire de Performance :** Enregistrement de chaque décision individuelle dans `model_performance.db` pour l'ajustement automatique des poids via le Weight Manager.
