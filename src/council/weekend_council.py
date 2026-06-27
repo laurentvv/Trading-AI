@@ -87,7 +87,9 @@ from free_llm_api_keys import FreeLLMClient
 from src.council.council_prompts import COUNCIL_MEMBERS, JUDGE_PROMPT
 
 def ask_llm(system_prompt: str, user_prompt: str) -> str:
-    """Uses FreeLLMClient to get a response, handling fallback internally if needed."""
+    """Uses FreeLLMClient to get a response, handling fallback internally if needed.
+    Raises Exception if both FreeLLMClient and the fallback Ollama fail.
+    """
     try:
         client = FreeLLMClient(type="texte")
         messages = [
@@ -103,7 +105,6 @@ def ask_llm(system_prompt: str, user_prompt: str) -> str:
         # Simple fallback to Ollama using requests
         try:
             import requests
-            import json
             url = "http://localhost:11434/api/generate"
             payload = {
                 "model": "gemma-4-12b-it-GGUF:Q6_K",
@@ -114,10 +115,10 @@ def ask_llm(system_prompt: str, user_prompt: str) -> str:
             resp = requests.post(url, json=payload, timeout=240)
             if resp.status_code == 200:
                 return resp.json().get("response", "No response from Ollama")
-            return f"Ollama error: {resp.status_code}"
+            raise RuntimeError(f"Ollama error: HTTP {resp.status_code}")
         except Exception as ollama_e:
             logger.error(f"Ollama fallback failed: {ollama_e}")
-            return f"Failed to get response: {ollama_e}"
+            raise RuntimeError(f"Failed to get response from both models: {ollama_e}")
 
 def run_council(days: int = 7) -> str:
     """Executes the weekend council process."""
@@ -134,8 +135,12 @@ def run_council(days: int = 7) -> str:
     for name, prompt_data in COUNCIL_MEMBERS.items():
         console.print(f"Interrogation de {name}...")
         user_prompt = f"Voici les données de la semaine:\n{context}\n\nQuelle est ton analyse selon ta perspective ?"
-        response = ask_llm(prompt_data["content"], user_prompt)
-        analyses[name] = response
+        try:
+            response = ask_llm(prompt_data["content"], user_prompt)
+            analyses[name] = response
+        except Exception as e:
+            logger.error(f"{name} indisponible: {e}")
+            analyses[name] = f"*{name} n'a pas pu analyser la situation (Erreur d'inférence).*"
 
     # ROUND 2: Debate
     console.print("[bold cyan]ROUND 2: Le Débat[/bold cyan]")
@@ -151,8 +156,12 @@ def run_council(days: int = 7) -> str:
             "Critique leurs positions, souligne leurs angles morts, et défends ton point de vue. "
             "Sois direct et incisif, mais constructif."
         )
-        response = ask_llm(prompt_data["content"], user_prompt)
-        debates[name] = response
+        try:
+            response = ask_llm(prompt_data["content"], user_prompt)
+            debates[name] = response
+        except Exception as e:
+            logger.error(f"{name} indisponible pour le débat: {e}")
+            debates[name] = f"*{name} a quitté le débat (Erreur d'inférence).*"
 
     # ROUND 3: Synthesis by the Judge
     console.print("[bold cyan]ROUND 3: Le Verdict du Juge[/bold cyan]")
@@ -163,7 +172,11 @@ def run_council(days: int = 7) -> str:
     judge_prompt = JUDGE_PROMPT["content"]
     user_prompt = f"Voici les débats complets de tes conseillers :\n\n{full_transcript}\n\nRends ton verdict final."
     console.print("Le Juge délibère...")
-    verdict = ask_llm(judge_prompt, user_prompt)
+    try:
+        verdict = ask_llm(judge_prompt, user_prompt)
+    except Exception as e:
+        logger.error(f"Le Juge est indisponible: {e}")
+        verdict = f"*Le Juge n'a pas pu rendre son verdict (Erreur d'inférence). Le conseil est ajourné.*"
 
     # Assemble Final Report
     final_report = f"# Rapport du Conseil d'Intelligence Artificielle\n\n"
