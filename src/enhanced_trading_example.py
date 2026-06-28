@@ -28,7 +28,7 @@ except ImportError:
 
 from features import create_technical_indicators, create_features, select_features
 from classic_model import train_ensemble_model, get_classic_prediction
-from llm_client import get_llm_decision, get_visual_llm_decision
+from llm_client import get_llm_decision, get_visual_llm_decision, get_council_ticker_stance
 from sentiment_analysis import get_sentiment_decision_from_score
 from web_researcher import generate_search_query, get_web_context_sync, get_fallback_search_query
 
@@ -632,6 +632,10 @@ class EnhancedTradingSystem:
                 logger.error(f"OilBench model failed (isolated): {e}")
                 oil_bench_decision = None
 
+        # Weekend council verdict (Niveau 3): retrieve the age-decayed stance
+        # for this ticker so the council votes as an 11th weighted voice.
+        council_stance = get_council_ticker_stance(self.analysis_ticker)
+
         enhanced_decision = self.decision_engine.make_enhanced_decision(
             classic_pred=model_predictions["classic"]["prediction"],
             classic_conf=model_predictions["classic"]["confidence"],
@@ -646,6 +650,7 @@ class EnhancedTradingSystem:
             hmm_decision=model_predictions["hmm_model"],
             market_data=market_data,
             adaptive_weights=weight_adjustment.model_weights,
+            council_stance=council_stance,
         )
 
         logger.info(f"Décision hybride: {enhanced_decision.final_signal}")

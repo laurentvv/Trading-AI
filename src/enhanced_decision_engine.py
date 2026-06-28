@@ -592,10 +592,16 @@ class EnhancedDecisionEngine:
         market_data: Dict = None,
         adaptive_weights: Dict[str, float] = None,
         generic_model_results: List[ModelDecision] = None,
+        council_stance: tuple = None,
     ) -> HybridDecision:
         """
         Enhanced decision making with consensus validation and risk management.
         Supports both legacy explicit parameters and new generic model results list.
+
+        council_stance: optional ``(signal, confidence)`` tuple from the weekend
+        council's verdict for this ticker (Niveau 3). If provided and non-empty,
+        the council becomes an 11th weighted vote. Confidence should already
+        reflect the age-decay applied upstream.
         """
         timestamp = datetime.now()
         market_data = market_data or {}
@@ -638,6 +644,25 @@ class EnhancedDecisionEngine:
                 "hmm_model": hmm_decision,
             }
             self._convert_legacy_inputs(timestamp, decisions, classic_pred, classic_conf, legacy_models, vincent_ganne_indicators)
+
+        # Council verdict (Niveau 3): an 11th weighted vote from the weekend
+        # retrospective. Only added if a parseable stance exists (graceful skip
+        # when no fresh report or ticker not mentioned).
+        if council_stance and council_stance[0]:
+            council_signal, council_conf = council_stance
+            decisions.append(
+                ModelDecision(
+                    signal=council_signal,
+                    confidence=max(0.0, min(1.0, council_conf)),
+                    strength=self._normalize_signal(council_signal),
+                    timestamp=timestamp,
+                    model_name="council",
+                    reasoning="Weekend AI Council verdict (age-decayed)",
+                )
+            )
+            logger.info(
+                f"Council vote: {council_signal} (conf={council_conf:.2f}) — added as 11th voice"
+            )
 
         if not decisions:
             logger.warning("No model decisions provided to EnhancedDecisionEngine")

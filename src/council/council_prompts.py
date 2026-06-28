@@ -203,7 +203,14 @@ JUDGE_PROMPT = {
         "5. **Recommandations pour la semaine prochaine** (claires, priorisées, "
         "avec un seuil/explicité qui permet de les exécuter).\n\n"
         "Commence TOUJOURS par les incertitudes (section 0). Parle en français "
-        "avec autorité. Sois concis et décisif."
+        "avec autorité. Sois concis et décisif.\n\n"
+        "IMPORTANT — VERDICT EXÉCUTABLE : termine OBLIGATOIREMENT par un bloc "
+        "exactement au format ci-dessous (une ligne par ticker vu dans le "
+        "contexte, signaux parmi BUY/SELL/HOLD, confiance entre 0.0 et 1.0). "
+        "Ce bloc est parsé automatiquement pour devenir une voix du consensus :\n"
+        "VERDICT_TICKER:\n"
+        "<TICKER1>: <BUY|SELL|HOLD> (<confiance 0.0-1.0>)\n"
+        "<TICKER2>: <BUY|SELL|HOLD> (<confiance 0.0-1.0>)"
     ),
 }
 

@@ -2,7 +2,12 @@ import unittest
 from unittest.mock import patch, MagicMock
 import json
 import requests
-from src.llm_client import _query_ollama, _extract_council_verdict, strip_thinking_debris
+from src.llm_client import (
+    _query_ollama,
+    _extract_council_verdict,
+    strip_thinking_debris,
+    get_council_ticker_stance,
+)
 
 
 class TestLLMClient(unittest.TestCase):
@@ -218,6 +223,80 @@ class TestCouncilVerdictContext(unittest.TestCase):
         mock_report.stem = "council_report_" + (datetime.now() + timedelta(days=2)).strftime("%Y-%m-%d")
         mock_find.return_value = mock_report
         self.assertEqual(get_council_verdict_context(), "")
+
+
+# A report body containing the parseable VERDICT_TICKER block the Judge is now
+# instructed to emit (see council_prompts.JUDGE_PROMPT).
+_TICKER_REPORT = """# Rapport
+## Verdict du Juge
+Synthèse qualitative. Notons que Le Stratège a dit BUY (0.75) en prose.
+
+VERDICT_TICKER:
+SXRV.DE: BUY (0.65)
+CRUDP.PA: SELL (0.90)
+"""
+
+
+class TestCouncilTickerStance(unittest.TestCase):
+    """Parses the Judge's VERDICT_TICKER block per ticker, with age decay."""
+
+    @patch("src.llm_client._latest_council_report_text", return_value=_TICKER_REPORT)
+    @patch("src.llm_client._council_report_age_days", return_value=0.0)
+    def test_parses_stance_per_ticker(self, _age, _text):
+        sig, conf = get_council_ticker_stance("SXRV.DE")
+        self.assertEqual(sig, "BUY")
+        self.assertAlmostEqual(conf, 0.65)
+        sig, conf = get_council_ticker_stance("CRUDP.PA")
+        self.assertEqual(sig, "SELL")
+        self.assertAlmostEqual(conf, 0.90)
+
+    @patch("src.llm_client._latest_council_report_text", return_value=_TICKER_REPORT)
+    @patch("src.llm_client._council_report_age_days", return_value=0.0)
+    def test_unknown_ticker_returns_none(self, _age, _text):
+        sig, conf = get_council_ticker_stance("UNKNOWN.X")
+        self.assertIsNone(sig)
+        self.assertEqual(conf, 0.0)
+
+    @patch("src.llm_client._latest_council_report_text", return_value=_TICKER_REPORT)
+    @patch("src.llm_client._council_report_age_days", return_value=None)
+    def test_no_fresh_report_returns_none(self, _age, _text):
+        """Stale or missing report → graceful skip (no council vote)."""
+        sig, conf = get_council_ticker_stance("SXRV.DE")
+        self.assertIsNone(sig)
+        self.assertEqual(conf, 0.0)
+
+    @patch("src.llm_client._latest_council_report_text", return_value=_TICKER_REPORT)
+    @patch("src.llm_client._council_report_age_days", return_value=3.0)
+    def test_decay_reduces_confidence_linearly(self, _age, _text):
+        """Day 3 → confidence × (1 - 3/7) = confidence × 0.571."""
+        sig, conf = get_council_ticker_stance("CRUDP.PA")
+        self.assertEqual(sig, "SELL")
+        self.assertAlmostEqual(conf, 0.90 * (1 - 3 / 7), places=3)
+
+    @patch("src.llm_client._latest_council_report_text", return_value=_TICKER_REPORT)
+    @patch("src.llm_client._council_report_age_days", return_value=7.0)
+    def test_decay_reaches_zero_at_day_7(self, _age, _text):
+        sig, conf = get_council_ticker_stance("CRUDP.PA")
+        self.assertEqual(sig, "SELL")
+        self.assertEqual(conf, 0.0)
+
+    @patch("src.llm_client._latest_council_report_text", return_value=_TICKER_REPORT)
+    @patch("src.llm_client._council_report_age_days", return_value=0.0)
+    def test_does_not_parse_prose_mentions(self, _age, _text):
+        """A stance mentioned in prose (not in VERDICT_TICKER block) is ignored.
+
+        The report body says 'BUY (0.75)' in narrative but the block says
+        SXRV.DE: BUY (0.65). We must pick up 0.65, not 0.75.
+        """
+        sig, conf = get_council_ticker_stance("SXRV.DE")
+        self.assertAlmostEqual(conf, 0.65)
+
+    @patch("src.llm_client._latest_council_report_text", return_value="")
+    @patch("src.llm_client._council_report_age_days", return_value=0.0)
+    def test_empty_report_returns_none(self, _age, _text):
+        sig, conf = get_council_ticker_stance("SXRV.DE")
+        self.assertIsNone(sig)
+        self.assertEqual(conf, 0.0)
 
 
 if __name__ == "__main__":

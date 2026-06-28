@@ -1,6 +1,7 @@
 import logging
 import requests
 import json
+import re
 import pandas as pd
 import base64
 from pathlib import Path
@@ -254,6 +255,90 @@ def get_council_verdict_context() -> str:
     except Exception as e:
         logger.warning(f"Failed to read council report {report_path}: {e}")
         return ""
+
+
+def _council_report_age_days() -> float | None:
+    """Returns the age in days of the latest council report, or None if missing/stale.
+
+    Shared by :func:`get_council_verdict_context` (text injection) and
+    :func:`get_council_ticker_stance` (consensus vote) so the freshness
+    logic stays in one place.
+    """
+    report_path = _find_latest_council_report()
+    if report_path is None:
+        return None
+    try:
+        date_str = report_path.stem.rsplit("_", 1)[-1]
+        report_date = datetime.strptime(date_str, "%Y-%m-%d")
+    except (ValueError, IndexError):
+        logger.warning(f"Could not parse date from council report filename: {report_path.name}")
+        return None
+    age_seconds = (datetime.now() - report_date).total_seconds()
+    if age_seconds < 0 or age_seconds > COUNCIL_STALENESS_SECONDS:
+        return None
+    return age_seconds / 86400.0
+
+
+def _latest_council_report_text() -> str:
+    """Returns the raw text of the latest council report, or '' if missing."""
+    report_path = _find_latest_council_report()
+    if report_path is None:
+        return ""
+    try:
+        with open(report_path, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception as e:
+        logger.warning(f"Failed to read council report {report_path}: {e}")
+        return ""
+
+
+_TICKER_VERDICT_RE = re.compile(
+    r"(?P<ticker>[\w.\-]+)\s*:\s*(?P<signal>BUY|SELL|HOLD)\s*\((?P<conf>[0-9]*\.?[0-9]+)\)",
+    re.IGNORECASE,
+)
+
+
+def get_council_ticker_stance(ticker: str) -> tuple[str | None, float]:
+    """Returns the council's (signal, effective_confidence) for a ticker.
+
+    The council's Judge emits a parseable ``VERDICT_TICKER:`` block at the end
+    of its report. This extracts the stance for the requested ticker and
+    applies a linear age decay: a fresh verdict (day 0) keeps full confidence,
+    decaying to 0 at day 7 (aligned with ``COUNCIL_STALENESS_SECONDS``).
+
+    Returns ``(None, 0.0)`` if no report, ticker absent, or stale — the caller
+    then omits the council vote (graceful, like any other optional model).
+    """
+    age_days = _council_report_age_days()
+    if age_days is None:
+        return (None, 0.0)
+
+    report_text = _latest_council_report_text()
+    if not report_text:
+        return (None, 0.0)
+
+    # Isolate the VERDICT_TICKER block so we don't accidentally parse a stance
+    # mentioned in the prose (e.g. "Le Stratège a dit BUY sur SXRV (0.75)").
+    block = ""
+    marker = report_text.find("VERDICT_TICKER")
+    if marker != -1:
+        block = report_text[marker:]
+
+    ticker_norm = ticker.strip().upper()
+    for m in _TICKER_VERDICT_RE.finditer(block):
+        if m.group("ticker").strip().upper() == ticker_norm:
+            signal = m.group("signal").upper()
+            try:
+                confidence = float(m.group("conf"))
+            except ValueError:
+                confidence = 0.0
+            confidence = max(0.0, min(1.0, confidence))
+            # Linear decay: full at day 0 → 0 at day 7.
+            decay = max(0.0, 1.0 - age_days / 7.0)
+            return (signal, confidence * decay)
+
+    logger.info(f"Council verdict found but no stance for ticker {ticker}")
+    return (None, 0.0)
 
 
 def construct_llm_prompt(
