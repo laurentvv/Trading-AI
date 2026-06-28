@@ -5,6 +5,30 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/
 
 ## [Unreleased]
 
+### Added — 2026-06-28 — Weekend Council (11th consensus voice)
+A weekly, async, multi-persona LLM retrospective that runs every **Saturday at 01:00** and feeds its verdict back into the real-time consensus as the **11th weighted vote** (9.5%). Adapted from [`0xNyk/council-of-high-intelligence`](https://github.com/0xNyk/council-of-high-intelligence). See `docs/ADR-003-weekend-council-11th-voice.md`.
+
+- **6 personas on 5 distinct model families** for genuine reasoning diversity (not costume changes on one model): Le Stratège (Gemma 4 12B), Le Gestionnaire de Risque (GLM-4.6V-Flash), Le Quant (Qwen 3.5 9B), Le Sceptique (LFM 2.5 Mamba), Le Tacticien (Mistral Nemo 12B), Le Comportementaliste (LFM 2.5). The Judge runs on **Qwen3.5-9B-MTP** (IFEval 91.5, 262K context).
+- **4-round protocol** with anti-groupthink: (0) Problem Restate Gate, (1) targeted analysis with explicit `STANCE: BUY|SELL|HOLD (X%)`, dissent quota that forces a steelman if ≥2/3 majority converges, (2) 1-vs-1 directed debate, (3) Judge verdict (Unresolved-Questions-first).
+- **Level 3 integration** — the Judge emits a parseable `VERDICT_TICKER:` block per ticker; `get_council_ticker_stance()` parses it and adds a `ModelDecision(model_name="council")` at weight 0.10. Confidence **decays linearly** (full at day 0 → 0 at day 7). Council is exempt from the adaptive weight loop (`fixed_weight_models`) since its correctness can't be measured against per-cycle market direction.
+- **Real PROD context** — analyses model accuracy (`model_performance.db`), portfolio metrics + critical alerts (`performance_monitor.db`), and the trading journal (bias detector), not a generic market feed.
+- **Generous token budgets** tuned for thinking models on CPU: `num_predict` up to 12000 (Judge), `num_ctx` up to 65536, 15-min per-call Ollama timeout, 48-hour scheduler window (`COUNCIL_TIMEOUT = 172800`).
+- **Setup**: `uv run python setup_council_models.py` installs the 6 required models (~40 GB, idempotent). `schedule_test.py` forces a one-off trigger for validation.
+
+### Fixed — 2026-06-28 — Council code review (6 bugs, incl. critical inert vote)
+A thorough audit of the initial Level 3 commit found the council vote was **inert in production**. The fixes (commit `2ccd26c`):
+- **Ticker mismatch (CRITICAL)** — the call site passed `self.analysis_ticker` (`^NDX`) but the verdict uses trading tickers (`SXRV.DE`); never matched → always skipped. Now passes `self.ticker`.
+- **Freshness duplication** — unified into `_load_fresh_council_report()` (text-injection and vote previously had separate, drift-prone copies).
+- **Adaptive weight drift** — `fixed_weight_models` exemption prevents the manager from silently rescaling the 0.10 weight via a neutral performance score.
+- **Parser robustness** — French decimal comma (`0,65`), percent rescaling (`85` → `0.85`), `rfind` for block isolation.
+- **DB pollution** — council excluded from outcome tracking (no resolvable outcome).
+
+### Tests — 2026-06-28
+- `tests/test_weekend_council.py` (22 tests): routing, dissent quota, vote tally, models footer, graceful degradation.
+- `tests/test_llm_client.py`: `TestCouncilTickerStance` (8 tests) + `TestStripThinkingDebris` (4) + `TestCouncilVerdictExtraction` (5) + `TestCouncilVerdictContext` (4).
+- `tests/test_enhanced_decision_engine.py`: `TestCouncilVoteIntegration` (4 tests) — confirms a council SELL vote measurably lowers the weighted score.
+- Full suite: **84 green**, Ruff clean.
+
 ### Added — 2026-06-23
 - **`audit_prod_logs.py`** — new standalone auditor that validates **all** files in `logs_prod/` (catalogue, SQLite integrity/row-counts, parquet freshness + June-2026 coverage, JSON search-query caches, pickle models + TensorTrade metadata), runs a **corrected backtest** against the prod cache (`logs_prod/data_cache/`, current — not the stale repo-root `data_cache/`), and a dedicated FinAcumen section (state-file analysis + deterministic tool-chain proof). Emits `logs_prod/audit_report.md` with an OK/WARN/FAIL verdict.
 
