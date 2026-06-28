@@ -146,7 +146,7 @@ The system leverages a highly robust, multi-tier architecture to ensure maximum 
   3. **Free LLM API Proxies**: Backup via `free-llm-api-keys`.
   4. **Local Ollama**: 100% robust, offline CPU fallback if all cloud services fail.
 - **Cost Protection**: The system includes a strictly enforced daily limit (`GEMINI_PAY_DAILY_CAP`) for the paid tier to prevent accidental billing overruns.
-- **Integration**: Both the main daily execution engine (`main.py`) and the asynchronous Weekend Council (`council`) heavily rely on Gemini for their multi-model consensus and deep analytical reporting.
+- **Integration**: The main daily execution engine (`main.py`) uses Gemini for real-time multi-model consensus, while the asynchronous Weekend Council (`council`) integrates Gemini specifically for certain roles (like the Judge and Sceptique) alongside diverse local Ollama models.
 
 ### 🧠 FinAcumen (Financial Memory)
 L'architecture FinAcumen a été intégrée pour doter les modèles IA locaux d'une **mémoire d'expérience** et d'outils déterministes. Cela résout le problème de l'amnésie des LLMs.
