@@ -128,6 +128,33 @@ WEB_SUMMARY_CASCADE_FREE = (
     "gemini-2.0-flash-lite",
 )
 
+# --- Weekend Council cascades (prose mode, no JSON schema) ----------------
+# The council emits free-text analyses, not structured decisions. The Sceptique
+# and Comportementaliste (the two members that previously shared a weak 1.2B
+# LFM model and produced a broken "SELL|HOLD|BUY" placeholder) run on the FREE
+# cascade — they fire many times per run, so the free tier preserves billing.
+COUNCIL_MEMBER_CASCADE_FREE = (
+    "gemini-2.5-flash",        # primary: fast, strong instruction-following
+    "gemini-3.1-flash-lite",   # huge RPD budget, decent reasoning
+    "gemini-2.5-flash-lite",
+    "gemma-4-26b",             # text-only safety net
+)
+# The Judge fires ONCE per run but performs the hardest job (synthesising the
+# full transcript into a structured verdict). It runs on the PAID cascade so
+# Gemini 2.5 Pro can anchor it — but the QuotaTracker daily cap still protects
+# billing (see DEFAULT_PAID_DAILY_CAP).
+COUNCIL_JUDGE_CASCADE_PAID = (
+    "gemini-2.5-pro",          # best synthesis, paid-only
+    "gemini-3.5-flash",
+    "gemini-3.1-pro",
+    "gemini-2.5-flash",        # safety net within paid tier
+)
+COUNCIL_JUDGE_CASCADE_FREE = (
+    "gemini-3.5-flash",
+    "gemini-2.5-flash",
+    "gemma-4-26b",
+)
+
 # JSON schema enforced server-side via ``response_schema``. Mirrors the Ollama
 # ``SCHEMA_TRADING_DECISION`` so a Gemini decision is a drop-in replacement.
 _TRADING_DECISION_SCHEMA = {
@@ -388,6 +415,53 @@ class GeminiGateway:
             json_schema=_TRADING_DECISION_SCHEMA,
         )
         return self._parse_decision(text)
+
+    def deliberate(
+        self,
+        system_instruction: str,
+        user_prompt: str,
+        *,
+        use_paid: bool = False,
+        temperature: float = 0.7,
+        max_output_tokens: int = 8192,
+    ) -> Optional[str]:
+        """Free-prose deliberation for the Weekend Council members and Judge.
+
+        Unlike :meth:`decide` (structured JSON trading decision), this emits
+        free text — council members write analyses, critiques, and a structured
+        (but non-JSON) verdict. The caller (``weekend_council.ask_llm``) decides
+        the tier: members fire many times per run so they use the FREE cascade
+        (preserves billing); the Judge fires once but does the hardest job, so
+        it uses the PAID cascade (Gemini 2.5 Pro anchors it).
+
+        Returns the prose text, or ``None`` if every model in both cascades
+        failed (the caller then falls back to local Ollama).
+
+        No ``response_schema`` is enforced — the council's STANCE/VERDICT
+        parsing is intentionally tolerant of prose variation (see
+        ``weekend_council._parse_stance``).
+        """
+        if not self.enabled or not user_prompt or not user_prompt.strip():
+            return None
+        if use_paid:
+            paid_cascade = COUNCIL_JUDGE_CASCADE_PAID
+            free_cascade = COUNCIL_JUDGE_CASCADE_FREE
+        else:
+            paid_cascade = COUNCIL_MEMBER_CASCADE_FREE  # unused (free-only)
+            free_cascade = COUNCIL_MEMBER_CASCADE_FREE
+        # Members run free-only (use_free_only=True) to preserve the paid budget
+        # for the Judge and the real-time decision/vision calls.
+        text, _tier, _model = self._run_tiered(
+            user_prompt,
+            paid_cascade=paid_cascade,
+            free_cascade=free_cascade,
+            use_free_only=not use_paid,
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
+            system_instruction=system_instruction,
+            json_schema=None,
+        )
+        return text
 
     # ------------------------------------------------------------------ #
     # Helpers

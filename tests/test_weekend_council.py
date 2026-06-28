@@ -163,6 +163,97 @@ class TestAskLLMRouting(unittest.TestCase):
             wc.ask_llm("sys", "user", model=wc.TEXT_LLM_MODEL)
 
 
+class TestGeminiRouting(unittest.TestCase):
+    """Models prefixed ``gemini:`` route through the shared GeminiGateway."""
+
+    def test_is_gemini_model_detects_prefix(self):
+        self.assertTrue(wc.is_gemini_model("gemini:2.5-flash"))
+        self.assertTrue(wc.is_gemini_model("gemini:pro"))
+        self.assertFalse(wc.is_gemini_model("qwen3.5:9b"))
+        self.assertFalse(wc.is_gemini_model(None))
+        self.assertFalse(wc.is_gemini_model(""))
+
+    def test_judge_model_is_gemini(self):
+        """The Judge must be on the cloud (PAID cascade) — faster + higher IQ."""
+        self.assertTrue(wc.is_gemini_model(wc.JUDGE_MODEL))
+
+    def test_member_and_judge_assignments(self):
+        """Sceptique + Comportementaliste on Gemini; the other 4 stay local."""
+        gemini_members = [n for n, m in wc.MEMBER_MODELS.items() if wc.is_gemini_model(m)]
+        self.assertEqual(sorted(gemini_members), ["Le Comportementaliste", "Le Sceptique"])
+        # 4 distinct local lineages + 1 cloud lineage = 5 families total.
+        local = [m for m in wc.MEMBER_MODELS.values() if not wc.is_gemini_model(m)]
+        self.assertEqual(len(set(local)), 4)
+
+    @patch.object(wc, "_get_gateway")
+    @patch.object(wc, "_ollama_chat")
+    def test_gemini_prefix_uses_gateway_not_ollama(self, mock_ollama, mock_get_gw):
+        """A gemini: model goes to GeminiGateway.deliberate, never to Ollama."""
+        gw = MagicMock()
+        gw.enabled = True
+        gw.deliberate.return_value = "réponse cloud"
+        mock_get_gw.return_value = gw
+        out = wc.ask_llm("sys", "user", model="gemini:2.5-flash")
+        self.assertEqual(out, "réponse cloud")
+        gw.deliberate.assert_called_once()
+        mock_ollama.assert_not_called()
+
+    @patch.object(wc, "_get_gateway")
+    @patch.object(wc, "_ollama_chat", return_value="réponse locale")
+    @patch.object(wc, "_model_available", return_value=True)
+    def test_non_gemini_uses_ollama(self, mock_avail, mock_ollama, mock_get_gw):
+        """A local model goes to Ollama, never to the gateway."""
+        out = wc.ask_llm("sys", "user", model="qwen3.5:9b")
+        self.assertEqual(out, "réponse locale")
+        mock_ollama.assert_called_once()
+        mock_get_gw.assert_not_called()
+
+    @patch.object(wc, "_get_gateway")
+    @patch.object(wc, "_ollama_chat", return_value="fallback ollama")
+    @patch.object(wc, "_model_available", return_value=True)
+    def test_gemini_returns_none_falls_back_to_ollama(self, mock_avail, mock_ollama, mock_get_gw):
+        """When the gateway returns None (quota/429 exhausted), degrade to Ollama."""
+        gw = MagicMock()
+        gw.enabled = True
+        gw.deliberate.return_value = None  # gateway exhausted
+        mock_get_gw.return_value = gw
+        out = wc.ask_llm("sys", "user", model="gemini:2.5-flash")
+        self.assertEqual(out, "fallback ollama")
+        gw.deliberate.assert_called_once()
+        mock_ollama.assert_called_once()
+
+    @patch.object(wc, "_get_gateway")
+    @patch.object(wc, "_ollama_chat", return_value="fallback ollama")
+    def test_gemini_disabled_falls_back_to_ollama(self, mock_ollama, mock_get_gw):
+        """A disabled gateway (no keys/SDK) degrades silently to Ollama."""
+        gw = MagicMock()
+        gw.enabled = False
+        mock_get_gw.return_value = gw
+        out = wc.ask_llm("sys", "user", model="gemini:2.5-flash")
+        self.assertEqual(out, "fallback ollama")
+        gw.deliberate.assert_not_called()
+
+    @patch.object(wc, "_get_gateway")
+    def test_judge_uses_paid_cascade(self, mock_get_gw):
+        """The Judge (gemini:pro) must request the PAID cascade from the gateway."""
+        gw = MagicMock()
+        gw.enabled = True
+        gw.deliberate.return_value = "verdict"
+        mock_get_gw.return_value = gw
+        wc.ask_llm("sys", "user", model=wc.JUDGE_MODEL)
+        self.assertTrue(gw.deliberate.call_args.kwargs.get("use_paid"))
+
+    @patch.object(wc, "_get_gateway")
+    def test_member_uses_free_cascade(self, mock_get_gw):
+        """Members (gemini:2.5-flash) must request the FREE cascade."""
+        gw = MagicMock()
+        gw.enabled = True
+        gw.deliberate.return_value = "analyse"
+        mock_get_gw.return_value = gw
+        wc.ask_llm("sys", "user", model="gemini:2.5-flash")
+        self.assertFalse(gw.deliberate.call_args.kwargs.get("use_paid"))
+
+
 class TestRunCouncil(unittest.TestCase):
     """Orchestration: 3 rounds, graceful degradation on failure."""
 

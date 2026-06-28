@@ -9,6 +9,14 @@ Three rounds:
 
 Prose-only: unlike the real-time decision call sites, this module emits free
 text, so the dual-layer JSON defence (ADR-001) does NOT apply here.
+
+Hybrid cloud: members prefixed ``gemini:`` are routed to the Google Gemini API
+through the shared :class:`~src.gemini_gateway.GeminiGateway` (the same two-tier
+gateway + QuotaTracker used by ``get_llm_decision``). Members run the FREE
+cascade (preserves the paid budget); the Judge runs the PAID cascade (Gemini
+2.5 Pro anchors it, bounded by ``GEMINI_PAY_DAILY_CAP``). On any cloud failure
+(all models 429/503, quota exhausted), the gateway returns ``None`` and
+``ask_llm`` falls back to local Ollama — the council never hard-fails.
 """
 
 import logging
@@ -18,6 +26,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
+from dotenv import load_dotenv
 
 from src.council.council_prompts import (
     COUNCIL_MEMBERS,
@@ -32,12 +41,54 @@ from src.council.council_prompts import (
 from src.database import DB_PATH
 from src.llm_client import OLLAMA_BASE_URL, TEXT_LLM_MODEL, strip_thinking_debris
 
+# Load GEMINI_API_KEY / GEMINI_API_KEY_PAY so the gateway can authenticate.
+# Per project convention (see src/data.py, src/gemini_gateway.py).
+load_dotenv()
+
 logger = logging.getLogger("WeekendCouncil")
 
 OLLAMA_CHAT_URL = f"{OLLAMA_BASE_URL}/api/chat"
 # Generous timeout: the council runs async over the weekend on CPU, where a
 # 12B model can take several minutes per call (no GPU acceleration).
 _OLLAMA_TIMEOUT = 3600
+
+
+# ---------------------------------------------------------------------------
+# Cloud routing — which members go to Gemini?
+# ---------------------------------------------------------------------------
+# A model string prefixed with this token is routed to the Gemini cloud backend
+# (via GeminiGateway) instead of the local Ollama server. The gateway handles
+# tier selection (free for members, paid for the Judge), cascades, and quota.
+GEMINI_PREFIX = "gemini:"
+
+# Module-level gateway singleton. Instantiated lazily so import-time failures
+# (missing SDK, bad key) never crash the module — the council simply degrades
+# to Ollama for its Gemini members.
+_gateway_instance = None
+
+
+def _get_gateway():
+    """Returns a lazily-initialised GeminiGateway singleton (or None)."""
+    global _gateway_instance
+    if _gateway_instance is None:
+        try:
+            from src.gemini_gateway import GeminiGateway
+
+            _gateway_instance = GeminiGateway()
+            if not _gateway_instance.enabled:
+                logger.warning(
+                    "GeminiGateway disabled (no keys / SDK missing) — Gemini "
+                    "council members will fall back to Ollama."
+                )
+        except Exception as e:
+            logger.warning(f"GeminiGateway init failed: {e} — falling back to Ollama.")
+            _gateway_instance = None
+    return _gateway_instance
+
+
+def is_gemini_model(model: str | None) -> bool:
+    """True if ``model`` is routed to the Gemini cloud backend."""
+    return bool(model) and model.startswith(GEMINI_PREFIX)
 
 
 def fetch_recent_transactions(days: int = 7) -> pd.DataFrame:
@@ -404,24 +455,63 @@ def ask_llm(
     num_predict: int = 8192,
     num_ctx: int = 32768,
 ) -> str:
-    """Queries a specific Ollama model per persona (genuine reasoning diversity).
+    """Queries a specific model per persona (genuine reasoning diversity).
 
     The core of the council design: each member runs on a DIFFERENT model
-    family (Gemma / GLM / Qwen / LFM) so their analyses diverge structurally
-    instead of being costume changes on one model.
+    family so their analyses diverge structurally instead of being costume
+    changes on one model. Two backends are supported:
+
+      - ``gemini:<id>``  → Google Gemini via the shared ``GeminiGateway``
+        (cloud, ~seconds). Members use the FREE cascade; the Judge uses the
+        PAID cascade. Quota/billing are tracked by ``QuotaTracker`` (same
+        ledger as ``get_llm_decision``).
+      - any other string → local Ollama model (Gemma / GLM / Qwen / Mistral).
+
+    On any failure (gateway returns ``None``, model missing, runtime error),
+    falls back to ``TEXT_LLM_MODEL`` (the canonical local default) so the
+    council degrades gracefully rather than failing entirely.
 
     Args:
-        model: The persona's assigned Ollama model. If ``None`` or unavailable,
-            falls back to ``TEXT_LLM_MODEL`` (the canonical default) so the
-            council degrades gracefully rather than failing entirely.
+        model: The persona's assigned model. If ``None`` or unavailable, falls
+            back to ``TEXT_LLM_MODEL``.
         num_predict: Token budget. The Judge gets a larger budget because its
             input (full transcript) is the longest.
 
     Output is scrubbed of think-channel debris so reports stay readable
     regardless of which backend answered.
     """
-    target = model if (model and _model_available(model)) else TEXT_LLM_MODEL
-    if model and target != model:
+    # --- Cloud (Gemini) path via the shared gateway -------------------------
+    # The gateway returns None when every model in both cascades failed or the
+    # quota is exhausted — in that case we fall through to the Ollama path.
+    if is_gemini_model(model):
+        gateway = _get_gateway()
+        if gateway is not None and gateway.enabled:
+            # The Judge (gemini:2.5-pro / gemini:pro-*) runs the PAID cascade;
+            # members (gemini:2.5-flash etc.) run the FREE cascade.
+            use_paid = "pro" in model.lower()
+            tier_label = "paid" if use_paid else "free"
+            logger.info(f"Querying Gemini ({tier_label}) for: {model}")
+            try:
+                text = gateway.deliberate(
+                    system_prompt, user_prompt,
+                    use_paid=use_paid,
+                    temperature=temperature,
+                    max_output_tokens=num_predict,
+                )
+            except Exception as e:
+                logger.error(f"GeminiGateway.deliberate raised: {e}")
+                text = None
+            if text is not None:
+                return strip_thinking_debris(text)
+            logger.warning(
+                f"Gemini ({model}) returned no response — falling back to "
+                f"{TEXT_LLM_MODEL} (Ollama)."
+            )
+            # Fall through to the Ollama path below.
+
+    # --- Local (Ollama) path -------------------------------------------------
+    target = model if (model and not is_gemini_model(model) and _model_available(model)) else TEXT_LLM_MODEL
+    if model and target != model and not is_gemini_model(model):
         logger.warning(
             f"Modèle '{model}' non installé — fallback sur {TEXT_LLM_MODEL}. "
             f"La diversité de raisonnement sera réduite pour ce membre."
