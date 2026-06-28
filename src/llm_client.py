@@ -171,10 +171,10 @@ def get_morning_brief_context() -> str:
 
 # Council verdict is a weekly retrospective, not a daily artefact: a report
 # produced on the weekend must stay relevant through the following trading
-# week. The council runs Sat AND Sun (07:00), so the freshest report on a
-# Monday is Sunday's. 7 days covers Sun → Sun (the full week until the next
-# weekend's run). Picked by filename date (robust to git-pull mtime resets),
-# unlike the morning brief which uses mtime.
+# week. The council runs ONCE per week on Saturday at 01:00, so a report
+# produced Saturday must stay fresh until the next Saturday's run. 7 days
+# covers the full week. Picked by filename date (robust to git-pull mtime
+# resets), unlike the morning brief which uses mtime.
 COUNCIL_REPORTS_DIR = Path("docs/council_reports")
 COUNCIL_STALENESS_SECONDS = 7 * 86400
 

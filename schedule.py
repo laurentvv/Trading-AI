@@ -17,8 +17,9 @@ END_HOUR = 18
 END_MINUTE = 0
 MORNING_BRIEF_HOUR = 1
 MORNING_BRIEF_MINUTE = 0
-COUNCIL_HOUR = 9          # Saturday & Sunday 09:00
+COUNCIL_HOUR = 1          # Saturday 01:00 (once per week)
 COUNCIL_MINUTE = 0
+COUNCIL_DAY = 5           # Saturday (0=Mon ... 5=Sat, 6=Sun)
 COUNCIL_DAYS_ANALYZED = 7
 COUNCIL_TIMEOUT = 3600    # 1h, same guardrail as FinAcumen
 
@@ -247,12 +248,13 @@ def main():
                         run_morning_brief()
                         last_morning_brief_date = now.date()
 
-                # Check for Weekend Council (Saturday=5, Sunday=6).
-                # The anti-double-execution guard combines an in-memory flag
-                # AND a persistent check: if today's report already exists on
-                # disk (e.g. the scheduler crashed mid-council and restarted),
-                # skip the run instead of redoing the whole 6-member council.
-                if now.weekday() >= 5:
+                # Check for Weekend Council — runs ONCE per week on Saturday
+                # at COUNCIL_HOUR (default 01:00). The anti-double-execution guard
+                # combines an in-memory flag AND a persistent check: if today's
+                # report already exists on disk (e.g. the scheduler crashed
+                # mid-council and restarted), skip the run instead of redoing
+                # the whole 6-member council.
+                if now.weekday() == COUNCIL_DAY:
                     if now.hour == COUNCIL_HOUR and now.minute >= COUNCIL_MINUTE:
                         if last_council_date != now.date():
                             from pathlib import Path
@@ -269,14 +271,15 @@ def main():
             else:
                 mb_status = f"[bold yellow]En attente ({MORNING_BRIEF_HOUR:02d}:{MORNING_BRIEF_MINUTE:02d})[/bold yellow]"
 
-            # Council status: only meaningful on weekends
-            if now.weekday() >= 5:
+            # Council status: only meaningful on Saturday (the weekly run day)
+            if now.weekday() == COUNCIL_DAY:
                 if last_council_date == now.date():
                     council_status = "[bold green]Terminé aujourd'hui[/bold green]"
                 else:
                     council_status = f"[bold yellow]En attente ({COUNCIL_HOUR:02d}:{COUNCIL_MINUTE:02d})[/bold yellow]"
             else:
-                council_status = "[dim]Hors week-end[/dim]"
+                days = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
+                council_status = f"[dim]Hors samedi (prochain: {days[COUNCIL_DAY]} {COUNCIL_HOUR:02d}:{COUNCIL_MINUTE:02d})[/dim]"
 
             # Affichage Dashboard
             console.clear()

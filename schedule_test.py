@@ -4,7 +4,8 @@ du council SANS attendre le vrai samedi/dimanche 09:00.
 
 Différences avec l'original :
   - COUNCIL_HOUR est forcé à (maintenant + 2 minutes) pour déclencher dans ~2 min.
-  - Le check weekday() >= 5 est forcé à True (on simule un week-end).
+  - Le check weekday() == COUNCIL_DAY (samedi) est forcé à True (on simule
+    un samedi à l'heure cible, quel que soit le vrai jour).
   - Le cycle de trading ET le morning brief sont désactivés (on ne teste qu'eux
     secondairement ; ici on valide le pipe scheduler → subprocess → council).
   - Sleep réduit à 15s pour la réactivité du test.
@@ -37,8 +38,8 @@ COUNCIL_HOUR = _TRIGGER_AT.hour
 COUNCIL_MINUTE = _TRIGGER_AT.minute
 COUNCIL_DAYS_ANALYZED = 7
 COUNCIL_TIMEOUT = 3600
-# Forcé : on simule un jour de week-end quel que soit le vrai jour.
-FORCE_WEEKEND = True
+# Forcé : on simule un samedi (COUNCIL_DAY=5) quel que soit le vrai jour.
+FORCE_SATURDAY = True
 
 # --- Logging ---------------------------------------------------------------
 logging.basicConfig(
@@ -88,7 +89,7 @@ def get_dashboard(status_msg, council_status):
     table.add_column("Valeur", style="white")
     table.add_row("Statut test", f"[bold]{status_msg}[/bold]")
     table.add_row("Council déclenché à", f"[bold green]{COUNCIL_HOUR:02d}:{COUNCIL_MINUTE:02d}[/bold green]")
-    table.add_row("Conseil (simulé week-end)", f"{council_status}")
+    table.add_row("Conseil (simulé samedi)", f"{council_status}")
     table.add_row("Mode", "TEST (cycle trading + morning brief désactivés)")
     return Panel(
         table,
@@ -117,13 +118,13 @@ def main():
         while not triggered:
             now = datetime.now()
 
-            # Conditions de déclenchement : on simule week-end + créneau atteint.
-            is_weekend = FORCE_WEEKEND or now.weekday() >= 5
+            # Conditions de déclenchement : on simule samedi + créneau atteint.
+            is_saturday = FORCE_SATURDAY or now.weekday() == 5
             in_council_window = (
                 now.hour == COUNCIL_HOUR and now.minute >= COUNCIL_MINUTE
             )
 
-            if is_weekend and in_council_window:
+            if is_saturday and in_council_window:
                 if last_council_date != now.date():
                     console.print(
                         f"\n[bold green]>>> Déclenchement du council à "
