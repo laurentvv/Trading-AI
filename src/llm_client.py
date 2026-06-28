@@ -6,6 +6,7 @@ import base64
 from pathlib import Path
 import time
 import os
+from datetime import datetime
 from src.enhanced_decision_engine import ModelResult
 
 logger = logging.getLogger(__name__)
@@ -85,6 +86,25 @@ _THINKING_TOKENS = (
 )
 
 
+def strip_thinking_debris(text: str) -> str:
+    """Removes Gemma ``<|think|>`` channel debris from a prose string.
+
+    In prose mode (no JSON schema), the think channel can leak leading
+    ``<|channel>thought`` markers into the model's output. This helper strips
+    every token in :data:`_THINKING_TOKENS` and collapses the resulting blank
+    lines, returning clean text. Reused by the weekend council (prose mode)
+    so its reports stay readable.
+    """
+    cleaned = text
+    for tok in _THINKING_TOKENS:
+        cleaned = cleaned.replace(tok, "")
+    # Collapse 3+ consecutive newlines (left after stripping block tokens)
+    # down to a single blank line.
+    while "\n\n\n" in cleaned:
+        cleaned = cleaned.replace("\n\n\n", "\n\n")
+    return cleaned.strip()
+
+
 def _fallback_decision(expected_keys: list, *, reason: str = "all_retries_failed") -> dict:
     """Canonical HOLD fallback returned when LLM retries are exhausted.
 
@@ -148,6 +168,94 @@ def get_morning_brief_context() -> str:
     return ""
 
 
+# Council verdict is a weekly retrospective, not a daily artefact: a report
+# produced on the weekend must stay relevant through the following trading
+# week. The council runs Sat AND Sun (07:00), so the freshest report on a
+# Monday is Sunday's. 7 days covers Sun → Sun (the full week until the next
+# weekend's run). Picked by filename date (robust to git-pull mtime resets),
+# unlike the morning brief which uses mtime.
+COUNCIL_REPORTS_DIR = Path("docs/council_reports")
+COUNCIL_STALENESS_SECONDS = 7 * 86400
+
+
+def _find_latest_council_report() -> Path | None:
+    """Returns the most recent council report by date embedded in its filename.
+
+    The filename format is ``council_report_YYYY-MM-DD.md``. Sorting on the
+    filename date is more reliable than mtime, which a ``git pull`` or file
+    copy can reset.
+    """
+    if not COUNCIL_REPORTS_DIR.exists():
+        return None
+    candidates = sorted(COUNCIL_REPORTS_DIR.glob("council_report_*.md"), reverse=True)
+    return candidates[0] if candidates else None
+
+
+def _extract_council_verdict(report_text: str) -> str:
+    """Extracts the Judge's verdict section from a council report.
+
+    The verdict runs from ``## Verdict du Juge`` up to the ``## Annexe``
+    marker that precedes the full debate transcript. Only the verdict (the
+    actionable synthesis) is returned — the transcript is deliberately omitted
+    to keep the per-cycle prompt token cost bounded.
+
+    Note: the verdict itself often contains internal ``---`` separators (e.g.
+    between the intro and the recommendations), so we cannot cut at the first
+    ``---``. We cut at the ``## Annexe`` boundary instead.
+
+    The council runs in prose mode (no JSON schema), so Gemma's think channel
+    may leak leading ``<|channel>thought`` debris into the verdict. We strip
+    those tokens here so the injected strategic context stays clean.
+    """
+    marker = "## Verdict du Juge"
+    idx = report_text.find(marker)
+    if idx == -1:
+        return ""
+    section = report_text[idx + len(marker):]
+
+    # Cut at the Annexe boundary (the transcript), not the first --- separator,
+    # since the Judge's own verdict uses --- internally.
+    annexe_idx = section.find("## Annexe")
+    if annexe_idx != -1:
+        section = section[:annexe_idx]
+
+    return strip_thinking_debris(section)
+
+
+def get_council_verdict_context() -> str:
+    """Reads the most recent weekend-council verdict if still fresh (< 6 days).
+
+    Mirror of :func:`get_morning_brief_context`: injects the council's strategic
+    verdict into the per-cycle decision prompt so ``main.py`` benefits from the
+    weekend retrospective automatically.
+    """
+    report_path = _find_latest_council_report()
+    if report_path is None:
+        return ""
+
+    # Parse the date from the filename (council_report_YYYY-MM-DD.md).
+    try:
+        date_str = report_path.stem.rsplit("_", 1)[-1]
+        report_date = datetime.strptime(date_str, "%Y-%m-%d")
+    except (ValueError, IndexError):
+        logger.warning(f"Could not parse date from council report filename: {report_path.name}")
+        return ""
+
+    age_seconds = (datetime.now() - report_date).total_seconds()
+    if age_seconds > COUNCIL_STALENESS_SECONDS or age_seconds < 0:
+        return ""
+
+    try:
+        with open(report_path, "r", encoding="utf-8") as f:
+            verdict = _extract_council_verdict(f.read())
+        if not verdict:
+            return ""
+        return f"\n**Weekend AI Council Verdict (Strategic Context):**\n{verdict}\n"
+    except Exception as e:
+        logger.warning(f"Failed to read council report {report_path}: {e}")
+        return ""
+
+
 def construct_llm_prompt(
     latest_data: pd.DataFrame,
     headlines: list = None,
@@ -162,6 +270,7 @@ def construct_llm_prompt(
     news_text = "\n".join([f"- {h}" for h in headlines[:15]]) if headlines else "No recent news available."
     web_text = f"\n**Web Research / Macro Context:**\n{web_context}" if web_context else ""
     brief_text = get_morning_brief_context()
+    council_text = get_council_verdict_context()
 
     # Déterminer le contexte de l'actif
     asset_type = "OIL (WTI)" if "CRUD" in ticker.upper() or "CL=F" in ticker.upper() else "NASDAQ-100"
@@ -192,7 +301,7 @@ def construct_llm_prompt(
     - Long-term Trend: {"Bullish" if data["Trend_Long"] == 1 else "Bearish" if data["Trend_Long"] == -1 else "Neutral"}
     {hl_text}
     **Recent News Headlines:**
-    {news_text}{web_text}{brief_text}
+    {news_text}{web_text}{brief_text}{council_text}
 
     **Decision Rules for {asset_type}:**
     1. Priority: ACCURACY. If news contradict technicals or signals are weak/mixed, default to HOLD.

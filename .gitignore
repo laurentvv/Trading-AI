@@ -48,6 +48,7 @@ data_cache/
 logs/
 backtest_results/
 trading_data/
+docs/council_reports/
 api_keys.txt
 config.ini
 secrets.json

@@ -208,6 +208,7 @@ Follow these steps to set up your local development environment.
 - Python 3.12+ (via `uv`)
 - [Ollama](https://ollama.com/) installed and running locally.
 - Downloaded LLM model: `ollama pull hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K`
+- **Weekend Council models** (optional, but required for the council's reasoning diversity): the council runs each persona on a *different* model family (Gemma / GLM / Qwen / LFM). Install them all at once with `uv run python setup_council_models.py`.
 
 ### ⚙️ Installation
 
