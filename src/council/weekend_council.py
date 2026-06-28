@@ -37,7 +37,7 @@ logger = logging.getLogger("WeekendCouncil")
 OLLAMA_CHAT_URL = f"{OLLAMA_BASE_URL}/api/chat"
 # Generous timeout: the council runs async over the weekend on CPU, where a
 # 12B model can take several minutes per call (no GPU acceleration).
-_OLLAMA_TIMEOUT = 900
+_OLLAMA_TIMEOUT = 3600
 
 
 def fetch_recent_transactions(days: int = 7) -> pd.DataFrame:
