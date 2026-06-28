@@ -25,6 +25,12 @@ DEFAULT_BASE_WEIGHTS: Dict[str, float] = {
     "tensortrade": 0.04,    # 0.05 -> 0.04 (confiance non calibrée, cap ajouté)
     "grebenkov": 0.05,      # inchangé (correctif de logique appliqué au Groupe 2)
     "hmm_model": 0.04,      # 0.05 -> 0.04
+    # Council (juin 2026) : verdict hebdomadaire du weekend council (Niveau 3).
+    # Poids modéré : assez pour peser (~10%), sans dominer les modèles temps réel
+    # qui voient le marché en direct. La confiance décroît linéairement avec
+    # l'âge du verdict (get_council_ticker_stance), donc un verdict de 6 jours
+    # ne pèse presque plus. Absent si pas de rapport récent (graceful skip).
+    "council": 0.10,
 }
 # Somme = 0.95 (volontairement < 1.0 ; les poids sont renormalisés à 1.0
 # à l'usage dans EnhancedDecisionEngine.make_enhanced_decision et

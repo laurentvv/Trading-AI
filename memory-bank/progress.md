@@ -10,10 +10,17 @@
 - **Moteur Hybride Gemma 4**: Utilisation de `hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K` pour une analyse tri-modale (texte, vision, news) plus fine.
 - **Skill AlphaEar News**: Récupération des tendances financières "hot" (Weibo, WallstreetCN) intégrée au flux décisionnel.
 - **Nouveau Scheduler Autonome**: Script `schedule.py` gérant les horaires de marché (8h30-18h00) et l'intervalle de 30 minutes avec dashboard live.
+- **🏛️ Weekend Council (2026-06-28)**: Rétrospective multi-personas LLM hebdomadaire (samedi 01:00). 6 personas sur 5 familles de modèles distinctes (diversité de raisonnement réelle), protocole 4 rounds + anti-groupthink. Le verdict du Juge devient la **11ème voix pondérée** (9.5%) du consensus temps réel, avec décroissance linéaire sur 7 jours. Voire `docs/ADR-003`.
 
 ...
 
 ## 5. Corrections Récentes
+- **2026-06-28**: Weekend Council — implémentation + code review critique
+  * **Contexte** : Ajout d'une rétrospective stratégique hebdomadaire (6 personas LLM) comme 11ème voix du consensus (poids 9.5%, décroissance 7j). Inspiré de `0xNyk/council-of-high-intelligence`.
+  * **Code review critique** : L'audit post-implémentation a révélé que le vote council était **inerte en production** — le call site passait `self.analysis_ticker` (`^NDX`) au lieu de `self.ticker` (`SXRV.DE`), donc aucun match avec le bloc `VERDICT_TICKER` du Juge. Corrigé (+5 autres bugs : freshness dupliquée, drift de poids adaptatif, parser FR/percent, pollution DB).
+  * **Tuning PROD** : `num_predict` jusqu'à 12000, `num_ctx` jusqu'à 65536, timeout Ollama 15 min, fenêtre scheduler 48h (`COUNCIL_TIMEOUT = 172800`) pour accommoder les thinking models sur CPU.
+  * **Tests** : 84 verts (routing, dissent quota, ticker stance parsing, décroissance, intégration consensus).
+
 - **2026-06-06**: Standardisation `ModelResult`, Centralisation du Risque et Code Health Grade B
   * **Contexte** : Hétérogénéité des retours des modèles (certains renvoyaient des dicts, d'autres des tuples) et logique de gestion des pertes (anti-loss) éparpillée dans plusieurs modèles individuels.
   * **Changement** : Transition totale vers la dataclass `ModelResult` pour les 12 modèles de l'ensemble (incluant Grebenkov, TensorTrade, TimesFM, Ollama). Retrait de la gestion de l'anti-loss/trailing-stop des modèles individuels pour la confier exclusivement à `AdvancedRiskManager`.

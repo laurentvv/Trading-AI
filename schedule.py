@@ -17,6 +17,11 @@ END_HOUR = 18
 END_MINUTE = 0
 MORNING_BRIEF_HOUR = 1
 MORNING_BRIEF_MINUTE = 0
+COUNCIL_HOUR = 1          # Saturday 01:00 (once per week)
+COUNCIL_MINUTE = 0
+COUNCIL_DAY = 5           # Saturday (0=Mon ... 5=Sat, 6=Sun)
+COUNCIL_DAYS_ANALYZED = 7
+COUNCIL_TIMEOUT = 172800    # 48h (tout le week-end) pour laisser le temps aux modèles de réfléchir
 
 # Setup Logging
 setup_environment("scheduler.log")
@@ -143,7 +148,48 @@ def run_morning_brief():
         logger.error(f"💥 Erreur critique lors du Morning Brief : {e}")
 
 
-def get_dashboard(status_msg, last_run, next_run, morning_brief_status):
+def run_weekend_council():
+    """Lance le Conseil d'IA le week-end (samedi & dimanche).
+
+    Asynchrone et isolé : le council n'est PAS un vote du consensus temps réel
+    (``enhanced_decision_engine``). Il produit un récapitulatif stratégique
+    hebdomadaire dans ``docs/council_reports/`` dont le verdict est ensuite
+    injecté comme contexte dans le prompt LLM de décision (cf.
+    ``get_council_verdict_context`` dans ``llm_client.py``), au même titre que
+    le Morning Brief.
+    """
+    logger.info("🏛️ Lancement du Conseil d'IA (week-end)")
+    try:
+        cmd = [
+            "uv", "run", "python", "-m", "src.council.weekend_council",
+            "--days", str(COUNCIL_DAYS_ANALYZED),
+        ]
+        with open("weekend_council.log", "a", encoding="utf-8") as f:
+            f.write(f"\n--- Lancement {datetime.now().isoformat()} ---\n")
+            result = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, text=True, timeout=COUNCIL_TIMEOUT)
+
+        if result.returncode == 0:
+            logger.info("✅ Conseil d'IA terminé avec succès")
+        else:
+            logger.error(f"❌ Erreur lors du Conseil d'IA : Code {result.returncode}")
+
+        # Confirm the report was actually produced (defensive — don't trust the
+        # exit code alone, the council swallows per-member inference errors).
+        from pathlib import Path
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        report_path = Path("docs/council_reports") / f"council_report_{date_str}.md"
+        if report_path.exists():
+            logger.info(f"📄 Rapport du conseil disponible : {report_path}")
+        else:
+            logger.warning(f"⚠️ Aucun rapport du conseil trouvé à {report_path}")
+
+    except subprocess.TimeoutExpired:
+        logger.error(f"⏱ Timeout ({COUNCIL_TIMEOUT}s) dépassé pour le Conseil d'IA.")
+    except Exception as e:
+        logger.error(f"💥 Erreur critique lors du Conseil d'IA : {e}")
+
+
+def get_dashboard(status_msg, last_run, next_run, morning_brief_status, council_status):
     """Génère un joli dashboard pour la console Windows"""
     table = Table(box=None, expand=True)
     table.add_column("Propriété", style="cyan")
@@ -153,6 +199,7 @@ def get_dashboard(status_msg, last_run, next_run, morning_brief_status):
     table.add_row("Dernier Run", f"{last_run}")
     table.add_row("Prochain Run", f"[bold green]{next_run}[/bold green]")
     table.add_row("Morning Brief", f"{morning_brief_status}")
+    table.add_row("Conseil (week-end)", f"{council_status}")
     table.add_row("Tickers", ", ".join(TICKERS))
     table.add_row("Intervalle", f"{INTERVAL_MINUTES} min")
 
@@ -168,6 +215,7 @@ def main():
     last_run_time = "Aucun"
     next_run = datetime.now()
     last_morning_brief_date = None
+    last_council_date = None
 
     console.clear()
     console.print(
@@ -200,10 +248,38 @@ def main():
                         run_morning_brief()
                         last_morning_brief_date = now.date()
 
+                # Check for Weekend Council — runs ONCE per week on Saturday
+                # at COUNCIL_HOUR (default 01:00). The anti-double-execution guard
+                # combines an in-memory flag AND a persistent check: if today's
+                # report already exists on disk (e.g. the scheduler crashed
+                # mid-council and restarted), skip the run instead of redoing
+                # the whole 6-member council.
+                if now.weekday() == COUNCIL_DAY:
+                    if now.hour == COUNCIL_HOUR and now.minute >= COUNCIL_MINUTE:
+                        if last_council_date != now.date():
+                            from pathlib import Path
+                            report_path = Path("docs/council_reports") / f"council_report_{now.date()}.md"
+                            if report_path.exists():
+                                logger.info(f"📋 Rapport du council déjà présent ({report_path}) — run sauté.")
+                                last_council_date = now.date()
+                            else:
+                                run_weekend_council()
+                                last_council_date = now.date()
+
             if last_morning_brief_date == now.date():
                 mb_status = "[bold green]Terminé aujourd'hui[/bold green]"
             else:
                 mb_status = f"[bold yellow]En attente ({MORNING_BRIEF_HOUR:02d}:{MORNING_BRIEF_MINUTE:02d})[/bold yellow]"
+
+            # Council status: only meaningful on Saturday (the weekly run day)
+            if now.weekday() == COUNCIL_DAY:
+                if last_council_date == now.date():
+                    council_status = "[bold green]Terminé aujourd'hui[/bold green]"
+                else:
+                    council_status = f"[bold yellow]En attente ({COUNCIL_HOUR:02d}:{COUNCIL_MINUTE:02d})[/bold yellow]"
+            else:
+                days = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
+                council_status = f"[dim]Hors samedi (prochain: {days[COUNCIL_DAY]} {COUNCIL_HOUR:02d}:{COUNCIL_MINUTE:02d})[/dim]"
 
             # Affichage Dashboard
             console.clear()
@@ -212,7 +288,8 @@ def main():
                     status_display,
                     last_run_time,
                     next_run.strftime("%H:%M:%S") if open_status else "À l'ouverture",
-                    mb_status
+                    mb_status,
+                    council_status,
                 )
             )
 

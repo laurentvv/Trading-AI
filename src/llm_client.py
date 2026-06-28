@@ -1,11 +1,13 @@
 import logging
 import requests
 import json
+import re
 import pandas as pd
 import base64
 from pathlib import Path
 import time
 import os
+from datetime import datetime
 from src.enhanced_decision_engine import ModelResult
 
 logger = logging.getLogger(__name__)
@@ -85,6 +87,25 @@ _THINKING_TOKENS = (
 )
 
 
+def strip_thinking_debris(text: str) -> str:
+    """Removes Gemma ``<|think|>`` channel debris from a prose string.
+
+    In prose mode (no JSON schema), the think channel can leak leading
+    ``<|channel>thought`` markers into the model's output. This helper strips
+    every token in :data:`_THINKING_TOKENS` and collapses the resulting blank
+    lines, returning clean text. Reused by the weekend council (prose mode)
+    so its reports stay readable.
+    """
+    cleaned = text
+    for tok in _THINKING_TOKENS:
+        cleaned = cleaned.replace(tok, "")
+    # Collapse 3+ consecutive newlines (left after stripping block tokens)
+    # down to a single blank line.
+    while "\n\n\n" in cleaned:
+        cleaned = cleaned.replace("\n\n\n", "\n\n")
+    return cleaned.strip()
+
+
 def _fallback_decision(expected_keys: list, *, reason: str = "all_retries_failed") -> dict:
     """Canonical HOLD fallback returned when LLM retries are exhausted.
 
@@ -148,6 +169,166 @@ def get_morning_brief_context() -> str:
     return ""
 
 
+# Council verdict is a weekly retrospective, not a daily artefact: a report
+# produced on the weekend must stay relevant through the following trading
+# week. The council runs ONCE per week on Saturday at 01:00, so a report
+# produced Saturday must stay fresh until the next Saturday's run. 7 days
+# covers the full week. Picked by filename date (robust to git-pull mtime
+# resets), unlike the morning brief which uses mtime.
+COUNCIL_REPORTS_DIR = Path("docs/council_reports")
+COUNCIL_STALENESS_SECONDS = 7 * 86400
+
+
+def _find_latest_council_report() -> Path | None:
+    """Returns the most recent council report by date embedded in its filename.
+
+    The filename format is ``council_report_YYYY-MM-DD.md``. Sorting on the
+    filename date is more reliable than mtime, which a ``git pull`` or file
+    copy can reset.
+    """
+    if not COUNCIL_REPORTS_DIR.exists():
+        return None
+    candidates = sorted(COUNCIL_REPORTS_DIR.glob("council_report_*.md"), reverse=True)
+    return candidates[0] if candidates else None
+
+
+def _extract_council_verdict(report_text: str) -> str:
+    """Extracts the Judge's verdict section from a council report.
+
+    The verdict runs from ``## Verdict du Juge`` up to the ``## Annexe``
+    marker that precedes the full debate transcript. Only the verdict (the
+    actionable synthesis) is returned — the transcript is deliberately omitted
+    to keep the per-cycle prompt token cost bounded.
+
+    Note: the verdict itself often contains internal ``---`` separators (e.g.
+    between the intro and the recommendations), so we cannot cut at the first
+    ``---``. We cut at the ``## Annexe`` boundary instead.
+
+    The council runs in prose mode (no JSON schema), so Gemma's think channel
+    may leak leading ``<|channel>thought`` debris into the verdict. We strip
+    those tokens here so the injected strategic context stays clean.
+    """
+    marker = "## Verdict du Juge"
+    idx = report_text.find(marker)
+    if idx == -1:
+        return ""
+    section = report_text[idx + len(marker):]
+
+    # Cut at the Annexe boundary (the transcript), not the first --- separator,
+    # since the Judge's own verdict uses --- internally.
+    annexe_idx = section.find("## Annexe")
+    if annexe_idx != -1:
+        section = section[:annexe_idx]
+
+    return strip_thinking_debris(section)
+
+
+def _load_fresh_council_report() -> tuple[float, str] | None:
+    """Loads the latest council report if fresh, returning ``(age_days, text)``.
+
+    Single source of truth for freshness + report loading, shared by both the
+    text-injection path (:func:`get_council_verdict_context`) and the consensus
+    vote path (:func:`get_council_ticker_stance`). Resolves the report ONCE so
+    the two paths cannot disagree on freshness (audit finding: duplicated
+    staleness logic that could drift) and avoids the TOCTOU race of calling
+    ``_find_latest_council_report`` twice.
+    """
+    report_path = _find_latest_council_report()
+    if report_path is None:
+        return None
+    try:
+        date_str = report_path.stem.rsplit("_", 1)[-1]
+        report_date = datetime.strptime(date_str, "%Y-%m-%d")
+    except (ValueError, IndexError):
+        logger.warning(f"Could not parse date from council report filename: {report_path.name}")
+        return None
+    age_seconds = (datetime.now() - report_date).total_seconds()
+    if age_seconds < 0 or age_seconds > COUNCIL_STALENESS_SECONDS:
+        return None
+    try:
+        with open(report_path, "r", encoding="utf-8") as f:
+            text = f.read()
+    except Exception as e:
+        logger.warning(f"Failed to read council report {report_path}: {e}")
+        return None
+    return (age_seconds / 86400.0, text)
+
+
+def get_council_verdict_context() -> str:
+    """Reads the most recent weekend-council verdict if still fresh (< 7 days).
+
+    Mirror of :func:`get_morning_brief_context`: injects the council's strategic
+    verdict into the per-cycle decision prompt so ``main.py`` benefits from the
+    weekend retrospective automatically.
+    """
+    loaded = _load_fresh_council_report()
+    if loaded is None:
+        return ""
+    _age_days, text = loaded
+    verdict = _extract_council_verdict(text)
+    if not verdict:
+        return ""
+    return f"\n**Weekend AI Council Verdict (Strategic Context):**\n{verdict}\n"
+
+
+_TICKER_VERDICT_RE = re.compile(
+    r"(?P<ticker>[\w.\-^=]+)\s*:\s*(?P<signal>BUY|SELL|HOLD)\s*\((?P<conf>[0-9]*[\.,]?[0-9]+)",
+    re.IGNORECASE,
+)
+
+
+def get_council_ticker_stance(ticker: str) -> tuple[str | None, float]:
+    """Returns the council's (signal, effective_confidence) for a ticker.
+
+    The council's Judge emits a parseable ``VERDICT_TICKER:`` block at the end
+    of its report. This extracts the stance for the requested ticker and
+    applies a linear age decay: a fresh verdict (day 0) keeps full confidence,
+    decaying to 0 at day 7 (aligned with ``COUNCIL_STALENESS_SECONDS``).
+
+    Returns ``(None, 0.0)`` if no report, ticker absent, or stale — the caller
+    then omits the council vote (graceful, like any other optional model).
+
+    Note: pass the TRADING ticker (e.g. ``SXRV.DE``), not the analysis ticker
+    (``^NDX``) — the council's context and verdict use trading tickers.
+    """
+    loaded = _load_fresh_council_report()
+    if loaded is None:
+        return (None, 0.0)
+    age_days, report_text = loaded
+
+    # Isolate the LAST VERDICT_TICKER block (the Judge may reference it in prose
+    # earlier; the real block is the final one). Everything after it is parsed.
+    last_marker = report_text.rfind("VERDICT_TICKER")
+    if last_marker == -1:
+        logger.info("Council report has no VERDICT_TICKER block — skip vote.")
+        return (None, 0.0)
+    block = report_text[last_marker:]
+
+    ticker_norm = ticker.strip().upper()
+    for m in _TICKER_VERDICT_RE.finditer(block):
+        if m.group("ticker").strip().upper() == ticker_norm:
+            signal = m.group("signal").upper()
+            try:
+                confidence = float(m.group("conf").replace(",", "."))
+            except ValueError:
+                confidence = 0.0
+            # Reject obvious misreads: the prompt asks for 0.0-1.0 but LLMs may
+            # emit "85" (percent). Treat >1 as percent and rescale, with a warning.
+            if confidence > 1.0:
+                logger.warning(
+                    f"Council ticker stance confidence {confidence} > 1.0 — "
+                    f"interpreting as percent. Judge prompt may be ignored."
+                )
+                confidence = confidence / 100.0
+            confidence = max(0.0, min(1.0, confidence))
+            # Linear decay: full at day 0 → 0 at day 7.
+            decay = max(0.0, 1.0 - age_days / 7.0)
+            return (signal, confidence * decay)
+
+    logger.info(f"Council verdict found but no stance for ticker {ticker}")
+    return (None, 0.0)
+
+
 def construct_llm_prompt(
     latest_data: pd.DataFrame,
     headlines: list = None,
@@ -162,6 +343,7 @@ def construct_llm_prompt(
     news_text = "\n".join([f"- {h}" for h in headlines[:15]]) if headlines else "No recent news available."
     web_text = f"\n**Web Research / Macro Context:**\n{web_context}" if web_context else ""
     brief_text = get_morning_brief_context()
+    council_text = get_council_verdict_context()
 
     # Déterminer le contexte de l'actif
     asset_type = "OIL (WTI)" if "CRUD" in ticker.upper() or "CL=F" in ticker.upper() else "NASDAQ-100"
@@ -192,7 +374,7 @@ def construct_llm_prompt(
     - Long-term Trend: {"Bullish" if data["Trend_Long"] == 1 else "Bearish" if data["Trend_Long"] == -1 else "Neutral"}
     {hl_text}
     **Recent News Headlines:**
-    {news_text}{web_text}{brief_text}
+    {news_text}{web_text}{brief_text}{council_text}
 
     **Decision Rules for {asset_type}:**
     1. Priority: ACCURACY. If news contradict technicals or signals are weak/mixed, default to HOLD.

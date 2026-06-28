@@ -179,5 +179,66 @@ class TestBaisRemovalInvariants(unittest.TestCase):
         self.assertEqual(self.engine.QUANT_MODEL_BUY_BONUS, 0.0)
 
 
+class TestCouncilVoteIntegration(unittest.TestCase):
+    """The council stance becomes an 11th weighted voice in the consensus."""
+
+    def setUp(self):
+        self.engine = EnhancedDecisionEngine()
+
+    def _decision(self, model_name, signal, confidence, strength_val):
+        return _make_decision(signal, confidence, strength_val, model_name)
+
+    def test_council_vote_added_when_stance_provided(self):
+        """A SELL council stance adds a 'council' ModelDecision to the result."""
+        decision = self.engine.make_enhanced_decision(
+            generic_model_results=[self._decision("classic", "HOLD", 0.5, 0)],
+            council_stance=("SELL", 0.9),
+        )
+        council_votes = [d for d in decision.individual_decisions if d.model_name == "council"]
+        self.assertEqual(len(council_votes), 1)
+        self.assertEqual(council_votes[0].signal, "SELL")
+        self.assertAlmostEqual(council_votes[0].confidence, 0.9)
+
+    def test_no_council_vote_when_stance_empty(self):
+        """Empty/None stance → no council vote (graceful skip)."""
+        decision = self.engine.make_enhanced_decision(
+            generic_model_results=[self._decision("classic", "BUY", 0.8, 1)],
+            council_stance=None,
+        )
+        self.assertFalse(any(d.model_name == "council" for d in decision.individual_decisions))
+
+        decision_none_signal = self.engine.make_enhanced_decision(
+            generic_model_results=[self._decision("classic", "BUY", 0.8, 1)],
+            council_stance=(None, 0.0),
+        )
+        self.assertFalse(
+            any(d.model_name == "council" for d in decision_none_signal.individual_decisions)
+        )
+
+    def test_council_sell_lowers_score_vs_no_council(self):
+        """A dissenting SELL council vote should pull the score down."""
+        base = [self._decision("classic", "BUY", 0.9, 1)]
+        score_without = self.engine._calculate_weighted_score(
+            base, self.engine.base_weights, {}
+        )
+        with_council = self.engine.make_enhanced_decision(
+            generic_model_results=base,
+            council_stance=("SELL", 0.9),
+        )
+        score_with = self.engine._calculate_weighted_score(
+            with_council.individual_decisions, self.engine.base_weights, {}
+        )
+        self.assertLess(score_with, score_without)
+
+    def test_council_confidence_clamped(self):
+        """Confidence outside [0,1] is clamped (defensive)."""
+        decision = self.engine.make_enhanced_decision(
+            generic_model_results=[self._decision("classic", "HOLD", 0.5, 0)],
+            council_stance=("BUY", 1.5),  # over 1.0
+        )
+        council = next(d for d in decision.individual_decisions if d.model_name == "council")
+        self.assertEqual(council.confidence, 1.0)
+
+
 if __name__ == "__main__":
     unittest.main()

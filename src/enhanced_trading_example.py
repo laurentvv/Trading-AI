@@ -28,7 +28,7 @@ except ImportError:
 
 from features import create_technical_indicators, create_features, select_features
 from classic_model import train_ensemble_model, get_classic_prediction
-from llm_client import get_llm_decision, get_visual_llm_decision
+from llm_client import get_llm_decision, get_visual_llm_decision, get_council_ticker_stance
 from sentiment_analysis import get_sentiment_decision_from_score
 from web_researcher import generate_search_query, get_web_context_sync, get_fallback_search_query
 
@@ -632,6 +632,12 @@ class EnhancedTradingSystem:
                 logger.error(f"OilBench model failed (isolated): {e}")
                 oil_bench_decision = None
 
+        # Weekend council verdict (Niveau 3): retrieve the age-decayed stance
+        # for the TRADING ticker (self.ticker, e.g. SXRV.DE) — NOT the analysis
+        # ticker (^NDX). The council's VERDICT_TICKER block uses trading tickers
+        # (same as the journal/DB it reads its context from).
+        council_stance = get_council_ticker_stance(self.ticker)
+
         enhanced_decision = self.decision_engine.make_enhanced_decision(
             classic_pred=model_predictions["classic"]["prediction"],
             classic_conf=model_predictions["classic"]["confidence"],
@@ -646,6 +652,7 @@ class EnhancedTradingSystem:
             hmm_decision=model_predictions["hmm_model"],
             market_data=market_data,
             adaptive_weights=weight_adjustment.model_weights,
+            council_stance=council_stance,
         )
 
         logger.info(f"Décision hybride: {enhanced_decision.final_signal}")
@@ -682,7 +689,13 @@ class EnhancedTradingSystem:
 
         # 8. Enregistrement des prédictions pour l'apprentissage du poids adaptatif
         current_date = hist_data.index[-1].strftime("%Y-%m-%d")
+        # The council is exempt from outcome-based performance tracking: it's a
+        # weekly strategic verdict whose "correctness" can't be measured against
+        # a per-cycle market direction. Its weight is fixed (see adaptive_weight_manager).
+        outcome_tracked_models = {"council"}
         for dec in enhanced_decision.individual_decisions:
+            if dec.model_name in outcome_tracked_models:
+                continue
             self.weight_manager.record_model_prediction(
                 date=current_date,
                 model_name=dec.model_name,

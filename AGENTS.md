@@ -35,7 +35,9 @@ See `docs/ADR-001-think-mode-dual-layer-defence.md` for the full validation evid
 
 | Goal | Command |
 |---|---|
-| Mocked unit tests (deterministic, no Ollama) | `.venv\Scripts\python.exe -m pytest tests/test_llm_client.py tests/test_llm_prompts.py tests/test_oil_bench_model.py -v` |
+| Mocked unit tests (deterministic, no Ollama) | `.venv\Scripts\python.exe -m pytest tests/test_llm_client.py tests/test_llm_prompts.py tests/test_oil_bench_model.py tests/test_weekend_council.py -v` |
+| Weekend council unit tests (mocked) | `.venv\Scripts\python.exe -m pytest tests/test_weekend_council.py -v` |
+| Live weekend council (cloud + Ollama fallback, ~10 min, 9 LLM calls) | `uv run python src/council/weekend_council.py --days 7` |
 | Live LLM JSON harness (requires `ollama serve`) | `.venv\Scripts\python.exe tests/check_llm_json.py` |
 | Full pipeline, T212 demo | `uv run main.py --t212` |
 | Standalone prod backtest | `uv run backtest_prod.py` |
@@ -46,10 +48,11 @@ PowerShell note: `uv run pytest ...` may fail with "Failed to canonicalize scrip
 ## 4. Where things live
 
 - `main.py` — entry point, `--t212` / `--simul` / `--ticker` flags
-- `src/llm_client.py` — schemas, `_query_ollama`, `get_llm_decision`, `get_visual_llm_decision`
+- `src/llm_client.py` — schemas, `_query_ollama`, `get_llm_decision`, `get_visual_llm_decision`, `get_morning_brief_context` / `get_council_verdict_context` (context injectors into `construct_llm_prompt`)
 - `src/oil_bench_model.py` — `OilBenchModel._query_llm` (call site #3)
 - `src/web_researcher.py` — `generate_search_query` (call site #4)
 - `src/enhanced_decision_engine.py` — consensus aggregator (note: does **not** currently consume the `failed: True` flag from `_fallback_decision` — silent degradation risk if `<|think|>` ever reintroduces JSON debris)
+- `src/council/` — **Weekend Council**: async, multi-persona LLM retrospective (`run_council`). NOT a per-cycle consensus vote; runs Sat & Sun at 09:00 via `schedule.py`, writes `docs/council_reports/council_report_YYYY-MM-DD.md`. Its Judge verdict is injected into the decision prompt via `get_council_verdict_context()` (same pattern as the morning brief). **Core design** (per `0xNyk/council-of-high-intelligence`): 6 personas (Stratège / Risk Manager / Quant / Sceptique / Tacticien / Comportementaliste), each on a model chosen for role-affinity (`MEMBER_MODELS` in `council_prompts.py`: 5 families — Gemma 4 12B / GLM-4.6V-Flash / Qwen 3.5 9B / LFM 2.5 / Mistral Nemo 12B), with a 4-round protocol (Problem Restate Gate → Analysis with explicit STANCE → 1-vs-1 Debate → Judge synthesis) plus anti-groupthink mechanisms (dissent quota ≥2/3, unresolved-first verdict). The Judge runs on **Qwen3.5-9B-MTP** (IFEval 91.5, 262K context) for structured synthesis. Models installed via `setup_council_models.py`. **Must run** `uv run python setup_council_models.py` on PROD after `git pull`. **Note on limits**: The council uses a generous token budget (`num_predict=8192`, up to `12000` for Judge) to accommodate the reasoning channel of models like Qwen3.5. The scheduler allows a 48-hour execution window (`COUNCIL_TIMEOUT = 172800` in `schedule.py`) and a 15-minute per-call Ollama timeout to run safely on CPU/large RAM (e.g. 48GB).
 - `tests/check_llm_json.py` — live diagnostic harness, 10 cases × 3 schema families × 2 modes
 - `docs/ADR-*.md` — architecture decision records
 - `memory-bank/` — long-form context (techContext, activeContext, systemPatterns, progress, projectbrief, productContext, improvement_proposals)
@@ -58,6 +61,7 @@ PowerShell note: `uv run pytest ...` may fail with "Failed to canonicalize scrip
 
 - **OS Constraint (CRITICAL)**: Both DEV and PROD environments run on **Windows**. Never suggest Linux-only commands like `rm -rf`, `ls`, or `cat`. Use PowerShell equivalents (`Remove-Item -Recurse -Force`, `Get-ChildItem`, etc.) or CMD (`rmdir /s /q`).
 - **Cache Invalidation**: Folders like `data_cache/` and `logs_prod/` are gitignored. When pushing bug fixes related to corrupted data (e.g., TensorTrade policy collapse, broken EIA timestamps), you MUST explicitly remind the user to manually delete the affected caches on the PROD server after `git pull` (e.g., `Remove-Item -Recurse -Force data_cache\tensortrade` or running `uv run python refresh_cache.py`).
+- **Council Models (CRITICAL for the weekend council feature)**: the council's diversity comes from each persona running on a **different** Ollama model (Gemma 4 12B / GLM-4.6V-Flash / Qwen 3.5 9B / LFM 2.5). When pushing the council feature, you MUST remind the user to run `uv run python setup_council_models.py` on the PROD server after `git pull` — otherwise members silently fall back to Gemma and the council degrades to "costume changes on one model".
 - Long-lived branch: `main` (production state, schema-defended).
 - Validation branches: short-lived feature branches like `think-mode` for risky re-enablements.
 - **Never commit secrets** (`.env*`, `*.db`, `data_cache/`, `logs_prod/` are gitignored — keep them that way).
@@ -70,7 +74,7 @@ PowerShell note: `uv run pytest ...` may fail with "Failed to canonicalize scrip
 - `tests/check_llm_json.py` returns exit 1 if any case fails, including the documented-to-fail loose-format cases. The harness could be refactored to return 0 when only the expected-failure cases fail.
 - **FinAcumen (June 2026) — repaired; converges; feeds the morning brief (which itself consumes `main.py` outputs).** `src/finacumen_main.py` now converges (`status: success`) after fixing `src/core/tools.py` (`lookup_ohlc` accepts a list of indicators → dict; rsi/sma/macd added; pd/np pre-injected so the sandbox's `__import__` ban is harmless) and `src/agents/solver.py` (prompt documents the real API; observation echoes fetched `data` when the LLM forgets to `print`; the execute-vs-final-answer branch keys on *non-empty* `python_code` / `action in BUY|SELL|HOLD`, not key presence).
   - **Coupling to the main project** is via shared data files, not a direct import: `main.py` writes `trading_journal.csv` (main.py:222), `trading.log`, and `performance_monitor.db`; `morning_brief/tools/analyze_trading_logs.py` + `morning_brief/tools/audit_portfolio_performance.py` read them; `schedule.py` appends the FinAcumen section into `morning_market_brief.md`. So FinAcumen **does** influence the daily decision brief.
-  - **By design**, it is **not** an 11th vote in `enhanced_decision_engine.py` / `model_performance.db` (the real-time per-cycle consensus). Its role is strictly asynchronous and structural for the morning brief.
+  - **By design**, it is **not** an 11th vote in `enhanced_decision_engine.py` / `model_performance.db` (the real-time per-cycle consensus). Its role is strictly asynchronous and structural for the morning brief. *(The 11th-consensus-vote slot is now occupied by the Weekend Council — see §4 `src/council/`.)*
 - `backtest_prod.py` reads `data_cache/` (repo root, ends ~2026-05-27) instead of `logs_prod/data_cache/` (prod, current). Its tables come back empty when the journal spans a period not covered by the root cache. Use `audit_prod_logs.py` for a backtest that reads the prod cache.
 
 ### 6.1 Resolved follow-ups (Late June 2026 - ADR-002 Suite & Architecture)
@@ -88,3 +92,4 @@ Still open after ADR-002: isotonic tensortrade recalibration (cap is interim), u
 ## 7. Tooling scripts (June 2026)
 
 - `audit_prod_logs.py` — validates **all** files in `logs_prod/` (catalogue, SQLite integrity, parquet freshness, JSON/pkl, FinAcumen state) and runs a corrected backtest against `logs_prod/data_cache/`. Emits `logs_prod/audit_report.md`. Run with `uv run python audit_prod_logs.py`.
+- `setup_council_models.py` — installs the **four** Ollama model families the Weekend Council requires (Gemma 4 12B / GLM-4.6V-Flash / Qwen 3.5 9B / LFM 2.5). Each council persona runs on its **own model lineage** — this is the core of the design (genuine reasoning diversity, not costume changes). **Must be run on every PROD server** after `git pull` of the council feature, otherwise members silently fall back to Gemma and the council loses its diversity. Run with `uv run python setup_council_models.py` (idempotent, skips installed models).

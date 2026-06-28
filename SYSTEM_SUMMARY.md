@@ -4,7 +4,7 @@ Ce document résume l'architecture, les capacités et les performances du systè
 
 ## 🚀 Architecture Globale
 
-Le système repose sur une approche **multi-modale hybride**. Au lieu de faire confiance à un seul algorithme, il combine dix types d'intelligence pour prendre une décision finale.
+Le système repose sur une approche **multi-modale hybride**. Au lieu de faire confiance à un seul algorithme, il combine onze types d'intelligence pour prendre une décision finale, enrichie d'un **conseil stratégique hebdomadaire** (Weekend Council).
 
 ```mermaid
 graph TD
@@ -23,6 +23,11 @@ graph TD
     B --> HL[Hyperliquid - Sentiment Blockchain]
     B --> OB[Oil-Bench - EIA Fondamentaux]
     B --> VG[Vincent Ganne - Géopolitique]
+    end
+
+    subgraph "Mémoire Stratégique Hebdo"
+    WC[🏛️ Weekend Council - 6 LLM distincts]
+    WC -->|Verdict par ticker, poids 9.5%, décroissance 7j| H
     end
 
     C & D & TT & E & F & G & HL & OB & VG --> H{Moteur de Décision}
@@ -70,6 +75,13 @@ graph TD
     *   **Signal Unidirectionnel :** Il ne génère que des signaux `BUY` ou `HOLD`. Son but est de confirmer la détente macroéconomique (Pétrole < 94$, Dollar faible, MA200 franchie) pour autoriser une entrée sur les actions.
     *   **Filtre de Sécurité :** En cas de prix de l'énergie trop élevés (WTI > 94$), le modèle maintient un signal `HOLD` pour le Nasdaq, agissant comme un verrou de sécurité contre l'instabilité géopolitique.
 
+9.  **🏛️ Weekend Council (Mémoire Stratégique Hebdomadaire) :**
+    *   **Rétrospective Multi-Personas :** Tous les samedis à 01:00, six personas IA (Stratège / Gestionnaire de Risque / Quant / Sceptique / Tacticien / Comportementaliste) délibèrent sur la semaine écoulée. Chaque membre tourne sur une **famille de modèle distincte** (Gemma 4 12B / GLM-4.6V-Flash / Qwen 3.5 9B / LFM 2.5 / Mistral Nemo 12B) pour garantir une **diversité de raisonnement réelle** — pas des changements de costume sur un seul modèle.
+    *   **Protocole à 4 Rounds :** (0) Reformulation du problème → (1) Analyse indépendante avec stance explicite → débat 1-vs-1 dirigé → (3) Verdict du Juge. Un mécanisme anti-groupthink (dissent quota ≥2/3) force un steelman de la position opposée si un consensus trop rapide se forme.
+    *   **11ème Voix du Consensus :** Le Juge (Qwen3.5-9B-MTP) émet un verdict structuré par ticker (`SXRV.DE: SELL (0.90)`) qui devient une **voix à part entière dans le consensus temps réel** — poids 9.5%, décroissant linéairement sur 7 jours. Un verdict de samedi pèse 100% lundi, ~57% jeudi, 0% samedi suivant.
+    *   **Contexte PROD Réel :** Le council n'analyse pas un flux générique — il ingère l'**accuracy réelle des modèles** (`model_performance.db`), les **alertes critiques** et métriques de portefeuille (`performance_monitor.db`), et le **journal de trading** (détection de biais directionnel).
+    *   **Inspiration** : Adapté de [`0xNyk/council-of-high-intelligence`](https://github.com/0xNyk/council-of-high-intelligence). Voir `docs/ADR-003-weekend-council-11th-voice.md`.
+
 ---
 
 ## 🛡️ Gestion des Risques & Sizing (Advanced Risk Manager)
@@ -91,7 +103,9 @@ Le système intègre un **Advanced Risk Manager** intelligent conscient des spé
 Un nouveau script autonome `schedule.py` permet une exécution continue sur serveur :
 - **Horaires :** Lundi au Vendredi, 8h30 à 18h00.
 - **Fréquence :** Analyse et trading toutes les 30 minutes.
-- **Dashboard :** Suivi en temps réel de l'état du scheduler et du prochain run.
+- **Morning Brief :** Génération automatique à 01:00 en semaine (rapport injecté dans le LLM).
+- **🏛️ Weekend Council :** Déclenchement automatique le **samedi à 01:00** (subprocess isolé, fenêtre d'exécution 48h pour laisser les modèles thinking réfléchir sur CPU). Le verdict généré alimente le consensus toute la semaine suivante. Garde anti-double-exécution persistante (skip si le rapport du jour existe déjà).
+- **Dashboard :** Suivi en temps réel de l'état du scheduler, du morning brief et du council.
 
 ---
 
