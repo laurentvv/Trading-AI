@@ -402,11 +402,43 @@ def get_llm_decision(
 ) -> ModelResult:
     """
     Queries a textual LLM to get a trading decision.
-    Tries FreeLLMClient (cloud) first, then falls back to Ollama.
+
+    3-tier fallback chain: Gemini (Free Tier, if GEMINI_API_KEY is set) →
+    FreeLLMClient (shared-key cloud proxy) → local Ollama. Each tier is
+    optional and silently skipped on failure or absence; the pipeline never
+    raises here. The winning backend is recorded in ``metadata["backend"]``
+    for observability.
     """
     logger.info(f"Querying textual LLM for {ticker} decision...")
     prompt = construct_llm_prompt(latest_data, headlines, web_context, vg_indicators, ticker)
-    
+
+    # 0. Try Gemini reasoning tier (priority cloud tier if GEMINI_API_KEY is
+    # configured). Internally this is a multi-model cascade (gemini-3.5-flash →
+    # 3-flash-preview → 3.1-flash-lite → 2.5-flash → gemma-4-31b → gemma-4-26b);
+    # Gemini 2.5 Pro is unavailable (0/0/0) on this key. See gemini_gateway.py.
+    try:
+        from src.gemini_gateway import GeminiGateway
+
+        gateway = GeminiGateway()
+        if gateway.enabled:
+            logger.info("Trying Gemini reasoning tier for textual decision...")
+            gemini_result = gateway.decide(prompt)
+            if gemini_result is not None:
+                # Belt-and-braces (AGENTS.md §2.1 Layer 2): re-extract through
+                # the same JSON scrubber the cloud path uses, even though
+                # Gemini's response_schema already enforces structure.
+                parsed = _find_dict_with_keys(gemini_result, ["signal", "confidence", "analysis"]) or gemini_result
+                logger.info("Successfully got textual decision from Gemini reasoning tier.")
+                return ModelResult(
+                    signal=parsed.get("signal", "HOLD"),
+                    confidence=parsed.get("confidence", 0.0),
+                    reasoning=parsed.get("analysis", "No analysis"),
+                    metadata={**parsed, "backend": "gemini_reasoning"},
+                )
+            logger.info("Gemini reasoning tier unavailable/declined. Trying next backend.")
+    except Exception as e:
+        logger.warning(f"Gemini reasoning tier failed: {e}. Trying next backend.")
+
     # 1. Try FreeLLMClient
     try:
         from free_llm_api_keys import FreeLLMClient
@@ -431,7 +463,7 @@ def get_llm_decision(
                     signal=parsed.get("signal", "HOLD"),
                     confidence=parsed.get("confidence", 0.0),
                     reasoning=parsed.get("analysis", "No analysis"),
-                    metadata=parsed,
+                    metadata={**parsed, "backend": "free_llm"},
                 )
         logger.warning("FreeLLMClient returned invalid JSON. Falling back to Ollama.")
     except Exception as e:
@@ -453,26 +485,57 @@ def get_llm_decision(
         signal=result_dict.get("signal", "HOLD"),
         confidence=result_dict.get("confidence", 0.0),
         reasoning=result_dict.get("analysis", "No analysis"),
-        metadata=result_dict,
+        metadata={**result_dict, "backend": "ollama"},
     )
 
 
 def get_visual_llm_decision(image_path: Path) -> ModelResult:
     """
-    Queries the visual LLM via Ollama with a chart image.
+    Queries the visual LLM with a chart image.
+
+    Vision tiers: Gemini vision cascade (if ``GEMINI_API_KEY`` is set) → local
+    Ollama. The Gemini tier tries multiple vision-capable Flash models in turn
+    (gemini-3.5-flash → 3-flash-preview → 2.5-flash → 2.0-flash); see
+    gemini_gateway.VISION_CASCADE. Historically vision was Ollama-only because
+    free proxies reject image payloads (AGENTS.md §6.1); a first-party Gemini
+    key re-enables cloud vision. The winning backend is recorded in
+    ``metadata["backend"]``.
     """
     if not image_path.exists():
         logger.error(f"Chart image not found: {image_path}")
-        return ModelResult("HOLD", 0.0, "Chart image missing.")
+        return ModelResult("HOLD", 0.0, "Chart image missing.", {"backend": "none"})
 
     logger.info(f"Querying visual LLM with image {image_path}...")
 
+    # 0. Try Gemini vision tier first if enabled.
+    # NOTE: read/encode the file lazily below only when we actually need the
+    # Ollama path, so the Gemini path doesn't pay the base64 cost.
+    try:
+        from src.gemini_gateway import GeminiGateway
+
+        gateway = GeminiGateway()
+        if gateway.enabled:
+            logger.info("Trying Gemini vision tier for visual decision...")
+            gemini_result = gateway.analyze_chart(image_path)
+            if gemini_result is not None:
+                logger.info("Successfully got visual decision from Gemini vision tier.")
+                return ModelResult(
+                    signal=gemini_result.get("signal", "HOLD"),
+                    confidence=gemini_result.get("confidence", 0.0),
+                    reasoning=gemini_result.get("analysis", "No analysis"),
+                    metadata={**gemini_result, "backend": "gemini_vision"},
+                )
+            logger.info("Gemini vision tier unavailable/declined. Falling back to Ollama.")
+    except Exception as e:
+        logger.warning(f"Gemini vision tier failed: {e}. Falling back to Ollama.")
+
+    # 1. Fallback to Ollama
     try:
         with open(image_path, "rb") as image_file:
             image_base64 = base64.b64encode(image_file.read()).decode("utf-8")
     except Exception as e:
         logger.error(f"Could not read or encode image {image_path}: {e}")
-        return ModelResult("HOLD", 0.0, f"Error reading image: {e}")
+        return ModelResult("HOLD", 0.0, f"Error reading image: {e}", {"backend": "none"})
 
     prompt = """
     ACT AS A PROFESSIONAL CHART ANALYST. Analyze the attached price chart image.
@@ -507,7 +570,7 @@ def get_visual_llm_decision(image_path: Path) -> ModelResult:
         signal=result_dict.get("signal", "HOLD"),
         confidence=result_dict.get("confidence", 0.0),
         reasoning=result_dict.get("analysis", "No analysis"),
-        metadata=result_dict,
+        metadata={**result_dict, "backend": "ollama"},
     )
 
 

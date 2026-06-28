@@ -93,7 +93,13 @@ class TestLLMPrompts(unittest.TestCase):
     @patch("src.llm_client.requests.post")
     def test_llm_search_query_logic(self, mock_post):
         """Note: La génération de query de recherche est dans web_researcher.py,
-        mais nous vérifions ici comment le LLM traite le contexte web."""
+        mais nous vérifions ici comment le LLM traite le contexte web.
+
+        Gemini (if a real GEMINI_API_KEY is present in the environment) is
+        short-circuited here so this test exercises the mocked Ollama path
+        deterministically — otherwise a live Gemini call would make the
+        assertion non-reproducible.
+        """
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "response": json.dumps(
@@ -106,7 +112,13 @@ class TestLLMPrompts(unittest.TestCase):
         }
         mock_post.return_value = mock_response
 
-        with patch("src.llm_client.time.sleep"):
+        # Neutralize the cloud tiers (Gemini + FreeLLMClient) so only the
+        # mocked Ollama path runs — keeping this test deterministic. The Gemini
+        # gateway reads its key via src.gemini_gateway.os.getenv at __init__,
+        # so returning "" disables it (enabled=False → returns None → falls
+        # through to Ollama). FreeLLMClient is likewise unimportable in tests.
+        with patch("src.llm_client.time.sleep"), \
+             patch("src.gemini_gateway.os.getenv", return_value=""):
             result = get_llm_decision(self.sample_data, web_context=self.web_context)
 
         print("\n" + "=" * 50)
