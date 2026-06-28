@@ -21,7 +21,7 @@ COUNCIL_HOUR = 1          # Saturday 01:00 (once per week)
 COUNCIL_MINUTE = 0
 COUNCIL_DAY = 5           # Saturday (0=Mon ... 5=Sat, 6=Sun)
 COUNCIL_DAYS_ANALYZED = 7
-COUNCIL_TIMEOUT = 3600    # 1h, same guardrail as FinAcumen
+COUNCIL_TIMEOUT = 172800    # 48h (tout le week-end) pour laisser le temps aux modèles de réfléchir
 
 # Setup Logging
 setup_environment("scheduler.log")

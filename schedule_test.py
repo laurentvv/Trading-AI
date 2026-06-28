@@ -37,7 +37,7 @@ _TRIGGER_AT = _NOW.replace(second=0, microsecond=0) + timedelta(minutes=2)
 COUNCIL_HOUR = _TRIGGER_AT.hour
 COUNCIL_MINUTE = _TRIGGER_AT.minute
 COUNCIL_DAYS_ANALYZED = 7
-COUNCIL_TIMEOUT = 3600
+COUNCIL_TIMEOUT = 172800    # 48h (tout le week-end)
 # Forcé : on simule un samedi (COUNCIL_DAY=5) quel que soit le vrai jour.
 FORCE_SATURDAY = True
 

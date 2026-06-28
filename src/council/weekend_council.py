@@ -37,7 +37,7 @@ logger = logging.getLogger("WeekendCouncil")
 OLLAMA_CHAT_URL = f"{OLLAMA_BASE_URL}/api/chat"
 # Generous timeout: the council runs async over the weekend on CPU, where a
 # 12B model can take several minutes per call (no GPU acceleration).
-_OLLAMA_TIMEOUT = 480
+_OLLAMA_TIMEOUT = 900
 
 
 def fetch_recent_transactions(days: int = 7) -> pd.DataFrame:
@@ -346,14 +346,14 @@ def build_full_context(days: int = 7) -> str:
     return context
 
 
-def _ollama_chat(model, system_prompt, user_prompt, temperature=0.7, num_predict=2500):
+def _ollama_chat(model, system_prompt, user_prompt, temperature=0.7, num_predict=8192):
     """Queries a specific Ollama model in chat mode (/api/chat).
 
     Uses the structured messages format (system + user) which enforces the
     persona more reliably than the flat /api/generate prompt. Returns the
     cleaned response. Raises RuntimeError if the model is unavailable.
 
-    ``num_predict`` defaults to 2500: thinking models (Qwen, LFM, Gemma-4)
+    ``num_predict`` defaults to 8192: thinking models (Qwen, LFM, Gemma-4)
     spend part of their budget on internal reasoning before emitting visible
     output — too tight a cap produces empty responses on long contexts.
     """
@@ -401,7 +401,7 @@ def ask_llm(
     *,
     model: str | None = None,
     temperature: float = 0.7,
-    num_predict: int = 2500,
+    num_predict: int = 8192,
 ) -> str:
     """Queries a specific Ollama model per persona (genuine reasoning diversity).
 
@@ -588,7 +588,7 @@ def run_council(days: int = 7) -> str:
     try:
         # The Judge ingests the full transcript (longest input) and must emit a
         # complete structured verdict — give it a larger token budget than members.
-        verdict = ask_llm(judge_prompt, user_prompt, model=JUDGE_MODEL, num_predict=4000)
+        verdict = ask_llm(judge_prompt, user_prompt, model=JUDGE_MODEL, num_predict=12000)
         models_used["Le Juge"] = JUDGE_MODEL
     except Exception as e:
         logger.error(f"Le Juge est indisponible: {e}")
