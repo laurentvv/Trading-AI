@@ -240,11 +240,6 @@ CRUDP.PA: SELL (0.90)
 class TestCouncilTickerStance(unittest.TestCase):
     """Parses the Judge's VERDICT_TICKER block per ticker, with age decay."""
 
-    def _patch_loaded(self, age_days, text):
-        """Helper: patch _load_fresh_council_report to return (age, text)."""
-        ret = None if age_days is None else (age_days, text)
-        return patch("src.llm_client._load_fresh_council_report", return_value=ret)
-
     @patch("src.llm_client._load_fresh_council_report")
     def test_parses_stance_per_ticker(self, mock_load):
         mock_load.return_value = (0.0, _TICKER_REPORT)
