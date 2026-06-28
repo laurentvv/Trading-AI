@@ -346,7 +346,7 @@ def build_full_context(days: int = 7) -> str:
     return context
 
 
-def _ollama_chat(model, system_prompt, user_prompt, temperature=0.7, num_predict=8192):
+def _ollama_chat(model, system_prompt, user_prompt, temperature=0.7, num_predict=8192, num_ctx=32768):
     """Queries a specific Ollama model in chat mode (/api/chat).
 
     Uses the structured messages format (system + user) which enforces the
@@ -366,7 +366,7 @@ def _ollama_chat(model, system_prompt, user_prompt, temperature=0.7, num_predict
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        "options": {"temperature": temperature, "num_predict": num_predict},
+        "options": {"temperature": temperature, "num_predict": num_predict, "num_ctx": num_ctx},
     }
     resp = requests.post(OLLAMA_CHAT_URL, json=payload, timeout=_OLLAMA_TIMEOUT)
     if resp.status_code == 200:
@@ -402,6 +402,7 @@ def ask_llm(
     model: str | None = None,
     temperature: float = 0.7,
     num_predict: int = 8192,
+    num_ctx: int = 32768,
 ) -> str:
     """Queries a specific Ollama model per persona (genuine reasoning diversity).
 
@@ -427,12 +428,12 @@ def ask_llm(
         )
     try:
         logger.info(f"Querying Ollama model: {target}")
-        return _ollama_chat(target, system_prompt, user_prompt, temperature, num_predict)
+        return _ollama_chat(target, system_prompt, user_prompt, temperature, num_predict, num_ctx)
     except Exception as e:
         logger.error(f"Ollama model {target} failed: {e}")
         if target != TEXT_LLM_MODEL:
             logger.warning(f"Falling back to {TEXT_LLM_MODEL}...")
-            return _ollama_chat(TEXT_LLM_MODEL, system_prompt, user_prompt, temperature, num_predict)
+            return _ollama_chat(TEXT_LLM_MODEL, system_prompt, user_prompt, temperature, num_predict, num_ctx)
         raise RuntimeError(f"Failed to get response from {target}: {e}")
 
 
@@ -588,7 +589,7 @@ def run_council(days: int = 7) -> str:
     try:
         # The Judge ingests the full transcript (longest input) and must emit a
         # complete structured verdict — give it a larger token budget than members.
-        verdict = ask_llm(judge_prompt, user_prompt, model=JUDGE_MODEL, num_predict=12000)
+        verdict = ask_llm(judge_prompt, user_prompt, model=JUDGE_MODEL, num_predict=12000, num_ctx=65536)
         models_used["Le Juge"] = JUDGE_MODEL
     except Exception as e:
         logger.error(f"Le Juge est indisponible: {e}")

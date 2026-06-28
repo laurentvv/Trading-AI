@@ -115,13 +115,14 @@ class TestOllamaChat(unittest.TestCase):
 
     @patch("requests.post")
     def test_judge_gets_larger_token_budget(self, mock_post):
-        """ask_llm forwards num_predict through to the chat payload."""
+        """ask_llm forwards num_predict and num_ctx through to the chat payload."""
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"message": {"content": "verdict"}}
         mock_post.return_value = mock_response
-        wc.ask_llm("sys", "user", model=wc.TEXT_LLM_MODEL, num_predict=4000)
-        self.assertEqual(mock_post.call_args.kwargs["json"]["options"]["num_predict"], 4000)
+        wc.ask_llm("sys", "user", model=wc.TEXT_LLM_MODEL, num_predict=12000, num_ctx=65536)
+        self.assertEqual(mock_post.call_args.kwargs["json"]["options"]["num_predict"], 12000)
+        self.assertEqual(mock_post.call_args.kwargs["json"]["options"]["num_ctx"], 65536)
 
 
 class TestAskLLMRouting(unittest.TestCase):
