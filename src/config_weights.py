@@ -29,4 +29,3 @@ DEFAULT_BASE_WEIGHTS: Dict[str, float] = {
 # Somme = 0.95 (volontairement < 1.0 ; les poids sont renormalisés à 1.0
 # à l'usage dans EnhancedDecisionEngine.make_enhanced_decision et
 # AdaptiveWeightManager.calculate_adaptive_weights).
-

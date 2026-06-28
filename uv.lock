@@ -3745,30 +3745,17 @@ wheels = [
 
 [[package]]
 name = "timesfm"
-version = "2.0.0"
-source = { directory = "vendor/timesfm" }
+version = "2.0.1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "huggingface-hub" },
     { name = "numpy" },
     { name = "safetensors" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "einshape", marker = "extra == 'flax'" },
-    { name = "flax", marker = "extra == 'flax'" },
-    { name = "huggingface-hub", extras = ["cli"], specifier = ">=0.23.0" },
-    { name = "jax", extras = ["cuda"], marker = "extra == 'flax'" },
-    { name = "jax", extras = ["cuda"], marker = "extra == 'xreg'" },
-    { name = "jaxtyping", marker = "extra == 'flax'" },
-    { name = "numpy", specifier = ">=1.26.4" },
-    { name = "optax", marker = "extra == 'flax'" },
-    { name = "orbax-checkpoint", marker = "extra == 'flax'" },
-    { name = "safetensors", specifier = ">=0.5.3" },
-    { name = "scikit-learn", marker = "extra == 'xreg'" },
-    { name = "torch", marker = "extra == 'torch'", specifier = ">=2.0.0" },
+sdist = { url = "https://files.pythonhosted.org/packages/ac/a0/39148b2d692376d1e8d5969fadf7e7565c10e4505b4de197115c38270f65/timesfm-2.0.1.tar.gz", hash = "sha256:3d8f65a9acc9e0471fd7891c7f4be75b96d5e528a208fdc945983363f8302bb1", size = 43827, upload-time = "2026-06-08T17:21:24.193Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2c/97/e0bfa90617be01e1a789cc04e912f0129b316d8caaa4b72b014a19319af6/timesfm-2.0.1-py3-none-any.whl", hash = "sha256:0da183f218c5f59a9695abd73cb571b8cc90e4bd52d9d8017fb722f2ea3d93d8", size = 44714, upload-time = "2026-06-08T17:21:23.17Z" },
 ]
-provides-extras = ["torch", "flax", "xreg"]
 
 [[package]]
 name = "tokenizers"
@@ -3939,7 +3926,7 @@ requires-dist = [
     { name = "smolagents", extras = ["litellm"], specifier = ">=1.26.0" },
     { name = "stable-baselines3", specifier = ">=2.8.0" },
     { name = "tensortrade", specifier = ">=1.0.4" },
-    { name = "timesfm", directory = "vendor/timesfm" },
+    { name = "timesfm", specifier = ">=2.0.0" },
     { name = "torch", specifier = ">=2.10.0" },
     { name = "tqdm", specifier = ">=4.67.3" },
     { name = "yfinance", specifier = ">=1.4.1" },

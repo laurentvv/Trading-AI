@@ -21,4 +21,3 @@ def setup_environment(log_file="trading.log"):
             logging.StreamHandler(sys.stdout),
         ],
     )
-

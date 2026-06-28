@@ -48,5 +48,5 @@ line-length = 120
 target-version = "py312"
 
 [tool.uv.sources]
-timesfm = { path = "vendor/timesfm" }
+
 free-llm-api-keys = { git = "https://github.com/laurentvv/free-llm-api-keys-python.git" }

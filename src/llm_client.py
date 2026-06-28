@@ -224,7 +224,7 @@ def get_llm_decision(
     """
     logger.info(f"Querying textual LLM for {ticker} decision...")
     prompt = construct_llm_prompt(latest_data, headlines, web_context, vg_indicators, ticker)
-    
+
     # 1. Try FreeLLMClient
     try:
         from free_llm_api_keys import FreeLLMClient
@@ -234,10 +234,10 @@ def get_llm_decision(
             {"role": "system", "content": "You are an expert financial analyst. Your task is to analyze market data and news to provide a trading decision in a valid JSON format. Output ONLY the JSON object requested."},
             {"role": "user", "content": prompt}
         ]
-        
+
         logger.info("Trying FreeLLMClient for textual decision...")
         response_text = client.chat(messages, temperature=0.4, max_tokens=1024)
-        
+
         # Parse the JSON
         candidates = _extract_json_candidates(response_text)
         expected_keys = ["signal", "confidence", "analysis"]
@@ -301,7 +301,7 @@ def get_visual_llm_decision(image_path: Path) -> ModelResult:
     IMPORTANT: Your role is purely geometric and visual validation.
     - If the chart is ambiguous, mixed, or mostly sideways, you MUST output "HOLD" with low confidence (< 0.5).
     - Reserve "BUY" or "SELL" with high confidence (> 0.7) ONLY for textbook, unmistakable patterns.
-    
+
     Output ONLY a valid JSON object exactly like this:
     {
       "signal": "BUY|SELL|HOLD",

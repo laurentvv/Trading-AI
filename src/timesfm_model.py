@@ -11,10 +11,8 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 # Tentative d'importation de l'API 2.5
-# (Elle doit être installée via setup_timesfm.py qui patche __init__.py)
 try:
-    # import timesfm
-    from timesfm.timesfm_2p5.timesfm_2p5_torch import TimesFM_2p5_200M_torch
+    from timesfm import TimesFM_2p5_200M_torch
     from timesfm.configs import ForecastConfig
     import torch
     torch.set_float32_matmul_precision('high')
@@ -23,7 +21,7 @@ try:
     logger.info("API TimesFM 2.5 (Torch) chargée avec succès.")
 except ImportError:
     TIMESFM_2P5_AVAILABLE = False
-    logger.error("API TimesFM 2.5 non trouvée. Veuillez lancer 'python setup_timesfm.py' pour l'installer.")
+    logger.error("API TimesFM 2.5 non trouvée. Assurez-vous que le package 'timesfm' est bien installé.")
 
 
 class TimesFMModel(BaseModel):
