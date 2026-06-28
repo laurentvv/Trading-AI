@@ -1,38 +1,46 @@
-"""Google Gemini gateway — the priority cloud backend in the 3-tier chain.
+"""Google Gemini gateway — priority cloud backend with two-tier keys.
 
-Fallback chain (per ``AGENTS.md`` §6.1 and the approved integration plan)::
+Fallback chain (per ``AGENTS.md`` §6.1)::
 
-    Gemini (GEMINI_API_KEY)  →  free-llm-api-keys  →  local Ollama
+    Gemini (paid key)  →  Gemini (free key)  →  free-llm-api-keys  →  local Ollama
 
-This module is the **Gemini** tier. Each public method returns either a result
-or ``None``; ``None`` means "I could not serve this request — try the next
-backend". The caller (``llm_client.py``) decides what the next backend is.
-No exception ever escapes this module into the trading pipeline.
+This module is the **Gemini** portion. Each public method returns either a
+result or ``None``; ``None`` means "I could not serve this request — try the
+next backend". The caller (``llm_client.py``) decides what the next backend
+is. No exception ever escapes this module into the trading pipeline.
+
+Two API keys, two tiers
+-----------------------
+* ``GEMINI_API_KEY_PAY`` (paid Tier 1) — used for the high-value use-cases
+  (decision, vision). Generous quotas; **Gemini 2.5 Pro** is available here
+  and anchors the reasoning cascade. Bounded by a local daily cap
+  (``GEMINI_PAY_DAILY_CAP``, default 200) that protects billing.
+* ``GEMINI_API_KEY`` (free Tier) — used for the low-value web-summary use-case,
+  and as the fallback when the paid tier is exhausted. Pro is unavailable
+  here (0/0/0); only Flash/Lite/Gemma models.
+
+Use-case → tier routing
+-----------------------
+* ``decide()``          → PAID cascade (Pro → 3.5-flash → ...) → FREE cascade
+* ``analyze_chart()``   → PAID cascade (2.5-flash → ...) → FREE cascade
+* ``summarize_web_context()`` → FREE cascade only (trivial task)
+
+When the paid tier's daily cap is reached (or every paid model 429s), the
+decision/vision use-cases transparently fall back to the FREE cascade before
+yielding ``None`` (which then falls through to free-llm / Ollama).
 
 SDK note (June 2026)
 --------------------
-Uses the **unified ``google-genai`` SDK** (``from google import genai``), the
-official successor to the deprecated ``google-generativeai`` package. The new
-SDK is client-based: ``genai.Client(api_key=...)`` then
-``client.models.generate_content(model=..., contents=..., config=...)``.
-
-Model dispatch
---------------
-Gemini 2.5 Pro returns a 0/0/0 quota on this key (unavailable), so the
-reasoning tier runs on a Flash model. Dispatch follows the account's actual
-Free Tier limits (confirmed empirically, not from public docs):
-
-    - ``gemini-3.5-flash``       (5 RPM / 20 RPD)  → final trading decision
-    - ``gemini-2.5-flash``       (5 RPM / 20 RPD)  → chart image analysis (vision)
-    - ``gemini-3.1-flash-lite`` (15 RPM / 500 RPD) → web context summarization
+Uses the unified ``google-genai`` SDK (``from google import genai``), the
+official successor to the deprecated ``google-generativeai`` package.
 
 Design notes
 ------------
-* **Graceful degradation.** ``google-genai`` may be absent (pre-``uv sync``).
-  The SDK is imported lazily and a missing package simply disables the gateway
-  (``self.enabled = False``) instead of raising at import time.
+* **Graceful degradation.`` ``google-genai`` may be absent (pre-``uv sync``).
+  The SDK is imported lazily and a missing package simply disables the
+  gateway instead of raising at import time.
 * **Quota pre-flight.** Every call is gated by :class:`QuotaTracker` so we
-  short-circuit *before* hitting the API once the local RPM/RPD ledger is full.
+  short-circuit *before* hitting the API once the local ledger is full.
 * **Invariant §2.1 (Dual-Layer JSON Defence).** Gemini has no ``<|think|>``
   channel, so structured output (``response_schema``) is the load-bearing JSON
   layer here. We still (a) append the ``"...never add a 'thought' key."``
@@ -47,19 +55,17 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from dotenv import load_dotenv
 
-from src.gemini_quota import QuotaTracker
+from src.gemini_quota import LIMITS_FREE, LIMITS_PAID, QuotaTracker, TIER_FREE, TIER_PAID
 
 logger = logging.getLogger(__name__)
 
 load_dotenv()
 
 # --- Lazy, fault-tolerant SDK import -------------------------------------- #
-# The unified SDK (``google-genai``). If the wheel is absent (pre-``uv sync``)
-# we degrade to ``enabled=False`` rather than crash at import time.
 try:
     from google import genai
     from google.genai import types as genai_types  # noqa: F401  (used in _generate)
@@ -72,46 +78,58 @@ except ImportError:  # pragma: no cover - exercised only without the wheel
     _SDK_AVAILABLE = False
 
 
-# Free-Tier model identifiers (confirmed available to this key via models.list).
-# Each use-case is an ORDERED CASCADE: tried first-to-last. When a model hits
-# its local quota (RPM/RPD), returns 429, errors out, or is overloaded (503),
-# the gateway transparently falls through to the next model in the chain.
-# Quota is additive across the cascade — see gemini_quota.LIMITS.
-#
-# Ordering principle: most capable / newest first, deepest quota as the safety
-# net. Gemma 4 (text-only) anchors the reasoning cascade so that even if every
-# Flash model is exhausted, decisions still come from the cloud rather than
-# falling all the way to local Ollama.
+# ========================================================================= #
+# Cascades (ordered; most capable first, deepest quota as the safety net)
+# ========================================================================= #
 
-# Final trading decision (text reasoning). Adds up to ~2560 RPD before any
-# fallback to free-llm-api-keys / Ollama.
-REASONING_CASCADE = (
-    "gemini-3.5-flash",        # newest Flash; small but scarce budget (20/d)
-    "gemini-3-flash-preview",  # near-equivalent; (20/d)
-    "gemini-3.1-flash-lite",   # lighter but generous (500/d)
-    "gemini-2.5-flash",        # stable fallback (20/d)
-    "gemma-4-31b",             # text-only safety net (1500/d)
-    "gemma-4-26b",             # final text-only safety net (1500/d)
+# --- PAID Tier 1 cascades -------------------------------------------------
+# Decision: Gemini 2.5 Pro anchors it (only available on the paid key).
+REASONING_CASCADE_PAID = (
+    "gemini-2.5-pro",          # Pro: best reasoning, paid-only
+    "gemini-3.5-flash",
+    "gemini-3.1-pro",          # 3.1 Pro: strong reasoning
+    "gemini-3-flash-preview",
+    "gemini-3.1-flash-lite",   # huge RPD budget
+    "gemini-2.5-flash",
+    "gemma-4-31b",             # text-only safety net
+    "gemma-4-26b",
 )
 
-# Chart image analysis (vision). Gemma excluded — not image-capable via API.
-VISION_CASCADE = (
-    "gemini-3.5-flash",        # newest, vision-capable
-    "gemini-3-flash-preview",  # vision-capable
-    "gemini-2.5-flash",        # stable, vision-capable (validated live)
-    "gemini-2.0-flash",        # oldest stable vision fallback
+# Vision: multimodal only (Gemma excluded).
+VISION_CASCADE_PAID = (
+    "gemini-2.5-flash",
+    "gemini-3.5-flash",
+    "gemini-3-flash-preview",
+    "gemini-2.0-flash",
 )
 
-# Web context summarization (text, light). flash-lite anchors it (500/d).
-WEB_SUMMARY_CASCADE = (
-    "gemini-3.1-flash-lite",   # primary — huge RPD budget
-    "gemini-2.5-flash-lite",   # fallback
-    "gemini-2.0-flash-lite",   # final fallback
+# --- FREE Tier cascades (fallback) ---------------------------------------
+# Pro is 0/0/0 here, so it's absent. Used when the paid cap is exhausted.
+REASONING_CASCADE_FREE = (
+    "gemini-3.5-flash",
+    "gemini-3-flash-preview",
+    "gemini-3.1-flash-lite",
+    "gemini-2.5-flash",
+    "gemma-4-31b",
+    "gemma-4-26b",
 )
 
-# JSON schema enforced server-side via ``response_schema``. This mirrors the
-# Ollama ``SCHEMA_TRADING_DECISION`` (signal enum + confidence + analysis) so a
-# Gemini decision is a drop-in replacement for an Ollama decision downstream.
+VISION_CASCADE_FREE = (
+    "gemini-3.5-flash",
+    "gemini-3-flash-preview",
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+)
+
+# --- Web summary cascade (FREE only — trivial task, preserves paid budget) -
+WEB_SUMMARY_CASCADE_FREE = (
+    "gemini-3.1-flash-lite",
+    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash-lite",
+)
+
+# JSON schema enforced server-side via ``response_schema``. Mirrors the Ollama
+# ``SCHEMA_TRADING_DECISION`` so a Gemini decision is a drop-in replacement.
 _TRADING_DECISION_SCHEMA = {
     "type": "object",
     "properties": {
@@ -125,8 +143,6 @@ _TRADING_DECISION_SCHEMA = {
 # Parity suffix with the Ollama call sites (AGENTS.md §2.1, Layer 2).
 _NO_THOUGHT_SUFFIX = "Output ONLY the JSON object requested — never add a 'thought' key."
 
-# Prompt for the chart analyst. Verbatim copy of the Ollama visual prompt so the
-# two backends reason from identical instructions (decision parity).
 _CHART_ANALYST_PROMPT = """
 ACT AS A PROFESSIONAL CHART ANALYST. Analyze the attached price chart image.
 1. Patterns: Identify visible geometric patterns (Head & Shoulders, Triangles, Channels).
@@ -138,43 +154,24 @@ IMPORTANT: Your role is purely geometric and visual validation.
 - Reserve "BUY" or "SELL" with high confidence (> 0.7) ONLY for textbook, unmistakable patterns.
 """
 
-# System instruction used for the heavy reasoning model (final decision).
 _FINANCIAL_ANALYST_SYSTEM = (
     "You are an expert financial analyst. Your task is to analyze market data "
     "and news to provide a trading decision in a valid JSON format."
 )
 
 
-class GeminiGateway:
-    """Priority cloud backend. Returns results or ``None``; never raises.
+class _TierBackend:
+    """One Gemini client + its quota tier tag.
 
-    The gateway holds one ``genai.Client`` (cheap, reusable) and a
-    :class:`QuotaTracker`. Configuration is read once from the environment:
-
-    * ``GEMINI_API_KEY`` — the Free Tier key. Absent ⇒ ``enabled=False``.
+    Wraps a ``genai.Client`` for one key (paid or free) and routes quota
+    accounting to the matching ledger in :class:`QuotaTracker`.
     """
 
-    def __init__(self, api_key: Optional[str] = None) -> None:
-        self.api_key = api_key or os.getenv("GEMINI_API_KEY", "").strip()
-        self.enabled = bool(_SDK_AVAILABLE and self.api_key)
-        self._client = None
-        if not _SDK_AVAILABLE:
-            logger.debug("Gemini disabled: google-genai not installed.")
-        elif not self.api_key:
-            logger.debug("Gemini disabled: GEMINI_API_KEY not set.")
-        if self.enabled:
-            try:
-                # The new SDK is client-based: one Client per process/key.
-                self._client = genai.Client(api_key=self.api_key)  # type: ignore[union-attr]
-            except Exception as e:  # noqa: BLE001 - bad key must not crash the pipeline
-                logger.warning("Gemini Client init failed (%s). Gateway disabled.", e)
-                self.enabled = False
-        self._quota = QuotaTracker()
+    def __init__(self, client: Any, tier: str) -> None:
+        self.client = client
+        self.tier = tier
 
-    # ------------------------------------------------------------------ #
-    # Internal call wrapper — the single place that talks to the SDK.
-    # ------------------------------------------------------------------ #
-    def _generate_one(
+    def generate(
         self,
         model_name: str,
         contents: Any,
@@ -183,21 +180,11 @@ class GeminiGateway:
         max_output_tokens: int,
         system_instruction: str,
         json_schema: Optional[dict] = None,
+        quota: QuotaTracker,
     ) -> Optional[str]:
-        """Run ONE Gemini call against ``model_name``.
-
-        Returns the raw text response, or ``None`` on quota exhaustion, 429,
-        or any SDK/network failure. ``None`` is the contract that lets the
-        caller try the next model in a cascade. Only a successful call
-        consumes quota (recorded here).
-        """
-        if not self.enabled or self._client is None:
+        """Run ONE call. Returns text or ``None`` (quota/429/error/empty)."""
+        if not quota.check(model_name, self.tier):
             return None
-
-        # Pre-flight: skip this model if its local quota ledger is full.
-        if not self._quota.check(model_name):
-            return None
-
         try:
             config_kwargs: Dict[str, Any] = {
                 "temperature": temperature,
@@ -205,86 +192,133 @@ class GeminiGateway:
                 "system_instruction": system_instruction,
             }
             if json_schema is not None:
-                # Structured output — the load-bearing JSON layer for Gemini.
                 config_kwargs["response_mime_type"] = "application/json"
                 config_kwargs["response_schema"] = json_schema
             config = genai_types.GenerateContentConfig(**config_kwargs)  # type: ignore[union-attr]
-
-            response = self._client.models.generate_content(
-                model=model_name,
-                contents=contents,
-                config=config,
+            response = self.client.models.generate_content(
+                model=model_name, contents=contents, config=config,
             )
             text = response.text
         except ResourceExhausted:
-            logger.info(
-                "Gemini %s: quota exhausted (429). Trying next model.", model_name
-            )
+            logger.info("Gemini %s/%s: 429 quota. Trying next.", self.tier, model_name)
             return None
-        except Exception as e:  # noqa: BLE001 - try next model on any failure
-            logger.info(
-                "Gemini %s: call failed (%s). Trying next model.", model_name, e
-            )
+        except Exception as e:  # noqa: BLE001 - try next model
+            logger.info("Gemini %s/%s: failed (%s). Trying next.", self.tier, model_name, e)
             return None
 
         if not text or not text.strip():
-            logger.info("Gemini %s: empty response. Trying next model.", model_name)
+            # Distinguish a true empty response from a token-limit truncation.
+            # Pro is verbose under JSON schema; a MAX_TOKENS finish yields a
+            # partial (unparseable) or empty body. Log the cause so it is not
+            # mistaken for a safety filter.
+            reason = GeminiGateway._finish_reason(response)
+            logger.info(
+                "Gemini %s/%s: empty response (finish_reason=%s). Trying next.",
+                self.tier, model_name, reason,
+            )
             return None
-
-        # Only a *successful* call consumes quota.
-        self._quota.record(model_name)
-        logger.debug("Gemini %s: success.", model_name)
+        quota.record(model_name, self.tier)
+        logger.debug("Gemini %s/%s: success.", self.tier, model_name)
         return text
 
-    def _generate_cascaded(
+
+class GeminiGateway:
+    """Two-tier Gemini gateway. Returns results or ``None``; never raises.
+
+    ``enabled`` is True if EITHER key is configured (so the gateway is useful
+    even with only the free key). ``enabled_paid`` / ``enabled_free`` expose
+    per-key availability for the routing logic.
+    """
+
+    def __init__(self) -> None:
+        paid_key = os.getenv("GEMINI_API_KEY_PAY", "").strip()
+        free_key = os.getenv("GEMINI_API_KEY", "").strip()
+
+        self._quota = QuotaTracker()
+        self._paid: Optional[_TierBackend] = self._make_backend(paid_key, TIER_PAID)
+        self._free: Optional[_TierBackend] = self._make_backend(free_key, TIER_FREE)
+
+        self.enabled_paid = self._paid is not None
+        self.enabled_free = self._free is not None
+        self.enabled = self.enabled_paid or self.enabled_free
+        if not _SDK_AVAILABLE:
+            logger.debug("Gemini disabled: google-genai not installed.")
+            self.enabled = self.enabled_paid = self.enabled_free = False
+
+    @staticmethod
+    def _make_backend(api_key: str, tier: str) -> Optional[_TierBackend]:
+        if not _SDK_AVAILABLE or not api_key:
+            return None
+        try:
+            client = genai.Client(api_key=api_key)  # type: ignore[union-attr]
+        except Exception as e:  # noqa: BLE001 - bad key must not crash pipeline
+            logger.warning("Gemini %s Client init failed (%s). Tier disabled.", tier, e)
+            return None
+        return _TierBackend(client, tier)
+
+    # ------------------------------------------------------------------ #
+    # Cascade runner: try a tier's cascade, return (text, tier, model).
+    # ------------------------------------------------------------------ #
+    def _run_cascade(
         self,
+        backend: Optional[_TierBackend],
         cascade: tuple,
         contents: Any,
-        *,
-        temperature: float,
-        max_output_tokens: int,
-        system_instruction: str,
-        json_schema: Optional[dict] = None,
-    ) -> Optional[str]:
-        """Try each model in ``cascade`` in order until one succeeds.
+        **gen_kwargs,
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """Try each model in ``cascade`` via ``backend``.
 
-        This is the multi-model failover: quota (RPM/RPD), 429, 503 overload,
-        and generic errors on one model all cause a transparent fall-through
-        to the next. Returns ``None`` only if every model in the cascade is
-        exhausted — at which point the outer caller falls back to free-llm /
-        Ollama.
+        Returns ``(text, model_name)`` on success, or ``(None, None)`` if the
+        backend is missing or every model failed.
         """
-        if not self.enabled:
-            return None
+        if backend is None:
+            return None, None
         for model_name in cascade:
-            text = self._generate_one(
-                model_name,
-                contents,
-                temperature=temperature,
-                max_output_tokens=max_output_tokens,
-                system_instruction=system_instruction,
-                json_schema=json_schema,
+            text = backend.generate(
+                model_name, contents, quota=self._quota, **gen_kwargs
             )
             if text is not None:
-                return text
+                return text, model_name
+        return None, None
+
+    def _run_tiered(
+        self,
+        contents: Any,
+        paid_cascade: tuple,
+        free_cascade: tuple,
+        use_free_only: bool = False,
+        **gen_kwargs,
+    ) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+        """Run paid cascade first, then free cascade as fallback.
+
+        Returns ``(text, tier, model)`` — ``tier`` is ``"paid"`` / ``"free"`` /
+        ``None``. When ``use_free_only`` is set (web summary), the paid tier is
+        skipped entirely to preserve billing budget.
+        """
+        if not use_free_only and self._paid is not None:
+            text, model = self._run_cascade(self._paid, paid_cascade, contents, **gen_kwargs)
+            if text is not None:
+                return text, TIER_PAID, model
+            logger.info("Gemini paid tier exhausted. Trying free tier.")
+        if self._free is not None:
+            text, model = self._run_cascade(self._free, free_cascade, contents, **gen_kwargs)
+            if text is not None:
+                return text, TIER_FREE, model
         logger.warning(
-            "Gemini cascade exhausted (%d models tried, all failed/over-quota). "
-            "Falling back to next backend.", len(cascade),
+            "Gemini tiered cascade exhausted (paid+free). Falling back to next backend."
         )
-        return None
+        return None, None, None
 
     # ------------------------------------------------------------------ #
     # Public use-case methods
     # ------------------------------------------------------------------ #
     def summarize_web_context(self, text_content: str) -> Optional[str]:
-        """Synthesize raw crawled web markdown into a trading-focused summary.
+        """Synthesize raw crawled markdown into a trading-focused summary.
 
-        Uses ``flash-lite`` (light, high RPD budget). Output is free-form text
-        (no JSON schema) — this is a *summarizer*, not a decision-maker. The
-        returned summary replaces the raw markdown fed into the decision
-        prompt, reducing context noise.
+        FREE tier only (trivial task — preserves paid budget). Returns the
+        summary text or ``None``.
         """
-        if not self.enabled or not text_content or not text_content.strip():
+        if not self.enabled_free or not text_content or not text_content.strip():
             return None
         prompt = (
             "You are a macro news analyst for a trading desk. Read the web "
@@ -294,29 +328,26 @@ class GeminiGateway:
             "filler and repeats. Do NOT invent facts.\n\n"
             f"--- WEB RESEARCH ---\n{text_content}\n--- END ---"
         )
-        return self._generate_cascaded(
-            WEB_SUMMARY_CASCADE,
+        text, _tier, _model = self._run_tiered(
             prompt,
+            paid_cascade=WEB_SUMMARY_CASCADE_FREE,  # unused (free-only)
+            free_cascade=WEB_SUMMARY_CASCADE_FREE,
+            use_free_only=True,
             temperature=0.2,
             max_output_tokens=700,
-            system_instruction=(
-                "You are a concise financial news summarizer for a trading system."
-            ),
+            system_instruction="You are a concise financial news summarizer for a trading system.",
             json_schema=None,
         )
+        return text
 
     def analyze_chart(self, image_path: Path) -> Optional[dict]:
-        """Geometric chart analysis via ``flash`` (vision-capable).
+        """Geometric chart analysis. PAID cascade → FREE cascade.
 
-        Returns a dict ``{signal, confidence, analysis}`` or ``None``. The
-        prompt is a verbatim copy of the Ollama visual prompt so both
-        backends share identical instructions.
+        Returns a dict ``{signal, confidence, analysis}`` or ``None``.
         """
         if not self.enabled or not image_path.exists():
             return None
         try:
-            # The new SDK accepts raw image bytes via Part.from_bytes — no PIL
-            # round-trip needed, and no extra dependency at the call site.
             image_bytes = image_path.read_bytes()
             contents = [
                 _CHART_ANALYST_PROMPT.strip(),
@@ -326,33 +357,33 @@ class GeminiGateway:
             logger.warning("Gemini vision could not load %s (%s).", image_path, e)
             return None
 
-        text = self._generate_cascaded(
-            VISION_CASCADE,
+        text, _tier, _model = self._run_tiered(
             contents,
+            paid_cascade=VISION_CASCADE_PAID,
+            free_cascade=VISION_CASCADE_FREE,
             temperature=0.4,
             max_output_tokens=1024,
-            system_instruction=(
-                "You are an objective geometric chart analyst. "
-                + _NO_THOUGHT_SUFFIX
-            ),
+            system_instruction="You are an objective geometric chart analyst. " + _NO_THOUGHT_SUFFIX,
             json_schema=_TRADING_DECISION_SCHEMA,
         )
         return self._parse_decision(text)
 
     def decide(self, prompt: str) -> Optional[dict]:
-        """Final trading decision via ``gemini-3.5-flash`` (reasoning tier).
+        """Final trading decision. PAID cascade (Pro-led) → FREE cascade.
 
-        Returns a dict ``{signal, confidence, analysis}`` or ``None``. The
-        caller builds ``prompt`` via ``construct_llm_prompt`` (the same prompt
-        the Ollama path uses), so the two paths reason over identical input.
+        Returns a dict ``{signal, confidence, analysis}`` or ``None``.
         """
         if not self.enabled or not prompt or not prompt.strip():
             return None
-        text = self._generate_cascaded(
-            REASONING_CASCADE,
+        text, _tier, _model = self._run_tiered(
             prompt,
+            paid_cascade=REASONING_CASCADE_PAID,
+            free_cascade=REASONING_CASCADE_FREE,
             temperature=0.4,
-            max_output_tokens=1024,
+            # Reasoning models (esp. 2.5 Pro) are verbose under JSON schema
+            # enforcement — 1024 truncated them (finish_reason=MAX_TOKENS →
+            # empty/invalid JSON). 8192 is ample for a structured decision.
+            max_output_tokens=8192,
             system_instruction=_FINANCIAL_ANALYST_SYSTEM + " " + _NO_THOUGHT_SUFFIX,
             json_schema=_TRADING_DECISION_SCHEMA,
         )
@@ -362,21 +393,45 @@ class GeminiGateway:
     # Helpers
     # ------------------------------------------------------------------ #
     @staticmethod
+    def _finish_reason(response: Any) -> str:
+        """Extract the finish_reason from a Gemini response, defensively.
+
+        Returns a short string (``STOP``, ``MAX_TOKENS``, ``SAFETY``,
+        ``OTHER``, ``?``) for logging. Never raises.
+        """
+        try:
+            cands = getattr(response, "candidates", None)
+            if not cands:
+                return "no-candidates"
+            reason = getattr(cands[0], "finish_reason", None)
+            if reason is None:
+                return "?"
+            # The SDK enum stringifies to e.g. "FinishReason.MAX_TOKENS".
+            name = getattr(reason, "name", str(reason))
+            return name.replace("FinishReason.", "")
+        except Exception:  # noqa: BLE001 - logging helper must never raise
+            return "?"
+
+    @staticmethod
     def _parse_decision(text: Optional[str]) -> Optional[dict]:
         """Best-effort JSON parse of a structured Gemini response.
 
-        Gemini's ``response_schema`` should already guarantee valid JSON, but
-        the model sometimes wraps the object in markdown fences (````` ```json `````)
-        or prefixes it with a short prose remark. We therefore reuse the
-        production-grade extractor from ``llm_client`` (the same one that
-        scrubs ``<|think|>`` debris and drills into nested structures for the
-        Gemma path) rather than a naive ``json.loads``. Returns ``None`` if no
-        usable object is found — the caller then falls back to the next backend.
+        Three strategies, tried in order:
+        1. **Fast path** — ``json.loads`` (the common case: bare, valid JSON).
+        2. **Robust path** — ``_extract_json_candidates`` + ``_find_dict_with_keys``
+           from ``llm_client`` (handles ``\\`\\`\\`json`` fences, prose prefixes,
+           and nested dicts — the production-grade path shared with Gemma).
+        3. **Regex salvage** — if Gemini emitted a structurally broken object
+           (e.g. unescaped quotes inside ``analysis``), extract ``signal`` and
+           ``confidence`` directly. This trades the (often-broken) analysis
+           text for a usable decision rather than discarding the whole call.
+
+        Returns ``None`` only if even the regex salvage finds nothing usable.
         """
         if not text:
             return None
 
-        # Fast path: the common case where Gemini returns bare JSON.
+        # 1. Fast path.
         try:
             import json
             data = json.loads(text)
@@ -385,10 +440,8 @@ class GeminiGateway:
         except (ValueError, TypeError):
             pass
 
-        # Robust path: handles ```json fences, leading prose, and nested dicts.
-        # Lazy import to avoid a circular dependency at module load time
-        # (llm_client imports nothing from this module, but we are imported by
-        # it at call time, so deferring keeps the import graph acyclic).
+        # 2. Robust path (markdown fences, prose prefix, nested dicts).
+        # Lazy import to keep the import graph acyclic.
         try:
             from src.llm_client import _extract_json_candidates, _find_dict_with_keys
 
@@ -396,17 +449,58 @@ class GeminiGateway:
                 parsed = _find_dict_with_keys(candidate, ["signal", "confidence", "analysis"])
                 if parsed is not None:
                     return GeminiGateway._normalize_decision(parsed)
-        except Exception:  # noqa: BLE001 - last-resort fallback, never raise
+        except Exception:  # noqa: BLE001 - fall through to regex salvage
             pass
+
+        # 3. Regex salvage: the object is malformed, but signal/confidence
+        # usually sit at the start and are themselves well-formed.
+        salvaged = GeminiGateway._regex_salvage(text)
+        if salvaged is not None:
+            logger.info(
+                "Gemini JSON was malformed; salvaged signal/confidence via regex."
+            )
+            return salvaged
 
         logger.warning("Gemini JSON parse failed. Falling back. Head: %r", text[:160])
         return None
 
     @staticmethod
+    def _regex_salvage(text: str) -> Optional[dict]:
+        """Extract signal/confidence from a malformed JSON object via regex.
+
+        Used when Gemini produces broken JSON (typically unescaped quotes in
+        the ``analysis`` field). We pull ``signal`` and ``confidence`` which
+        are simple scalars at the object's head, and use a placeholder
+        analysis so the decision is still usable.
+        """
+        import re
+        sig_match = re.search(r'"signal"\s*:\s*"(BUY|SELL|HOLD)"', text, re.IGNORECASE)
+        conf_match = re.search(r'"confidence"\s*:\s*([0-9]*\.?[0-9]+)', text)
+        if not sig_match:
+            return None
+        return GeminiGateway._normalize_decision({
+            "signal": sig_match.group(1),
+            "confidence": conf_match.group(1) if conf_match else "0.0",
+            "analysis": "(analysis unavailable — JSON was malformed)",
+        })
+
+    @staticmethod
     def _normalize_decision(data: dict) -> dict:
-        """Coerce a parsed decision dict into a stable, typed shape."""
+        """Coerce a parsed decision dict into a stable, typed shape.
+
+        ``confidence`` is clamped to [0, 1] — some models (notably Gemini 2.5
+        Pro) occasionally emit a confidence on a 0-10 scale despite the schema;
+        clamping guards the downstream weighted aggregation.
+        """
+        try:
+            confidence = float(data.get("confidence", 0.0))
+        except (TypeError, ValueError):
+            confidence = 0.0
+        # If a model emitted a 0-10 scale, rescale anything > 1 down to [0,1].
+        if confidence > 1.0:
+            confidence = confidence / 10.0 if confidence <= 10.0 else 1.0
         return {
             "signal": str(data.get("signal", "HOLD")).upper(),
-            "confidence": float(data.get("confidence", 0.0)),
+            "confidence": max(0.0, min(1.0, confidence)),
             "analysis": str(data.get("analysis", "")),
         }

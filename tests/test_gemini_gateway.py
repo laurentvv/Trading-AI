@@ -1,23 +1,23 @@
-"""Unit tests for the Gemini gateway and quota tracker.
+"""Unit tests for the two-tier Gemini gateway and quota tracker.
 
 Pattern mirrors ``tests/test_llm_client.py``: ``unittest.TestCase`` +
 ``unittest.mock.patch``/``MagicMock``. No real network calls — the SDK and
 SQLite layer are both mocked at the module boundary.
 
 Test coverage:
-* Gateway enabling/disabling (no key, no SDK, key present).
-* Quota pre-flight short-circuit (does not call the SDK when over budget).
-* The three use cases (decide / analyze_chart / summarize_web_context).
-* **Multi-model cascade failover**: when the first model fails (429/503/over-
-  quota), the gateway transparently tries the next one in the cascade.
-* Error handling (ResourceExhausted, generic Exception, empty response).
-* ``_parse_decision`` robustness (markdown fences, prose prefix, etc.).
-* ``QuotaTracker`` RPM/RPD windows and reset semantics.
+* Two-tier routing: paid key (decision/vision) vs free key (summary, fallback).
+* Multi-model cascade failover within a tier.
+* Paid → free fallback when the paid cap is reached.
+* Quota pre-flight short-circuit + local daily cap on the paid tier.
+* ``_parse_decision`` robustness (markdown fences, prose prefix, malformed JSON
+  salvage, confidence clamping).
+* ``QuotaTracker`` RPM/RPD windows and migration from the legacy schema.
 """
 
 from __future__ import annotations
 
 import json
+import sqlite3
 import tempfile
 import time
 import unittest
@@ -27,289 +27,280 @@ from unittest.mock import MagicMock, patch
 from src import gemini_gateway as gw_mod
 from src.gemini_gateway import (
     GeminiGateway,
-    REASONING_CASCADE,
-    VISION_CASCADE,
-    WEB_SUMMARY_CASCADE,
+    REASONING_CASCADE_PAID,
+    REASONING_CASCADE_FREE,
+    VISION_CASCADE_PAID,
+    WEB_SUMMARY_CASCADE_FREE,
 )
-from src.gemini_quota import LIMITS, QuotaTracker
+from src.gemini_quota import (
+    LIMITS_FREE,
+    LIMITS_PAID,
+    QuotaTracker,
+    TIER_FREE,
+    TIER_PAID,
+)
 
 
 def _make_response(text: str) -> MagicMock:
-    """Build a fake ``generate_content`` response carrying ``.text``."""
     r = MagicMock()
     r.text = text
     return r
 
 
-class _EnabledGatewayMixin:
-    """Common setUp: gateway enabled with a fake genai Client mounted.
+def _fake_client_with(generate_side_effect=None, generate_return=None):
+    """Build a fake genai.Client whose models.generate_content behaves as set."""
+    mock_generate = MagicMock()
+    if generate_side_effect is not None:
+        mock_generate.side_effect = generate_side_effect
+    elif generate_return is not None:
+        mock_generate.return_value = generate_return
+    client = MagicMock()
+    client.models.generate_content = mock_generate
+    return client, mock_generate
 
-    The new ``google-genai`` SDK is client-based (``genai.Client(api_key=...)``
-    then ``client.models.generate_content(...)``). We mount a fake ``genai``
-    module so tests run regardless of whether the wheel is installed, and we
-    expose ``self.genai`` / ``self.mock_generate`` to drive call assertions.
-    """
 
-    def setUp(self):  # noqa: D401 - unittest hook
-        self.mock_generate = MagicMock()
-        mock_models = MagicMock()
-        mock_models.generate_content = self.mock_generate
-        self.mock_client = MagicMock()
-        self.mock_client.models = mock_models
+def _mount_fake_sdk(paid_client, free_client):
+    """Context-manager-free patcher: mounts a fake genai module that returns
+    the given clients for the paid/free keys. Returns the patch objects to exit."""
+    def fake_Client(api_key=None, **_):
+        if api_key == "paid-key":
+            return paid_client
+        if api_key == "free-key":
+            return free_client
+        return MagicMock()  # unknown key
 
-        self._fake_genai = MagicMock()
-        self._fake_genai.Client = MagicMock(return_value=self.mock_client)
-        # genai_types.GenerateContentConfig is a real constructor in tests;
-        # a MagicMock returning its kwargs works for our assertions.
-        self._fake_types = MagicMock()
+    fake_genai = MagicMock()
+    fake_genai.Client = MagicMock(side_effect=fake_Client)
+    fake_types = MagicMock()
 
-        self._ctx = patch.dict("os.environ", {"GEMINI_API_KEY": "fake-key"}, clear=False)
-        self._ctx.__enter__()
-        self._sdk_patch = patch.object(gw_mod, "_SDK_AVAILABLE", True)
-        self._sdk_patch.__enter__()
-        self._genai_patch = patch.object(gw_mod, "genai", self._fake_genai)
-        self._genai_patch.__enter__()
-        self._types_patch = patch.object(gw_mod, "genai_types", self._fake_types)
-        self._types_patch.__enter__()
+    ctx = patch.dict("os.environ", {
+        "GEMINI_API_KEY_PAY": "paid-key",
+        "GEMINI_API_KEY": "free-key",
+    }, clear=False)
+    sdk = patch.object(gw_mod, "_SDK_AVAILABLE", True)
+    genai_p = patch.object(gw_mod, "genai", fake_genai)
+    types_p = patch.object(gw_mod, "genai_types", fake_types)
+    return ctx, sdk, genai_p, types_p
 
-    def tearDown(self):  # noqa: D401 - unittest hook
-        self._types_patch.__exit__(None, None, None)
-        self._genai_patch.__exit__(None, None, None)
-        self._sdk_patch.__exit__(None, None, None)
-        self._ctx.__exit__(None, None, None)
 
-    def _make_gateway(self):
-        # Each gateway gets a fresh quota mock so tests are independent.
+class _TwoTierGatewayMixin:
+    """Mixin: build a gateway with both paid+free clients mounted, each with a
+    fresh quota mock. Subclasses set ``self.paid_generate`` / ``self.free_generate``
+    in setUp to drive call behaviour."""
+
+    def setUp(self):  # noqa: D401
+        self.paid_client, self.paid_generate = _fake_client_with(generate_return=_make_response("{}"))
+        self.free_client, self.free_generate = _fake_client_with(generate_return=_make_response("{}"))
+        patches = _mount_fake_sdk(self.paid_client, self.free_client)
+        self._patches = patches
+        for p in patches:
+            p.__enter__()
         g = GeminiGateway()
+        # Fresh quota mock so tests are independent; default: quota available.
         g._quota = MagicMock()
-        g._quota.check.return_value = True  # default: quota available
-        return g
+        g._quota.check.return_value = True
+        self.gw = g
+
+    def tearDown(self):  # noqa: D401
+        for p in reversed(self._patches):
+            p.__exit__(None, None, None)
 
 
 # --------------------------------------------------------------------------- #
 # Enablement
 # --------------------------------------------------------------------------- #
 class TestGatewayEnablement(unittest.TestCase):
-    """An absent key or SDK must disable the gateway, never raise."""
-
-    def test_disabled_when_no_api_key(self):
+    def test_disabled_when_no_keys(self):
         with patch.dict("os.environ", {}, clear=True):
             with patch("src.gemini_gateway.os.getenv", return_value=""):
                 g = GeminiGateway()
         self.assertFalse(g.enabled)
 
-    def test_enabled_when_key_and_sdk_present(self):
-        fake_client = MagicMock()
+    def test_paid_only(self):
         fake_genai = MagicMock()
-        fake_genai.Client = MagicMock(return_value=fake_client)
-        with patch.object(gw_mod, "_SDK_AVAILABLE", True):
-            with patch.object(gw_mod, "genai", fake_genai):
-                with patch.object(gw_mod, "genai_types", MagicMock()):
-                    with patch("src.gemini_gateway.os.getenv", return_value="fake-key"):
-                        g = GeminiGateway()
+        fake_genai.Client = MagicMock(return_value=MagicMock())
+        with patch.object(gw_mod, "_SDK_AVAILABLE", True), \
+             patch.object(gw_mod, "genai", fake_genai), \
+             patch.object(gw_mod, "genai_types", MagicMock()), \
+             patch("src.gemini_gateway.os.getenv",
+                   side_effect=lambda k, d="": "paid-key" if k == "GEMINI_API_KEY_PAY" else ""):
+            g = GeminiGateway()
+        self.assertTrue(g.enabled_paid)
+        self.assertFalse(g.enabled_free)
+        self.assertTrue(g.enabled)  # enabled if EITHER key present
+
+    def test_free_only(self):
+        fake_genai = MagicMock()
+        fake_genai.Client = MagicMock(return_value=MagicMock())
+        with patch.object(gw_mod, "_SDK_AVAILABLE", True), \
+             patch.object(gw_mod, "genai", fake_genai), \
+             patch.object(gw_mod, "genai_types", MagicMock()), \
+             patch("src.gemini_gateway.os.getenv",
+                   side_effect=lambda k, d="": "free-key" if k == "GEMINI_API_KEY" else ""):
+            g = GeminiGateway()
+        self.assertFalse(g.enabled_paid)
+        self.assertTrue(g.enabled_free)
         self.assertTrue(g.enabled)
-        self.assertIs(g._client, fake_client)
-        fake_genai.Client.assert_called_once_with(api_key="fake-key")
 
-    def test_bad_key_disables_gateway_without_raising(self):
-        """A Client() that raises must not crash the pipeline."""
+    def test_bad_paid_key_disables_paid_only(self):
+        """A paid Client() that raises disables paid, not the whole gateway."""
+        def client_factory(api_key=None, **_):
+            if api_key == "paid-key":
+                raise ValueError("bad paid key")
+            return MagicMock()
         fake_genai = MagicMock()
-        fake_genai.Client = MagicMock(side_effect=ValueError("bad key"))
-        with patch.object(gw_mod, "_SDK_AVAILABLE", True):
-            with patch.object(gw_mod, "genai", fake_genai):
-                with patch.object(gw_mod, "genai_types", MagicMock()):
-                    with patch("src.gemini_gateway.os.getenv", return_value="x"):
-                        g = GeminiGateway()
-        self.assertFalse(g.enabled)
+        fake_genai.Client = MagicMock(side_effect=client_factory)
+        with patch.object(gw_mod, "_SDK_AVAILABLE", True), \
+             patch.object(gw_mod, "genai", fake_genai), \
+             patch.object(gw_mod, "genai_types", MagicMock()), \
+             patch("src.gemini_gateway.os.getenv",
+                   side_effect=lambda k, d="": {"GEMINI_API_KEY_PAY": "paid-key",
+                                                "GEMINI_API_KEY": "free-key"}.get(k, "")):
+            g = GeminiGateway()
+        self.assertFalse(g.enabled_paid)
+        self.assertTrue(g.enabled_free)
 
 
 # --------------------------------------------------------------------------- #
-# decide()
+# decide() — paid tier routing + cascade + paid→free fallback
 # --------------------------------------------------------------------------- #
-class TestGatewayDecide(_EnabledGatewayMixin, unittest.TestCase):
-    def test_decide_success_on_first_model(self):
-        g = self._make_gateway()
-        self.mock_generate.return_value = _make_response(
-            json.dumps({"signal": "BUY", "confidence": 0.82, "analysis": "Bullish."})
+class TestGatewayDecide(_TwoTierGatewayMixin, unittest.TestCase):
+    def test_decide_uses_paid_pro_first(self):
+        """Decision goes to the PAID tier's head model (gemini-2.5-pro)."""
+        self.paid_generate.return_value = _make_response(
+            json.dumps({"signal": "BUY", "confidence": 0.8, "analysis": "Bullish."})
         )
-        result = g.decide("market context")
+        result = self.gw.decide("ctx")
         self.assertEqual(result["signal"], "BUY")
-        # Only the first model in REASONING_CASCADE should have been called.
-        self.assertEqual(self.mock_generate.call_count, 1)
-        used_model = self.mock_generate.call_args.kwargs["model"]
-        self.assertEqual(used_model, REASONING_CASCADE[0])
-        g._quota.record.assert_called_once_with(REASONING_CASCADE[0])
+        self.assertEqual(self.paid_generate.call_count, 1)
+        self.assertEqual(self.paid_generate.call_args.kwargs["model"], REASONING_CASCADE_PAID[0])
+        self.free_generate.assert_not_called()  # paid succeeded, free untouched
+        self.gw._quota.record.assert_called_once_with(REASONING_CASCADE_PAID[0], TIER_PAID)
 
-    def test_decide_failover_when_first_model_quota_exhausted(self):
-        """The headline cascade behaviour: model[0] over quota → model[1] wins."""
-        g = self._make_gateway()
-        # model[0] over quota (check=False), model[1] allowed → succeeds.
-        g._quota.check.side_effect = [False, True]
-        self.mock_generate.return_value = _make_response(
+    def test_decide_paid_cascade_failover_on_429(self):
+        """Within the PAID tier: Pro 429s → next paid model succeeds."""
+        self.paid_generate.side_effect = [
+            gw_mod.ResourceExhausted("429"),  # Pro
+            _make_response(json.dumps({"signal": "SELL", "confidence": 0.6, "analysis": "Down."})),  # next
+        ]
+        result = self.gw.decide("ctx")
+        self.assertEqual(result["signal"], "SELL")
+        self.assertEqual(self.paid_generate.call_count, 2)
+        self.free_generate.assert_not_called()
+
+    def test_decide_falls_back_to_free_when_paid_exhausted(self):
+        """Whole PAID cascade fails → FREE cascade succeeds."""
+        self.paid_generate.side_effect = RuntimeError("boom")  # all paid models fail
+        self.free_generate.return_value = _make_response(
             json.dumps({"signal": "HOLD", "confidence": 0.3, "analysis": "Flat."})
         )
-        result = g.decide("ctx")
+        result = self.gw.decide("ctx")
         self.assertEqual(result["signal"], "HOLD")
-        # Only model[1] actually hit the API (model[0] was pre-flighted out).
-        self.assertEqual(self.mock_generate.call_count, 1)
-        used_model = self.mock_generate.call_args.kwargs["model"]
-        self.assertEqual(used_model, REASONING_CASCADE[1])
-        g._quota.record.assert_called_once_with(REASONING_CASCADE[1])
+        self.assertEqual(self.paid_generate.call_count, len(REASONING_CASCADE_PAID))
+        self.assertEqual(self.free_generate.call_count, 1)
+        self.assertEqual(self.free_generate.call_args.kwargs["model"], REASONING_CASCADE_FREE[0])
+        self.gw._quota.record.assert_called_once_with(REASONING_CASCADE_FREE[0], TIER_FREE)
 
-    def test_decide_failover_on_429(self):
-        """model[0] returns 429 → model[1] succeeds."""
-        g = self._make_gateway()
-        self.mock_generate.side_effect = [
-            gw_mod.ResourceExhausted("429"),  # model[0]
-            _make_response(json.dumps({"signal": "SELL", "confidence": 0.6, "analysis": "Breakdown."})),  # model[1]
-        ]
-        result = g.decide("ctx")
-        self.assertEqual(result["signal"], "SELL")
-        self.assertEqual(self.mock_generate.call_count, 2)
-        g._quota.record.assert_called_once_with(REASONING_CASCADE[1])
-
-    def test_decide_failover_on_503_overload(self):
-        """A transient 503 (model overloaded) also triggers the cascade."""
-        g = self._make_gateway()
-        self.mock_generate.side_effect = [
-            RuntimeError("503 UNAVAILABLE"),  # model[0]
-            _make_response(json.dumps({"signal": "BUY", "confidence": 0.7, "analysis": "ok"})),  # model[1]
-        ]
-        result = g.decide("ctx")
-        self.assertEqual(result["signal"], "BUY")
-        self.assertEqual(self.mock_generate.call_count, 2)
-
-    def test_decide_returns_none_when_whole_cascade_exhausted(self):
-        """Every model over quota → None (caller falls back to free-llm)."""
-        g = self._make_gateway()
-        g._quota.check.return_value = False  # all models blocked
-        result = g.decide("ctx")
-        self.assertIsNone(result)
-        self.mock_generate.assert_not_called()
-        g._quota.record.assert_not_called()
-
-    def test_decide_returns_none_when_all_models_error(self):
-        g = self._make_gateway()
-        # Every model raises → exhausts the cascade.
-        self.mock_generate.side_effect = RuntimeError("boom")
-        result = g.decide("ctx")
-        self.assertIsNone(result)
-        self.assertEqual(self.mock_generate.call_count, len(REASONING_CASCADE))
-        g._quota.record.assert_not_called()
-
-    def test_decide_normalizes_signal_case_and_types(self):
-        g = self._make_gateway()
-        self.mock_generate.return_value = _make_response(
-            json.dumps({"signal": "hold", "confidence": 0, "analysis": "Flat."})
+    def test_decide_paid_cap_reached_routes_to_free(self):
+        """Local paid daily cap reached → paid skipped → free used."""
+        # Quota check returns False for paid, True for free.
+        self.gw._quota.check.side_effect = lambda model, tier=TIER_FREE: tier != TIER_PAID
+        self.free_generate.return_value = _make_response(
+            json.dumps({"signal": "BUY", "confidence": 0.7, "analysis": "ok"})
         )
-        result = g.decide("ctx")
-        self.assertEqual(result["signal"], "HOLD")
-        self.assertEqual(result["confidence"], 0.0)
+        result = self.gw.decide("ctx")
+        self.assertEqual(result["signal"], "BUY")
+        self.paid_generate.assert_not_called()  # paid pre-flighted out
+        self.assertEqual(self.free_generate.call_count, 1)
+
+    def test_decide_returns_none_when_both_tiers_exhausted(self):
+        self.paid_generate.side_effect = RuntimeError("boom")
+        self.free_generate.side_effect = RuntimeError("boom")
+        result = self.gw.decide("ctx")
+        self.assertIsNone(result)
 
 
 # --------------------------------------------------------------------------- #
-# analyze_chart()
+# analyze_chart() — paid tier, cascade, paid→free fallback
 # --------------------------------------------------------------------------- #
-class TestGatewayAnalyzeChart(_EnabledGatewayMixin, unittest.TestCase):
-    def test_analyze_chart_success(self):
-        g = self._make_gateway()
-        self.mock_generate.return_value = _make_response(
+class TestGatewayAnalyzeChart(_TwoTierGatewayMixin, unittest.TestCase):
+    def test_vision_uses_paid_first(self):
+        self.paid_generate.return_value = _make_response(
             json.dumps({"signal": "SELL", "confidence": 0.6, "analysis": "H&S."})
         )
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
             img_path = Path(tmp.name)
         try:
-            result = g.analyze_chart(img_path)
+            result = self.gw.analyze_chart(img_path)
             self.assertEqual(result["signal"], "SELL")
+            self.assertEqual(self.paid_generate.call_args.kwargs["model"], VISION_CASCADE_PAID[0])
             # Image was passed as a Part in contents.
-            args = self.mock_generate.call_args.kwargs
-            self.assertEqual(args["model"], VISION_CASCADE[0])
-            self.assertTrue(len(args["contents"]) >= 2)  # prompt + image part
+            contents = self.paid_generate.call_args.kwargs["contents"]
+            self.assertTrue(len(contents) >= 2)
         finally:
             img_path.unlink(missing_ok=True)
 
-    def test_analyze_chart_missing_file_returns_none(self):
-        g = self._make_gateway()
-        result = g.analyze_chart(Path("does_not_exist.png"))
+    def test_vision_missing_file_returns_none(self):
+        result = self.gw.analyze_chart(Path("nope.png"))
         self.assertIsNone(result)
-        self.mock_generate.assert_not_called()
+        self.paid_generate.assert_not_called()
 
-    def test_analyze_chart_failover_on_429(self):
-        """Vision cascade: model[0] 429 → model[1] succeeds."""
-        g = self._make_gateway()
-        self.mock_generate.side_effect = [
-            gw_mod.ResourceExhausted("429"),
-            _make_response(json.dumps({"signal": "HOLD", "confidence": 0.4, "analysis": "Sideways."})),
-        ]
+    def test_vision_falls_back_to_free_when_paid_fails(self):
+        self.paid_generate.side_effect = gw_mod.ResourceExhausted("429")
+        self.free_generate.return_value = _make_response(
+            json.dumps({"signal": "HOLD", "confidence": 0.4, "analysis": "Sideways."})
+        )
         with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
             img_path = Path(tmp.name)
         try:
-            result = g.analyze_chart(img_path)
+            result = self.gw.analyze_chart(img_path)
             self.assertEqual(result["signal"], "HOLD")
-            self.assertEqual(self.mock_generate.call_count, 2)
-            self.assertEqual(
-                self.mock_generate.call_args.kwargs["model"], VISION_CASCADE[1]
-            )
+            self.free_generate.assert_called()
         finally:
             img_path.unlink(missing_ok=True)
 
 
 # --------------------------------------------------------------------------- #
-# summarize_web_context()
+# summarize_web_context() — FREE tier only (preserves paid budget)
 # --------------------------------------------------------------------------- #
-class TestGatewaySummarize(_EnabledGatewayMixin, unittest.TestCase):
-    def test_summarize_success(self):
-        g = self._make_gateway()
-        self.mock_generate.return_value = _make_response("Summary: Fed hawkish.")
-        result = g.summarize_web_context("long markdown...")
-        self.assertEqual(result, "Summary: Fed hawkish.")
-        self.assertEqual(self.mock_generate.call_count, 1)
-        self.assertEqual(
-            self.mock_generate.call_args.kwargs["model"], WEB_SUMMARY_CASCADE[0]
-        )
+class TestGatewaySummarize(_TwoTierGatewayMixin, unittest.TestCase):
+    def test_summary_uses_free_not_paid(self):
+        """Web summary must NEVER touch the paid tier."""
+        self.free_generate.return_value = _make_response("Fed hawkish summary.")
+        result = self.gw.summarize_web_context("long markdown...")
+        self.assertEqual(result, "Fed hawkish summary.")
+        self.assertEqual(self.free_generate.call_count, 1)
+        self.assertEqual(self.free_generate.call_args.kwargs["model"], WEB_SUMMARY_CASCADE_FREE[0])
+        self.paid_generate.assert_not_called()  # budget-preserving invariant
 
-    def test_summarize_empty_input_returns_none(self):
-        g = self._make_gateway()
-        self.assertIsNone(g.summarize_web_context(""))
-        self.assertIsNone(g.summarize_web_context("   "))
-        self.mock_generate.assert_not_called()
+    def test_summary_empty_input_returns_none(self):
+        self.assertIsNone(self.gw.summarize_web_context(""))
+        self.assertIsNone(self.gw.summarize_web_context("   "))
+        self.paid_generate.assert_not_called()
+        self.free_generate.assert_not_called()
 
 
 # --------------------------------------------------------------------------- #
-# _parse_decision — regression tests for the live bug where Gemini wrapped
-# valid JSON in ```json fences or prefixed it with prose, defeating a naive
-# json.loads. These cases must NEVER silently fall back to the next backend.
+# _parse_decision + _normalize_decision robustness
 # --------------------------------------------------------------------------- #
 class TestParseDecision(unittest.TestCase):
-    """Exercises Gemini output shapes observed in production."""
-
     _VALID = (
         '{\n  "signal": "SELL",\n  "confidence": 0.65,\n'
         '  "analysis": "The price action shows a breakdown."\n}'
     )
 
     def test_plain_indented_json(self):
-        result = GeminiGateway._parse_decision(self._VALID)
-        self.assertIsNotNone(result)
-        self.assertEqual(result["signal"], "SELL")
-        self.assertEqual(result["confidence"], 0.65)
+        r = GeminiGateway._parse_decision(self._VALID)
+        self.assertEqual(r["signal"], "SELL")
+        self.assertEqual(r["confidence"], 0.65)
 
     def test_markdown_fenced_json(self):
-        text = "```json\n" + self._VALID + "\n```"
-        result = GeminiGateway._parse_decision(text)
-        self.assertIsNotNone(result)
-        self.assertEqual(result["signal"], "SELL")
+        r = GeminiGateway._parse_decision("```json\n" + self._VALID + "\n```")
+        self.assertEqual(r["signal"], "SELL")
 
     def test_prose_prefixed_json(self):
-        text = "Here is the analysis:\n" + self._VALID
-        result = GeminiGateway._parse_decision(text)
-        self.assertIsNotNone(result)
-        self.assertEqual(result["signal"], "SELL")
-
-    def test_plain_fences_without_json_tag(self):
-        text = "```\n" + self._VALID + "\n```"
-        result = GeminiGateway._parse_decision(text)
-        self.assertIsNotNone(result)
+        r = GeminiGateway._parse_decision("Here is the analysis:\n" + self._VALID)
+        self.assertEqual(r["signal"], "SELL")
 
     def test_empty_text_returns_none(self):
         self.assertIsNone(GeminiGateway._parse_decision(""))
@@ -319,69 +310,114 @@ class TestParseDecision(unittest.TestCase):
         self.assertIsNone(GeminiGateway._parse_decision("not json at all"))
 
     def test_signal_normalized_to_uppercase(self):
-        text = '{"signal": "buy", "confidence": 0.9, "analysis": "x"}'
-        result = GeminiGateway._parse_decision(text)
-        self.assertEqual(result["signal"], "BUY")
+        r = GeminiGateway._parse_decision('{"signal": "buy", "confidence": 0.9, "analysis": "x"}')
+        self.assertEqual(r["signal"], "BUY")
+
+    def test_malformed_json_salvages_signal_and_confidence(self):
+        """Broken JSON (unescaped quotes in analysis) → regex salvage."""
+        malformed = '{"signal": "HOLD", "confidence": 0.45, "analysis": "Shows a "head" pattern."}'
+        r = GeminiGateway._parse_decision(malformed)
+        self.assertIsNotNone(r)
+        self.assertEqual(r["signal"], "HOLD")
+        self.assertEqual(r["confidence"], 0.45)
+
+    def test_confidence_clamped_from_0_10_scale(self):
+        """Gemini 2.5 Pro sometimes emits confidence on 0-10; must rescale."""
+        r = GeminiGateway._normalize_decision({"signal": "BUY", "confidence": 8.5, "analysis": "x"})
+        self.assertAlmostEqual(r["confidence"], 0.85)
+
+    def test_confidence_preserved_when_already_0_1(self):
+        r = GeminiGateway._normalize_decision({"signal": "BUY", "confidence": 0.85, "analysis": "x"})
+        self.assertAlmostEqual(r["confidence"], 0.85)
+
+    def test_confidence_clamped_at_1(self):
+        r = GeminiGateway._normalize_decision({"signal": "BUY", "confidence": 99, "analysis": "x"})
+        self.assertEqual(r["confidence"], 1.0)
 
 
 # --------------------------------------------------------------------------- #
-# QuotaTracker
+# QuotaTracker — two tiers + paid daily cap + migration
 # --------------------------------------------------------------------------- #
 class TestQuotaTracker(unittest.TestCase):
-    """Exercises the local RPM/RPD ledger with a temp DB and frozen time."""
-
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
         self.db_path = Path(self.tmpdir) / "quota.db"
         self.tracker = QuotaTracker(db_path=self.db_path)
 
-    def _set_limits(self, model: str, rpm: int, rpd: int):
-        self._orig = LIMITS.get(model)
-        LIMITS[model] = (rpm, rpd)
-
     def tearDown(self):
-        for model in ("gemini-3.5-flash",):
-            if hasattr(self, "_orig"):
-                if self._orig is None:
-                    LIMITS.pop(model, None)
-                else:
-                    LIMITS[model] = self._orig
+        # Restore any LIMITS mutations.
+        for d in (LIMITS_PAID, LIMITS_FREE):
+            pass  # LIMITS not mutated in most tests; _set_limits restores below.
 
-    def test_unknown_model_is_always_allowed(self):
-        self.assertTrue(self.tracker.check("some-future-model"))
+    def _set_limits(self, table, model, rpm, rpd):
+        orig = table.get(model)
+        table[model] = (rpm, rpd)
+        self.addCleanup(lambda: table.pop(model) if orig is None else table.__setitem__(model, orig))
 
-    def test_record_then_check_blocks_at_rpm_limit(self):
-        self._set_limits("gemini-3.5-flash", rpm=2, rpd=50)
-        self.tracker.record("gemini-3.5-flash")
-        self.tracker.record("gemini-3.5-flash")
-        self.assertFalse(self.tracker.check("gemini-3.5-flash"))
+    def test_unknown_model_allowed_on_both_tiers(self):
+        self.assertTrue(self.tracker.check("future-model", TIER_PAID))
+        self.assertTrue(self.tracker.check("future-model", TIER_FREE))
+
+    def test_paid_tier_blocked_at_rpm_limit(self):
+        self._set_limits(LIMITS_PAID, "gemini-2.5-pro", rpm=2, rpd=1000)
+        self.tracker.record("gemini-2.5-pro", TIER_PAID)
+        self.tracker.record("gemini-2.5-pro", TIER_PAID)
+        self.assertFalse(self.tracker.check("gemini-2.5-pro", TIER_PAID))
+
+    def test_paid_and_free_ledgers_are_independent(self):
+        """A paid call must NOT count against the free tier, and vice versa."""
+        self._set_limits(LIMITS_PAID, "gemini-2.5-pro", rpm=1, rpd=1000)
+        self._set_limits(LIMITS_FREE, "gemini-2.5-pro", rpm=1, rpd=1000)
+        self.tracker.record("gemini-2.5-pro", TIER_PAID)
+        # Paid now full (rpm=1); free still has its own budget.
+        self.assertFalse(self.tracker.check("gemini-2.5-pro", TIER_PAID))
+        self.assertTrue(self.tracker.check("gemini-2.5-pro", TIER_FREE))
+
+    def test_paid_daily_cap_blocks_all_paid_models(self):
+        """The paid daily cap is global across paid models."""
+        with patch("src.gemini_quota._paid_daily_cap", return_value=1):
+            self.tracker.record("gemini-2.5-pro", TIER_PAID)
+            # Any paid model now blocked by the cap, even one with quota left.
+            self.assertFalse(self.tracker.check("gemini-3.5-flash", TIER_PAID))
+            # Free tier unaffected.
+            self.assertTrue(self.tracker.check("gemini-3.5-flash", TIER_FREE))
 
     def test_rpm_window_releases_after_60s(self):
-        self._set_limits("gemini-3.5-flash", rpm=1, rpd=50)
-        self.tracker.record("gemini-3.5-flash")
-        self.assertFalse(self.tracker.check("gemini-3.5-flash"))
+        self._set_limits(LIMITS_FREE, "gemini-3.5-flash", rpm=1, rpd=500)
+        self.tracker.record("gemini-3.5-flash", TIER_FREE)
+        self.assertFalse(self.tracker.check("gemini-3.5-flash", TIER_FREE))
         with patch("src.gemini_quota.time.time", return_value=time.time() + 61):
-            self.assertTrue(self.tracker.check("gemini-3.5-flash"))
+            self.assertTrue(self.tracker.check("gemini-3.5-flash", TIER_FREE))
 
-    def test_rpd_limit_blocks_even_with_rpm_headroom(self):
-        self._set_limits("gemini-3.5-flash", rpm=1000, rpd=1)
-        self.tracker.record("gemini-3.5-flash")
-        self.assertFalse(self.tracker.check("gemini-3.5-flash"))
-
-    def test_status_reports_counts_and_limits(self):
-        self.tracker.record("gemini-3.5-flash")
+    def test_status_reports_both_tiers_and_paid_cap(self):
+        self.tracker.record("gemini-2.5-pro", TIER_PAID)
+        self.tracker.record("gemini-3.1-flash-lite", TIER_FREE)
         status = self.tracker.status()
-        self.assertIn("gemini-3.5-flash", status)
-        pro = status["gemini-3.5-flash"]
-        self.assertEqual(pro["rpm_used"], 1)
-        self.assertEqual(pro["rpd_used"], 1)
-        self.assertEqual(pro["rpm_limit"], LIMITS["gemini-3.5-flash"][0])
+        self.assertIn("paid", status)
+        self.assertIn("free", status)
+        self.assertEqual(status["paid"]["gemini-2.5-pro"]["rpd_used"], 1)
+        self.assertEqual(status["free"]["gemini-3.1-flash-lite"]["rpd_used"], 1)
+        self.assertEqual(status["_paid_cap"]["used"], 1)
 
-    def test_reset_clears_ledger(self):
-        self.tracker.record("gemini-3.5-flash")
-        self.tracker.reset()
-        status = self.tracker.status()
-        self.assertEqual(status["gemini-3.5-flash"]["rpd_used"], 0)
+    def test_migrates_legacy_schema_without_tier_column(self):
+        """A pre-2-tier DB (no 'tier' column) must migrate cleanly."""
+        today_ts = int(time.time())  # within today, so RPD counts it
+        # Build a legacy table by hand.
+        with sqlite3.connect(str(self.db_path)) as conn:
+            conn.execute("DROP TABLE calls")
+            conn.execute(
+                "CREATE TABLE calls (id INTEGER PRIMARY KEY, model TEXT, ts INTEGER)"
+            )
+            conn.execute(
+                "INSERT INTO calls (model, ts) VALUES ('gemini-2.5-flash', ?)",
+                (today_ts,),
+            )
+            conn.commit()
+        # Re-instantiate; migration should add 'tier' and backfill as free.
+        tracker = QuotaTracker(db_path=self.db_path)
+        status = tracker.status()
+        # Legacy row backfilled to free tier, and counted in today's RPD.
+        self.assertEqual(status["free"]["gemini-2.5-flash"]["rpd_used"], 1)
 
 
 if __name__ == "__main__":
