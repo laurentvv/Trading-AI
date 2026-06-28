@@ -443,6 +443,26 @@ class EnhancedTradingSystem:
             web_ex.shutdown(wait=False)
         logger.info("Recherche Web Macro terminée.")
 
+        # ----------------------------------------------------------------
+        # Web context summarization (optional Gemini summary tier).
+        # The crawler returns raw markdown; if Gemini is enabled we replace
+        # it with a tight macro summary, reducing prompt noise. On any
+        # failure or if Gemini is disabled, web_context is left untouched
+        # (the historical behaviour — raw markdown fed to the decision LLM).
+        # ----------------------------------------------------------------
+        if web_context:
+            try:
+                from src.gemini_gateway import GeminiGateway
+
+                gw = GeminiGateway()
+                if gw.enabled:
+                    summarized = gw.summarize_web_context(web_context)
+                    if summarized:
+                        web_context = summarized
+                        logger.info("Web context summarized via Gemini summary tier.")
+            except Exception as e:
+                logger.warning(f"Web summarization failed ({e}). Using raw context.")
+
         # ============================================================
         # PHASE C : text_llm_decision dépend de headlines + web_context
         # ============================================================
