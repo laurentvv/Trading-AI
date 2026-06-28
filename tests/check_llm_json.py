@@ -384,7 +384,7 @@ def run_case(case: TestCase, show_raw: bool = False) -> dict[str, Any]:
     candidates = _extract_json_objects(raw_text)
     result["extracted_objects"] = candidates
 
-    # 2. Production parser: replay the SAME raw_text through _query_ollama's
+    # 2. Production parser: replay the SAME raw_text through the client's
     #    extraction logic by mocking the HTTP call. This avoids the
     #    non-determinism of a second LLM call and tests the real code path.
     parsed = _parse_with_production_logic(raw_text, case.expected_keys)
@@ -402,7 +402,7 @@ def run_case(case: TestCase, show_raw: bool = False) -> dict[str, Any]:
 
 
 def _parse_with_production_logic(raw_output: str, expected_keys: list[str]) -> dict | None:
-    """Replays the _query_ollama extraction pipeline on a given raw response.
+    """Replays the client extraction pipeline on a given raw response.
 
     This duplicates (in a simplified way) the logic from src.llm_client so we
     can test it deterministically without making a second LLM call.

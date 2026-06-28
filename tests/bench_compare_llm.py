@@ -294,7 +294,6 @@ def _run_throughput_test(model: str, run_idx: int) -> BenchResult:
     eval_duration_ns = raw_resp.get("eval_duration", 0)
     tokens_per_sec = eval_count / elapsed if elapsed > 0 else 0
 
-    eval_count / (eval_duration_ns / 1e9) if eval_duration_ns > 0 else 0
 
     return BenchResult(
         model=model,
