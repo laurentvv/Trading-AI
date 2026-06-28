@@ -240,9 +240,14 @@ CRUDP.PA: SELL (0.90)
 class TestCouncilTickerStance(unittest.TestCase):
     """Parses the Judge's VERDICT_TICKER block per ticker, with age decay."""
 
-    @patch("src.llm_client._latest_council_report_text", return_value=_TICKER_REPORT)
-    @patch("src.llm_client._council_report_age_days", return_value=0.0)
-    def test_parses_stance_per_ticker(self, _age, _text):
+    def _patch_loaded(self, age_days, text):
+        """Helper: patch _load_fresh_council_report to return (age, text)."""
+        ret = None if age_days is None else (age_days, text)
+        return patch("src.llm_client._load_fresh_council_report", return_value=ret)
+
+    @patch("src.llm_client._load_fresh_council_report")
+    def test_parses_stance_per_ticker(self, mock_load):
+        mock_load.return_value = (0.0, _TICKER_REPORT)
         sig, conf = get_council_ticker_stance("SXRV.DE")
         self.assertEqual(sig, "BUY")
         self.assertAlmostEqual(conf, 0.65)
@@ -250,53 +255,71 @@ class TestCouncilTickerStance(unittest.TestCase):
         self.assertEqual(sig, "SELL")
         self.assertAlmostEqual(conf, 0.90)
 
-    @patch("src.llm_client._latest_council_report_text", return_value=_TICKER_REPORT)
-    @patch("src.llm_client._council_report_age_days", return_value=0.0)
-    def test_unknown_ticker_returns_none(self, _age, _text):
+    @patch("src.llm_client._load_fresh_council_report")
+    def test_unknown_ticker_returns_none(self, mock_load):
+        mock_load.return_value = (0.0, _TICKER_REPORT)
         sig, conf = get_council_ticker_stance("UNKNOWN.X")
         self.assertIsNone(sig)
         self.assertEqual(conf, 0.0)
 
-    @patch("src.llm_client._latest_council_report_text", return_value=_TICKER_REPORT)
-    @patch("src.llm_client._council_report_age_days", return_value=None)
-    def test_no_fresh_report_returns_none(self, _age, _text):
+    @patch("src.llm_client._load_fresh_council_report", return_value=None)
+    def test_no_fresh_report_returns_none(self, _load):
         """Stale or missing report → graceful skip (no council vote)."""
         sig, conf = get_council_ticker_stance("SXRV.DE")
         self.assertIsNone(sig)
         self.assertEqual(conf, 0.0)
 
-    @patch("src.llm_client._latest_council_report_text", return_value=_TICKER_REPORT)
-    @patch("src.llm_client._council_report_age_days", return_value=3.0)
-    def test_decay_reduces_confidence_linearly(self, _age, _text):
+    @patch("src.llm_client._load_fresh_council_report")
+    def test_decay_reduces_confidence_linearly(self, mock_load):
         """Day 3 → confidence × (1 - 3/7) = confidence × 0.571."""
+        mock_load.return_value = (3.0, _TICKER_REPORT)
         sig, conf = get_council_ticker_stance("CRUDP.PA")
         self.assertEqual(sig, "SELL")
         self.assertAlmostEqual(conf, 0.90 * (1 - 3 / 7), places=3)
 
-    @patch("src.llm_client._latest_council_report_text", return_value=_TICKER_REPORT)
-    @patch("src.llm_client._council_report_age_days", return_value=7.0)
-    def test_decay_reaches_zero_at_day_7(self, _age, _text):
+    @patch("src.llm_client._load_fresh_council_report")
+    def test_decay_reaches_zero_at_day_7(self, mock_load):
+        mock_load.return_value = (7.0, _TICKER_REPORT)
         sig, conf = get_council_ticker_stance("CRUDP.PA")
         self.assertEqual(sig, "SELL")
         self.assertEqual(conf, 0.0)
 
-    @patch("src.llm_client._latest_council_report_text", return_value=_TICKER_REPORT)
-    @patch("src.llm_client._council_report_age_days", return_value=0.0)
-    def test_does_not_parse_prose_mentions(self, _age, _text):
-        """A stance mentioned in prose (not in VERDICT_TICKER block) is ignored.
+    @patch("src.llm_client._load_fresh_council_report")
+    def test_does_not_parse_prose_mentions(self, mock_load):
+        """A stance mentioned in prose (before the block) is ignored.
 
         The report body says 'BUY (0.75)' in narrative but the block says
         SXRV.DE: BUY (0.65). We must pick up 0.65, not 0.75.
         """
+        mock_load.return_value = (0.0, _TICKER_REPORT)
         sig, conf = get_council_ticker_stance("SXRV.DE")
         self.assertAlmostEqual(conf, 0.65)
 
-    @patch("src.llm_client._latest_council_report_text", return_value="")
-    @patch("src.llm_client._council_report_age_days", return_value=0.0)
-    def test_empty_report_returns_none(self, _age, _text):
+    @patch("src.llm_client._load_fresh_council_report")
+    def test_report_without_verdict_block_returns_none(self, mock_load):
+        """A fresh report that lacks the VERDICT_TICKER block → graceful skip."""
+        mock_load.return_value = (0.0, "# Rapport\n## Verdict du Juge\nProse only, no block.\n")
         sig, conf = get_council_ticker_stance("SXRV.DE")
         self.assertIsNone(sig)
         self.assertEqual(conf, 0.0)
+
+    @patch("src.llm_client._load_fresh_council_report")
+    def test_percent_value_rescaled(self, mock_load):
+        """Judge may emit 85 (percent) instead of 0.85 — rescale with warning."""
+        report = "VERDICT_TICKER:\nCRUDP.PA: SELL (85)\n"
+        mock_load.return_value = (0.0, report)
+        sig, conf = get_council_ticker_stance("CRUDP.PA")
+        self.assertEqual(sig, "SELL")
+        self.assertAlmostEqual(conf, 0.85)
+
+    @patch("src.llm_client._load_fresh_council_report")
+    def test_french_decimal_comma_handled(self, mock_load):
+        """French LLM may emit 0,65 (comma) instead of 0.65."""
+        report = "VERDICT_TICKER:\nSXRV.DE: BUY (0,65)\n"
+        mock_load.return_value = (0.0, report)
+        sig, conf = get_council_ticker_stance("SXRV.DE")
+        self.assertEqual(sig, "BUY")
+        self.assertAlmostEqual(conf, 0.65)
 
 
 if __name__ == "__main__":

@@ -223,46 +223,15 @@ def _extract_council_verdict(report_text: str) -> str:
     return strip_thinking_debris(section)
 
 
-def get_council_verdict_context() -> str:
-    """Reads the most recent weekend-council verdict if still fresh (< 6 days).
+def _load_fresh_council_report() -> tuple[float, str] | None:
+    """Loads the latest council report if fresh, returning ``(age_days, text)``.
 
-    Mirror of :func:`get_morning_brief_context`: injects the council's strategic
-    verdict into the per-cycle decision prompt so ``main.py`` benefits from the
-    weekend retrospective automatically.
-    """
-    report_path = _find_latest_council_report()
-    if report_path is None:
-        return ""
-
-    # Parse the date from the filename (council_report_YYYY-MM-DD.md).
-    try:
-        date_str = report_path.stem.rsplit("_", 1)[-1]
-        report_date = datetime.strptime(date_str, "%Y-%m-%d")
-    except (ValueError, IndexError):
-        logger.warning(f"Could not parse date from council report filename: {report_path.name}")
-        return ""
-
-    age_seconds = (datetime.now() - report_date).total_seconds()
-    if age_seconds > COUNCIL_STALENESS_SECONDS or age_seconds < 0:
-        return ""
-
-    try:
-        with open(report_path, "r", encoding="utf-8") as f:
-            verdict = _extract_council_verdict(f.read())
-        if not verdict:
-            return ""
-        return f"\n**Weekend AI Council Verdict (Strategic Context):**\n{verdict}\n"
-    except Exception as e:
-        logger.warning(f"Failed to read council report {report_path}: {e}")
-        return ""
-
-
-def _council_report_age_days() -> float | None:
-    """Returns the age in days of the latest council report, or None if missing/stale.
-
-    Shared by :func:`get_council_verdict_context` (text injection) and
-    :func:`get_council_ticker_stance` (consensus vote) so the freshness
-    logic stays in one place.
+    Single source of truth for freshness + report loading, shared by both the
+    text-injection path (:func:`get_council_verdict_context`) and the consensus
+    vote path (:func:`get_council_ticker_stance`). Resolves the report ONCE so
+    the two paths cannot disagree on freshness (audit finding: duplicated
+    staleness logic that could drift) and avoids the TOCTOU race of calling
+    ``_find_latest_council_report`` twice.
     """
     report_path = _find_latest_council_report()
     if report_path is None:
@@ -276,24 +245,34 @@ def _council_report_age_days() -> float | None:
     age_seconds = (datetime.now() - report_date).total_seconds()
     if age_seconds < 0 or age_seconds > COUNCIL_STALENESS_SECONDS:
         return None
-    return age_seconds / 86400.0
-
-
-def _latest_council_report_text() -> str:
-    """Returns the raw text of the latest council report, or '' if missing."""
-    report_path = _find_latest_council_report()
-    if report_path is None:
-        return ""
     try:
         with open(report_path, "r", encoding="utf-8") as f:
-            return f.read()
+            text = f.read()
     except Exception as e:
         logger.warning(f"Failed to read council report {report_path}: {e}")
+        return None
+    return (age_seconds / 86400.0, text)
+
+
+def get_council_verdict_context() -> str:
+    """Reads the most recent weekend-council verdict if still fresh (< 7 days).
+
+    Mirror of :func:`get_morning_brief_context`: injects the council's strategic
+    verdict into the per-cycle decision prompt so ``main.py`` benefits from the
+    weekend retrospective automatically.
+    """
+    loaded = _load_fresh_council_report()
+    if loaded is None:
         return ""
+    _age_days, text = loaded
+    verdict = _extract_council_verdict(text)
+    if not verdict:
+        return ""
+    return f"\n**Weekend AI Council Verdict (Strategic Context):**\n{verdict}\n"
 
 
 _TICKER_VERDICT_RE = re.compile(
-    r"(?P<ticker>[\w.\-]+)\s*:\s*(?P<signal>BUY|SELL|HOLD)\s*\((?P<conf>[0-9]*\.?[0-9]+)\)",
+    r"(?P<ticker>[\w.\-^=]+)\s*:\s*(?P<signal>BUY|SELL|HOLD)\s*\((?P<conf>[0-9]*[\.,]?[0-9]+)",
     re.IGNORECASE,
 )
 
@@ -308,30 +287,39 @@ def get_council_ticker_stance(ticker: str) -> tuple[str | None, float]:
 
     Returns ``(None, 0.0)`` if no report, ticker absent, or stale — the caller
     then omits the council vote (graceful, like any other optional model).
+
+    Note: pass the TRADING ticker (e.g. ``SXRV.DE``), not the analysis ticker
+    (``^NDX``) — the council's context and verdict use trading tickers.
     """
-    age_days = _council_report_age_days()
-    if age_days is None:
+    loaded = _load_fresh_council_report()
+    if loaded is None:
         return (None, 0.0)
+    age_days, report_text = loaded
 
-    report_text = _latest_council_report_text()
-    if not report_text:
+    # Isolate the LAST VERDICT_TICKER block (the Judge may reference it in prose
+    # earlier; the real block is the final one). Everything after it is parsed.
+    last_marker = report_text.rfind("VERDICT_TICKER")
+    if last_marker == -1:
+        logger.info("Council report has no VERDICT_TICKER block — skip vote.")
         return (None, 0.0)
-
-    # Isolate the VERDICT_TICKER block so we don't accidentally parse a stance
-    # mentioned in the prose (e.g. "Le Stratège a dit BUY sur SXRV (0.75)").
-    block = ""
-    marker = report_text.find("VERDICT_TICKER")
-    if marker != -1:
-        block = report_text[marker:]
+    block = report_text[last_marker:]
 
     ticker_norm = ticker.strip().upper()
     for m in _TICKER_VERDICT_RE.finditer(block):
         if m.group("ticker").strip().upper() == ticker_norm:
             signal = m.group("signal").upper()
             try:
-                confidence = float(m.group("conf"))
+                confidence = float(m.group("conf").replace(",", "."))
             except ValueError:
                 confidence = 0.0
+            # Reject obvious misreads: the prompt asks for 0.0-1.0 but LLMs may
+            # emit "85" (percent). Treat >1 as percent and rescale, with a warning.
+            if confidence > 1.0:
+                logger.warning(
+                    f"Council ticker stance confidence {confidence} > 1.0 — "
+                    f"interpreting as percent. Judge prompt may be ignored."
+                )
+                confidence = confidence / 100.0
             confidence = max(0.0, min(1.0, confidence))
             # Linear decay: full at day 0 → 0 at day 7.
             decay = max(0.0, 1.0 - age_days / 7.0)

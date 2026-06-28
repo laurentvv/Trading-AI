@@ -647,8 +647,19 @@ class AdaptiveWeightManager:
 
         # Smooth transition from base weights (avoid dramatic changes)
         smoothing_factor = 0.7  # 70% new weights, 30% base weights
+        # Models exempt from performance adaptation: their weight is fixed by
+        # design (not driven by trade outcomes). The weekend council is a
+        # weekly strategic verdict with no resolvable per-cycle outcome, so
+        # letting the adaptive loop rescale it on a neutral 0.5 score would
+        # silently drift its 0.10 base weight. Its temporal relevance is
+        # already handled by age-decay upstream (get_council_ticker_stance).
+        fixed_weight_models = {"council"}
         smoothed_weights = {}
         for model in self.base_weights.keys():
+            if model in fixed_weight_models:
+                # Keep the configured base weight (no performance blend).
+                smoothed_weights[model] = self.base_weights[model]
+                continue
             new_weight = final_weights.get(model, self.base_weights[model])
             base_weight = self.base_weights[model]
             smoothed_weights[model] = smoothing_factor * new_weight + (1 - smoothing_factor) * base_weight
