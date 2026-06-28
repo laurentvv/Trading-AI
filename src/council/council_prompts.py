@@ -6,13 +6,14 @@ and a SPECIFIC QUESTION, plus an explicit instruction not to recite raw
 figures that the others will already cite. This is what produces genuine
 analytical divergence instead of members restating the same numbers.
 
-Model assignment: each member is bound to a model family chosen for the
-natural affinity of that family with the role. With 6 members across 4
-available families (Gemma 4 / GLM / Qwen / LFM), two families are reused —
-but their TARGETED QUESTIONS keep the members in distinct analytical lanes
-(long-term macro vs short-term execution; system-bias vs market-bias).
-The Judge gets Qwen3.5-9B-MTP (IFEval 91.5, 262K context) for structured
-synthesis of the full transcript.
+Model assignment: each member is bound to a DISTINCT model family chosen
+for the natural affinity of that family with the role, mixing local Ollama
+models (genuine reasoning diversity) with cloud Gemini calls (speed — a
+cloud call takes seconds vs minutes on CPU Ollama). The 6 members span 5
+families (Gemma / GLM / Qwen / Mistral / Gemini). Models prefixed
+``gemini:`` are routed to the Gemini API through the shared
+``GeminiGateway`` (same QuotaTracker / billing cap as ``get_llm_decision``);
+the Judge uses the paid cascade, members use the free cascade.
 """
 
 # Each member is paired with a specific contradictor for Round 2 (1-vs-1).
@@ -27,27 +28,37 @@ CONTRADICTIONS = {
     "Le Comportementaliste": "Le Tacticien",
 }
 
-# Model assignment per persona. Families reused where the affinity is strong;
-# the targeted questions keep the members analytically distinct regardless.
+# Model assignment per persona. Each member runs on a DISTINCT model family
+# (5 families for 6 members). The Sceptique and Comportementaliste share the
+# Gemini family but are kept in separate analytical lanes by their targeted
+# questions (system-bias vs market-behaviour), the same way the original LFM
+# doublon worked — but on a model strong enough to emit a parseable STANCE
+# (the 1.2B LFM produced a broken "SELL|HOLD|BUY" placeholder on 2026-06-28).
 #
-#   - Gemma 4 12B (Google)         → narrative big-picture (Stratège)
-#   - GLM-4.6V-Flash (Zhipu/Z.ai)  → infrastructure/risk analysis
-#   - Qwen 3.5 9B (Alibaba)        → numbers/rigour (Quant)
-#   - LFM 2.5 (Liquid AI, Mamba)   → non-transformer → different cognitive biases
-#                                    (Sceptique system-bias + Comportementaliste market-bias)
-#   - Mistral Nemo 12B (Mistral)   → factuality/common-sense (Tacticien exécution)
+#   - Gemma 4 12B (Google, Ollama)         → narrative big-picture (Stratège)
+#   - GLM-4.6V-Flash (Zhipu/Z.ai, Ollama)  → infrastructure/risk analysis
+#   - Qwen 3.5 9B (Alibaba, Ollama)        → numbers/rigour (Quant)
+#   - Gemini 2.5 Flash (Google, cloud)     → contrarian + behavioural analysis
+#                                            (Sceptique system-bias +
+#                                             Comportementaliste market-bias)
+#   - Mistral Nemo 12B (Mistral, Ollama)   → factuality/common-sense (Tacticien)
+#
+# ``gemini:`` models are routed to the Gemini API via GeminiGateway.deliberate()
+# (members → FREE cascade, Judge → PAID cascade) — seconds vs minutes on CPU
+# Ollama. Quota is tracked by the shared QuotaTracker (billing cap protected).
 MEMBER_MODELS = {
     "Le Stratège": "hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K",
     "Le Gestionnaire de Risque": "hf.co/unsloth/GLM-4.6V-Flash-GGUF:Q6_K",
     "Le Quant": "qwen3.5:9b",
-    "Le Sceptique": "lfm2.5-thinking:1.2b-bf16",
+    "Le Sceptique": "gemini:2.5-flash",
     "Le Tacticien": "mistral-nemo:12b-instruct-2407-q6_K",
-    "Le Comportementaliste": "lfm2.5-thinking:1.2b-bf16",
+    "Le Comportementaliste": "gemini:2.5-flash",
 }
 # The Judge performs the hardest job — synthesising the full transcript into a
-# structured verdict. Qwen3.5-9B-MTP has IFEval 91.5 (instruction-following)
-# and a 262K native context, ideal for faithful structured synthesis.
-JUDGE_MODEL = "hf.co/unsloth/Qwen3.5-9B-MTP-GGUF:Q6_K"
+# structured verdict. ``gemini:pro`` routes to the PAID cascade (Gemini 2.5 Pro
+# anchors it) via GeminiGateway. The QuotaTracker daily cap (GEMINI_PAY_DAILY_CAP,
+# default 200) bounds billing. Cloud call → ~2-30s vs ~30min for Qwen3.5 local.
+JUDGE_MODEL = "gemini:pro"
 
 # Targeted Round 1 question per persona. Replaces the generic "Quelle est ton
 # analyse ?" that caused members to converge on the same surface observations.

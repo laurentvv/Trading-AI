@@ -31,6 +31,8 @@ from src.gemini_gateway import (
     REASONING_CASCADE_FREE,
     VISION_CASCADE_PAID,
     WEB_SUMMARY_CASCADE_FREE,
+    COUNCIL_MEMBER_CASCADE_FREE,
+    COUNCIL_JUDGE_CASCADE_PAID,
 )
 from src.gemini_quota import (
     LIMITS_FREE,
@@ -218,6 +220,79 @@ class TestGatewayDecide(_TwoTierGatewayMixin, unittest.TestCase):
         self.free_generate.side_effect = RuntimeError("boom")
         result = self.gw.decide("ctx")
         self.assertIsNone(result)
+
+
+# --------------------------------------------------------------------------- #
+# deliberate() — Weekend Council prose mode (members=free, judge=paid)
+# --------------------------------------------------------------------------- #
+class TestGatewayDeliberate(_TwoTierGatewayMixin, unittest.TestCase):
+    def test_member_uses_free_only(self):
+        """Council members (use_paid=False) run the FREE cascade only — paid
+        budget is preserved for the Judge and the real-time decision calls."""
+        self.free_generate.return_value = _make_response("STANCE: HOLD (confiance: 50%)")
+        out = self.gw.deliberate("persona", "context", use_paid=False)
+        self.assertEqual(out, "STANCE: HOLD (confiance: 50%)")
+        self.paid_generate.assert_not_called()
+        self.assertEqual(self.free_generate.call_count, 1)
+        self.assertEqual(self.free_generate.call_args.kwargs["model"], COUNCIL_MEMBER_CASCADE_FREE[0])
+
+    def test_judge_uses_paid_first(self):
+        """The Judge (use_paid=True) runs the PAID cascade (Pro anchors it)."""
+        self.paid_generate.return_value = _make_response("VERDICT_TICKER:\nCRUDP.PA: HOLD (0.4)")
+        out = self.gw.deliberate("judge persona", "transcript", use_paid=True)
+        self.assertIn("VERDICT_TICKER", out)
+        self.assertEqual(self.paid_generate.call_count, 1)
+        self.assertEqual(self.paid_generate.call_args.kwargs["model"], COUNCIL_JUDGE_CASCADE_PAID[0])
+        self.free_generate.assert_not_called()
+
+    def test_judge_falls_back_to_free_when_paid_exhausted(self):
+        """Judge: whole paid cascade fails → free cascade succeeds."""
+        self.paid_generate.side_effect = RuntimeError("boom")
+        self.free_generate.return_value = _make_response("verdict from free tier")
+        out = self.gw.deliberate("judge", "ctx", use_paid=True)
+        self.assertEqual(out, "verdict from free tier")
+        self.assertEqual(self.paid_generate.call_count, len(COUNCIL_JUDGE_CASCADE_PAID))
+        self.assertEqual(self.free_generate.call_count, 1)
+
+    def test_member_cascade_failover_on_429(self):
+        """Within the FREE cascade: head model 429s → next model succeeds."""
+        self.free_generate.side_effect = [
+            gw_mod.ResourceExhausted("429"),
+            _make_response("recovered on second model"),
+        ]
+        out = self.gw.deliberate("persona", "ctx", use_paid=False)
+        self.assertEqual(out, "recovered on second model")
+        self.assertEqual(self.free_generate.call_count, 2)
+
+    def test_no_json_schema_forced(self):
+        """deliberate() must NOT pass response_schema — the council emits free
+        prose, not structured JSON. The schema would mangle the STANCE/VERDICT
+        format the council parser expects."""
+        self.free_generate.return_value = _make_response("prose analysis")
+        self.gw.deliberate("persona", "ctx")
+        config = self.free_generate.call_args.kwargs["config"]
+        # config is a MagicMock (genai_types.GenerateContentConfig) — assert
+        # response_schema/response_mime_type were never set in the kwargs the
+        # backend received. json_schema=None path must not set them.
+        self.assertNotIn("response_schema", config_kwargs_of(self.free_generate))
+
+    def test_returns_none_when_disabled(self):
+        """A disabled gateway yields None so the council falls back to Ollama."""
+        with patch.object(self.gw, "enabled", False):
+            self.assertIsNone(self.gw.deliberate("p", "ctx"))
+
+    def test_empty_prompt_returns_none(self):
+        self.assertIsNone(self.gw.deliberate("persona", ""))
+
+
+def config_kwargs_of(mock_generate):
+    """Extract the kwargs the backend received (excluding 'config' wrapper).
+
+    The _TierBackend.generate builds a GenerateContentConfig from the kwargs
+    then passes it as config=; we inspect what was passed to verify schema
+    routing. Returns the call kwargs of generate_content.
+    """
+    return mock_generate.call_args.kwargs
 
 
 # --------------------------------------------------------------------------- #
