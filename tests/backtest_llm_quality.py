@@ -26,7 +26,6 @@ import json
 import logging
 import sys
 import time
-from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -403,7 +402,6 @@ def main() -> int:
         r = run_backtest_for_model(mk, mid, full_df, rebalance_dates, args.ticker)
         results[mk] = r
 
-    bh_dates = rebalance_dates
     bh_prices = [full_df.loc[dt, "Close"] for dt in rebalance_dates if dt in full_df.index]
     bh_dates_filtered = [dt for dt in rebalance_dates if dt in full_df.index]
     buy_hold = simulate_buy_hold(bh_dates_filtered, bh_prices)
@@ -427,7 +425,7 @@ def main() -> int:
         print(f"    Win rate:      {m['win_rate_pct']:.1f}% ({m['n_closed']} closed trades)")
         print(f"    Final equity:  {m['final_equity']:.2f}")
         if m["trades"]:
-            print(f"    Trade log:")
+            print("    Trade log:")
             print_trade_log(m["trades"])
 
     print(f"\n  {YELLOW}--- Buy & Hold ---{RESET}")
@@ -449,7 +447,7 @@ def main() -> int:
     alpha_b = m_b["total_return_pct"] - bh_ret
 
     print(f"\n| Metric | A (Q4_K_M) | {challenger_label} | Buy&Hold |")
-    print(f"|--------|-----------|---------|----------|")
+    print("|--------|-----------|---------|----------|")
     print(f"| Return | {m_a['total_return_pct']:+.2f}% | {m_b['total_return_pct']:+.2f}% | {bh_ret:+.2f}% |")
     print(f"| Alpha  | {alpha_a:+.2f}% | {alpha_b:+.2f}% | 0.00% |")
     print(f"| MaxDD  | {m_a['max_drawdown_pct']:.2f}% | {m_b['max_drawdown_pct']:.2f}% | {buy_hold['max_drawdown_pct']:.2f}% |")

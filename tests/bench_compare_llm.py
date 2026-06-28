@@ -294,7 +294,7 @@ def _run_throughput_test(model: str, run_idx: int) -> BenchResult:
     eval_duration_ns = raw_resp.get("eval_duration", 0)
     tokens_per_sec = eval_count / elapsed if elapsed > 0 else 0
 
-    ollama_tps = eval_count / (eval_duration_ns / 1e9) if eval_duration_ns > 0 else 0
+    eval_count / (eval_duration_ns / 1e9) if eval_duration_ns > 0 else 0
 
     return BenchResult(
         model=model,
@@ -424,8 +424,8 @@ def _print_summary(all_results: list[BenchResult], load_times: dict[str, float],
     print(f"\n{'='*90}")
     print(f"{BOLD} COMPARISON TABLE{RESET}")
     print(f"{'='*90}")
-    print(f"\n| Metric | A (Q4_K_M) | B (QAT) | Winner |")
-    print(f"|--------|-----------|---------|--------|")
+    print("\n| Metric | A (Q4_K_M) | B (QAT) | Winner |")
+    print("|--------|-----------|---------|--------|")
 
     load_a = load_times.get(MODELS[0], 0)
     load_b = load_times.get(MODELS[1], 0)
@@ -503,14 +503,22 @@ def _print_summary(all_results: list[BenchResult], load_times: dict[str, float],
 
     score_a = 0
     score_b = 0
-    if a_ok_pct > b_ok_pct: score_a += 2
-    elif b_ok_pct > a_ok_pct: score_b += 2
-    if a_avg_dur < b_avg_dur: score_a += 1
-    elif b_avg_dur < a_avg_dur: score_b += 1
-    if a_avg_tps > b_avg_tps: score_a += 1
-    elif b_avg_tps > a_avg_tps: score_b += 1
-    if load_a < load_b: score_a += 1
-    elif load_b < load_a: score_b += 1
+    if a_ok_pct > b_ok_pct:
+        score_a += 2
+    elif b_ok_pct > a_ok_pct:
+        score_b += 2
+    if a_avg_dur < b_avg_dur:
+        score_a += 1
+    elif b_avg_dur < a_avg_dur:
+        score_b += 1
+    if a_avg_tps > b_avg_tps:
+        score_a += 1
+    elif b_avg_tps > a_avg_tps:
+        score_b += 1
+    if load_a < load_b:
+        score_a += 1
+    elif load_b < load_a:
+        score_b += 1
 
     if score_b > score_a:
         print(f"\n  {GREEN}>>> RECOMMENDATION: Switch to hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K (B){RESET}  [B={score_b} A={score_a}]")

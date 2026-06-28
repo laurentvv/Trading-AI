@@ -55,7 +55,7 @@ import requests
 # Permet l'import de src.* quand on lance le script directement.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.llm_client import OLLAMA_API_URL, TEXT_LLM_MODEL, _query_ollama  # noqa: E402
+from src.llm_client import OLLAMA_API_URL, TEXT_LLM_MODEL  # noqa: E402
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
 
@@ -569,7 +569,7 @@ def main() -> int:
     elif not buggy:
         print(f"  {YELLOW}Aucun cas 'buggy' n'a echoue — le bug ne se reproduit pas.{RESET}")
     else:
-        print(f"  Aucune des variantes 'fixed' n'a marche — investiguer plus.")
+        print("  Aucune des variantes 'fixed' n'a marche — investiguer plus.")
 
     return 0 if n_ok == n_total else 1
 

@@ -111,4 +111,3 @@ _Trajectory trajectory_SXRV.DE.txt: 1 observations_
 - Sandbox bloque toujours `import os`: OK
 
 > **Convergence LLM complete verifiee:** la chaine `finacumen_main.py` a etre executee en live (Ollama + gemma-4-12b) et a produit un `status: success` (HOLD 0.75 sur CRUDP.PA, BUY 0.85 sur SXRV.DE). Re-execution: `uv run python src/finacumen_main.py --ticker CRUDP.PA`
-

@@ -67,7 +67,6 @@ def test_win_rate_is_per_signal_not_market(tmp_path):
         lookback_days=365,
     )
 
-    base = "2026-06-01"
     dates = [f"2026-06-{d:02d}" for d in range(1, 9)]
 
     # "good" model: BUY on up days, SELL on down days -> all correct
@@ -115,7 +114,7 @@ def test_win_rate_discriminates_models_with_same_market(tmp_path):
     dates = [f"2026-06-{d:02d}" for d in range(1, 9)]
     # Same mixed market: 4 up days, 4 down days
     market = [0.02, -0.02, 0.015, -0.01, 0.01, -0.03, 0.02, -0.02]
-    rows_market = [(dates[i], f"m{i}", "BUY", market[i], 1 if market[i] > 0 else 0) for i in range(8)]
+    [(dates[i], f"m{i}", "BUY", market[i], 1 if market[i] > 0 else 0) for i in range(8)]
 
     # Model "buyonly" always BUY -> correct on 4 up days, wrong on 4 down days
     buyonly = [(dates[i], "buyonly", "BUY", market[i], 1 if market[i] > 0 else 0) for i in range(8)]

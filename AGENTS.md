@@ -78,8 +78,8 @@ PowerShell note: `uv run pytest ...` may fail with "Failed to canonicalize scrip
 The end-of-June decision-model audit (`docs/ADR-002-decision-model-quality-audit.md`) remediated the structural bullish bias and the market-derived win_rate metric:
 
 - **win_rate metric & Accuracy** — Replaced absolute 0 baseline. A `BUY` is now only rewarded if the return exceeds the `HOLD_NEUTRAL_RETURN_THRESHOLD` (0.5% buffer covering volatility/fees). `HOLD` is rewarded if the market is flat. This stops blindly optimistic models from farming points during slight market drift.
-- **Bullish bias & Overfitting** — 
-  - *TensorTrade*: Disabled continuous `model.learn(total_timesteps=500)` during cached inference, which was causing catastrophic policy collapse (stuck on BUY 1.00). 
+- **Bullish bias & Overfitting** —
+  - *TensorTrade*: Disabled continuous `model.learn(total_timesteps=500)` during cached inference, which was causing catastrophic policy collapse (stuck on BUY 1.00).
   - *LLM Visual*: Increased temperature to 0.4 and hardened the prompt to force `HOLD` on ambiguous charts, ending deterministic output spam.
 - **Hybrid LLM Architecture** — `get_llm_decision` now prioritizes a Cloud-based "Frontier Model" via `free-llm-api-keys` (for high-IQ text/macro analysis), with an instant, silent fallback to local Ollama (Gemma 4 12B) on API 503 errors. Vision (VL) strictly remains on Ollama, as free proxies reject image payloads.
 

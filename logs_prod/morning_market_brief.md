@@ -15,11 +15,11 @@
 * **Correlation WTI-Nasdaq :** Coefficient: -0.20 | Divergence: Aucune.
 
 ## 4. Le Debat des Agents (Comite d'Investissement)
-* **THE BULL :** 
+* **THE BULL :**
   - Prix du WTI maintenu au-dessus de la MA200 (73.3).
   - Signal EIA très haussier avec un retrait important (-7227kb).
   - Score de sentiment macro exceptionnellement élevé (+1.00).
-* **THE BEAR :** 
+* **THE BEAR :**
   - Instabilité système notable avec 368 déconnexions API.
   - MACD Nasdaq négatif (-256) indiquant une pression baissière sur les volumes.
   - Volume Ratio très faible (0.15) suggérant un manque de conviction acheteuse.
