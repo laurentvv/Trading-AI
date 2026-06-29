@@ -119,7 +119,7 @@ Unlike classic trading algorithms that panic as soon as volatility explodes, thi
 - **Language**: `Python 3.12+`
 - **Calculations & Data**: `pandas`, `numpy`, `yfinance`, `pyarrow`, `pandas_datareader`, `hyperliquid-python-sdk`
 - **Machine Learning**: `scikit-learn`, `shap`
-- **AI & LLM**: `requests`, `ollama`
+- **AI & LLM**: `google-genai` (Gemini), `requests`, `ollama`
 - **Web Scraping & Search**: `beautifulsoup4`, `duckduckgo_search`, `crawl4ai`
 - **Visualization**: `matplotlib` (Agg backend for thread safety), `seaborn`, `mplfinance`
 - **Utilities**: `tqdm`, `rich`, `python-dotenv`, `schedule`
@@ -135,6 +135,18 @@ The system is designed to be **performant on consumer hardware** without requiri
 
 ---
 
+
+
+### 🧠 AI & LLM Architecture (Gemini + Local Fallback)
+The system leverages a highly robust, multi-tier architecture to ensure maximum uptime and intelligent decision-making, deeply integrated into `main.py` and the `Weekend Council`.
+
+- **4-Tier Cascade Fallback**:
+  1. **Gemini Paid Tier (`GEMINI_API_KEY_PAY`)**: Highest priority. Uses advanced models like Gemini 2.5 Pro for complex reasoning, technical chart vision, and final trade decisions.
+  2. **Gemini Free Tier (`GEMINI_API_KEY`)**: Used for lighter, high-volume tasks such as web context summarization.
+  3. **Free LLM API Proxies**: Backup via `free-llm-api-keys`.
+  4. **Local Ollama**: 100% robust, offline CPU fallback if all cloud services fail.
+- **Cost Protection**: The system includes a strictly enforced daily limit (`GEMINI_PAY_DAILY_CAP`) for the paid tier to prevent accidental billing overruns.
+- **Integration**: The main daily execution engine (`main.py`) uses Gemini for real-time multi-model consensus, while the asynchronous Weekend Council (`council`) integrates Gemini specifically for certain roles (like the Judge and Sceptique) alongside diverse local Ollama models.
 
 ### 🧠 FinAcumen (Financial Memory)
 L'architecture FinAcumen a été intégrée pour doter les modèles IA locaux d'une **mémoire d'expérience** et d'outils déterministes. Cela résout le problème de l'amnésie des LLMs.
@@ -250,6 +262,11 @@ Follow these steps to set up your local development environment.
     ```
     ALPHA_VANTAGE_API_KEY="YOUR_KEY"
     EIA_API_KEY="YOUR_KEY"
+
+    # Optional but highly recommended: Gemini AI Integration
+    GEMINI_API_KEY_PAY="YOUR_PAID_TIER_KEY"  # For complex reasoning/vision (Gemini 2.5 Pro)
+    GEMINI_API_KEY="YOUR_FREE_TIER_KEY"      # For lighter tasks (summarization)
+    GEMINI_PAY_DAILY_CAP=200                 # Max paid API calls per day to protect budget
     ```
 
 ---
