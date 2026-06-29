@@ -131,6 +131,8 @@ class OilBenchModel(BaseModel):
         if headlines:
             headlines_text = "\n".join(f"- {h}" for h in headlines[:10])
 
+        brent_spot_str = f"${brent_spot_price:.2f}" if brent_spot_price else "N/A"
+
         prompt = f"""You are a senior commodity quantitative analyst specializing in WTI Crude Oil.
 Analyze the following data to determine your recommended portfolio allocation (0-100%).
 
@@ -140,7 +142,7 @@ Be objective and consider both bullish and bearish evidence equally. Do NOT defa
 **Price Context:**
 - WTI Spot: {wti_str}
 - Brent Futures: {brent_str}{spread_text}
-- Brent Spot (Dated): ${brent_spot_price:.2f} if available
+- Brent Spot (Dated): {brent_spot_str}
 - DXY: {dxy_str}
 
 **EIA Fundamental Data:**
