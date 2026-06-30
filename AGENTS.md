@@ -44,14 +44,16 @@ Gemma 4 12B's `<|think|>` reasoning channel is **active** in production. JSON-ex
 - **Layer 1 (load-bearing)** — schema-strict `format: SCHEMA_*` parameter at every Ollama call site. Defined in `src/llm_client.py` (`SCHEMA_TRADING_DECISION`, `SCHEMA_SEARCH_QUERY`, `SCHEMA_OIL_ALLOCATION`) with `additionalProperties: false`. Enforced server-side by Ollama.
 - **Layer 2 (belt-and-braces)** — every system prompt ends with `"...never add a 'thought' key."`.
 
-**When editing the 4 call sites** (`src/llm_client.py:188`, `src/llm_client.py:236`, `src/oil_bench_model.py:158`, `src/web_researcher.py:205`), **preserve both layers**: keep the `"<|think|> "` prefix and the `"...never add a 'thought' key."` suffix. New LLM call sites **must** use a schema-strict `format: SCHEMA_*` (never the loose `format:json` — `tests/check_llm_json.py` proves it leaks `<|channel>thought` debris). On schema change, run `tests/check_llm_json.py` (acceptance: all `*_schema*` and `oil_*` cases OK). Full evidence/reversal: `docs/ADR-001-think-mode-dual-layer-defence.md`.
+**When editing the 4 Ollama call sites** — `get_llm_decision` and `get_visual_llm_decision` (`src/llm_client.py`), `OilBenchModel._query_llm` (`src/oil_bench_model.py`), `generate_search_query` (`src/web_researcher.py`) — **preserve both layers**: keep the `"<|think|> "` prefix and the `"...never add a 'thought' key."` suffix. (Function names are cited instead of line numbers — lines drift, names don't.) New LLM call sites **must** use a schema-strict `format: SCHEMA_*` (never the loose `format:json` — `tests/check_llm_json.py` proves it leaks `<|channel>thought` debris). On schema change, run `tests/check_llm_json.py` (acceptance: all `*_schema*` and `oil_*` cases OK). Full evidence/reversal: `docs/ADR-001-think-mode-dual-layer-defence.md`.
+
+> **Gemini surface (different mechanism, same intent):** the Gemini path enforces Layer-2 via `_NO_THOUGHT_SUFFIX` (`src/gemini_gateway.py`) and Layer-1 via `response_schema`. It does **not** use `<|think|>` (that channel is Gemma-only). The asymmetry is intentional — do not "fix" it by adding `<|think|>` to Gemini prompts.
 
 ### 2.2 Other invariants (non-exhaustive)
 
 - **T212 demo vs live** is governed by `T212_ENV` in `.env.t212` (demo is rate-limit-tolerant; live is not). Never commit credentials.
 - **Per-ticker budget**: `INITIAL_BUDGETS` dict (default 1000€ per ticker), **not** the historical 5000€ hardcoded fallback.
 - **Cache staleness**: 1 day (`src/data.py`) — Parquet files older than that are auto-refreshed.
-- **Cycle timeout**: 15 min (`CYCLE_TIMEOUT_SECONDS` in `main.py:39`). On timeout, `cancel_event` is set so the orphan thread cannot place a T212 order even if it finishes later; a per-ticker `threading.Lock` serializes order placement.
+- **Cycle timeout**: 40 min (`CYCLE_TIMEOUT_SECONDS` in `main.py:38`). On timeout, `cancel_event` is set so the orphan thread cannot place a T212 order even if it finishes later; a per-ticker `threading.Lock` serializes order placement.
 
 ---
 
@@ -95,7 +97,7 @@ PowerShell note: `uv run pytest ...` may fail with "Failed to canonicalize scrip
 
 ## 6. Known follow-ups (flagged, not in scope)
 
-- `_THINKING_TOKENS` is duplicated between `src/llm_client.py:52-56` and `tests/check_llm_json.py:388-392` — if extended, keep in sync (or unify).
+- `_THINKING_TOKENS` is defined once in `src/llm_client.py` (`_strip_thinking_prefix`); `tests/check_llm_json.py` exercises the same `<|think|>` / `<|channel>thought` debris inline (no shared constant) — if the token set changes, keep both in sync.
 - `_fallback_decision`'s `failed: True` flag is **not** consumed by the consensus aggregator (`enhanced_decision_engine.py`) — a failed LLM call is weighted as a plain HOLD vote (silent HOLD bias on intermittent extraction failure).
 - `tests/check_llm_json.py` returns exit 1 if any case fails, including the documented-to-fail loose-format cases (could be refactored to return 0 when only expected failures fail).
 - `backtest_prod.py` reads `data_cache/` (repo root, ends ~2026-05-27) instead of `logs_prod/data_cache/` (prod, current) → empty tables when the journal spans an uncovered period. Use `audit_prod_logs.py` instead.

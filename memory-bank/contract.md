@@ -16,7 +16,7 @@
 ### Invariants runtime (AGENTS.md §2.2)
 - [ ] Critère 5 : Le budget par ticker est `INITIAL_BUDGETS` (1000€) et non un fallback codé en dur 5000€.
 - [ ] Critère 6 : Le seuil de péremption du cache Parquet est de 1 jour (les fichiers plus anciens sont auto-rafraîchis).
-- [ ] Critère 7 : `CYCLE_TIMEOUT_SECONDS` vaut 15 min dans `main.py:39`.
+- [ ] Critère 7 : `CYCLE_TIMEOUT_SECONDS` vaut 40 min dans `main.py:38`.
 - [ ] Critère 8 : Sur timeout de cycle, `cancel_event` est positionné pour empêcher un thread orphelin de placer un ordre T212.
 - [ ] Critère 9 : Le placement d'ordre T212 est sérialisé par un `threading.Lock` par ticker.
 

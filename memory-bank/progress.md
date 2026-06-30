@@ -33,4 +33,4 @@
 ## Statut des Invariants Critiques (contrôle rapide)
 - [x] Défense JSON bi-couche active aux 4 sites (`<|think|>` préfixe + schema strict + suffixe). *(AGENTS.md §2.1)*
 - [x] Budget 1000€/ticker (`INITIAL_BUDGETS`), pas le fallback 5000€.
-- [x] Cache staleness 1 jour, cycle timeout 15 min, orphan-thread lock par ticker.
+- [x] Cache staleness 1 jour, cycle timeout 40 min, orphan-thread lock par ticker.

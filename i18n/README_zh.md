@@ -94,7 +94,7 @@
 - **缓存自动失效**：Parquet 缓存检测过期（> 2 天）并强制刷新。使用 `refresh_cache.py` 手动清空。
 - **LLM 调用并行化**：独立的模型调用（`text_llm`、`visual_llm`、`search_query`、`timesfm`、`tensortrade`、`grebenkov`）在 `ThreadPoolExecutor` 中运行，将 Ollama 推理与 I/O 重叠。在 CPU 上关键路径通常为 4–6 分钟，而串行需 10+ 分钟。
 - **24 小时搜索查询缓存**：LLM 生成的网络搜索查询缓存于 `data_cache/search_queries/<ticker>_<date>_<price-sig>.json`。键由日期 + 价格行为签名（收盘价 log2 桶 + RSI 桶）组成，因此行情切换会使其失效。兜底查询**从不**缓存（一次瞬态 Ollama 故障不会污染缓存 24 小时）。
-- **严格周期超时**：每个标的的周期被包裹在 15 分钟预算内（`main.py` 中的 `CYCLE_TIMEOUT_SECONDS`）。超时时，工作线程被 `shutdown(wait=F)` 以便下一个标的立即开始；对超时标的应用 HOLD。各 future 有各自的超时（搜索 240 秒、视觉 300 秒、文本 240 秒、CPU 模型各 180 秒、新闻 90 秒、网页爬取 30 秒）。
+- **严格周期超时**：每个标的的周期被包裹在 40 分钟预算内（`main.py` 中的 `CYCLE_TIMEOUT_SECONDS`）。超时时，工作线程被 `shutdown(wait=F)` 以便下一个标的立即开始；对超时标的应用 HOLD。各 future 有各自的超时（搜索 240 秒、视觉 300 秒、文本 240 秒、CPU 模型各 180 秒、新闻 90 秒、网页爬取 30 秒）。
 - **孤儿线程安全**：周期超时时，设置一个按标的的 `threading.Event`，使孤儿工作线程在任何 `execute_t212_trade` 调用之前中止——防止在用户已看到“已应用 HOLD”面板后进行真实资金交易。按标的的 `threading.Lock` 进一步串行化 T212 下单，消除调度重叠或重复 `--ticker` 调用下的双重交易风险。
 - **LLM 失败哨兵**：当 `_query_ollama` 耗尽所有重试时，兜底字典带有 `"failed": True` 标记，使下游共识逻辑可区分“模型选择了 HOLD”与“模型崩溃”（目前已传播但未过滤——一个已知后续事项）。
 - **高级认知**：使用 **Gemma 4 12B**，具备**双层 JSON 防御**：
@@ -128,7 +128,7 @@
 - **推荐内存**：最低 16 GB（建议 32 GB，以便同时舒适运行 Gemma 4 12B、TimesFM 和 TensorTrade）。
 - **Ollama 并发**：设置 `OLLAMA_NUM_PARALLEL=8`（已在推荐的 `.env` 中），以便多个 LLM 调用共享模型负载。在默认 4 GB 上下文预算下，并行槽位每个获得 ~512 tokens——当提示超过每个槽位的 ctx 时 Ollama 会串行化，但 `ThreadPoolExecutor` 仍为 I/O 密集步骤（新闻抓取、网页爬取、CPU 模型）保持有益的墙上时间重叠。
 - **执行时间**：CPU 上每个标的约 ~6 到 9 分钟（冷启动），搜索查询缓存命中时每个标的约 ~3 到 5 分钟。默认运行两个标的（CRUDP.PA + SXRV.DE），因此请预留总共 ~15 分钟。
-- **周期超时**：每个标的的周期上限为 15 分钟（`CYCLE_TIMEOUT_SECONDS`）。若超过，则应用 HOLD 并立即开始下一个标的。
+- **周期超时**：每个标的的周期上限为 40 分钟（`CYCLE_TIMEOUT_SECONDS`）。若超过，则应用 HOLD 并立即开始下一个标的。
 - **API 速度**：超快的 Trading 212 集成（实时价格获取 <1 秒）。
 
 ### 🧠 AI 与 LLM 架构（Gemini + 本地兜底）
