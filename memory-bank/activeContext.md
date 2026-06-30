@@ -11,6 +11,14 @@
 - End-of-June review: evaluate Sharpe, win rate, per-model accuracy, and decide on weight adjustments.
 
 ### Key Recent Changes
+- **Mémoire déterministe 4-fichiers (2026-06-30)** : Mise en place d'un état déterministe reconstituable à chaque redémarrage, indépendant de la fenêtre de contexte (voir `AGENTS.md §1`). Quatre fichiers vivent désormais dans `memory-bank/` :
+  - `feature_list.json` — cartographie de toutes les fonctionnalités (F-01…F-22) avec statut.
+  - `contract.md` — contrat de validation technique (19 critères testables + protocole d'évaluation).
+  - `progress.md` — tableau de bord du sprint en cours (objectif : période de validation PROD).
+  - `log.md` — journal d'exécution agent (append-only).
+  - L'ancien `progress.md` (historique des corrections 2025-2026) a été renommé `changelog.md`.
+  - *Cohérence* : ce fichier `activeContext.md`, `techContext.md`, `systemPatterns.md`, etc. restent le contexte long-form (humain) — les 4 fichiers ci-dessus sont la source de vérité d'état.
+
 - **FinAcumen Repaired + Prod Logs Auditor (2026-06-23)**: FinAcumen (`src/finacumen_main.py`) était en `status: timeout` à chaque run prod. Six bugs corrigés dans `src/core/tools.py` (`lookup_ohlc` accepte `str|list`→dict ; indicateurs dérivés rsi/sma/macd ajoutés ; symboles prod mappés ; `pd`/`np` pré-injectés dans le sandbox) et `src/agents/solver.py` (prompt documente la vraie API ; l'observation renvoie `data` quand le LLM oublie `print` ; la branche execute-vs-final-answer se base sur le *contenu* non sur la présence de clé). **Convergence prouvée en live** (Ollama + gemma-4-12b) : CRUDP.PA → HOLD 0.75, SXRV.DE → BUY 0.85, chacun citant des prix réels.
   - **Chaîne de dépendance documentée** : FinAcumen n'est pas dans le consensus temps réel (`enhanced_decision_engine.py`), MAIS il **contribue au morning brief** qui consomme les sorties de `main.py` via fichiers partagés : `main.py` écrit `trading_journal.csv`/`trading.log`/`performance_monitor.db` → `morning_brief/tools/` les lit → `schedule.py` append la section FinAcumen dans `morning_market_brief.md`. Couplage par données, pas par import.
   - Nouveau script `audit_prod_logs.py` : valide **tous** les fichiers de `logs_prod/` (catalogue, intégrité SQLite, fraîcheur parquet/JSON/pkl, état FinAcumen) + backtest corrigé (lit `logs_prod/data_cache/`, pas le cache repo-root périmé). Émet `logs_prod/audit_report.md`.
