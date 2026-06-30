@@ -40,12 +40,21 @@ from src.gemini_quota import (
     QuotaTracker,
     TIER_FREE,
     TIER_PAID,
+    compute_call_cost_eur,
 )
 
 
-def _make_response(text: str) -> MagicMock:
+def _make_response(text: str, usage: dict | None = None) -> MagicMock:
+    """Build a fake Gemini response with optional ``usage_metadata``.
+
+    ``usage`` shapes the cost computed for the call (keys:
+    ``prompt_token_count`` / ``candidates_token_count``). ``None`` simulates a
+    response where usage was stripped (safety filter / SDK quirk) — the cost
+    helper then falls back to its flat estimate.
+    """
     r = MagicMock()
     r.text = text
+    r.usage_metadata = usage  # None or a dict
     return r
 
 
@@ -177,7 +186,12 @@ class TestGatewayDecide(_TwoTierGatewayMixin, unittest.TestCase):
         self.assertEqual(self.paid_generate.call_count, 1)
         self.assertEqual(self.paid_generate.call_args.kwargs["model"], REASONING_CASCADE_PAID[0])
         self.free_generate.assert_not_called()  # paid succeeded, free untouched
-        self.gw._quota.record.assert_called_once_with(REASONING_CASCADE_PAID[0], TIER_PAID)
+        # record() now also receives the computed cost_eur (a positive float).
+        self.gw._quota.record.assert_called_once()
+        call = self.gw._quota.record.call_args
+        self.assertEqual(call.args[0], REASONING_CASCADE_PAID[0])
+        self.assertEqual(call.args[1], TIER_PAID)
+        self.assertIsInstance(call.kwargs.get("cost_eur"), float)
 
     def test_decide_paid_cascade_failover_on_429(self):
         """Within the PAID tier: Pro 429s → next paid model succeeds."""
@@ -201,7 +215,10 @@ class TestGatewayDecide(_TwoTierGatewayMixin, unittest.TestCase):
         self.assertEqual(self.paid_generate.call_count, len(REASONING_CASCADE_PAID))
         self.assertEqual(self.free_generate.call_count, 1)
         self.assertEqual(self.free_generate.call_args.kwargs["model"], REASONING_CASCADE_FREE[0])
-        self.gw._quota.record.assert_called_once_with(REASONING_CASCADE_FREE[0], TIER_FREE)
+        # Free-tier call: cost_eur is recorded as 0 (unmetered free tier).
+        self.gw._quota.record.assert_called_once_with(
+            REASONING_CASCADE_FREE[0], TIER_FREE, cost_eur=0.0
+        )
 
     def test_decide_paid_cap_reached_routes_to_free(self):
         """Local paid daily cap reached → paid skipped → free used."""
@@ -465,7 +482,7 @@ class TestQuotaTracker(unittest.TestCase):
             self.assertTrue(self.tracker.check("gemini-3.5-flash", TIER_FREE))
 
     def test_status_reports_both_tiers_and_paid_cap(self):
-        self.tracker.record("gemini-2.5-pro", TIER_PAID)
+        self.tracker.record("gemini-2.5-pro", TIER_PAID, cost_eur=0.01)
         self.tracker.record("gemini-3.1-flash-lite", TIER_FREE)
         status = self.tracker.status()
         self.assertIn("paid", status)
@@ -473,6 +490,63 @@ class TestQuotaTracker(unittest.TestCase):
         self.assertEqual(status["paid"]["gemini-2.5-pro"]["rpd_used"], 1)
         self.assertEqual(status["free"]["gemini-3.1-flash-lite"]["rpd_used"], 1)
         self.assertEqual(status["_paid_cap"]["used"], 1)
+        # New: rolling 30-day cost-budget entry.
+        self.assertIn("_paid_budget", status)
+        self.assertEqual(status["_paid_budget"]["used_eur"], 0.01)
+        self.assertEqual(status["_paid_budget"]["window_days"], 30)
+
+    def test_paid_monthly_budget_blocks_all_paid_models(self):
+        """The rolling 30-day cost budget is the load-bearing billing guard:
+        once cumulative paid spend reaches it, every paid model is blocked."""
+        # Record a Pro call with realistic token counts (~0.13 EUR at Pro rates).
+        cost = compute_call_cost_eur(
+            "gemini-2.5-pro",
+            {"prompt_token_count": 10000, "candidates_token_count": 10000},
+        )
+        self.assertGreater(cost, 0.10)  # sanity: this call alone busts 0.10
+        self.tracker.record("gemini-2.5-pro", TIER_PAID, cost_eur=cost)
+        with patch("src.gemini_quota._paid_monthly_budget", return_value=0.05):
+            # Budget (0.05) < spent (>0.10) → any paid model blocked, even with quota left.
+            self.assertFalse(self.tracker.check("gemini-3.5-flash", TIER_PAID))
+        # Free tier unaffected by the paid budget.
+        self.assertTrue(self.tracker.check("gemini-3.5-flash", TIER_FREE))
+
+    def test_paid_cost_recorded_from_token_usage(self):
+        """record() stores the passed cost on the paid tier and 0 on free."""
+        self.tracker.record(
+            "gemini-2.5-pro", TIER_PAID,
+            cost_eur=compute_call_cost_eur(
+                "gemini-2.5-pro",
+                {"prompt_token_count": 2000, "candidates_token_count": 500},
+            ),
+        )
+        self.tracker.record(
+            "gemini-2.5-pro", TIER_FREE,
+            cost_eur=compute_call_cost_eur(
+                "gemini-2.5-pro",
+                {"prompt_token_count": 2000, "candidates_token_count": 500},
+            ),
+        )
+        status = self.tracker.status()
+        # Paid recorded real cost; free recorded 0 despite same usage.
+        self.assertGreater(status["_paid_budget"]["used_eur"], 0.0)
+        # Free tier does not draw down the budget.
+        # (Both calls counted in RPD, but only the paid one in EUR.)
+
+    def test_usage_metadata_missing_falls_back_to_flat_estimate(self):
+        """A response with no usable token counts is priced at the conservative
+        flat estimate rather than 0 — the budget must never be silently
+        under-counted."""
+        cost = compute_call_cost_eur("gemini-2.5-pro", None)
+        self.assertAlmostEqual(cost, 0.005)  # DEFAULT_CALL_COST_EUR
+
+    def test_cost_pro_prices_expensive(self):
+        """Pro costs materially more than Flash for the same tokens — the
+        whole reason a call counter cannot replace a cost budget."""
+        usage = {"prompt_token_count": 10000, "candidates_token_count": 2000}
+        pro = compute_call_cost_eur("gemini-2.5-pro", usage)
+        flash = compute_call_cost_eur("gemini-2.5-flash", usage)
+        self.assertGreater(pro, flash * 10)
 
     def test_migrates_legacy_schema_without_tier_column(self):
         """A pre-2-tier DB (no 'tier' column) must migrate cleanly."""

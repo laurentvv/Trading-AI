@@ -145,7 +145,7 @@ The system leverages a highly robust, multi-tier architecture to ensure maximum 
   2. **Gemini Free Tier (`GEMINI_API_KEY`)**: Used for lighter, high-volume tasks such as web context summarization.
   3. **Free LLM API Proxies**: Backup via `free-llm-api-keys`.
   4. **Local Ollama**: 100% robust, offline CPU fallback if all cloud services fail.
-- **Cost Protection**: The system includes a strictly enforced daily limit (`GEMINI_PAY_DAILY_CAP`) for the paid tier to prevent accidental billing overruns.
+- **Cost Protection**: The paid tier is bounded by a rolling 30-day cost budget (`GEMINI_PAY_MONTHLY_BUDGET_EUR`, default 8.6 €/month) — each call's cost is computed from actual token usage × the model's price and accumulated; when the budget is hit, calls fall back to the free tier / Ollama. A daily call-cap backstop (`GEMINI_PAY_DAILY_CAP`, default 200) guards against runaway loops.
 - **Integration**: The main daily execution engine (`main.py`) uses Gemini for real-time multi-model consensus, while the asynchronous Weekend Council (`council`) integrates Gemini specifically for certain roles (like the Judge and Sceptique) alongside diverse local Ollama models.
 
 ### 🧠 FinAcumen (Financial Memory)
@@ -266,7 +266,8 @@ Follow these steps to set up your local development environment.
     # Optional but highly recommended: Gemini AI Integration
     GEMINI_API_KEY_PAY="YOUR_PAID_TIER_KEY"  # For complex reasoning/vision (Gemini 2.5 Pro)
     GEMINI_API_KEY="YOUR_FREE_TIER_KEY"      # For lighter tasks (summarization)
-    GEMINI_PAY_DAILY_CAP=200                 # Max paid API calls per day to protect budget
+    GEMINI_PAY_MONTHLY_BUDGET_EUR=8.6        # Rolling 30-day cost budget (€) — load-bearing billing guard
+    GEMINI_PAY_DAILY_CAP=200                 # Backstop: max paid API calls per day
     ```
 
 ---
