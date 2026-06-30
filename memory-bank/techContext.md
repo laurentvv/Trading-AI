@@ -32,6 +32,9 @@
 - **Network**: Required for initial API calls (Yahoo, FRED, Alpha Vantage, Hyperliquid).
 
 ## 4. Key Components
+
+> **Deterministic state (4-file discipline — see `AGENTS.md §1`)**: the single source of truth for project state lives in `memory-bank/`: `feature_list.json` (feature map + status), `contract.md` (testable validation assertions), `progress.md` (current sprint dashboard), `log.md` (append-only execution journal). Historical product corrections: `memory-bank/changelog.md`. These files are read at every init/restart to rebuild state deterministically.
+
 - `main.py`: CLI controller with `--simul`, `--t212` and `--ticker` flags.
 - `src/enhanced_trading_example.py`: Main engine orchestrating all models.
 - `src/t212_executor.py`: Real-world execution layer via Trading 212 API. Includes `get_t212_price()` for live ETF price retrieval.

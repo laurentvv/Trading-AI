@@ -1,33 +1,33 @@
 <p align="center">
-  <a href="../README.md">English</a> |
-  <a href="README_zh.md">中文</a> |
-  <a href="README_hi.md">हिंदी</a> |
-  <a href="README_es.md">Español</a> |
-  <a href="README_fr.md">Français</a> |
-  <a href="README_ar.md">العربية</a> |
-  <a href="README_bn.md">বাংলা</a> |
-  <a href="README_ru.md">Русский</a> |
-  <a href="README_pt.md">Português</a> |
-  <a href="README_id.md">Bahasa Indonesia</a>
+  <a href="README.md">English</a> |
+  <a href="i18n/README_zh.md">中文</a> |
+  <a href="i18n/README_hi.md">हिंदी</a> |
+  <a href="i18n/README_es.md">Español</a> |
+  <a href="i18n/README_fr.md">Français</a> |
+  <a href="i18n/README_ar.md">العربية</a> |
+  <a href="i18n/README_bn.md">বাংলা</a> |
+  <a href="i18n/README_ru.md">Русский</a> |
+  <a href="i18n/README_pt.md">Português</a> |
+  <a href="i18n/README_id.md">Bahasa Indonesia</a>
 </p>
 
 <p align="center">
-  <img src="../assets/banner.png" alt="Hybrid AI Trading Banner" width="100%"/>
+  <img src="assets/banner.png" alt="Banner de Trading IA Híbrido" width="100%"/>
 </p>
 
 <div align="center">
   <br />
   <h1>📈 Sistema de Trading con IA Híbrida 📈</h1>
   <p>
-    Un sistema experto de apoyo a la toma de decisiones para el trading de ETFs de NASDAQ y Petróleo (WTI), que aprovecha una inteligencia artificial híbrida trimodal para obtener señales de trading robustas y matizadas.
+    Un sistema experto de apoyo a la decisión para el trading de ETFs de NASDAQ y Petróleo (WTI), aprovechando una inteligencia artificial híbrida de 12 modelos para señales de trading robustas y matizadas.
   </p>
 </div>
 
 <div align="center">
 
-[![Project Status](https://img.shields.io/badge/status-in--development-green.svg)](https://github.com/laurentvv/Trading-AI)
-[![Python Version](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)](https://opensource.org/licenses/MIT)
+[![Estado del proyecto](https://img.shields.io/badge/status-en--desarrollo-green.svg)](https://github.com/laurentvv/Trading-AI)
+[![Versión de Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Licencia](https://img.shields.io/badge/license-MIT-lightgrey.svg)](https://opensource.org/licenses/MIT)
 
 </div>
 
@@ -35,166 +35,188 @@
 
 ## 📚 Tabla de Contenidos
 
-- [🌟 Acerca del Proyecto](#-acerca-del-proyecto)
-  - [✨ Características Principales](#-características-principales)
-  - [💻 Stack Tecnológico](#-stack-tecnológico)
+- [🌟 Acerca del proyecto](#-acerca-del-proyecto)
+  - [🚀 Estrategia Dual-Ticker (Análisis vs. Trading)](#-estrategia-dual-ticker-análisis-vs-trading)
+  - [🧠 Motor de IA Híbrido](#-motor-de-ia-híbrido)
+  - [🧘 Filosofía de Decisión: "Prudencia Cognitiva"](#-filosofía-de-decisión--prudencia-cognitiva)
+  - [✨ Características clave](#-características-clave)
+  - [💻 Stack tecnológico](#-stack-tecnológico)
   - [⚙️ Rendimiento y Hardware](#️-rendimiento-y-hardware)
-- [📂 Estructura del Proyecto](#-estructura-del-proyecto)
-- [🚀 Inicio Rápido](#-inicio-rápido)
-  - [✅ Requisitos Previos](#-requisitos-previos)
+  - [🧠 Arquitectura de IA y LLM (Gemini + Fallback Local)](#-arquitectura-de-ia-y-llm-gemini--fallback-local)
+  - [🧠 FinAcumen (Memoria Financiera)](#-finacumen-memoria-financiera)
+- [📂 Estructura del proyecto](#-estructura-del-proyecto)
+- [🚀 Inicio rápido](#-inicio-rápido)
+  - [✅ Requisitos previos](#-requisitos-previos)
   - [⚙️ Instalación](#️-instalación)
 - [🛠️ Uso](#️-uso)
-  - [Modo de Simulación (Paper Trading)](#modo-de-simulación-paper-trading)
+  - [Modo Simulación (Paper Trading)](#modo-simulación-paper-trading)
   - [Ejecución Real (Trading 212)](#ejecución-real-trading-212)
 - [🧪 Backtesting en Producción](#-backtesting-en-producción)
-- [🤝 Contribución](#-contribución)
+  - [Características](#características)
+  - [Uso](#uso)
+- [🤝 Contribuir](#-contribuir)
 - [📜 Licencia](#-licencia)
 - [📧 Contacto](#-contacto)
 
 ---
 
-## 🌟 Acerca del Proyecto
+## 🌟 Acerca del proyecto
 
-Este proyecto es un sistema experto de apoyo a la toma de decisiones para el trading de ETFs, utilizando un enfoque de IA híbrida trimodal. Está diseñado para proporcionar un análisis exhaustivo y robusto combinando varias perspectivas de IA.
+Un sistema experto de apoyo a la decisión para el trading de ETFs de NASDAQ y Petróleo (WTI), aprovechando una inteligencia artificial híbrida de 12 modelos.
 
-### 🚀 Estrategia de Doble Ticker (Análisis vs. Trading)
-El sistema utiliza un enfoque innovador para maximizar la precisión del modelo:
-- **Análisis de Alta Fidelidad**: Los modelos de IA analizan **índices de referencia globales** (`^NDX` para Nasdaq, `CL=F` para el crudo WTI). Estos índices ofrecen un historial más largo y tendencias "más puras", sin el ruido relacionado con los horarios de negociación o las comisiones de los ETFs.
-- **Ejecución en ETFs**: Las órdenes reales se colocan en los tickers correspondientes en **Trading 212** (`SXRV.DE`, `CRUDP.PA`), utilizando **precios en vivo de T212** (a través de la API de posiciones) para el tamaño de la posición. El estado de la cartera se sincroniza directamente desde T212 (`sync_state_from_t212()`), y los precios en vivo se inyectan en el flujo de análisis (`_inject_t212_live_price()` en `src/data.py`).
+### 🚀 Estrategia Dual-Ticker (Análisis vs. Trading)
 
-### 🧠 Motor de IA Híbrida
-El sistema fusiona once señales distintas:
-1.  **Modelo Cuantitativo Clásico**: Conjunto de RandomForest/GradientBoosting/LogisticRegression entrenado con indicadores técnicos y macroeconómicos.
-2.  **TimesFM 2.5 (Google Research)**: Modelo fundacional de última generación para la predicción de series temporales.
-3.  **TensorTrade / PPO (Aprendizaje por Refuerzo)**: Agente de RL (stable-baselines3) que entrena una política PPO en un entorno de trading personalizado de Gymnasium con persistencia a través de ciclos.
-4.  **Modelo Oil-Bench (Gemma 4 12B (Unsloth))**: Modelo especializado en energía que fusiona datos fundamentales de la **EIA** (Existencias, Importaciones, Utilización de refinerías) y el sentimiento para el trading de WTI.
-5.  **LLM Textual (Gemma 4 12B (Unsloth))**: Análisis contextual de datos brutos, noticias en tiempo real a través de la habilidad **AlphaEar**, e integración de **búsqueda web macroeconómica** dinámica. Consume explícitamente el informe nocturno del **Morning Brief** para adquirir una conciencia fundamental profunda antes de tomar decisiones.
-6.  **LLM Visual (Gemma 4 12B (Unsloth))**: Análisis directo de gráficos técnicos (`enhanced_trading_chart.png`).
-7.  **Análisis de Sentimiento**: Análisis híbrido combinando Alpha Vantage y tendencias "candentes" de **AlphaEar** (Weibo, WallstreetCN).
-8.  **Datos Descentralizados (Hyperliquid)**: Análisis del sentimiento especulativo sobre el Petróleo (WTI) a través de la *Tasa de Fondeo* (Funding Rate) y el *Interés Abierto* (Open Interest).
-9.  **Modelo Vincent Ganne**: Análisis geopolítico y multi-activos (WTI, Brent, Gas, DXY, MA200) para detectar suelos macroeconómicos.
-10. **Modelo Grebenkov**: Modelo matemático de seguimiento de tendencias calibrado para el análisis de múltiples activos utilizando Paridad de Riesgo Agnóstica.
-11. **Motor de Fusión Híbrido**: El meta-modelo que orquesta la ponderación dinámica y el consenso cognitivo entre todos los submodelos.
+El sistema **analiza un índice global** (p. ej. `^NDX` para el Nasdaq-100, `CL=F` para el WTI) pero **ejecuta en un ETF cotizado en EUR** (p. ej. `SXRV.DE`, `CRUDP.PA`). Esta disociación garantiza un análisis sobre datos de alta fidelidad y una ejecución real sobre activos accesibles vía Trading 212.
 
-El objetivo es producir una decisión final (`BUY`, `SELL`, `HOLD`) con una prioridad absoluta en **Precisión Primero**.
+### 🧠 Motor de IA Híbrido
+
+El motor combina modelos heterogéneos en un **consenso ponderado**:
+
+1. **Modelos Scikit-Learn** (RandomForest, GradientBoosting, LogisticRegression) — validados con `TimeSeriesSplit` para evitar la fuga de datos. Señal cuantitativa agresiva (25 % del peso cognitivo).
+2. **TimesFM 2.5** (Google Research) — modelo fundacional para el forecast de series temporales.
+3. **TensorTrade / PPO** (stable-baselines3) — agente de Reinforcement Learning en un entorno Gymnasium a medida.
+4. **Gemma 4 12B** (Ollama) — análisis **textual** (macro/noticias) y **visual** (charts técnicos); la **defensa JSON de dos capas** garantiza un JSON limpio a pesar del modo pensamiento `<|think|>` activo.
+5. **Análisis de Sentimiento** híbrido (Alpha Vantage + AlphaEar + Hyperliquid).
+6. **Vincent Ganne Model** — cerrojo geopolítico (WTI, Brent, Gas, Urea, DXY) que genera señales de COMPRA únicamente para validar los mínimos del Nasdaq.
+7. **OilBenchModel** — modelo cognitivo especializado para el WTI (indicadores técnicos + fundamentales EIA + sentimiento).
 
 ### 🧘 Filosofía de Decisión: "Prudencia Cognitiva"
-A diferencia de los algoritmos de trading clásicos que entran en pánico tan pronto como explota la volatilidad, este sistema aplica un enfoque de inversor informado:
-- **Fuerte Consenso Requerido**: Un modelo cuantitativo (Clásico) puede dar una falsa alarma (`SELL`), pero si los modelos cognitivos (LLM Textual, Visual, TimesFM) se mantienen neutrales, el sistema preferirá `HOLD`.
-- **Filtro de Confianza**: Una decisión de movimiento (Comprar o Vender) solo se valida si la confianza global supera un umbral de seguridad (generalmente 40%). Por debajo de este, el sistema considera la señal como "ruido" y permanece a la espera.
-- **Protección del Capital**: En modo de riesgo `VERY_HIGH`, `HOLD` sirve como un escudo. Evita entrar en un mercado inestable y salir prematuramente en una simple corrección técnica si los fundamentos (Noticias/Visión/Hyperliquid) no confirman una caída inminente.
 
-### ✨ Características Principales
+Los modelos cognitivos (Gemma 4, sentimiento, Vincent Ganne) poseen el **75 %** del peso de decisión, frente al **25 %** del modelo cuantitativo agresivo. Esta sobreponderación deliberada garantiza que el contexto cualitativo templa las señales cuantitativas. Una señal solo se ejecuta si la confianza global supera el **40 %**; entre el 20 % y el 40 %, se degrada a HOLD.
 
-- **Enfoque de Doble Ticker**: Analiza el índice, opera el ETF.
-- **Precios en Vivo de T212**: Recuperación en tiempo real de precios en EUR a través de la API de Trading 212 (0.2s), con yfinance como respaldo y caché parquet.
-- **Diferencial de Brent Fechado (Dated Brent Spread)**: Monitoreo de la tensión del mercado físico a través del diferencial entre el Brent Spot (Fechado) y los Futuros del Brent.
-- **Resiliencia de Red**: Cortacircuitos de yfinance con rastreadores separados (información vs. descarga), tiempo de espera de 10s en todas las llamadas de red.
-- **Auto-Invalidación de Caché**: La caché parquet auto-detecta la obsolescencia (> 2 días) y fuerza una actualización. Use `refresh_cache.py` para limpiar manualmente la caché.
-- **Paralelización de Llamadas LLM**: Llamadas de modelos independientes (`text_llm`, `visual_llm`, `search_query`, `timesfm`, `tensortrade`, `grebenkov`) se ejecutan en un `ThreadPoolExecutor` para superponer la inferencia de Ollama con la E/S. La ruta crítica típicamente es de 4–6 min en CPU frente a más de 10 min de forma secuencial.
-- **Caché de Consultas de Búsqueda de 24h**: La consulta de búsqueda web generada por el LLM se almacena en la caché bajo `data_cache/search_queries/<ticker>_<date>_<price-sig>.json`. Clave generada por fecha + una firma de acción de precio (agrupación log2 de cierre + rango RSI), por lo que un cambio de régimen la invalida. Las consultas de respaldo **nunca** se almacenan en caché (un fallo temporal de Ollama no puede corromper la caché por 24h).
-- **Límite de Tiempo de Ciclo Estricto**: Cada ciclo de ticker está envuelto en un presupuesto de 15 minutos (`CYCLE_TIMEOUT_SECONDS` en `main.py`). Al exceder el tiempo de espera, el hilo de trabajo recibe `shutdown(wait=False)` para que el siguiente ticker comience de inmediato; se aplica HOLD al ticker cuyo tiempo expiró. Los *futures* individuales tienen sus propios límites de tiempo por tarea (búsqueda 240s, visual 300s, texto 240s, modelos CPU 180s cada uno, noticias 90s, rastreo web 30s).
-- **Seguridad de Hilo Huérfano**: En el tiempo de espera del ciclo, se establece un `threading.Event` por ticker para que el trabajador huérfano aborte antes de cualquier llamada a `execute_t212_trade`, previniendo operaciones con dinero real después de que se le haya mostrado al usuario el panel de "HOLD aplicado". Un `threading.Lock` por ticker serializa aún más la colocación de órdenes de T212, eliminando el riesgo de operaciones dobles bajo superposición del planificador o invocaciones duplicadas de `--ticker`.
-- **Centinela de Fallo de LLM**: Cuando `_query_ollama` agota todos los reintentos, el diccionario de respaldo lleva una bandera `"failed": True` para que la lógica de consenso posterior pueda distinguir "el modelo eligió HOLD" de "el modelo se bloqueó" (actualmente propagado pero no filtrado — un seguimiento conocido).
-- **Cognición Avanzada**: Uso de **Gemma 4 12B** con **defensa JSON de doble capa**:
-  1. **Aplicación de esquemas del lado del servidor** (`format: SCHEMA_*` con `additionalProperties: false`) — la capa que soporta la carga; pasada a través del parámetro `format` de Ollama en cada sitio de llamada. Esquemas definidos en `src/llm_client.py` (`SCHEMA_TRADING_DECISION`, `SCHEMA_SEARCH_QUERY`, `SCHEMA_OIL_ALLOCATION`).
-  2. **Sufijo de indicador de sistema defensivo** (`"...never add a 'thought' key."`) — segunda línea redundante pero inofensiva, mantenida como precaución extrema contra cualquier regresión futura de la capa del esquema.
+### ✨ Características clave
 
-  El token de razonamiento `<|think|>` está **activo** en los cuatro prompts del sistema de producción (reactivado el 2026-06-06 en `main` tras validación en la rama `think-mode`). La capa de esquema es lo que realmente neutraliza el defecto histórico de residuos JSON `<|channel>thought` (causa raíz de mayo de 2026): `tests/check_llm_json.py` confirma que los casos de esquema estricto (`v3_schema`, `v6_schema`, `v7_schema_strict`) producen JSON limpio incluso con `<|think|>` activado, mientras que las variantes laxas `format:json` fallan. Consulta `docs/ADR-001-think-mode-dual-layer-defence.md` para el análisis completo y el procedimiento de reversión.
-- **Agente Autónomo Morning Brief**: Un proceso nocturno basado en `smolagents` (`morning_brief/morning_brief.py`) programado para ejecutarse automáticamente a la 01:00 AM a través de `schedule.py`. Analiza de forma independiente los registros diarios de la API, descarga datos fundamentales de inventarios de la EIA y arbitra un debate *Bull vs Bear*. El informe en formato markdown generado (`morning_market_brief.md`) se inyecta automáticamente en el prompt del sistema del LLM Textual durante el ciclo de trading diario, otorgando a la IA principal una memoria contextual y una conciencia fundamental profundas sin ralentizar la ejecución en el mercado en vivo.
-- **Sentimiento de Noticias y Blockchain**: Integración de **AlphaEar** y **Hyperliquid** para capturar el sentimiento social y especulativo.
-- **Planificador Automatizado**: Script `schedule.py` para ejecución continua (8:30 AM - 6:00 PM) en un servidor.
-- **Gestión de Riesgos Centralizada**: El `AdvancedRiskManager` centraliza la lógica Anti-Pérdida (Stop-Loss) y Trailing Stop. Los modelos individuales ya no gestionan estos riesgos, lo que garantiza una estrategia de protección de capital unificada y estricta a través de varios regímenes de mercado.
-- **Contratos de Datos Estrictos**: Todos los modelos de IA están completamente estandarizados para devolver una clase de datos `ModelResult` fuertemente tipada (`signal`, `confidence`, `reasoning`), asegurando un 100% de uniformidad en todo el motor de consenso.
-- **Salud del Código Auditada**: El proyecto mantiene un estándar de salud del código **Grado B** a través de auditorías automatizadas (0 código muerto, alto índice de mantenibilidad).
-- **Backtesting de Producción**: Motor de backtest independiente (`backtest_prod.py`) que reproduce señales reales de producción frente a precios reales con comisiones de T212 — sin dependencias externas.
-- **Control de Volcado de Depuración**: Establezca `TRADING_DEBUG_DUMP=0` para deshabilitar el volcado de fallos de LLM (`data_cache/llm_debug_fail.txt`) que tiene un límite de 5 MB.
+- **Arquitectura LLM Híbrida Cloud/Local**: integración `free-llm-api-keys` para aprovechar "Frontier Models" muy inteligentes (DeepSeek, Claude, Gemini) para el análisis textual, con un fallback 100 % robusto al Ollama local (que sigue siendo el motor exclusivo para los charts visuales).
+- **Enfoque Dual-Ticker**: analizar el índice, operar el ETF.
+- **Precios en vivo T212**: recuperación en tiempo real de precios EUR vía la API de Trading 212 (0,2 s), con fallback yfinance y caché parquet.
+- **Spread Brent Dated**: seguimiento de la tensión del mercado físico vía el spread entre el Brent Spot (Dated) y el Brent de futuros.
+- **Resiliencia de red**: circuit breaker yfinance con trackers separados (info vs. download), timeout de 10 s en todas las llamadas de red.
+- **Auto-invalidación de caché**: la caché Parquet detecta su caducidad (> 2 días) y fuerza una actualización. Use `refresh_cache.py` para un vaciado manual.
+- **Paralelización de llamadas LLM**: las llamadas de modelos independientes (`text_llm`, `visual_llm`, `search_query`, `timesfm`, `tensortrade`, `grebenkov`) se ejecutan en un `ThreadPoolExecutor` para superponer la inferencia Ollama con la E/S. Camino crítico típicamente 4–6 min en CPU frente a 10+ min en secuencia.
+- **Caché de 24h de consultas de búsqueda**: la consulta de búsqueda web generada por el LLM se cachea en `data_cache/search_queries/<ticker>_<date>_<price-sig>.json`. Clave por fecha + firma de acción de precios (bucketing log2 del close + bucket RSI), por lo que un cambio de régimen la invalida. Las consultas de fallback **nunca** se cachean (un fallo transitorio de Ollama no puede envenenar la caché durante 24h).
+- **Timeout estricto de ciclo**: cada ciclo por ticker se envuelve en un presupuesto de 15 min (`CYCLE_TIMEOUT_SECONDS` en `main.py`). En timeout, el hilo de trabajo se `shutdown(wait=F)` para que el siguiente ticker arranque inmediatamente; se aplica HOLD al ticker expirado. Los futures individuales tienen sus propios timeouts por tarea (búsqueda 240 s, visual 300 s, texto 240 s, modelos CPU 180 s cada uno, noticias 90 s, crawl web 30 s).
+- **Seguridad anti-hilo huérfano**: en timeout de ciclo, un `threading.Event` por ticker se activa para que el worker huérfano aborte antes de cualquier llamada `execute_t212_trade` — impidiendo operaciones con dinero real tras haber mostrado al usuario el panel "HOLD aplicado". Un `threading.Lock` por ticker además serializa la colocación de órdenes T212, eliminando el riesgo de doble operación bajo solapamiento del scheduler o invocaciones `--ticker` duplicadas.
+- **Centinela de fallo LLM**: cuando `_query_ollama` agota todos sus reintentos, el diccionario de fallback lleva un marcador `"failed": True` para que la lógica de consenso aguas abajo pueda distinguir "el modelo eligió HOLD" de "el modelo crasheó" (actualmente propagado pero no filtrado — un seguimiento conocido).
+- **Cognición avanzada**: uso de **Gemma 4 12B** con **defensa JSON de dos capas**:
+  1. **Aplicación del esquema en servidor** (`format: SCHEMA_*` con `additionalProperties: false`) — la capa portante; pasada vía el parámetro `format` de Ollama en cada sitio de llamada. Esquemas definidos en `src/llm_client.py` (`SCHEMA_TRADING_DECISION`, `SCHEMA_SEARCH_QUERY`, `SCHEMA_OIL_ALLOCATION`).
+  2. **Sufijo defensivo del system prompt** (`"...never add a 'thought' key."`) — segunda línea redundante-pero-inofensiva, conservada como belt-and-braces ante cualquier regresión futura de la capa esquema.
 
-### 💻 Stack Tecnológico
+  El token de razonamiento `<|think|>` está **activo** en los cuatro system prompts de producción (reactivado el 2026-06-06 en `main` tras validación en la rama `think-mode`). Es la capa esquema la que realmente neutraliza el defecto histórico de escombros JSON `<|channel>thought` (causa raíz mayo 2026): `tests/check_llm_json.py` confirma que los casos schema-strict (`v3_schema`, `v6_schema`, `v7_schema_strict`) producen JSON limpio incluso con `<|think|>` activo, mientras que las variantes loose `format:json` fallan. Vea `docs/ADR-001-think-mode-dual-layer-defence.md` para el análisis completo y el procedimiento de reversal.
+- **Agente autónomo de Morning Brief**: un workflow nocturno basado en `smolagents` (`morning_brief/morning_brief.py`) programado automáticamente a las 01:00 vía `schedule.py`. Rastrea independientemente los logs diarios de la API, descarga datos fundamentales de inventario EIA, y arbitra un debate *Bull vs Bear*. El informe markdown resultante (`morning_market_brief.md`) se inyecta automáticamente en el system prompt del LLM textual durante el ciclo de trading diario, otorgando a la IA principal una memoria contextual profunda y una conciencia fundamental sin ralentizar la ejecución en mercado en vivo.
+- **🏛️ Weekend Council (Memoria Estratégica)**: una retrospectiva LLM multi-persona semanal (`src/council/weekend_council.py`) que se ejecuta cada **sábado a las 01:00** vía `schedule.py`. Seis personas — cada una en una **familia de modelo Ollama distinta** (Gemma 4 12B / GLM-4.6V-Flash / Qwen 3.5 9B / LFM 2.5 / Mistral Nemo 12B) para una diversidad de razonamiento genuina — deliberan en un protocolo de 4 rondas (Problem Restate Gate → Analysis con STANCE explícita → Debate 1-vs-1 → Síntesis del Juez) con mecanismos anti-groupthink (cuota de disidencia, veredicto unresolved-first). El Juez (Qwen3.5-9B-MTP) emite una postura por ticker que se convierte en el **11.º voto ponderado** (9,5 %) del consenso en tiempo real, con una confianza que decae linealmente en 7 días. Presupuestos de tokens generosos (`num_predict` hasta 12000, `num_ctx` hasta 65536) y una ventana de scheduler de 48 horas acomodan los thinking models en CPU. El council analiza datos PROD reales: precisión de modelos (`model_performance.db`), métricas de cartera y alertas críticas (`performance_monitor.db`), y el diario de trading ejecutado. Instale los 6 modelos requeridos con `uv run python setup_council_models.py`. Vea `docs/ADR-003-weekend-council-11th-voice.md`.
+- **Noticias y Sentimiento Blockchain**: integración de **AlphaEar** y **Hyperliquid** para capturar el sentimiento social y especulativo.
+- **Scheduler automatizado**: script `schedule.py` para ejecución continua (8:30 – 18:00) en un servidor.
+- **Gestión de riesgo centralizada**: el `AdvancedRiskManager` centraliza la lógica Anti-Loss (Stop-Loss) y Trailing Stop. Los modelos individuales ya no gestionan estos riesgos, garantizando una estrategia unificada y estricta de protección del capital a través de los regímenes de mercado.
+- **Contratos de datos estrictos**: todos los modelos de IA están totalmente estandarizados para devolver una dataclass fuertemente tipada `ModelResult` (`signal`, `confidence`, `reasoning`), asegurando 100 % de uniformidad a través del motor de consenso.
+- **Salud del código auditada**: el proyecto mantiene un estándar de salud de código **Grade B** vía auditorías automatizadas (0 código muerto, alto índice de mantenibilidad).
+- **Backtesting de producción**: motor de backtest autónomo (`backtest_prod.py`) que reproduce las señales reales de prod contra precios reales con comisiones T212 — sin dependencias externas.
+- **Control del dump de depuración**: establezca `TRADING_DEBUG_DUMP=0` para desactivar el dump (limitado a 5 MB) `data_cache/llm_debug_fail.txt` de fallos LLM.
+
+### 💻 Stack tecnológico
 
 - **Lenguaje**: `Python 3.12+`
 - **Cálculos y Datos**: `pandas`, `numpy`, `yfinance`, `pyarrow`, `pandas_datareader`, `hyperliquid-python-sdk`
 - **Machine Learning**: `scikit-learn`, `shap`
-- **IA y LLM**: `requests`, `ollama`
-- **Scraping y Búsqueda Web**: `beautifulsoup4`, `duckduckgo_search`, `crawl4ai`
-- **Visualización**: `matplotlib` (backend Agg para seguridad de hilos), `seaborn`, `mplfinance`
+- **IA y LLM**: `google-genai` (Gemini), `requests`, `ollama`
+- **Scraping Web y Búsqueda**: `beautifulsoup4`, `duckduckgo_search`, `crawl4ai`
+- **Visualización**: `matplotlib` (backend Agg para thread safety), `seaborn`, `mplfinance`
 - **Utilidades**: `tqdm`, `rich`, `python-dotenv`, `schedule`
 
 ### ⚙️ Rendimiento y Hardware
-El sistema está diseñado para ser **eficiente en hardware de consumo** sin requerir una GPU dedicada.
-- **Solo CPU**: La inferencia de LLM (Gemma 4 12B Q6_K a través de Ollama) y TimesFM se ejecutan completamente en la CPU. El rendimiento es de ~3–4 tokens/s en una CPU moderna de 8 núcleos.
-- **RAM Recomendada**: 16 GB como mínimo (se sugieren 32 GB para ejecutar Gemma 4 12B cómodamente junto con TimesFM y TensorTrade).
-- **Concurrencia de Ollama**: Establezca `OLLAMA_NUM_PARALLEL=8` (ya incluido en el archivo `.env` recomendado) para que múltiples llamadas a LLM puedan compartir la carga del modelo. Con el presupuesto de contexto predeterminado de 4 GB, los *slots* paralelos obtienen ~512 tokens cada uno — Ollama serializará si los *prompts* exceden el ctx por slot, pero el `ThreadPoolExecutor` mantiene la superposición en el reloj de pared beneficiosa para pasos limitados por E/S (obtención de noticias, rastreo web, modelos CPU).
-- **Tiempo de Ejecución**: ~6 a 9 minutos por ticker en CPU (frío), ~3 a 5 minutos por ticker con acierto en la caché de consulta de búsqueda. El valor predeterminado ejecuta dos tickers (CRUDP.PA + SXRV.DE), por lo que se estima ~15 min en total.
-- **Límite de Tiempo de Ciclo**: Cada ciclo de ticker está limitado a 15 min (`CYCLE_TIMEOUT_SECONDS`). Si se excede, se aplica HOLD y el siguiente ticker comienza de inmediato.
-- **Velocidad de la API**: Integración ultrarrápida con Trading 212 (<1s para la recuperación de precios en vivo).
+El sistema está diseñado para ser **rendimiento en hardware de consumo** sin requerir una GPU dedicada.
+- **Solo CPU**: la inferencia LLM (Gemma 4 12B Q6_K vía Ollama) y TimesFM se ejecutan enteramente en CPU. El rendimiento es de ~3–4 tokens/s en una CPU moderna de 8 núcleos.
+- **RAM recomendada**: 16 GB mínimo (32 GB sugeridos para ejecutar cómodamente Gemma 4 12B junto a TimesFM y TensorTrade).
+- **Concurrencia Ollama**: establezca `OLLAMA_NUM_PARALLEL=8` (ya en el `.env` recomendado) para que múltiples llamadas LLM compartan la carga del modelo. Con el presupuesto de contexto por defecto de 4 GB, los slots paralelos obtienen ~512 tokens cada uno — Ollama serializará si los prompts superan el ctx por slot, pero el `ThreadPoolExecutor` mantiene el solapamiento wall-clock beneficioso para los pasos ligados a E/S (fetch de noticias, crawl web, modelos CPU).
+- **Tiempo de ejecución**: ~6 a 9 minutos por ticker en CPU (en frío), ~3 a 5 minutos por ticker con un hit en la caché de consultas de búsqueda. La ejecución por defecto abarca dos tickers (CRUDP.PA + SXRV.DE), así que prevea ~15 min en total.
+- **Timeout de ciclo**: cada ciclo por ticker está limitado a 15 min (`CYCLE_TIMEOUT_SECONDS`). Si se excede, se aplica HOLD y el siguiente ticker arranca inmediatamente.
+- **Velocidad de API**: integración con Trading 212 ultrarrápida (<1 s para la recuperación del precio en vivo).
 
----
+### 🧠 Arquitectura de IA y LLM (Gemini + Fallback Local)
+El sistema aprovecha una arquitectura multinivel muy robusta para asegurar un uptime máximo y una toma de decisiones inteligente, profundamente integrada en `main.py` y el Weekend Council.
 
-## 📂 Estructura del Proyecto
+- **Cascada de Fallback de 4 Niveles**:
+  1. **Nivel Gemini de Pago (`GEMINI_API_KEY_PAY`)**: Máxima prioridad. Usa modelos avanzados como Gemini 2.5 Pro para razonamiento complejo, visión de charts técnicos y decisiones finales de trading.
+  2. **Nivel Gemini Gratuito (`GEMINI_API_KEY`)**: Usado para tareas más ligeras de alto volumen como la síntesis de contexto web.
+  3. **Proxies de API LLM gratuitos**: Respaldo vía `free-llm-api-keys`.
+  4. **Ollama Local**: Fallback en CPU offline 100 % robusto si todos los servicios cloud caen.
+- **Protección de costes**: el nivel de pago está limitado por un presupuesto de coste de 30 días móvil (`GEMINI_PAY_MONTHLY_BUDGET_EUR`, por defecto 8,6 €/mes) — el coste de cada llamada se calcula a partir del uso real de tokens × el precio del modelo y se acumula; cuando se alcanza el presupuesto, las llamadas caen al nivel gratuito / Ollama. Un backstop diario (`GEMINI_PAY_DAILY_CAP`, por defecto 200) protege contra bucles descontrolados.
+- **Integración**: el motor principal de ejecución diaria (`main.py`) usa Gemini para el consenso multimodelo en tiempo real, mientras que el Weekend Council asíncrono (`council`) integra Gemini específicamente para ciertos roles (como el Juez y el Escéptico) junto a diversos modelos Ollama locales.
 
-El proyecto está organizado de manera modular para un mejor mantenimiento.
+### 🧠 FinAcumen (Memoria Financiera)
+La arquitectura FinAcumen se ha integrado para dotar a los modelos de IA locales de una **memoria de experiencia** y de herramientas deterministas. Esto resuelve el problema de la amnesia de los LLMs.
+- FinAcumen funciona **de forma asíncrona por la noche** (vía `schedule.py`) para beneficiarse de toda la potencia de la CPU sin bloquear los ciclos de trading.
+- Su informe cualitativo profundo se añade automáticamente al **Morning Market Brief** para guiar al LLM de decisión a lo largo de la jornada de trading.
+
+## 📂 Estructura del proyecto
+
+El proyecto está organizado de forma modular para una mejor mantenibilidad.
 
 ```
 Trading-AI/
-├── morning_brief/                   # Agente autónomo nocturno para un análisis fundamental profundo
-│   ├── morning_brief.py             # Orquestador del agente y configuración de smolagents
-│   └── output/                      # Informes diarios en markdown generados (morning_market_brief.md)
-├── src/                             # Módulos principales
-│   ├── adaptive_weight_manager.py   # Ponderación dinámica de modelos basada en el rendimiento
-│   ├── advanced_risk_manager.py     # Gestión de riesgos y dimensionamiento basados en tendencias
-│   ├── chart_generator.py           # Generación de gráficos técnicos para el LLM visual
+├── morning_brief/                   # Agente autónomo nocturno de análisis fundamental profundo
+│   ├── morning_brief.py             # Orquestador de agentes y configuración smolagents
+│   └── output/                      # Informes markdown diarios generados (morning_market_brief.md)
+├── src/                             # Módulos núcleo
+│   ├── adaptive_weight_manager.py   # Ponderación dinámica de modelos según rendimiento
+│   ├── advanced_risk_manager.py     # Gestión de riesgo Trend-Aware y sizing
+│   ├── bootstrap.py                 # Lógica de inicialización del núcleo
+│   ├── chart_generator.py           # Genera charts técnicos para el LLM visual
 │   ├── classic_model.py             # Conjunto de modelos cuantitativos Scikit-learn
-│   ├── data.py                      # Obtención de datos, caché y preprocesamiento
-│   ├── database.py                  # Gestión de la base de datos SQLite para métricas
-│   ├── eia_client.py                # Cliente de la API de la Administración de Información de Energía (EIA)
+│   ├── config_weights.py            # Configuración de pesos base del motor híbrido
+│   ├── data.py                      # Fetch, caché y preprocesamiento de datos
+│   ├── database.py                  # Gestión de base SQLite para métricas
+│   ├── eia_client.py                # Cliente API Energy Information Administration
 │   ├── enhanced_decision_engine.py  # Motor de fusión híbrida que orquesta todos los modelos
-│   ├── features.py                  # Ingeniería de características técnicas y macroeconómicas
-│   ├── grebenkov_model.py           # Modelo matemático de seguimiento de tendencias (Paridad de Riesgo Agnóstica)
-│   ├── llm_client.py                # Integración de Ollama para la inferencia local de LLM
-│   ├── news_fetcher.py              # Rastreo y análisis de noticias financieras
-│   ├── oil_bench_model.py           # Modelo de trading de WTI especializado en energía
-│   ├── performance_monitor.py       # Seguimiento de la precisión de los modelos e historial
-│   ├── sentiment_analysis.py        # Integración de sentimientos de Alpha Vantage y AlphaEar
-│   ├── t212_executor.py             # Ejecución real en la API de Trading 212 y cartera
-│   ├── tensortrade_model.py         # Señal de Aprendizaje por Refuerzo (PPO)
-│   ├── timesfm_model.py             # Integración de predicción de series temporales TimesFM 2.5
-│   └── web_researcher.py            # Scraping web macroeconómico con Crawl4AI
-├── data_cache/                       # Todas las cachés (ignoradas en git)
+│   ├── enhanced_trading_example.py  # Scripts de ejemplo de uso de los modelos
+│   ├── features.py                  # Ingeniería de features técnicas y macroeconómicas
+│   ├── grebenkov_model.py           # Modelo matemático Trend-Following (Agnostic Risk Parity)
+│   ├── hmm_model.py                 # Hidden Markov Model para detección de régimen
+│   ├── llm_client.py                # Integración Ollama para inferencia LLM local
+│   ├── news_fetcher.py              # Crawl y parseo de noticias financieras
+│   ├── oil_bench_model.py           # Modelo de trading WTI especializado en energía
+│   ├── performance_monitor.py       # Seguimiento de precisión e historial de modelos
+│   ├── read_simul.py                # Herramientas para leer salidas de simulación
+│   ├── sentiment_analysis.py        # Integración de sentimiento Alpha Vantage y AlphaEar
+│   ├── t212_executor.py             # Ejecución real API Trading 212 y cartera
+│   ├── tensortrade_model.py         # Señal de Reinforcement Learning (PPO)
+│   ├── timesfm_model.py             # Integración de forecast de series temporales TimesFM 2.5
+│   └── web_researcher.py            # Scraping macroeconómico web con Crawl4AI
+├── data_cache/                       # Todas las cachés (gitignorado)
 │   ├── *.parquet                     # Datos OHLCV por ticker (yfinance)
-│   ├── macro/                        # Series temporales macro (FRED, múltiples fuentes)
-│   ├── search_queries/               # Caché de búsqueda web LLM de 24h (por ticker+fecha+firma de precio)
-│   └── llm_debug_fail.txt            # Volcado de fallos de LLM con límite (5 MB) — deshabilitar con TRADING_DEBUG_DUMP=0
-├── tests/                            # Scripts de prueba y validación
-│   ├── test_full_cycle.py            # Prueba completa de extremo a extremo T212 comprar/esperar/vender
-│   ├── test_enhanced_decision_engine.py # Pruebas para el motor de fusión híbrida
-│   ├── check_llm_json.py             # Diagnóstico de esquema JSON LLM (prueba los 4 sitios de llamada a Ollama)
+│   ├── macro/                        # Series temporales macro (FRED, multifuentes)
+│   ├── search_queries/               # Caché 24h de consultas de búsqueda LLM (por ticker+fecha+price-sig)
+│   └── llm_debug_fail.txt            # Dump (limitado 5 MB) de fallos LLM — desactivar con TRADING_DEBUG_DUMP=0
+├── tests/                            # Scripts de test y validación
+│   ├── test_full_cycle.py            # Test end-to-end T212 compra/espera/venta
+│   ├── test_enhanced_decision_engine.py # Tests del motor de fusión híbrida
+│   ├── check_llm_json.py             # Diagnóstico JSON-schema LLM (testa los 4 sitios de llamada Ollama)
 │   ├── check_live.py                 # Script de verificación de precios de mercado en vivo
-│   └── ...                           # Otras pruebas unitarias y de integración
+│   └── ...                           # Otros tests unitarios y de integración
 ├── i18n/                            # Internacionalización (READMEs traducidos)
 ├── assets/                          # Recursos estáticos (imágenes, banners)
-├── memory-bank/                     # Memoria y contexto del asistente de IA
-├── backtest_prod.py                 # Motor de backtesting de producción independiente
+├── memory-bank/                     # Estado determinista de 4 archivos + contexto long-form (ver AGENTS.md §1)
+├── backtest_prod.py                 # Motor de backtest de producción autónomo
 ├── main.py                          # Punto de entrada único (Análisis y Trading)
 ├── pyproject.toml                   # Dependencias y configuración del proyecto (uv)
-├── refresh_cache.py                 # Utilidad CLI para forzar la actualización de la caché Parquet
-├── schedule.py                      # Planificador en vivo para ejecución automatizada
-├── setup_timesfm.py                 # Script de instalación para el modelo de proveedor TimesFM 2.5
+├── refresh_cache.py                 # Utilidad CLI para forzar el refresco de la caché Parquet
+├── schedule.py                      # Scheduler en vivo para ejecución automatizada
+├── setup_timesfm.py                 # Script de instalación del vendor TimesFM 2.5
 ├── .env.example                     # Ejemplo de variables de entorno
 └── README.md                        # Esta documentación
 ```
 
 ---
 
-## 🚀 Inicio Rápido
+## 🚀 Inicio rápido
 
 Siga estos pasos para configurar su entorno de desarrollo local.
 
-### ✅ Requisitos Previos
+### ✅ Requisitos previos
 
-- Python 3.12+ (a través de `uv`)
-- [Ollama](https://ollama.com/) instalado y funcionando localmente.
+- Python 3.12+ (vía `uv`)
+- [Ollama](https://ollama.com/) instalado y en ejecución localmente.
 - Modelo LLM descargado: `ollama pull hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K`
+- **Modelos del Weekend Council** (opcionales, pero requeridos para la diversidad de razonamiento del council): el council ejecuta cada persona en una familia de modelo *distinta* (Gemma / GLM / Qwen / LFM). Instalelos todos a la vez con `uv run python setup_council_models.py`.
 
 ### ⚙️ Instalación
 
@@ -203,18 +225,18 @@ Siga estos pasos para configurar su entorno de desarrollo local.
     git clone https://github.com/laurentvv/Trading-AI.git
     cd Trading-AI
     ```
-2.  **Instalar `uv` (si no lo ha hecho):**
-    Consulte [astral.sh/uv](https://astral.sh/uv) para obtener instrucciones de instalación.
+2.  **Instalar `uv` (si aún no lo ha hecho):**
+    Vea [astral.sh/uv](https://astral.sh/uv) para las instrucciones de instalación.
 
-3.  **Crear y activar el entorno virtual (Paso CRUCIAL):**
+3.  **Crear y activar el entorno virtual (PASO CRUCIAL):**
     Debe crear y activar el `.venv` antes de instalar los modelos fundacionales.
     ```bash
     uv venv
     source .venv/bin/activate  # En Windows, use `.\.venv\Scripts\activate.ps1`
     ```
 
-4.  **Instalar Modelos Fundacionales:**
-    Ejecute los scripts de instalación para clonar los modelos en `vendor/` y aplicar los parches:
+4.  **Instalar los modelos fundacionales:**
+    Ejecute los scripts de instalación para clonar los modelos en `vendor/` y aplicar parches:
     ```bash
     python setup_timesfm.py
     ```
@@ -229,39 +251,45 @@ Siga estos pasos para configurar su entorno de desarrollo local.
     uv run python -m playwright install chromium
     ```
 
-7.  **Configurar sus claves de API:**
+7.  **Configurar sus claves API:**
     Cree un archivo `.env` en la raíz del proyecto:
     ```
     ALPHA_VANTAGE_API_KEY="SU_CLAVE"
     EIA_API_KEY="SU_CLAVE"
+
+    # Opcional pero muy recomendado: Integración Gemini AI
+    GEMINI_API_KEY_PAY="SU_CLAVE_NIVEL_PAGO"  # Para razonamiento/visión complejos (Gemini 2.5 Pro)
+    GEMINI_API_KEY="SU_CLAVE_NIVEL_GRATUITO"   # Para tareas más ligeras (síntesis)
+    GEMINI_PAY_MONTHLY_BUDGET_EUR=8.6        # Presupuesto de coste de 30 días móvil (€) — guardia de facturación principal
+    GEMINI_PAY_DAILY_CAP=200                 # Backstop: máx. de llamadas API de pago por día
     ```
 
 ---
 
 ## 🛠️ Uso
 
-El sistema entrena sus modelos con los datos más recientes en cada ejecución antes de tomar una decisión.
+El sistema entrena sus modelos con los datos más recientes en cada ejecución antes de dar una decisión.
 
-### Modo de Simulación (Paper Trading)
+### Modo Simulación (Paper Trading)
 
-Para probar el sistema sin riesgos con un capital ficticio de 1000 €, use la bandera `--simul`. El sistema gestionará un historial estricto de compras y ventas.
+Para probar el sistema sin riesgo con un capital ficticio de 1000 €, use el flag `--simul`. El sistema gestionará un historial estricto de compras y ventas.
 
 ```sh
-# Ejecutar un análisis simulado (Predeterminado: SXRV.DE - Nasdaq 100 EUR)
+# Ejecutar un análisis simulado (Por defecto: SXRV.DE - Nasdaq 100 EUR)
 uv run main.py --simul
 
-# Ejecutar sobre el Petróleo (WTI)
+# Ejecutar en Petróleo (WTI)
 uv run main.py --ticker CRUDP.PA --simul
 ```
 
 ### Ejecución Real (Trading 212)
 
 El sistema ahora está **totalmente integrado** con Trading 212:
-- **Verificación de Cartera**: Antes de cualquier acción, el robot consulta su efectivo y posiciones reales.
-- **Gestión de la API**: Incluye mecanismos de reintento automático frente a límites de solicitud (Rate Limiting).
+- **Verificación de cartera**: antes de cualquier acción, el robot consulta su cash y posiciones reales.
+- **Gestión de la API**: incluye mecanismos de reintento automático contra los límites de solicitudes (Rate Limiting).
 
 ```sh
-# Ejecutar análisis con ejecución real (Demo o Real según el .env)
+# Ejecutar análisis con ejecución real (Demo o Real según .env)
 uv run main.py --t212
 ```
 
@@ -269,14 +297,14 @@ uv run main.py --t212
 
 ## 🧪 Backtesting en Producción
 
-El sistema incluye un **motor de backtest de producción independiente** (`backtest_prod.py`) que reproduce señales de producción reales desde `logs_prod/trading_journal.csv` frente a precios reales desde los archivos Parquet en `data_cache/`.
+El sistema incluye un **motor de backtest de producción autónomo** (`backtest_prod.py`) que reproduce las señales reales de prod de `logs_prod/trading_journal.csv` contra los precios reales de los archivos Parquet de `data_cache/`.
 
 ### Características
-- **Señales reales**: Reproduce las decisiones exactas del motor híbrido de 12 modelos.
-- **Precios reales**: Utiliza datos reales de ETF OHLCV (SXRV.DE, CRUDP.PA) — sin usar proxies de EE. UU.
-- **Comisiones de T212**: Simula el modelo de comisiones del 0.1% por operación de Trading 212.
-- **Comparación de referencia**: Calcula automáticamente el rendimiento de "comprar y mantener" (*buy-and-hold*) como punto de referencia.
-- **Métricas**: Ratio de Sharpe, Drawdown Máximo, Tasa de Aciertos (Win Rate), Alfa, Rendimiento Total por ticker.
+- **Señales reales**: reproduce las decisiones exactas del motor híbrido de 12 modelos.
+- **Precios reales**: usa datos OHLCV reales de los ETF (SXRV.DE, CRUDP.PA) — sin proxies US.
+- **Comisiones T212**: simula el modelo de comisiones de Trading 212 del 0,1 % por operación.
+- **Comparación baseline**: calcula automáticamente el rendimiento buy-and-hold como benchmark.
+- **Métricas**: Sharpe Ratio, Drawdown Máximo, Win Rate, Alpha, Retorno Total por ticker.
 
 ### Uso
 
@@ -284,13 +312,13 @@ El sistema incluye un **motor de backtest de producción independiente** (`backt
 uv run python backtest_prod.py
 ```
 
-Resultados guardados en `logs_prod/backtest_report.json` junto con archivos CSV de las curvas de capital.
+Resultados guardados en `logs_prod/backtest_report.json` con curvas de equity en CSV.
 
 ---
 
-## 🤝 Contribución
+## 🤝 Contribuir
 
-¡Las contribuciones son bienvenidas! No dude en hacer un fork del proyecto y abrir un Pull Request.
+¡Las contribuciones son bienvenidas! No dude en hacer un fork del proyecto y abrir una Pull Request.
 
 ---
 
@@ -302,4 +330,4 @@ Distribuido bajo la Licencia MIT.
 
 ## 📧 Contacto
 
-Enlace del Proyecto: [https://github.com/laurentvv/Trading-AI](https://github.com/laurentvv/Trading-AI)
+Enlace del proyecto: [https://github.com/laurentvv/Trading-AI](https://github.com/laurentvv/Trading-AI)

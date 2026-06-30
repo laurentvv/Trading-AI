@@ -36,16 +36,24 @@
 ## 📚 Table of Contents
 
 - [🌟 About the Project](#-about-the-project)
+  - [🚀 Dual-Ticker Strategy (Analysis vs. Trading)](#-dual-ticker-strategy-analysis-vs-trading)
+  - [🧠 Hybrid AI Engine](#-hybrid-ai-engine)
+  - [🧘 Decision Philosophy: "Cognitive Prudence"](#-decision-philosophy-cognitive-prudence)
   - [✨ Key Features](#-key-features)
   - [💻 Tech Stack](#-tech-stack)
   - [⚙️ Performance & Hardware](#️-performance--hardware)
+  - [🧠 AI & LLM Architecture (Gemini + Local Fallback)](#-ai--llm-architecture-gemini--local-fallback)
+  - [🧠 FinAcumen (Financial Memory)](#-finacumen-financial-memory)
 - [📂 Project Structure](#-project-structure)
 - [🚀 Quick Start](#-quick-start)
   - [✅ Prerequisites](#-prerequisites)
   - [⚙️ Installation](#️-installation)
 - [🛠️ Usage](#️-usage)
-  - [Manual Analysis](#-manual-analysis)
-  - [Automated Analysis with Intelligent Scheduler](#-automated-analysis-with-intelligent-scheduler)
+  - [Simulation Mode (Paper Trading)](#simulation-mode-paper-trading)
+  - [Real Execution (Trading 212)](#real-execution-trading-212)
+- [🧪 Production Backtesting](#-production-backtesting)
+  - [Features](#features)
+  - [Usage](#usage)
 - [🤝 Contributing](#-contributing)
 - [📜 License](#-license)
 - [📧 Contact](#-contact)
@@ -200,7 +208,7 @@ Trading-AI/
 │   └── ...                           # Other unit and integration tests
 ├── i18n/                            # Internationalization (Translated READMEs)
 ├── assets/                          # Static assets (images, banners)
-├── memory-bank/                     # AI assistant memory and context
+├── memory-bank/                     # Deterministic 4-file state + long-form context (see AGENTS.md §1)
 ├── backtest_prod.py                 # Standalone production backtest engine
 ├── main.py                          # Single entry point (Analysis & Trading)
 ├── pyproject.toml                   # Project dependencies and configuration (uv)
