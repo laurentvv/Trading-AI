@@ -13,8 +13,9 @@ Two API keys, two tiers
 -----------------------
 * ``GEMINI_API_KEY_PAY`` (paid Tier 1) — used for the high-value use-cases
   (decision, vision). Generous quotas; **Gemini 2.5 Pro** is available here
-  and anchors the reasoning cascade. Bounded by a local daily cap
-  (``GEMINI_PAY_DAILY_CAP``, default 200) that protects billing.
+  and anchors the reasoning cascade. Bounded by a rolling 30-day cost budget
+  (``GEMINI_PAY_MONTHLY_BUDGET_EUR``, the load-bearing billing guard) plus a
+  daily call-cap backstop (``GEMINI_PAY_DAILY_CAP``, default 200).
 * ``GEMINI_API_KEY`` (free Tier) — used for the low-value web-summary use-case,
   and as the fallback when the paid tier is exhausted. Pro is unavailable
   here (0/0/0); only Flash/Lite/Gemma models.
@@ -59,7 +60,14 @@ from typing import Any, Dict, Optional, Tuple
 
 from dotenv import load_dotenv
 
-from src.gemini_quota import LIMITS_FREE, LIMITS_PAID, QuotaTracker, TIER_FREE, TIER_PAID
+from src.gemini_quota import (
+    LIMITS_FREE,
+    LIMITS_PAID,
+    QuotaTracker,
+    TIER_FREE,
+    TIER_PAID,
+    compute_call_cost_eur,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -244,8 +252,19 @@ class _TierBackend:
                 self.tier, model_name, reason,
             )
             return None
-        quota.record(model_name, self.tier)
-        logger.debug("Gemini %s/%s: success.", self.tier, model_name)
+        # Bill the call against the ledger. Cost is computed from the actual
+        # token usage reported by the API — but only on the paid tier (the
+        # free tier is unmetered, so we skip the computation and record 0).
+        cost_eur = (
+            compute_call_cost_eur(
+                model_name, GeminiGateway._usage_metadata(response)
+            )
+            if self.tier == TIER_PAID else 0.0
+        )
+        quota.record(model_name, self.tier, cost_eur=cost_eur)
+        logger.debug(
+            "Gemini %s/%s: success (cost %.5f EUR).", self.tier, model_name, cost_eur,
+        )
         return text
 
 
@@ -485,6 +504,32 @@ class GeminiGateway:
             return name.replace("FinishReason.", "")
         except Exception:  # noqa: BLE001 - logging helper must never raise
             return "?"
+
+    @staticmethod
+    def _usage_metadata(response: Any) -> Optional[dict]:
+        """Extract ``usage_metadata`` from a Gemini response as a plain dict.
+
+        The SDK returns a protobuf-like object with ``prompt_token_count`` /
+        ``candidates_token_count`` / ``total_token_count``. We coerce it to a
+        plain dict for :func:`compute_call_cost_eur`. Returns ``None`` if the
+        field is absent (older SDK, safety filter, etc.) — the cost helper
+        then falls back to its conservative flat estimate. Never raises.
+        """
+        try:
+            um = getattr(response, "usage_metadata", None)
+            if um is None:
+                return None
+            # ``usage_metadata`` may be a proto message (use ``_unknown_class``
+            # / attribute access) or already a dict. Handle both.
+            if isinstance(um, dict):
+                return um
+            return {
+                k: getattr(um, k)
+                for k in ("prompt_token_count", "candidates_token_count", "total_token_count")
+                if hasattr(um, k)
+            }
+        except Exception:  # noqa: BLE001 - cost helper must never raise
+            return None
 
     @staticmethod
     def _parse_decision(text: Optional[str]) -> Optional[dict]:

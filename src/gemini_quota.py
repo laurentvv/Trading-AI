@@ -11,10 +11,23 @@ Two key tiers are tracked, each with its **own** per-model limit map:
 * ``LIMITS_PAID``  — Tier 1 (paid) limits. Generous; includes Gemini 2.5 Pro.
 * ``LIMITS_FREE``  — Free Tier limits. Tight; Pro is 0/0/0 (unavailable).
 
-On top of Google's per-model RPD caps, the **paid** tier is also bounded by a
-local daily cap (``GEMINI_PAY_DAILY_CAP``, default 200) — a hard stop that
-protects billing regardless of what Google allows. The paid ledger therefore
-counts *every* paid call (all models combined) against this single cap.
+Two billing protections gate the **paid** tier (both independent of Google's
+per-model RPD caps):
+
+1. **Monthly cost budget** (load-bearing) — the paid tier is bounded by a
+   **rolling 30-day cost budget** in euros. Each successful call's cost is
+   computed from the actual token usage (``usage_metadata`` from the API
+   response) × the model's price table (``PRICE_TABLE_EUR_PER_MTOKEN``), and
+   accumulated in the ledger. When the 30-day sum reaches the budget, every
+   paid model is short-circuited and calls fall back to the free tier /
+   Ollama. This is what honours a real €/month target — a call counter cannot,
+   because Gemini 2.5 Pro costs ~15× more per call than Flash.
+   Driven by ``GEMINI_PAY_MONTHLY_BUDGET_EUR`` (default ``DEFAULT_PAID_MONTHLY_BUDGET_EUR``).
+
+2. **Daily call cap** (backstop) — ``GEMINI_PAY_DAILY_CAP`` (default 200) is a
+   hard stop on the *number* of paid calls in a day. It is a backstop against
+   runaway loops (a bug that retries forever would otherwise drain the budget
+   in minutes); the cost budget is the real billing guard.
 
 Two windows are tracked per model family:
 
@@ -36,7 +49,7 @@ import threading
 import time
 from datetime import datetime, time as dtime
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -78,8 +91,50 @@ LIMITS_FREE: Dict[str, Tuple[int, int]] = {
 }
 
 # Hard local daily cap on the PAID tier (all paid models combined), independent
-# of Google's per-model RPD. Protects billing. Override via the environment.
+# of Google's per-model RPD. **Backstop only** — the real billing guard is the
+# monthly cost budget below. Override via the environment.
 DEFAULT_PAID_DAILY_CAP = 200
+
+# --- Monthly cost budget (the load-bearing billing guard) ----------------- #
+# Rolling 30-day budget in EUR for the PAID tier. Each successful paid call's
+# cost is computed from actual token usage × ``PRICE_TABLE_EUR_PER_MTOKEN`` and
+# accumulated; when the 30-day sum hits this budget, all paid models are blocked
+# and calls fall back to the free tier / Ollama. Override via the environment.
+#
+# Default calibrated to the user's stated budget of 8.6 €/month (June 2026).
+DEFAULT_PAID_MONTHLY_BUDGET_EUR = 8.6
+
+# Window length (days) for the rolling cost budget.
+MONTHLY_BUDGET_WINDOW_DAYS = 30
+
+# --- Price table (EUR per 1 million tokens) ------------------------------- #
+# Source: Google AI Studio pricing (https://ai.google.dev/pricing) as of June
+# 2026, converted to EUR at ~1.08 USD/EUR. The paid tier is metered per token;
+# the free tier is unmetered (cost 0 — it does not draw down the budget). Only
+# models that appear in ``LIMITS_PAID`` need an entry here; an unknown model is
+# priced at 0 (conservative — it won't draw down the budget silently, but it
+# also won't be charged; the daily-call-cap backstop still bounds it).
+#
+# Format: (input_eur_per_mtoken, output_eur_per_mtoken). "Lite" text models are
+# priced under 1 EUR/Mtok; Gemini 2.5 Pro is the anchor at ~9.3/37.2.
+PRICE_TABLE_EUR_PER_MTOKEN: Dict[str, Tuple[float, float]] = {
+    # --- Reasoning / decision tier (text) --------------------------------
+    "gemini-2.5-pro":          (1.85, 11.10),   # $2.00/$12.00 per Mtok
+    "gemini-3.5-flash":        (0.28, 1.67),    # $0.30/$1.80
+    "gemini-3.1-pro":          (1.85, 11.10),
+    "gemini-3-flash-preview":  (0.28, 1.67),
+    "gemini-3.1-flash-lite":   (0.09, 0.37),    # $0.10/$0.40
+    "gemini-2.5-flash":        (0.09, 0.37),
+    "gemma-4-31b":             (0.09, 0.37),    # approx (open weights, low)
+    "gemma-4-26b":             (0.09, 0.37),
+    # --- Vision tier (multimodal) ----------------------------------------
+    "gemini-2.0-flash":        (0.09, 0.37),
+}
+
+# Fallback estimate used when a call has no usable usage_metadata (rare: a
+# safety filter or SDK quirk stripped it). Conservative average across the
+# decision cascade — better to slightly over-count than silently under-count.
+DEFAULT_CALL_COST_EUR = 0.005
 
 # Default storage location. ``data_cache/`` is already gitignored and used by
 # the rest of the pipeline for transient state.
@@ -101,6 +156,58 @@ def _paid_daily_cap() -> int:
         return cap if cap > 0 else DEFAULT_PAID_DAILY_CAP
     except (TypeError, ValueError):
         return DEFAULT_PAID_DAILY_CAP
+
+
+def _paid_monthly_budget() -> float:
+    """Read the paid monthly (rolling 30-day) budget in EUR from the env.
+
+    This is the load-bearing billing guard. A non-positive or unparseable
+    value falls back to the compiled default rather than disabling the guard
+    (a disabled guard would mean unbounded billing).
+    """
+    raw = os.getenv("GEMINI_PAY_MONTHLY_BUDGET_EUR", str(DEFAULT_PAID_MONTHLY_BUDGET_EUR))
+    try:
+        budget = float(raw)
+        return budget if budget > 0 else DEFAULT_PAID_MONTHLY_BUDGET_EUR
+    except (TypeError, ValueError):
+        return DEFAULT_PAID_MONTHLY_BUDGET_EUR
+
+
+def compute_call_cost_eur(
+    model: str, usage_metadata: Optional[dict], output_chars: int = 0,
+) -> float:
+    """Compute the EUR cost of one successful Gemini call from its token usage.
+
+    ``usage_metadata`` is the dict-shaped ``response.usage_metadata`` returned
+    by the SDK (keys: ``prompt_token_count`` / ``candidates_token_count`` /
+    ``total_token_count``). When it is missing or zero, we fall back to a
+    conservative per-call estimate (``DEFAULT_CALL_COST_EUR``) so the budget is
+    never silently under-counted.
+
+    The free tier is unmetered — callers should not record a cost for free-tier
+    calls (``record()`` ignores ``cost_eur`` when ``tier == free``).
+    """
+    if model not in PRICE_TABLE_EUR_PER_MTOKEN:
+        return 0.0  # unknown model — no price entry, daily-cap backstop covers it
+    in_price, out_price = PRICE_TABLE_EUR_PER_MTOKEN[model]
+
+    in_tok = 0
+    out_tok = 0
+    if usage_metadata:
+        try:
+            in_tok = int(usage_metadata.get("prompt_token_count", 0) or 0)
+            out_tok = int(usage_metadata.get("candidates_token_count", 0) or 0)
+        except (TypeError, ValueError):
+            in_tok = out_tok = 0
+
+    if in_tok == 0 and out_tok == 0:
+        # No usable token counts — use the conservative flat estimate.
+        return DEFAULT_CALL_COST_EUR
+
+    cost = (in_tok / 1_000_000.0) * in_price + (out_tok / 1_000_000.0) * out_price
+    # A truly zero cost (e.g. a cached/echoed response) still consumed an API
+    # request slot; floor it at a token of cost so the ledger is honest.
+    return max(cost, DEFAULT_CALL_COST_EUR * 0.1)
 
 
 class QuotaTracker:
@@ -144,13 +251,23 @@ class QuotaTracker:
                     conn.execute(
                         "ALTER TABLE calls ADD COLUMN tier TEXT NOT NULL DEFAULT 'free'"
                     )
+                    # Re-read columns after the first migration step.
+                    cols = {row[1] for row in conn.execute("PRAGMA table_info(calls)").fetchall()}
+                # Migrate the pre-cost-budget schema: add ``cost_eur``. Legacy
+                # rows backfill to 0 (their cost is already sunk and unknowable).
+                if cols and "cost_eur" not in cols:
+                    logger.info("Migrating gemini_quota DB: adding 'cost_eur' column.")
+                    conn.execute(
+                        "ALTER TABLE calls ADD COLUMN cost_eur REAL NOT NULL DEFAULT 0.0"
+                    )
                 conn.execute(
                     """
                     CREATE TABLE IF NOT EXISTS calls (
-                        id    INTEGER PRIMARY KEY AUTOINCREMENT,
-                        tier  TEXT NOT NULL,
-                        model TEXT NOT NULL,
-                        ts    INTEGER NOT NULL
+                        id       INTEGER PRIMARY KEY AUTOINCREMENT,
+                        tier     TEXT NOT NULL,
+                        model    TEXT NOT NULL,
+                        ts       INTEGER NOT NULL,
+                        cost_eur REAL NOT NULL DEFAULT 0.0
                     )
                     """
                 )
@@ -180,7 +297,8 @@ class QuotaTracker:
         Returns ``False`` (i.e. "do not call") when any of these is reached:
         * the per-model RPM window (60s),
         * the per-model RPD cap (resets at midnight),
-        * (paid tier only) the global ``GEMINI_PAY_DAILY_CAP``.
+        * (paid tier only) the rolling 30-day **cost budget** (load-bearing),
+        * (paid tier only) the global ``GEMINI_PAY_DAILY_CAP`` (backstop).
 
         Unknown models are treated as unlimited (``True``) so a new model
         name never hard-blocks the pipeline.
@@ -188,6 +306,7 @@ class QuotaTracker:
         now = time.time()
         rpm_floor = now - RPM_WINDOW_SECONDS
         day_floor = self._midnight_epoch(now)
+        month_floor = now - MONTHLY_BUDGET_WINDOW_DAYS * 86400
 
         with self._lock:
             with self._connect() as conn:
@@ -203,6 +322,10 @@ class QuotaTracker:
                     "SELECT COUNT(*) FROM calls WHERE tier = ? AND ts >= ?",
                     (TIER_PAID, day_floor),
                 ).fetchone()[0] if tier == TIER_PAID else 0
+                paid_month_cost = conn.execute(
+                    "SELECT COALESCE(SUM(cost_eur), 0.0) FROM calls WHERE tier = ? AND ts >= ?",
+                    (TIER_PAID, month_floor),
+                ).fetchone()[0] if tier == TIER_PAID else 0.0
 
         limits = self._limits_for(tier).get(model)
         if limits is not None:
@@ -220,8 +343,16 @@ class QuotaTracker:
                 )
                 return False
 
-        # Paid tier: also enforce the global daily cap.
+        # Paid tier: enforce the cost budget (load-bearing) then the daily cap.
         if tier == TIER_PAID:
+            budget = _paid_monthly_budget()
+            if paid_month_cost >= budget:
+                logger.info(
+                    "Gemini quota pre-check: PAID monthly budget reached "
+                    "(%.4f/%.2f EUR over 30d). Falling back to free tier.",
+                    paid_month_cost, budget,
+                )
+                return False
             cap = _paid_daily_cap()
             if paid_today >= cap:
                 logger.info(
@@ -231,14 +362,20 @@ class QuotaTracker:
                 return False
         return True
 
-    def record(self, model: str, tier: str = TIER_FREE) -> None:
-        """Record one successful call to ``model`` on ``tier`` at now."""
+    def record(self, model: str, tier: str = TIER_FREE, cost_eur: float = 0.0) -> None:
+        """Record one successful call to ``model`` on ``tier`` at now.
+
+        ``cost_eur`` is the EUR cost of the call (from
+        :func:`compute_call_cost_eur`). It is only meaningful for the paid
+        tier — the free tier is unmetered, so its cost is always recorded as 0
+        and never draws down the monthly budget.
+        """
         now = time.time()
         with self._lock:
             with self._connect() as conn:
                 conn.execute(
-                    "INSERT INTO calls (tier, model, ts) VALUES (?, ?, ?)",
-                    (tier, model, now),
+                    "INSERT INTO calls (tier, model, ts, cost_eur) VALUES (?, ?, ?, ?)",
+                    (tier, model, now, float(cost_eur) if tier == TIER_PAID else 0.0),
                 )
                 conn.commit()
 
@@ -246,12 +383,14 @@ class QuotaTracker:
         """Snapshot of current usage vs limits, for dashboards/logging.
 
         Returns ``{tier: {model: {rpm_used, rpm_limit, rpd_used, rpd_limit}}}``
-        plus a synthetic ``"_paid_cap"`` entry showing usage vs the paid daily
-        cap. Only models that appear in either LIMITS map are reported.
+        plus synthetic entries: ``"_paid_cap"`` (daily call-cap usage) and
+        ``"_paid_budget"`` (rolling 30-day cost vs the monthly budget). Only
+        models that appear in either LIMITS map are reported.
         """
         now = time.time()
         rpm_floor = now - RPM_WINDOW_SECONDS
         day_floor = self._midnight_epoch(now)
+        month_floor = now - MONTHLY_BUDGET_WINDOW_DAYS * 86400
         out: Dict[str, Dict[str, int]] = {}
 
         with self._lock:
@@ -275,7 +414,16 @@ class QuotaTracker:
                     "SELECT COUNT(*) FROM calls WHERE tier=? AND ts>=?",
                     (TIER_PAID, day_floor),
                 ).fetchone()[0]
+                paid_month_cost = conn.execute(
+                    "SELECT COALESCE(SUM(cost_eur), 0.0) FROM calls WHERE tier=? AND ts>=?",
+                    (TIER_PAID, month_floor),
+                ).fetchone()[0]
         out["_paid_cap"] = {"used": paid_today, "limit": _paid_daily_cap()}
+        out["_paid_budget"] = {
+            "used_eur": round(float(paid_month_cost), 4),
+            "limit_eur": _paid_monthly_budget(),
+            "window_days": MONTHLY_BUDGET_WINDOW_DAYS,
+        }
         return out
 
     def reset(self) -> None:
