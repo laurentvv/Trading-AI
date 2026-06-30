@@ -55,12 +55,12 @@ model.** Each persona is bound to a model chosen for role-affinity.
 | Le Stratège | Gemma 4 12B (Q6_K) | Google | Macro long-term |
 | Le Gestionnaire de Risque | GLM-4.6V-Flash (Q6_K) | Zhipu/Z.ai | Infrastructure / capital |
 | Le Quant | Qwen 3.5 9B | Alibaba | Statistical rigour |
-| Le Sceptique | LFM 2.5 (Mamba, 1.2B) | Liquid AI | System bias |
+| Le Sceptique | Gemini 2.5 Flash | Google | System bias |
 | Le Tacticien | Mistral Nemo 12B (Q6_K) | Mistral | Short-term execution |
-| Le Comportementaliste | LFM 2.5 (Mamba, 1.2B) | Liquid AI | Market psychology |
-| **Le Juge** | **Qwen3.5-9B-MTP (Q6_K)** | Alibaba | Structured synthesis |
+| Le Comportementaliste | Gemini 2.5 Flash | Google | Market psychology |
+| **Le Juge** | **Gemini Pro** | Google | Structured synthesis |
 
-LFM is reused (Sceptique + Comportementaliste) but their **targeted questions**
+Gemini 2.5 Flash is reused (Sceptique + Comportementaliste) but their **targeted questions**
 keep them in distinct lanes (system-bias vs market-bias). The Judge gets the
 strongest reasoning model (IFEval 91.5, 262K context) because its job —
 synthesising a 6-voice transcript into a structured verdict — is the hardest.
@@ -156,7 +156,7 @@ can't be measured against.
   pulls the score down measurably for the whole following week (test:
   `test_council_sell_lowers_score_vs_no_council`).
 - The multi-model design produces genuine analytical divergence (validated
-  live: Gemma macro vs GLM infrastructure vs Qwen math vs LFM bias).
+  live: Gemma macro vs GLM infrastructure vs Qwen math vs Gemini bias).
 - Age decay means a stale verdict fades to zero exactly when it should — no
   week-old strategic call overriding fresh real-time signals.
 
