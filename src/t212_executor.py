@@ -92,6 +92,22 @@ INITIAL_BUDGETS = {
 }
 DEFAULT_INITIAL_BUDGET = 1000.0
 
+# --- Exit-strategy thresholds (June 2026 exit-strategy audit) ---
+# Four complementary exit mechanisms, evaluated unconditionally before the
+# normal BUY/SELL logic in execute_t212_trade. Order of priority:
+#   1. hard stop-loss   (advanced_risk_manager, forces SELL + bypasses guard)
+#   2. take-profit      (direct +8% gain target)
+#   3. trailing stop    (existing, -3% from peak, secures gains)
+#   4. time-stop        (15 calendar days -> force exit evaluation)
+TAKE_PROFIT_TARGET = 0.08   # Realized+latent gain >= +8% -> SELL to lock profit
+MAX_HOLDING_DAYS = 15       # Stale-position threshold (calendar days)
+TIME_STOP_SOFT_LOSS = 0.05  # Below entry by less than this, time-stop still sells
+# Hard stop-loss / soft alert — mirror advanced_risk_manager defaults so the
+# executor-side defence (below) and the risk-manager-side stop stay in sync.
+# Change both together (or pass via config) to avoid drift.
+HARD_STOP_DRAWDOWN = 0.10   # Latent loss >= -10% -> EMERGENCY SELL (bypass guard)
+SOFT_STOP_ALERT = 0.05      # Latent loss >= -5% -> WARNING only
+
 
 def get_t212_ticker(ticker_yahoo: str) -> str:
     """Consistently maps a Yahoo ticker to a T212 instrument ticker."""
@@ -99,6 +115,69 @@ def get_t212_ticker(ticker_yahoo: str) -> str:
         return DEFAULT_TICKER
     # Use mapping if available, otherwise use prefix
     return TICKER_MAPPING_T212.get(ticker_yahoo, ticker_yahoo.split(".")[0])
+
+
+def _validate_and_recalibrate_entry_price(state: dict, yahoo_ticker: str) -> dict:
+    """Defend against corrupted entry prices in the portfolio state.
+
+    PROD incident (June 2026): CRUDP.PA's state carried entry_price_etf=15.27
+    (a value that never existed in the price series; max was 14.36) and
+    buy_budget=1081€ for 70.8 shares, while the real fill recorded in
+    trading_history.db was 13.42€ (~950€). The corrupted cost basis then
+    blocked every SELL via _check_sell_loss_guard (threshold = cost*0.998),
+    so the position drifted to -17% with no exit possible.
+
+    Root cause: sync_state_from_t212 trusts the broker's averagePricePaid with
+    no cross-check. This guard reconciles the stored entry price/budget against
+    the last recorded BUY in trading_history.db; on a >5% discrepancy it
+    recalibrates from the DB (the trusted record of what was actually paid)
+    and logs an ERROR. Returns the (possibly corrected) state.
+    """
+    pos = state.get("active_position")
+    if not pos:
+        return state
+
+    stored_price = pos.get("entry_price_etf")
+    if stored_price is None or stored_price <= 0:
+        return state
+
+    try:
+        from src.database import get_latest_transaction
+    except Exception:
+        return state  # DB module unavailable — skip validation gracefully
+
+    try:
+        last = get_latest_transaction(yahoo_ticker)
+    except Exception:
+        return state
+
+    if not last or last[1] != "BUY":
+        return state
+
+    # last = (date, type, quantity, price, cost)
+    db_price = float(last[3])
+    db_cost = float(last[4])
+    db_qty = float(last[2])
+    if db_price <= 0:
+        return state
+
+    discrepancy = abs(stored_price - db_price) / db_price
+    if discrepancy > 0.05:
+        logger.error(
+            f"🚨 STATE CORRUPTION détectée pour {yahoo_ticker}: entry_price stocké "
+            f"{stored_price:.4f} vs DB {db_price:.4f} (écart {discrepancy:.1%}). "
+            f"Recalage sur trading_history.db."
+        )
+        pos["entry_price_etf"] = db_price
+        pos["entry_price_index"] = db_price
+        if db_qty > 0 and db_cost > 0:
+            pos["buy_budget"] = db_cost
+            # highest_value must stay >= buy_budget for trailing-stop math;
+            # reset conservatively to the (corrected) buy cost.
+            if pos.get("highest_value", 0) < db_cost:
+                pos["highest_value"] = db_cost
+
+    return state
 
 
 def get_auth_header():
@@ -452,7 +531,128 @@ def _evaluate_trailing_stop(state: dict, current_pos: dict, t212_ticker: str) ->
         return "SELL"
     return None
 
-def _execute_buy_order(state, current_pos, ticker, t212_ticker, portfolio, base_url, headers, db_date, signal_source):
+def _evaluate_take_profit(state: dict, current_pos: dict, t212_ticker: str) -> tuple[str | None, bool]:
+    """
+    Direct take-profit: force a SELL once the latent gain reaches
+    TAKE_PROFIT_TARGET (+8%). Unlike the trailing stop (which only secures
+    gains from the peak after a pullback), this locks in a concrete objective
+    so a winning position is not held indefinitely waiting for a SELL signal
+    that the biased consensus may never emit.
+
+    Returns (signal, force_stop_loss). force_stop_loss is False here because a
+    take-profit sale is always in profit (the sell-loss guard passes it).
+    """
+    if not state.get("active_position"):
+        return None, False
+
+    reference_cost = _position_reference_cost(current_pos, state)
+    if reference_cost <= 0:
+        return None, False
+
+    current_value_eur = current_pos["walletImpact"]["currentValue"]
+    profit_margin = (current_value_eur - reference_cost) / reference_cost
+
+    if profit_margin >= TAKE_PROFIT_TARGET:
+        logger.warning(
+            f"💰 TAKE-PROFIT DÉCLENCHÉ ! Gain latent de {profit_margin:.2%} >= "
+            f"+{TAKE_PROFIT_TARGET:.0%} sur {t212_ticker}. Sécurisation du profit."
+        )
+        return "SELL", False
+    return None, False
+
+def _evaluate_hard_stop(state: dict, current_pos: dict, t212_ticker: str) -> tuple[str | None, bool]:
+    """Hard stop-loss evaluated from the REAL broker position value.
+
+    This is the executor-side last line of defence. The risk manager
+    (advanced_risk_manager.get_risk_adjusted_signal) ALSO enforces a -10%
+    stop upstream, but that path can be bypassed when the caller does not pass
+    is_holding/entry_price_index/price_data (e.g. simulation, or a caller that
+    skips the risk layer). Evaluating it here from `current_pos` — the live T212
+    position — guarantees a deep drawdown always forces an EMERGENCY SELL and
+    bypasses _check_sell_loss_guard, regardless of how the signal was produced.
+
+    Mirrors advanced_risk_manager.hard_stop_drawdown (0.10) and the soft alert
+    (0.05). Returns (signal, force_stop_loss).
+    """
+    if not state.get("active_position"):
+        return None, False
+
+    reference_cost = _position_reference_cost(current_pos, state)
+    if reference_cost <= 0:
+        return None, False
+
+    current_value_eur = current_pos["walletImpact"]["currentValue"]
+    drawdown = (reference_cost - current_value_eur) / reference_cost  # positive = loss
+
+    if drawdown >= HARD_STOP_DRAWDOWN:
+        logger.error(
+            f"🚨 HARD STOP-LOSS (executor): {t212_ticker} drawdown -{drawdown:.2%} "
+            f">= -{HARD_STOP_DRAWDOWN:.0%} (value {current_value_eur:.2f}€ vs cost "
+            f"{reference_cost:.2f}€). EMERGENCY SELL — bypassing sell-loss guard."
+        )
+        return "SELL", True
+
+    if drawdown >= SOFT_STOP_ALERT:
+        logger.warning(
+            f"⚠️ SOFT STOP ALERT (executor): {t212_ticker} drawdown -{drawdown:.2%} "
+            f"(threshold -{SOFT_STOP_ALERT:.0%}). Under surveillance, no sale yet."
+        )
+    return None, False
+
+def _evaluate_time_stop(state: dict, t212_ticker: str) -> tuple[str | None, bool]:
+    """
+    Time-stop: if a position has been held longer than MAX_HOLDING_DAYS (15
+    calendar days), force an exit evaluation. `entry_time` was stored in the
+    state since inception but never consumed — so positions could stagnate or
+    bleed indefinitely (capital locked in dead positions).
+
+    Exit rule once aged:
+      - SELL (force_stop_loss=True) if the position is flat-to-up, or down by
+        less than TIME_STOP_SOFT_LOSS (-5%) — i.e. cut the stale position
+        rather than keep hoping.
+      - For deeper losses the hard stop-loss (Phase 1A) already forced an
+        EMERGENCY SELL, so here we only handle the stale-but-not-deeply-lost
+        case.
+    Returns (signal, force_stop_loss).
+    """
+    pos = state.get("active_position")
+    if not pos:
+        return None, False
+
+    entry_time_str = pos.get("entry_time")
+    if not entry_time_str:
+        return None, False
+
+    try:
+        entry_dt = datetime.datetime.fromisoformat(entry_time_str)
+    except (ValueError, TypeError):
+        return None, False
+
+    age_days = (datetime.datetime.now(entry_dt.tzinfo) - entry_dt).days
+    if age_days < MAX_HOLDING_DAYS:
+        return None, False
+
+    logger.warning(
+        f"⏱ TIME-STOP: position {t212_ticker} ouverte depuis {age_days} jours "
+        f"(> {MAX_HOLDING_DAYS}). Évaluation de sortie forcée."
+    )
+    # The deep-loss case is already handled by the hard stop-loss upstream,
+    # which forces a SELL before we reach here. For a stale position that is
+    # not deeply underwater, cut it: bypass the sell-loss guard so a small
+    # latent loss does not keep the dead position alive forever.
+    return "SELL", True
+
+def _position_reference_cost(current_pos: dict, state: dict) -> float:
+    """Shared cost basis for take-profit / trailing-stop math (max of T212 avg
+    and locally-tracked buy_budget). Returns 0.0 if no usable reference."""
+    avg_price = current_pos.get("averagePrice") or current_pos.get("avgPrice") or 0.0
+    total_qty = current_pos.get("quantityAvailableForTrading") or current_pos.get("quantity") or 0
+    t212_buy_cost = float(avg_price) * float(total_qty)
+    state_buy_cost = state.get("active_position", {}).get("buy_budget", 0.0)
+    reference_cost = max(state_buy_cost, t212_buy_cost)
+    return reference_cost if reference_cost > 0 else 0.0
+
+def _execute_buy_order(state, current_pos, ticker, t212_ticker, portfolio, base_url, headers, db_date, signal_source, sizing_ratio=1.0):
     # BLOCAGE CRITIQUE : Si une position existe sur T212 OU dans notre suivi
     if current_pos or state.get("active_position"):
         if current_pos:
@@ -512,7 +712,7 @@ def _execute_buy_order(state, current_pos, ticker, t212_ticker, portfolio, base_
             f"⚠️ Pas assez de cash réel ({portfolio['cash']:.2f}€) pour le budget cible ({available_cash:.2f}€)."
         )
 
-    target_budget = min(available_cash, portfolio["cash"]) * 0.95
+    target_budget = min(available_cash, portfolio["cash"]) * 0.95 * sizing_ratio
     # Déterminer la précision selon le ticker
     precision = 2 if "CRUD" in t212_ticker.upper() else 4
     quantity = round(target_budget / current_price, precision)
@@ -631,7 +831,7 @@ def _update_feedback_loop(entry_time_str, db_date, current_value_eur, buy_cost):
         logger.warning(f"Feedback loop failed: {fb_e}")
 
 
-def _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, headers, db_date, signal_source):
+def _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, headers, db_date, signal_source, force_stop_loss=False):
     if not state.get("active_position") and not current_pos:
         logger.warning(f"⚠️ Pas de position active pour {t212_ticker}.")
         return
@@ -645,7 +845,18 @@ def _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, heade
     total_qty = current_pos["quantityAvailableForTrading"]
     current_value_eur = current_pos["walletImpact"]["currentValue"]
 
-    if _check_sell_loss_guard(current_value_eur, current_pos, state) is None:
+    # The sell-loss guard blocks any sale that would realize a loss > 0.2%.
+    # That guard must be BYPASSED for emergency exits (stop-loss / time-stop)
+    # — otherwise a position in deep drawdown could never be cut, which is
+    # exactly what let CRUDP.PA drift to -17% (the stop fired but the guard
+    # re-blocked the sale). The bypass is intentionally scoped to
+    # force_stop_loss only; normal SELL signals still respect the guard.
+    if force_stop_loss:
+        logger.warning(
+            f"🚨 FORCE STOP-LOSS: bypassing _check_sell_loss_guard for {t212_ticker} "
+            f"(emergency exit). Current value {current_value_eur:.2f}€."
+        )
+    elif _check_sell_loss_guard(current_value_eur, current_pos, state) is None:
         return
 
     logger.info(f"📉 Vente de TOUTE la position sur {t212_ticker} ({total_qty} actions)")
@@ -671,6 +882,7 @@ def execute_t212_trade(
     ticker=DEFAULT_TICKER,
     analysis_date=None,
     signal_source="IA_HYBRID",
+    sizing_ratio=1.0,
 ):
     # Mapping du ticker Yahoo vers le ticker T212 via helper
     t212_ticker = get_t212_ticker(ticker)
@@ -680,6 +892,11 @@ def execute_t212_trade(
 
     # Charger l'état spécifique au ticker (on utilise le ticker T212 comme clé)
     state = load_portfolio_state(t212_ticker)
+
+    # Defend against corrupted entry prices (see _validate_and_recalibrate_entry_price):
+    # reconcile the stored cost basis against trading_history.db before any
+    # exit-strategy math runs, so a stale/ghost price cannot block a SELL.
+    state = _validate_and_recalibrate_entry_price(state, ticker)
 
     env = os.getenv("T212_ENV", "demo").lower()
     base_url = f"https://{env}.trading212.com/api/v0"
@@ -703,17 +920,57 @@ def execute_t212_trade(
 
     if current_pos:
         logger.info(f"   - Position détectée : {current_pos['quantity']} actions de {t212_ticker}")
-        
-        stop_signal = _evaluate_trailing_stop(state, current_pos, t212_ticker)
-        if stop_signal:
-            signal = stop_signal
+
+        # --- UNIFIED EXIT STRATEGY (June 2026) ---
+        # Evaluate the exit mechanisms in priority order BEFORE the normal
+        # BUY/SELL logic. They are UNCONDITIONAL — they trigger on position
+        # state alone, regardless of the incoming consensus signal. This fixes
+        # the root cause of CRUDP.PA drifting to -17%: previously the stops
+        # were gated behind a SELL signal the biased consensus never emitted.
+        # The first mechanism to fire wins; force_stop_loss tells the executor
+        # to bypass _check_sell_loss_guard for emergency cuts.
+        #
+        # The hard stop-loss is evaluated BOTH upstream
+        # (advanced_risk_manager.get_risk_adjusted_signal) AND here from the
+        # live broker position. Belt-and-braces: the upstream layer sets the
+        # signal, this executor-side layer guarantees a deep drawdown always
+        # forces a sale even if the caller skipped the risk layer or did not
+        # pass is_holding/entry_price_index/price_data.
+        force_stop_loss = False
+        exit_reason = None
+
+        # 0. Hard stop-loss (-10%) — highest priority, capital protection.
+        hs_signal, hs_force = _evaluate_hard_stop(state, current_pos, t212_ticker)
+        if hs_signal:
+            signal, force_stop_loss, exit_reason = hs_signal, hs_force, "hard-stop-loss"
+
+        # 1. Take-profit (+8%) — lock gains directly.
+        if signal not in ["SELL"]:
+            tp_signal, _ = _evaluate_take_profit(state, current_pos, t212_ticker)
+            if tp_signal:
+                signal, exit_reason = tp_signal, "take-profit"
+
+        # 2. Trailing stop (-3% from peak) — secure gains on pullback.
+        if signal not in ["SELL"]:
+            trailing_signal = _evaluate_trailing_stop(state, current_pos, t212_ticker)
+            if trailing_signal:
+                signal, exit_reason = trailing_signal, "trailing-stop"
+
+        # 3. Time-stop (15 days) — cut stale positions; bypasses the guard.
+        if signal not in ["SELL"]:
+            ts_signal, ts_force = _evaluate_time_stop(state, t212_ticker)
+            if ts_signal:
+                signal, force_stop_loss, exit_reason = ts_signal, ts_force, "time-stop"
+
+        if exit_reason:
+            logger.info(f"🎯 Sortie forcée par {exit_reason} (priorité exit-strategy).")
     else:
         logger.info(f"   - Aucune position ouverte sur {t212_ticker}")
 
     if signal == "BUY":
-        _execute_buy_order(state, current_pos, ticker, t212_ticker, portfolio, base_url, headers, db_date, signal_source)
+        _execute_buy_order(state, current_pos, ticker, t212_ticker, portfolio, base_url, headers, db_date, signal_source, sizing_ratio)
     elif signal == "SELL":
-        _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, headers, db_date, signal_source)
+        _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, headers, db_date, signal_source, force_stop_loss=force_stop_loss)
 
 
 if __name__ == "__main__":

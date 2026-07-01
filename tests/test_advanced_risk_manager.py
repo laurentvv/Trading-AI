@@ -53,7 +53,7 @@ class TestExitInertiaHardStop(unittest.TestCase):
         self.assertIn("INERTIA", reason.upper())
 
     def test_hard_stop_releases_sell_when_deep_underwater(self):
-        # Holding, deep loss beyond hard_stop_drawdown -> SELL passes despite
+        # Holding, deep loss beyond hard_stop_drawdown -> SELL forced despite
         # low conviction. This is the CRUDP.PA -18% regression guard.
         prices = pd.Series(np.linspace(100.0, 82.0, 60))  # index fell to -18%
         signal, reason = self.rm.get_risk_adjusted_signal(
@@ -66,12 +66,33 @@ class TestExitInertiaHardStop(unittest.TestCase):
             entry_price_index=100.0,
         )
         self.assertEqual(signal, "SELL")
-        self.assertIn("HARD STOP", reason.upper())
+        # June 2026: wording changed from "HARD STOP" to "EMERGENCY STOP-LOSS"
+        # (clearer) and the stop is now UNCONDITIONAL (triggers on drawdown
+        # alone, even when the incoming signal is not SELL).
+        self.assertIn("EMERGENCY STOP-LOSS", reason.upper())
+
+    def test_hard_stop_is_unconditional_even_on_buy_signal(self):
+        # The core June 2026 fix: a BUY signal must become SELL when the
+        # position is deeply underwater. Previously the hard stop only fired
+        # when the consensus already said SELL — which the biased models
+        # almost never did, so the stop never triggered.
+        prices = pd.Series(np.linspace(100.0, 85.0, 60))  # ~ -15% drawdown
+        signal, reason = self.rm.get_risk_adjusted_signal(
+            original_signal="BUY",
+            confidence=0.9,
+            risk_metrics=_risk_metrics(),
+            price_data=prices,
+            ticker="CRUDP.PA",
+            is_holding=True,
+            entry_price_index=100.0,
+        )
+        self.assertEqual(signal, "SELL")
+        self.assertIn("INCOMING SIGNAL WAS BUY", reason.upper())
 
     def test_hard_stop_threshold_respected(self):
-        # Just above the threshold (-12%) but not beyond -> still inertia if
-        # conviction is low.
-        prices = pd.Series(np.linspace(100.0, 89.0, 60))  # ~ -11%
+        # Between the soft alert (-5%) and the hard stop (-10%): no forced
+        # SELL. At -9% with a weak SELL conviction, exit inertia still applies.
+        prices = pd.Series(np.linspace(100.0, 91.0, 60))  # ~ -9%
         signal, _ = self.rm.get_risk_adjusted_signal(
             original_signal="SELL",
             confidence=0.10,
@@ -81,7 +102,7 @@ class TestExitInertiaHardStop(unittest.TestCase):
             is_holding=True,
             entry_price_index=100.0,
         )
-        # At -11% (within -12% stop) and low conviction -> held by inertia.
+        # -9% is above the -10% hard stop -> not forced; inertia can hold.
         self.assertEqual(signal, "HOLD")
 
     def test_hard_stop_customizable(self):
