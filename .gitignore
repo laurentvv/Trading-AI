@@ -54,3 +54,5 @@ config.ini
 secrets.json
 logs_prod/trading.log.1
 alerte-wti-main/
+# Backups created by reset_for_fresh_test.py (operator-only, never commit)
+reset_backup/
