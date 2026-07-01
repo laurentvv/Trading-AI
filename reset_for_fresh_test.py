@@ -1,52 +1,56 @@
 #!/usr/bin/env python3
 """
-Reset the trading system to a clean virgin state for a fresh test run.
+FULL reset — wipe everything learned/recorded for a truly virgin restart.
 
 WHY THIS EXISTS
 ---------------
-The June 2026 audit found that learned caches had absorbed the old code's
-structural bullish bias, and the portfolio state was corrupted (a ghost
-entry_price that blocked every SELL). Code fixes (calibration, unconditional
-exit strategy, corruption guard) live on branch
-``fix/prod-exit-strategy-bias-sizing`` — but those fixes only take effect on
-the NEXT training cycle. If the old caches survive, the stale biased model is
-reloaded by hash and the fixes silently never apply. This script performs the
-surgical reset that makes the fixes effective, while PRESERVING expensive raw
-market data.
+After the June/July 2026 audit (capital-protection fixes on main), the safest
+way to validate the corrected system is to start from a clean slate: no stale
+model trained with the old biased code, no corrupted portfolio state, no
+history polluted by the DEMO run. A partial reset left room for a stale pickle
+to be reloaded by hash, silently undoing the fixes. This script does a COMPLETE
+wipe so the next cycle re-downloads data and retrains every model from scratch.
 
-Run it once on PROD (or DEMO) after pulling the fix branch, before launching
-the fresh test month:
+Run it once on PROD/DEMO after pulling, before launching the fresh test:
 
     uv run python reset_for_fresh_test.py            # interactive confirm
-    uv run python reset_for_fresh_test.py --yes      # no prompt (CI / automation)
+    uv run python reset_for_fresh_test.py --dry-run  # preview only
+    uv run python reset_for_fresh_test.py --yes      # no prompt (automation)
 
-WHAT IT DOES
-------------
-  PURGE  (re-learned next cycle, currently biased/corrupt):
-    - data_cache/models/classic_model_*.pkl   trained WITHOUT isotonic calibration
-                                              (cached by data-hash, so the fix
-                                              would never apply unless purged)
-    - data_cache/tensortrade/ppo_model.zip    PPO policy collapsed onto BUY
-                                              (171x BUY(1.00) in the prod journal)
-    - data_cache/eia/*                        fundamental caches with 1970-01-01
-                                              timestamps (forced interpolation)
+WHAT IT WIPES (everything learned/recorded)
+-------------------------------------------
+  - data_cache/   ENTIRE tree: prices, models, EIA, tensortrade, finacumen,
+                  macro, search_queries... ALL of it. Re-downloaded next cycle.
+  - t212_portfolio_state.json   portfolio state
+  - trading_history.db          transaction log
+  - model_performance.db        model performance history
+  - performance_monitor.db      realtime metrics
+  - trading_journal.csv         CSV journal
+  - trading.log                 main log
+  - enhanced_*.png              dashboard images
+  - test_img.png
 
-  RESET  (trading state tied to the old DEMO history):
-    - t212_portfolio_state.json   -> {"tickers": {}}   (corrupted entry_price)
-    - trading_history.db          -> archived + recreated empty by init_db()
-    - data_cache/finacumen/       states/trajectories from old behaviour
+WHAT IT PRESERVES (whitelist — never touched)
+--------------------------------------------
+  - .env / .env.t212            credentials — NEVER purged
+  - .venv / .git                environment + version control
+  - logs_prod/                  prod log archive (read-only reference)
+  - memory-bank/                deterministic state + docs
+  - data_cache/gemini_quota.db  Gemini 30-day cost-budget ledger (see note)
 
-  KEEP   (expensive, neutral, not re-learnable cheaply):
-    - data_cache/*_max_with_vix.parquet   ~5y raw OHLCV from Yahoo
-    - data_cache/macro/                   FRED macro (CPI, rates, GDP, ...)
-    - data_cache/search_queries/          cached web research
+GEMINI QUOTA LEDGER (important)
+-------------------------------
+By default gemini_quota.db is PRESERVED. It tracks the rolling 30-day EUR cost
+budget of the Gemini gateway; wiping it would make the gateway think it has a
+fresh full budget and could OVERSPEND. Pass --purge-quota-ledger only for a
+true ground-zero reset where you accept the budget restarts at zero.
 
 SAFETY
 ------
 - Nothing is deleted without confirmation (unless --yes).
-- Every purged item is moved to a timestamped backup folder before removal,
-  so the operation is fully reversible until you delete the backup yourself.
-- The script is idempotent: re-running it is a no-op on an already-clean tree.
+- Everything is MOVED to a timestamped backup (reset_backup/) preserving the
+  relative path tree, so the operation is fully reversible.
+- Idempotent: re-running on an already-clean tree is a no-op.
 - Windows-safe: pathlib + shutil only, no shell rm/del.
 """
 
@@ -62,37 +66,55 @@ REPO_ROOT = Path(__file__).resolve().parent
 BACKUP_ROOT = REPO_ROOT / "reset_backup"
 
 # ---------------------------------------------------------------------------
-# Inventory: explicit, reviewed lists. Editing here is the only way to change
-# what the script touches — keeps the blast radius auditable.
+# FULL RESET INVENTORY
+#
+# Goal: a complete wipe so the system starts from a truly virgin state on the
+# next run (fresh data download, fresh training, empty portfolio). Nothing
+# learned or recorded from a previous run survives. The first cycle after a
+# full reset will be SLOW (re-downloads years of market data + retrains every
+# model) — that is expected and is the price of a clean slate.
+#
+# The inventory is expressed as a KEEP list (whitelist), not a purge list:
+# everything under REPO_ROOT that is a known runtime artifact is wiped EXCEPT
+# the entries below. This is safer than a blacklist — a new artifact that
+# appears later is purged by default rather than silently kept.
 # ---------------------------------------------------------------------------
 
-# Learned caches that absorbed the old biased logic. Purge = force retrain with
-# the fixed code on the next cycle.
-PURGE_DIRS = [
-    "data_cache/models",
-    "data_cache/tensortrade",
-]
-PURGE_GLOBS_IN_CACHE = [
-    "data_cache/eia/*.parquet",   # corrupt 1970 timestamps — re-fetched fresh next cycle
-]
+# ABSOLUTE KEEP — never moved, never touched (whitelist).
+KEEP_PATHS = {
+    ".git",                 # version control
+    ".venv",                # python environment
+    ".env", ".env.t212",    # credentials — NEVER purge
+    ".env.example", ".env.t212.example",
+    "logs_prod",            # prod log archive (read-only reference)
+    "reset_backup",         # our own backup output
+    "memory-bank",          # deterministic state / docs
+    ".pytest_cache", ".ruff_cache", "__pycache__",
+    "src", "tests", "docs", "scripts", ".agents", "vendor", "alerte-wti-main",
+}
 
-# Trading state tied to the DEMO history we are discarding.
-RESET_FILES = [
-    "t212_portfolio_state.json",
-    "trading_history.db",
-]
-RESET_DIRS = [
-    "data_cache/finacumen",
-]
+# KEEP files inside data_cache/ — these survive a full reset (e.g. the Gemini
+# quota ledger, whose 30-day rolling cost budget must NOT be zeroed, otherwise
+# the gateway would think it has a full fresh budget and could overspend).
+KEEP_GLOBS_IN_DATACACHE = {
+    "gemini_quota.db",      # cloud quota ledger — zeroing it resets the cost budget
+}
 
-# Raw market data preserved on purpose (expensive to regenerate, neutral).
-KEEP_DIRS = [
-    "data_cache",
-    "data_cache/macro",
-    "data_cache/search_queries",
+# Full-wipe targets (everything here is moved to backup then removed).
+WIPE_DIRS = [
+    "data_cache",           # ALL caches: prices, models, EIA, tensortrade, finacumen, etc.
 ]
-KEEP_GLOBS = [
-    "data_cache/*_max_with_vix.parquet",
+WIPE_FILES = [
+    "t212_portfolio_state.json",   # portfolio state
+    "trading_history.db",          # transaction log (also lives in data_cache — both wiped)
+    "model_performance.db",        # model performance history
+    "performance_monitor.db",      # realtime metrics history
+    "trading_journal.csv",         # CSV journal
+    "trading.log",                 # main log
+    "enhanced_performance_dashboard_CRUDP.PA.png",
+    "enhanced_performance_dashboard_SXRV.DE.png",
+    "enhanced_trading_chart.png",
+    "test_img.png",
 ]
 
 
@@ -131,66 +153,67 @@ def _move_to_backup(target: Path, backup_dir: Path) -> bool:
     return True
 
 
-def _purge_dir(rel: str, backup_dir: Path, dry: bool) -> list[Path]:
-    """Purge (backup+remove) an entire directory under repo root."""
+def _wipe_file(rel: str, backup_dir: Path, dry: bool) -> bool:
+    """Backup+remove a single file. Returns True if it existed."""
     src = REPO_ROOT / rel
-    if not src.exists():
-        return []
-    moved = []
+    if not src.exists() or not src.is_file():
+        return False
     if dry:
-        moved.append(src)
-        return moved
-    if _move_to_backup(src, backup_dir):
-        moved.append(src)
-    return moved
+        return True
+    return _move_to_backup(src, backup_dir)
 
 
-def _reset_file(rel: str, backup_dir: Path, dry: bool) -> list[Path]:
-    """Backup a file then recreate it in its virgin form."""
-    src = REPO_ROOT / rel
-    moved = []
-    if src.exists():
-        if dry:
-            moved.append(src)
-        elif _move_to_backup(src, backup_dir):
-            moved.append(src)
+def _wipe_data_cache(backup_dir: Path, dry: bool) -> tuple[int, list[str]]:
+    """Full wipe of data_cache/ while preserving KEEP_GLOBS_IN_DATACACHE.
+
+    Moves the entire data_cache/ tree to the backup, then restores the kept
+    files (e.g. gemini_quota.db) to their original location so the cloud quota
+    ledger survives a reset. Returns (files_moved, kept_names).
+    """
+    cache = REPO_ROOT / "data_cache"
+    if not cache.exists():
+        return 0, []
+
+    # Snapshot the kept files BEFORE moving anything.
+    kept: list[tuple[Path, Path]] = []  # (original_path, temp_backup)
+    for name in KEEP_GLOBS_IN_DATACACHE:
+        for f in cache.glob(name):
+            if f.is_file():
+                # Stage the kept file outside data_cache so the bulk move doesn't grab it.
+                tmp = REPO_ROOT / f".keep_tmp_{f.name}"
+                shutil.move(str(f), str(tmp))
+                kept.append((f, tmp))
+
+    moved = 0
     if not dry:
-        # Recreate the virgin form immediately.
-        if rel == "t212_portfolio_state.json":
-            src.write_text('{\n    "tickers": {}\n}\n', encoding="utf-8")
-        # trading_history.db is recreated by init_db() on the next run; we do
-        # not create an empty binary here so the schema bootstrap is owned by
-        # src/database.py, not duplicated in this script.
-    return moved
+        # Move the rest of data_cache wholesale into the backup.
+        for item in cache.rglob("*"):
+            pass  # touch the tree so existence is fresh
+        if _move_to_backup(cache, backup_dir):
+            moved = 1  # the whole dir counts as one move
+
+    # Restore the kept files into a fresh empty data_cache/.
+    kept_names = []
+    for original, tmp in kept:
+        kept_names.append(original.name)
+        if not dry:
+            original.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(tmp), str(original))
+        else:
+            # dry-run: clean up the temp move we made for the preview.
+            if tmp.exists():
+                shutil.move(str(tmp), str(original))
+    return moved, kept_names
 
 
-def _reset_dir(rel: str, backup_dir: Path, dry: bool) -> list[Path]:
-    """Backup+remove a directory, leaving it absent (recreated on demand)."""
-    return _purge_dir(rel, backup_dir, dry)
-
-
-def _collect_glob(rel_glob: str) -> list[Path]:
-    base = REPO_ROOT
-    # split into dir + pattern (single-level glob in cache root is enough here)
-    parts = rel_glob.split("/")
-    return sorted(base.glob(rel_glob)) if len(parts) <= 2 else sorted(base.glob(rel_glob))
-
-
-def _verify_keep_list_present() -> list[str]:
-    """Warn about kept items that are missing (operator may have lost data)."""
-    warnings = []
-    for g in KEEP_GLOBS:
-        if not _collect_glob(g):
-            warnings.append(f"  - aucun fichier pour '{g}' (donnee brute manquante ?)")
-    for d in KEEP_DIRS:
-        if not (REPO_ROOT / d).exists():
-            warnings.append(f"  - dossier conserve absent: {d}")
-    return warnings
+def _resolve_existing(rel: str) -> Path | None:
+    p = REPO_ROOT / rel
+    return p if p.exists() else None
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Reset the trading system to a virgin state for a fresh test."
+        description="FULL reset: wipe all learned state, caches and history for a virgin restart."
     )
     parser.add_argument(
         "--yes", action="store_true",
@@ -200,74 +223,58 @@ def main() -> int:
         "--dry-run", action="store_true",
         help="Show what WOULD be done without moving or writing anything.",
     )
+    parser.add_argument(
+        "--purge-quota-ledger", action="store_true",
+        help="Also wipe gemini_quota.db (the 30-day cost-budget ledger). "
+             "DANGEROUS: the gateway would then think it has a fresh full budget "
+             "and could overspend. Only for a complete ground-zero reset.",
+    )
     args = parser.parse_args()
 
     print("=" * 72)
-    print("  RESET FOR FRESH TEST — June 2026 exit-strategy fix")
+    print("  FULL RESET — vidage complet pour redemarrage vierge")
     print("=" * 72)
     print()
-    print("Ce script purge les caches APPRIS avec l'ancien code biaise, reset")
-    print("l'etat de trading DEMO, et CONSERVE les donnees de marche brutes.")
-    print("Les correctifs code (calibration, stop-loss, etc.) ne s'appliqueront")
-    print("au prochain cycle QUE si ces caches sont purges.")
+    print("ATTENTION: ce script efface TOUT l'etat appris et l'historique :")
+    print("  caches (modeles, prix, EIA, tensortrade...), DBs, journaux, etat")
+    print("  de portefeuille. Le systeme repart de zero au prochain cycle")
+    print("  (re-telechargement des donnees + retraining complet = lent).")
+    print()
+    print("PRESERVE: .env* (cles), .venv, .git, logs_prod (archive), et le")
+    print("ledger de quota Gemini (budget cloud 30j) sauf --purge-quota-ledger.")
     print()
 
-    # ---- Preview of what will be touched (always shown) ------------------
+    # Build the effective keep-list for data_cache.
+    keep_in_cache = set(KEEP_GLOBS_IN_DATACACHE)
+    if args.purge_quota_ledger:
+        keep_in_cache.discard("gemini_quota.db")
+
+    # ---- Preview (always shown) -----------------------------------------
     if args.dry_run:
-        print("[DRY-RUN] Apercu des actions (rien ne sera modifie):\n")
+        print("[DRY-RUN] Apercu (rien ne sera modifie):\n")
 
-    def _resolve(rel_or_glob: str) -> list[Path]:
-        p = REPO_ROOT / rel_or_glob
-        if "*" in rel_or_glob:
-            return sorted(REPO_ROOT.glob(rel_or_glob))
-        return [p] if p.exists() else []
+    print("-- A EFFACER (vidage complet) -> backup puis suppression --")
+    n_targets = 0
+    cache = REPO_ROOT / "data_cache"
+    if cache.exists():
+        # count everything except the kept files
+        kept_count = sum(len(list(cache.glob(g))) for g in keep_in_cache)
+        total = sum(1 for _ in cache.rglob("*") if _.is_file())
+        print(f"  [dir]  data_cache/  ({total - kept_count} fichiers; {kept_count} conserve)")
+        n_targets += 1
+    for f in WIPE_FILES:
+        p = _resolve_existing(f)
+        if p:
+            print(f"  [file] {f}")
+            n_targets += 1
+    if n_targets == 0:
+        print("  (rien a effacer — deja vierge)")
 
-    print("-- A PURGER (appris / biaise / corrompu) -> backup puis suppression --")
-    purge_targets: list[Path] = []
-    for d in PURGE_DIRS:
-        purge_targets += _resolve(d)
-    for g in PURGE_GLOBS_IN_CACHE:
-        purge_targets += _resolve(g)
-    purge_targets = [t for t in purge_targets if t.exists()]
-    if purge_targets:
-        for t in purge_targets:
-            kind = "dir" if t.is_dir() else "file"
-            print(f"  [{kind}] {t.relative_to(REPO_ROOT)}")
-    else:
-        print("  (rien a purger — deja propre)")
-
-    print("\n-- A RESETER (etat de trading DEMO) -> backup puis forme vierge --")
-    reset_targets: list[Path] = []
-    for f in RESET_FILES:
-        reset_targets += _resolve(f)
-    for d in RESET_DIRS:
-        reset_targets += _resolve(d)
-    reset_targets = [t for t in reset_targets if t.exists()]
-    if reset_targets:
-        for t in reset_targets:
-            kind = "dir" if t.is_dir() else "file"
-            print(f"  [{kind}] {t.relative_to(REPO_ROOT)}")
-    else:
-        print("  (rien a reseter — deja vierge)")
-
-    print("\n-- CONSERVE (donnees de marche brutes, neutres, couteuses) --")
-    kept = 0
-    for g in KEEP_GLOBS:
-        for f in _collect_glob(g):
-            print(f"  [keep] {f.relative_to(REPO_ROOT)}")
-            kept += 1
-    for d in KEEP_DIRS:
-        if (REPO_ROOT / d).exists():
-            print(f"  [keep] {d}/")
-            kept += 1
-    if kept == 0:
-        print("  (aucune donnee brute trouvee — voir warnings)")
-
-    warns = _verify_keep_list_present()
-    if warns:
-        print("\n-- ATTENTION: donnees brutes conservees manquantes --")
-        for w in warns:
-            print(w)
+    print("\n-- CONSERVE (jamais touche) --")
+    for k in sorted(KEEP_PATHS):
+        print(f"  [keep] {k}/")
+    for g in sorted(keep_in_cache):
+        print(f"  [keep] data_cache/{g}")
 
     print()
     if args.dry_run:
@@ -275,7 +282,7 @@ def main() -> int:
         return 0
 
     if not _confirm(
-        "\nConfirmer le reset ? (backup -> reset; DONNEES BRUTES CONSERVEES)",
+        "\nConfirmer le VIDAGE COMPLET ? (tout est backup puis efface)",
         args.yes,
     ):
         print("Annule. Aucune modification effectuee.")
@@ -288,37 +295,37 @@ def main() -> int:
     print(f"\nBackup -> {backup_dir.relative_to(REPO_ROOT)}")
 
     actions = 0
-    for d in PURGE_DIRS:
-        actions += len(_purge_dir(d, backup_dir, dry=False))
-    for g in PURGE_GLOBS_IN_CACHE:
-        for f in _collect_glob(g):
-            if _move_to_backup(f, backup_dir):
-                print(f"  purge  {f.relative_to(REPO_ROOT)}")
-                actions += 1
-    for f in RESET_FILES:
-        moved = _reset_file(f, backup_dir, dry=False)
-        actions += len(moved)
-        if moved:
-            print(f"  reset  {f}  (-> vierge)")
-    for d in RESET_DIRS:
-        moved = _reset_dir(d, backup_dir, dry=False)
-        actions += len(moved)
-        if moved:
-            print(f"  reset  {d}/  (supprime, recree a la demande)")
+
+    # 1. Full wipe of data_cache/ (preserving kept files).
+    cache_moved, kept_names = _wipe_data_cache(backup_dir, dry=False)
+    if cache_moved:
+        print(f"  wipe   data_cache/  (conserve: {', '.join(kept_names) or 'rien'})")
+        actions += 1
+
+    # 2. Wipe each runtime file.
+    for f in WIPE_FILES:
+        # Some files also live inside data_cache (trading_history.db) — only
+        # wipe the root-level copy; the cache wipe above already handled the other.
+        if f == "trading_history.db" and cache_moved:
+            continue
+        if _wipe_file(f, backup_dir, dry=False):
+            print(f"  wipe   {f}")
+            actions += 1
 
     print()
     print("=" * 72)
-    print(f"  RESET TERMINE — {actions} element(s) traite(s).")
+    print(f"  VIDAGE COMPLET TERMINE — {actions} element(s) efface(s).")
     print("=" * 72)
     print()
     print("PROCHAINES ETAPES:")
-    print("  1. Le 1er cycle va retrainer classic (calibration isotonic),")
-    print("     reentrainer le PPO depuis zero, et re-fetcher les donnees EIA.")
-    print("     -> il sera plus lent qu'en regime normal (retraining).")
-    print("  2. Lancez d'abord en DEMO pour valider le comportement des 4")
-    print("     mecanismes de sortie (stop-loss -5/-10%, take-profit +8%,")
-    print("     trailing -3%, time-stop 15j) avant tout passage en reel.")
-    print(f"  3. Backup disponible dans {backup_dir.relative_to(REPO_ROOT)}/")
+    print("  1. Le 1er cycle va RE-TELECHARGER les donnees de marche (~5 ans),")
+    print("     reentrainer classic (calibration isotonic), le PPO depuis zero,")
+    print("     et re-fetcher les donnees EIA -> il sera LONG (plusieurs min).")
+    print("  2. T212: clôturez manuellement toute position DEMO residuelle avant")
+    print("     de relancer, sinon le state se re-synchronise dessus.")
+    print("  3. Lancez en DEMO pour valider les mecanismes de sortie")
+    print("     (stop-loss -5/-10%, take-profit +8%, trailing -3%, time-stop 15j).")
+    print(f"  4. Backup disponible dans {backup_dir.relative_to(REPO_ROOT)}/")
     print("     (a supprimer manuellement une fois le test valide).")
     return 0
 
