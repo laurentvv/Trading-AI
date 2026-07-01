@@ -208,12 +208,32 @@ def run_trading_analysis(
                             console.print(
                                 f"[bold yellow]🚀 Execution of the signal on Trading 212 for {ticker}... (original: {signal})[/bold yellow]"
                             )
+                            # --- Sizing: wire the advanced risk-manager's Kelly +
+                            # risk-adjusted recommendation (single source of truth),
+                            # replacing the ad-hoc confidence*1.5 heuristic.
+                            # The risk manager computes a recommended € amount from
+                            # signal strength, confidence, risk score and historical
+                            # performance (Kelly). Convert it to a [0.3, 1.0] ratio of
+                            # the per-ticker budget so the executor scales the order.
+                            from t212_executor import INITIAL_BUDGETS, DEFAULT_INITIAL_BUDGET
+                            budget_ticker = INITIAL_BUDGETS.get(t212_key, DEFAULT_INITIAL_BUDGET)
+                            rec_eur = None
+                            try:
+                                rec_eur = results["position_sizing"].recommended_size
+                                sizing_ratio = max(0.3, min(rec_eur / budget_ticker, 1.0)) if budget_ticker > 0 else 0.75
+                            except (KeyError, AttributeError, TypeError):
+                                sizing_ratio = 0.75  # graceful fallback
+                            rec_str = f"{rec_eur:.0f}€" if rec_eur is not None else "?"
+                            logger.info(f"📏 Sizing: risk-manager recommended {rec_str} "
+                                        f"-> sizing_ratio={sizing_ratio:.2f} (budget {budget_ticker}€)")
+
                             execute_t212_trade(
                                 exec_signal,
                                 confidence,
                                 ticker=ticker,
                                 analysis_date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                                 signal_source="IA_HYBRID_T212",
+                                sizing_ratio=sizing_ratio,
                             )
             else:
                 console.print(f"[bold blue]ℹ️ No trade executed (Signal is {signal})[/bold blue]")
