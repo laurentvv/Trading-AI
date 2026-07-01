@@ -91,26 +91,38 @@ def _build_model_candidates() -> dict:
     }
 
 
-def _calibrate_model(base_model, X_calib, y_calib):
-    """Wrap a fitted base classifier in an isotonic calibrator.
+def _calibrate_model(base_estimator, X, y):
+    """Calibrate a base estimator with isotonic regression (time-series safe).
 
     Tree-ensemble predict_proba is systematically overconfident (clusters near
-    0/1). Isotonic calibration on held-out data reshapes the probabilities to
-    better reflect empirical accuracy, which directly reduces the inflated
-    confidence that was driving classic's structural BUY bias in the consensus.
+    0/1). Isotonic calibration reshapes the probabilities to better reflect
+    empirical accuracy, which directly reduces the inflated confidence that was
+    driving classic's structural BUY bias in the consensus.
 
-    Uses cv='prefit' (base_model is already fit) and calibrates on a separate
-    slice. Falls back to the raw base_model if calibration fails (e.g. a class
-    is absent in the calibration slice) so training never crashes.
+    sklearn >= 1.6 REMOVED ``cv='prefit'`` (the original approach here, which
+    silently fell back to the uncalibrated model in prod on sklearn 1.9). The
+    sklearn-1.9-compatible way is to pass a FRESH (unfitted) base estimator and
+    let CalibratedClassifierCV fit+calibrate internally with cv=TimeSeriesSplit
+    (respects temporal order, no data leakage — mandatory for financial data).
+
+    Args:
+        base_estimator: an UNFITTED classifier (will be cloned by the calibrator).
+        X, y: full training arrays used for the internal fit+calibration folds.
+
+    Falls back to the raw fitted base_model if calibration fails (e.g. a class
+    is absent) so training never crashes.
     """
     try:
-        calib = CalibratedClassifierCV(base_model, method="isotonic", cv="prefit")
-        calib.fit(X_calib, y_calib)
-        logger.info("Calibration isotonic appliquée au modèle classique.")
+        from sklearn.model_selection import TimeSeriesSplit
+
+        # base_estimator must be unfitted — CalibratedClassifierCV clones it per fold.
+        calib = CalibratedClassifierCV(base_estimator, method="isotonic", cv=TimeSeriesSplit(n_splits=3))
+        calib.fit(X, y)
+        logger.info("Calibration isotonic appliquée au modèle classique (TimeSeriesSplit).")
         return calib
     except Exception as e:
         logger.warning(f"Calibration isotonic échouée (fallback modèle brut): {e}")
-        return base_model
+        return None
 
 
 def train_ensemble_model(X: pd.DataFrame, y: pd.Series, walk_forward: bool = False, skip_cache: bool = False) -> tuple:
@@ -181,19 +193,17 @@ def train_ensemble_model(X: pd.DataFrame, y: pd.Series, walk_forward: bool = Fal
 
         best_model.fit(X_train_scaled_wf, y_train_wf.values)
 
-        # Isotonic calibration: reserve the last 25% of the train slice to
-        # calibrate the (already-fitted) base model, so predict_proba better
-        # reflects empirical accuracy instead of the raw overconfident output.
-        calib_cut = max(1, int(len(X_train_scaled_wf) * 0.75))
-        fit_slice = X_train_scaled_wf[:calib_cut]
-        y_fit = y_train_wf.values[:calib_cut]
-        calib_slice = X_train_scaled_wf[calib_cut:]
-        y_calib = y_train_wf.values[calib_cut:]
-        best_model.fit(fit_slice, y_fit)  # refit on the fit-slice only
-        if len(calib_slice) > 0:
-            best_model = _calibrate_model(best_model, calib_slice, y_calib)
+        # Isotonic calibration (sklearn >= 1.6 compatible): build a FRESH
+        # estimator of the selected family and let CalibratedClassifierCV fit +
+        # calibrate it internally with TimeSeriesSplit (no leakage). The fitted
+        # best_model above is used only for metrics; the deployed model is the
+        # calibrated one. Falls back to the fitted best_model if calibration fails.
+        calibrated = _calibrate_model(
+            models[best_name], X_train_scaled_wf, y_train_wf.values
+        )
+        deployed_model = calibrated if calibrated is not None else best_model
 
-        y_pred = best_model.predict(X_test_scaled_wf)
+        y_pred = deployed_model.predict(X_test_scaled_wf)
         best_metrics = {
             "accuracy": accuracy_score(y_test_wf, y_pred),
             "precision": precision_score(y_test_wf, y_pred, zero_division=0),
@@ -211,7 +221,7 @@ def train_ensemble_model(X: pd.DataFrame, y: pd.Series, walk_forward: bool = Fal
                 {"feature": X.columns, "importance": best_model.feature_importances_}
             ).sort_values("importance", ascending=False)
 
-        pipeline = Pipeline([("scaler", scaler_wf), ("model", best_model)])
+        pipeline = Pipeline([("scaler", scaler_wf), ("model", deployed_model)])
         _save_model_cache(cache_hash, pipeline, best_metrics, feature_importance)
         return pipeline, best_metrics, feature_importance
 
@@ -242,15 +252,13 @@ def train_ensemble_model(X: pd.DataFrame, y: pd.Series, walk_forward: bool = Fal
     logger.info(f"Best model selected: {best_name}")
     best_model.fit(X_train_scaled, y_train)
 
-    # Isotonic calibration (standard branch): reserve last 25% of train.
-    calib_cut = max(1, int(len(X_train_scaled) * 0.75))
-    best_model.fit(X_train_scaled[:calib_cut], y_train.iloc[:calib_cut].values)
-    if len(X_train_scaled) > calib_cut:
-        best_model = _calibrate_model(
-            best_model, X_train_scaled[calib_cut:], y_train.iloc[calib_cut:].values
-        )
+    # Isotonic calibration (standard branch): fresh estimator of the selected
+    # family, fit+calibrated internally via TimeSeriesSplit (sklearn >= 1.6).
+    # Falls back to the fitted best_model if calibration fails.
+    calibrated = _calibrate_model(models[best_name], X_train_scaled, y_train.values)
+    deployed_model = calibrated if calibrated is not None else best_model
 
-    y_pred = best_model.predict(X_test_scaled)
+    y_pred = deployed_model.predict(X_test_scaled)
 
     metrics = {
         "accuracy": accuracy_score(y_test, y_pred),
@@ -269,7 +277,7 @@ def train_ensemble_model(X: pd.DataFrame, y: pd.Series, walk_forward: bool = Fal
             {"feature": X.columns, "importance": best_model.feature_importances_}
         ).sort_values("importance", ascending=False)
 
-    pipeline = Pipeline([("scaler", scaler), ("model", best_model)])
+    pipeline = Pipeline([("scaler", scaler), ("model", deployed_model)])
     _save_model_cache(cache_hash, pipeline, metrics, feature_importance)
     return pipeline, metrics, feature_importance
 
