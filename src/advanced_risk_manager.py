@@ -104,15 +104,22 @@ class AdvancedRiskManager:
         if risk_params:
             self.max_drawdown_warning = risk_params.get("max_drawdown_warning", 0.05)
             self.max_drawdown_critical = risk_params.get("max_drawdown_critical", 0.1)
-            self.hard_stop_drawdown = risk_params.get("hard_stop_drawdown", 0.12)
+            self.hard_stop_drawdown = risk_params.get("hard_stop_drawdown", 0.10)
+            self.soft_stop_alert = risk_params.get("soft_stop_alert", 0.05)
         else:
             self.max_drawdown_warning = 0.05
             self.max_drawdown_critical = 0.1
             # Hard stop: once an open position is down this far from its entry,
-            # the EXIT INERTIA below is bypassed and a SELL is allowed through.
-            # This is the guard that was missing when CRUDP.PA drifted to -18%
-            # without any exit being permitted. See ADR-002.
-            self.hard_stop_drawdown = 0.12
+            # an EMERGENCY SELL is forced (bypasses exit inertia AND the
+            # _check_sell_loss_guard in the executor). Previously 0.12 and
+            # conditioned on a SELL signal already being present — which the
+            # biased consensus almost never emitted, so CRUDP.PA drifted to
+            # -17% with the stop never firing. Now evaluated unconditionally.
+            # See ADR-002 + June 2026 exit-strategy audit.
+            self.hard_stop_drawdown = 0.10
+            # Soft stop: drawdown level at which we log a WARNING but do not
+            # yet force a sale (surveillance tier, between flat and hard stop).
+            self.soft_stop_alert = 0.05
 
         # Market regime indicators
         self.market_regimes = {
@@ -499,27 +506,44 @@ class AdvancedRiskManager:
     ) -> Tuple[str, str]:
         """
         Get risk-adjusted trading signal.
-        NEW: Position-aware logic (Inertia/Sticky HOLD).
+        NEW: Position-aware logic (Inertia/Sticky HOLD) + UNCONDITIONAL stop-loss.
         """
-        # 1. SPECIAL CASE: EXIT INERTIA (Sticky HOLD)
-        # If we are holding, we require stronger conviction to SELL.
-        # BUT a hard stop-loss bypasses inertia: once the position is down
-        # past hard_stop_drawdown from entry, we always allow the SELL through.
-        # Without this, CRUDP.PA drifted to -18% with every SELL squelched to
-        # HOLD by inertia. See ADR-002.
+        # 1. UNCONDITIONAL STOP-LOSS (capital protection — highest priority).
+        # Evaluated FIRST regardless of the incoming signal. The previous
+        # implementation gated the hard stop behind `original_signal in SELL`,
+        # which the biased consensus almost never emitted — so CRUDP.PA drifted
+        # to -17% and the stop never fired. Now it triggers on drawdown alone.
+        if is_holding and entry_price_index and price_data is not None:
+            current_index_price = price_data.iloc[-1]
+            index_perf = (current_index_price / entry_price_index) - 1
+
+            # Hard stop: deep underwater -> force an EMERGENCY SELL regardless
+            # of conviction or incoming signal (BUY/HOLD/SELL alike). The
+            # executor bypasses _check_sell_loss_guard for this case.
+            if index_perf < -self.hard_stop_drawdown:
+                return (
+                    "SELL",
+                    f"EMERGENCY STOP-LOSS: position drawdown {index_perf:+.2%} "
+                    f"exceeded -{self.hard_stop_drawdown:.0%}; forcing exit "
+                    f"(incoming signal was {original_signal}).",
+                )
+
+            # Soft stop: surveillance tier — log a WARNING but do not sell yet.
+            if index_perf < -self.soft_stop_alert:
+                logger.warning(
+                    f"⚠️ SOFT STOP ALERT: {ticker} position drawdown {index_perf:+.2%} "
+                    f"(threshold -{self.soft_stop_alert:.0%}). No sale yet, under surveillance."
+                )
+
+        # 2. EXIT INERTIA (Sticky HOLD)
+        # If we are holding, we require stronger conviction to SELL on a model
+        # signal (protect the trend). The unconditional hard stop above has
+        # already handled the deep-loss case before we reach here.
         if is_holding and original_signal in ["SELL", "STRONG_SELL"]:
             # Calculate current performance of the analysis index
             if entry_price_index and price_data is not None:
                 current_index_price = price_data.iloc[-1]
                 index_perf = (current_index_price / entry_price_index) - 1
-
-                # Hard stop: deep underwater -> exit regardless of conviction.
-                if index_perf < -self.hard_stop_drawdown:
-                    return (
-                        original_signal,
-                        f"HARD STOP: position drawdown {index_perf:+.2%} exceeded "
-                        f"-{self.hard_stop_drawdown:.0%}; bypassing exit inertia.",
-                    )
 
                 # If we are in profit on the index, be even MORE sticky (protect the trend)
                 sell_threshold = 0.55 if index_perf > 0 else 0.45
