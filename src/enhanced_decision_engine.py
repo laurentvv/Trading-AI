@@ -356,8 +356,12 @@ class EnhancedDecisionEngine:
         self.regime_volatility_high = 0.03
         self.trend_strength_threshold = 0.7
 
-    def compute_position_size(self, confidence: float) -> float:
-        return min(confidence * 1.5, 1.0)
+    # NOTE (June 2026): position sizing is owned by AdvancedRiskManager
+    # (calculate_position_sizing -> Kelly + risk-adjusted), which is the single
+    # source of truth wired into the T212 executor via main.py. The ad-hoc
+    # compute_position_size(confidence) helper that used to live here was dead
+    # code (never called) and has been removed to avoid the three-contradictory-
+    # sizings confusion documented in the exit-strategy audit.
 
     def _normalize_signal(self, signal: str) -> SignalStrength:
         """Convert signal string to SignalStrength enum"""
@@ -530,11 +534,18 @@ class EnhancedDecisionEngine:
 
     def _convert_legacy_inputs(self, timestamp, decisions, classic_pred, classic_conf, legacy_models, vincent_ganne_indicators):
         if classic_pred is not None:
+            # classic_pred: 1=BUY, 0=SELL, 2=HOLD (neutral band, added June 2026
+            # to fix the structural bullish bias — classic previously forced
+            # BUY/SELL every cycle with an uncalibrated overconfident proba).
+            if classic_pred == 2:
+                classic_signal = "HOLD"
+            else:
+                classic_signal = "BUY" if classic_pred == 1 else "SELL"
             decisions.append(
                 ModelDecision(
-                    signal="BUY" if classic_pred == 1 else "SELL",
+                    signal=classic_signal,
                     confidence=classic_conf,
-                    strength=self._normalize_signal("BUY" if classic_pred == 1 else "SELL"),
+                    strength=self._normalize_signal(classic_signal),
                     timestamp=timestamp,
                     model_name="classic",
                     reasoning="Quantitative model prediction",

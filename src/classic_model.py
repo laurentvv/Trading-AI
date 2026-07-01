@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.model_selection import train_test_split, TimeSeriesSplit, cross_val_score
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
@@ -16,6 +17,14 @@ logger = logging.getLogger(__name__)
 
 _MODEL_CACHE_DIR = Path("data_cache") / "models"
 _MODEL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+# --- Classic-model bias mitigation (June 2026 audit) ---
+# The classifier's predict_proba is uncalibrated and overconfident (tree
+# ensembles cluster near 1.0), and the model had no neutral class. These two
+# constants add a HOLD band and a confidence ceiling to stop classic from
+# inflating the consensus weighted_score and driving a structural BUY bias.
+CLASSIC_HOLD_MARGIN = 0.08      # |max_proba - 0.5| below this -> HOLD
+CLASSIC_CONFIDENCE_CAP = 0.65   # cap raw argmax probability
 
 
 def _data_hash(X: pd.DataFrame, y: pd.Series) -> str:
@@ -80,6 +89,28 @@ def _build_model_candidates() -> dict:
         ),
         "LogisticRegression": LogisticRegression(random_state=42, class_weight="balanced", max_iter=1000),
     }
+
+
+def _calibrate_model(base_model, X_calib, y_calib):
+    """Wrap a fitted base classifier in an isotonic calibrator.
+
+    Tree-ensemble predict_proba is systematically overconfident (clusters near
+    0/1). Isotonic calibration on held-out data reshapes the probabilities to
+    better reflect empirical accuracy, which directly reduces the inflated
+    confidence that was driving classic's structural BUY bias in the consensus.
+
+    Uses cv='prefit' (base_model is already fit) and calibrates on a separate
+    slice. Falls back to the raw base_model if calibration fails (e.g. a class
+    is absent in the calibration slice) so training never crashes.
+    """
+    try:
+        calib = CalibratedClassifierCV(base_model, method="isotonic", cv="prefit")
+        calib.fit(X_calib, y_calib)
+        logger.info("Calibration isotonic appliquée au modèle classique.")
+        return calib
+    except Exception as e:
+        logger.warning(f"Calibration isotonic échouée (fallback modèle brut): {e}")
+        return base_model
 
 
 def train_ensemble_model(X: pd.DataFrame, y: pd.Series, walk_forward: bool = False, skip_cache: bool = False) -> tuple:
@@ -149,6 +180,19 @@ def train_ensemble_model(X: pd.DataFrame, y: pd.Series, walk_forward: bool = Fal
         X_test_scaled_wf = scaler_wf.transform(X_test_wf)
 
         best_model.fit(X_train_scaled_wf, y_train_wf.values)
+
+        # Isotonic calibration: reserve the last 25% of the train slice to
+        # calibrate the (already-fitted) base model, so predict_proba better
+        # reflects empirical accuracy instead of the raw overconfident output.
+        calib_cut = max(1, int(len(X_train_scaled_wf) * 0.75))
+        fit_slice = X_train_scaled_wf[:calib_cut]
+        y_fit = y_train_wf.values[:calib_cut]
+        calib_slice = X_train_scaled_wf[calib_cut:]
+        y_calib = y_train_wf.values[calib_cut:]
+        best_model.fit(fit_slice, y_fit)  # refit on the fit-slice only
+        if len(calib_slice) > 0:
+            best_model = _calibrate_model(best_model, calib_slice, y_calib)
+
         y_pred = best_model.predict(X_test_scaled_wf)
         best_metrics = {
             "accuracy": accuracy_score(y_test_wf, y_pred),
@@ -197,6 +241,14 @@ def train_ensemble_model(X: pd.DataFrame, y: pd.Series, walk_forward: bool = Fal
 
     logger.info(f"Best model selected: {best_name}")
     best_model.fit(X_train_scaled, y_train)
+
+    # Isotonic calibration (standard branch): reserve last 25% of train.
+    calib_cut = max(1, int(len(X_train_scaled) * 0.75))
+    best_model.fit(X_train_scaled[:calib_cut], y_train.iloc[:calib_cut].values)
+    if len(X_train_scaled) > calib_cut:
+        best_model = _calibrate_model(
+            best_model, X_train_scaled[calib_cut:], y_train.iloc[calib_cut:].values
+        )
 
     y_pred = best_model.predict(X_test_scaled)
 
@@ -254,11 +306,32 @@ def retrain_if_stale(
 
 
 def get_classic_prediction(pipeline, latest_features: pd.DataFrame) -> tuple[int, float]:
+    """Predict next-direction with an optional neutral (HOLD) band.
+
+    Returns (prediction_int, confidence):
+      - prediction_int: 1 = BUY, 0 = SELL, 2 = HOLD (neutral band)
+      - confidence: calibrated probability of the chosen class, capped.
+
+    Previously the model was forced to BUY/SELL every cycle with an uncalibrated
+    `max(predict_proba)` (~1.0 for tree ensembles), producing a structural
+    bullish bias (323 BUY vs 57 SELL on a -17% ticker in prod). Two fixes:
+      1. HOLD band: when no class is decisive (|max_proba - 0.5| < HOLD_MARGIN),
+         emit HOLD instead of forcing a direction.
+      2. Confidence cap: tree-ensemble predict_proba is systematically
+         overconfident, so cap it to prevent classic from inflating the
+         consensus weighted_score.
+    """
     latest_features_imputed = latest_features.ffill().bfill().fillna(0)
     latest_features_imputed = latest_features_imputed.replace([np.inf, -np.inf], np.nan).fillna(0)
 
     prediction = pipeline.predict(latest_features_imputed)[0]
     probabilities = pipeline.predict_proba(latest_features_imputed)[0]
-    confidence = max(probabilities)
+    max_proba = float(max(probabilities))
 
-    return prediction, confidence
+    # HOLD band: if the classifier is not decisive, abstain rather than force.
+    if (max_proba - 0.5) < CLASSIC_HOLD_MARGIN:
+        # confidence reflects how undecided we are (low) — capped below.
+        return 2, min(max_proba, CLASSIC_CONFIDENCE_CAP)
+
+    confidence = min(max_proba, CLASSIC_CONFIDENCE_CAP)
+    return int(prediction), confidence
