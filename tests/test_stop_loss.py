@@ -187,6 +187,50 @@ class TestHardStopLoss(unittest.TestCase):
                             "Soft stop at -5% must emit a WARNING log")
 
 
+class TestHardStopExecutor(unittest.TestCase):
+    """Executor-side hard stop-loss — the last line of defence.
+
+    Covers the gap flagged in PR #73 review: the risk-manager stop requires
+    is_holding/entry_price_index/price_data, which a caller can omit. The
+    executor reads the live broker position directly, so a deep drawdown is
+    ALWAYS caught here regardless of how the upstream signal was produced.
+    """
+
+    def test_executor_hard_stop_forces_sell_on_deep_drawdown(self):
+        from src.t212_executor import _evaluate_hard_stop
+
+        # Cost 1000€ (10 shares @ 100€), now worth 880€ -> -12% drawdown.
+        st = _state(buy_budget=1000.0, entry_price=100.0, entry_time="2026-06-01T10:00:00")
+        pos = _pos(current_value=880.0, qty=10, avg_price=100.0)
+        signal, force = _evaluate_hard_stop(st, pos, "CRUDl_EQ")
+        self.assertEqual(signal, "SELL")
+        self.assertTrue(force, "Hard stop must bypass _check_sell_loss_guard")
+
+    def test_executor_hard_stop_no_trigger_above_threshold(self):
+        from src.t212_executor import _evaluate_hard_stop
+
+        # Cost 1000€, now 950€ -> -5% (at soft alert, below hard stop -10%).
+        st = _state(buy_budget=1000.0, entry_price=100.0, entry_time="2026-06-01T10:00:00")
+        pos = _pos(current_value=950.0, qty=10, avg_price=100.0)
+        signal, _ = _evaluate_hard_stop(st, pos, "CRUDl_EQ")
+        self.assertIsNone(signal)
+
+    def test_executor_hard_stop_forces_sell_even_when_incoming_signal_is_buy(self):
+        """The whole point of the executor-side stop: it catches the case the
+        upstream risk layer misses (e.g. no entry_price_index passed). The
+        function itself doesn't see the incoming signal, but it must return
+        SELL independently — the caller in execute_t212_trade overrides the
+        BUY with this SELL because hard-stop is evaluated at priority 0."""
+        from src.t212_executor import _evaluate_hard_stop
+
+        # Deep loss -15% — must return SELL regardless of what the consensus said.
+        st = _state(buy_budget=1000.0, entry_price=100.0, entry_time="2026-06-01T10:00:00")
+        pos = _pos(current_value=850.0, qty=10, avg_price=100.0)
+        signal, force = _evaluate_hard_stop(st, pos, "CRUDl_EQ")
+        self.assertEqual(signal, "SELL")
+        self.assertTrue(force)
+
+
 class TestEntryPriceGuard(unittest.TestCase):
     """Phase 4: corruption defence — recalibrate from trading_history.db."""
 

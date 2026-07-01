@@ -513,6 +513,13 @@ class AdvancedRiskManager:
         # implementation gated the hard stop behind `original_signal in SELL`,
         # which the biased consensus almost never emitted — so CRUDP.PA drifted
         # to -17% and the stop never fired. Now it triggers on drawdown alone.
+        #
+        # DEFENCE-IN-DEPTH: this requires the caller to pass is_holding,
+        # entry_price_index and price_data. Callers that omit them (e.g. some
+        # simulation paths) will NOT get this stop here — but the executor-side
+        # _evaluate_hard_stop in t212_executor.py reads the live broker position
+        # and enforces the SAME -10% cut unconditionally, so a deep drawdown is
+        # always caught by at least one layer. Do not rely on a single layer.
         if is_holding and entry_price_index and price_data is not None:
             current_index_price = price_data.iloc[-1]
             index_perf = (current_index_price / entry_price_index) - 1

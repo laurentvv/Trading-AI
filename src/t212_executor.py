@@ -102,6 +102,11 @@ DEFAULT_INITIAL_BUDGET = 1000.0
 TAKE_PROFIT_TARGET = 0.08   # Realized+latent gain >= +8% -> SELL to lock profit
 MAX_HOLDING_DAYS = 15       # Stale-position threshold (calendar days)
 TIME_STOP_SOFT_LOSS = 0.05  # Below entry by less than this, time-stop still sells
+# Hard stop-loss / soft alert — mirror advanced_risk_manager defaults so the
+# executor-side defence (below) and the risk-manager-side stop stay in sync.
+# Change both together (or pass via config) to avoid drift.
+HARD_STOP_DRAWDOWN = 0.10   # Latent loss >= -10% -> EMERGENCY SELL (bypass guard)
+SOFT_STOP_ALERT = 0.05      # Latent loss >= -5% -> WARNING only
 
 
 def get_t212_ticker(ticker_yahoo: str) -> str:
@@ -555,6 +560,45 @@ def _evaluate_take_profit(state: dict, current_pos: dict, t212_ticker: str) -> t
         return "SELL", False
     return None, False
 
+def _evaluate_hard_stop(state: dict, current_pos: dict, t212_ticker: str) -> tuple[str | None, bool]:
+    """Hard stop-loss evaluated from the REAL broker position value.
+
+    This is the executor-side last line of defence. The risk manager
+    (advanced_risk_manager.get_risk_adjusted_signal) ALSO enforces a -10%
+    stop upstream, but that path can be bypassed when the caller does not pass
+    is_holding/entry_price_index/price_data (e.g. simulation, or a caller that
+    skips the risk layer). Evaluating it here from `current_pos` — the live T212
+    position — guarantees a deep drawdown always forces an EMERGENCY SELL and
+    bypasses _check_sell_loss_guard, regardless of how the signal was produced.
+
+    Mirrors advanced_risk_manager.hard_stop_drawdown (0.10) and the soft alert
+    (0.05). Returns (signal, force_stop_loss).
+    """
+    if not state.get("active_position"):
+        return None, False
+
+    reference_cost = _position_reference_cost(current_pos, state)
+    if reference_cost <= 0:
+        return None, False
+
+    current_value_eur = current_pos["walletImpact"]["currentValue"]
+    drawdown = (reference_cost - current_value_eur) / reference_cost  # positive = loss
+
+    if drawdown >= HARD_STOP_DRAWDOWN:
+        logger.error(
+            f"🚨 HARD STOP-LOSS (executor): {t212_ticker} drawdown -{drawdown:.2%} "
+            f">= -{HARD_STOP_DRAWDOWN:.0%} (value {current_value_eur:.2f}€ vs cost "
+            f"{reference_cost:.2f}€). EMERGENCY SELL — bypassing sell-loss guard."
+        )
+        return "SELL", True
+
+    if drawdown >= SOFT_STOP_ALERT:
+        logger.warning(
+            f"⚠️ SOFT STOP ALERT (executor): {t212_ticker} drawdown -{drawdown:.2%} "
+            f"(threshold -{SOFT_STOP_ALERT:.0%}). Under surveillance, no sale yet."
+        )
+    return None, False
+
 def _evaluate_time_stop(state: dict, t212_ticker: str) -> tuple[str | None, bool]:
     """
     Time-stop: if a position has been held longer than MAX_HOLDING_DAYS (15
@@ -878,24 +922,33 @@ def execute_t212_trade(
         logger.info(f"   - Position détectée : {current_pos['quantity']} actions de {t212_ticker}")
 
         # --- UNIFIED EXIT STRATEGY (June 2026) ---
-        # Evaluate the four exit mechanisms in priority order BEFORE the normal
+        # Evaluate the exit mechanisms in priority order BEFORE the normal
         # BUY/SELL logic. They are UNCONDITIONAL — they trigger on position
         # state alone, regardless of the incoming consensus signal. This fixes
         # the root cause of CRUDP.PA drifting to -17%: previously the stops
         # were gated behind a SELL signal the biased consensus never emitted.
         # The first mechanism to fire wins; force_stop_loss tells the executor
         # to bypass _check_sell_loss_guard for emergency cuts.
-        # NOTE: the hard stop-loss (-10%) is also enforced upstream in
-        # advanced_risk_manager.get_risk_adjusted_signal (redundant by design,
-        # belt-and-braces: that layer sets the signal, this layer guarantees
-        # the sale is not re-blocked by the guard).
+        #
+        # The hard stop-loss is evaluated BOTH upstream
+        # (advanced_risk_manager.get_risk_adjusted_signal) AND here from the
+        # live broker position. Belt-and-braces: the upstream layer sets the
+        # signal, this executor-side layer guarantees a deep drawdown always
+        # forces a sale even if the caller skipped the risk layer or did not
+        # pass is_holding/entry_price_index/price_data.
         force_stop_loss = False
         exit_reason = None
 
+        # 0. Hard stop-loss (-10%) — highest priority, capital protection.
+        hs_signal, hs_force = _evaluate_hard_stop(state, current_pos, t212_ticker)
+        if hs_signal:
+            signal, force_stop_loss, exit_reason = hs_signal, hs_force, "hard-stop-loss"
+
         # 1. Take-profit (+8%) — lock gains directly.
-        tp_signal, _ = _evaluate_take_profit(state, current_pos, t212_ticker)
-        if tp_signal:
-            signal, exit_reason = tp_signal, "take-profit"
+        if signal not in ["SELL"]:
+            tp_signal, _ = _evaluate_take_profit(state, current_pos, t212_ticker)
+            if tp_signal:
+                signal, exit_reason = tp_signal, "take-profit"
 
         # 2. Trailing stop (-3% from peak) — secure gains on pullback.
         if signal not in ["SELL"]:
