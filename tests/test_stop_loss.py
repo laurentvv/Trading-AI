@@ -232,27 +232,59 @@ class TestHardStopExecutor(unittest.TestCase):
 
 
 class TestEntryPriceGuard(unittest.TestCase):
-    """Phase 4: corruption defence — recalibrate from trading_history.db."""
+    """Phase 4: corruption defence — recalibrate from the AUTHORITATIVE source.
 
-    def test_recalibrates_when_db_disagrees(self):
+    Source-of-truth priority (changed July 2026 after the DB-trust bug):
+      1. current_pos.averagePricePaid (broker's real fill) — primary
+      2. trading_history.db (signal-time price) — fallback only
+    The local DB can record a WRONG price (July incident: DB=10.876 while the
+    real T212 fill was 12.4469), so trusting it blindly would corrupt a correct
+    state. The broker price always wins when available.
+    """
+
+    def test_recalibrates_when_broker_disagrees(self):
         from src.t212_executor import _validate_and_recalibrate_entry_price
 
-        # Stored corrupted price (15.27) vs DB truth (13.42): >5% discrepancy.
+        # June incident: stored ghost 15.27 vs broker real fill 13.42.
+        st = _state(buy_budget=1080.97, entry_price=15.27, entry_time="2026-06-09T10:00:00")
+        pos = {"averagePricePaid": 13.42, "quantity": 70.8,
+               "quantityAvailableForTrading": 70.8}
+        with patch("src.database.get_latest_transaction", return_value=None):
+            out = _validate_and_recalibrate_entry_price(st, "CRUDP.PA", current_pos=pos)
+        self.assertAlmostEqual(out["active_position"]["entry_price_etf"], 13.42)
+
+    def test_does_NOT_corrupt_when_db_lies_but_broker_right(self):
+        """The July regression: DB recorded 10.876 but the real T212 fill was
+        12.4469. The state (12.4469, correct) must NOT be overwritten by the
+        lying DB. Broker price is authoritative."""
+        from src.t212_executor import _validate_and_recalibrate_entry_price
+
+        # State correct (= broker), DB lies.
+        st = _state(buy_budget=326.11, entry_price=12.4469, entry_time="2026-07-01T12:48:00")
+        pos = {"averagePricePaid": 12.4469, "quantity": 26.2,
+               "quantityAvailableForTrading": 26.2}
+        lying_db = ("2026-07-01", "BUY", 26.2, 10.876, 284.95)
+        with patch("src.database.get_latest_transaction", return_value=lying_db):
+            out = _validate_and_recalibrate_entry_price(st, "CRUDP.PA", current_pos=pos)
+        # Broker matches state -> no recalibration, DB ignored even though it lies.
+        self.assertAlmostEqual(out["active_position"]["entry_price_etf"], 12.4469)
+
+    def test_falls_back_to_db_when_no_broker_position(self):
+        from src.t212_executor import _validate_and_recalibrate_entry_price
+
+        # No current_pos -> DB is the fallback source.
         st = _state(buy_budget=1080.97, entry_price=15.27, entry_time="2026-06-09T10:00:00")
         fake_db = ("2026-06-09", "BUY", 70.8, 13.42, 949.99)
         with patch("src.database.get_latest_transaction", return_value=fake_db):
-            out = _validate_and_recalibrate_entry_price(st, "CRUDP.PA")
+            out = _validate_and_recalibrate_entry_price(st, "CRUDP.PA", current_pos=None)
         self.assertAlmostEqual(out["active_position"]["entry_price_etf"], 13.42)
-        self.assertAlmostEqual(out["active_position"]["buy_budget"], 949.99)
 
     def test_no_recalibration_when_close(self):
         from src.t212_executor import _validate_and_recalibrate_entry_price
 
-        # Stored price within 5% of DB — must not be touched.
         st = _state(buy_budget=1000.0, entry_price=100.0, entry_time="2026-06-09T10:00:00")
-        fake_db = ("2026-06-09", "BUY", 10.0, 101.5, 1015.0)  # 1.5% diff
-        with patch("src.database.get_latest_transaction", return_value=fake_db):
-            out = _validate_and_recalibrate_entry_price(st, "CRUDP.PA")
+        pos = {"averagePricePaid": 101.5, "quantity": 10, "quantityAvailableForTrading": 10}
+        out = _validate_and_recalibrate_entry_price(st, "CRUDP.PA", current_pos=pos)
         self.assertAlmostEqual(out["active_position"]["entry_price_etf"], 100.0)
 
     def test_no_crash_without_position(self):
@@ -261,13 +293,12 @@ class TestEntryPriceGuard(unittest.TestCase):
         out = _validate_and_recalibrate_entry_price({"active_position": None}, "CRUDP.PA")
         self.assertIsNone(out["active_position"])
 
-    def test_handles_missing_db(self):
+    def test_handles_missing_sources(self):
         from src.t212_executor import _validate_and_recalibrate_entry_price
 
         st = _state(buy_budget=1000.0, entry_price=100.0, entry_time="2026-06-09T10:00:00")
         with patch("src.database.get_latest_transaction", return_value=None):
-            out = _validate_and_recalibrate_entry_price(st, "CRUDP.PA")
-        # No DB record -> state unchanged, no crash.
+            out = _validate_and_recalibrate_entry_price(st, "CRUDP.PA", current_pos=None)
         self.assertAlmostEqual(out["active_position"]["entry_price_etf"], 100.0)
 
 

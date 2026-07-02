@@ -77,18 +77,24 @@ load_dotenv(".env.t212")
 
 STATE_FILE = "t212_portfolio_state.json"
 DEFAULT_TICKER = "SXRV_EQ"  # Ticker T212 NASDAQ (iShares)
-# Mapping Ticker Yahoo -> Ticker T212
+# Mapping Ticker Yahoo -> Ticker T212 (instrument EUR natif quand possible)
+#
+# CRUDP.PA = WisdomTree WTI Crude Oil (ISIN GB00B15KXV33), coté en EUR sur
+# Paris. T212 expose 3 variantes du MÊME ISIN : CRUDl_EQ (USD), CRUPl_EQ (GBX),
+# et OD7Fd_EQ (EUR). Précédemment mappé sur CRUDl_EQ (USD) -> exposition au
+# change USD/EUR non désirée sur un compte EUR (corrigé juillet 2026).
 TICKER_MAPPING_T212 = {
     "SXRV.DE": "SXRVd_EQ",
     "SXRV.FRK": "SXRVd_EQ",
-    "CRUDP.PA": "CRUDl_EQ",
-    "CRUDP": "CRUDl_EQ",
+    "CRUDP.PA": "OD7Fd_EQ",  # WisdomTree WTI Crude Oil — variante EUR (was CRUDl_EQ/USD)
+    "CRUDP": "OD7Fd_EQ",
 }
 # Budget initial par ticker T212 (en EUR)
 INITIAL_BUDGETS = {
     "SXRVd_EQ": 1000.0,
     "SXRV_EQ": 1000.0,
-    "CRUDl_EQ": 1000.0,
+    "OD7Fd_EQ": 1000.0,  # CRUDP.PA (EUR) — nouveau mapping
+    "CRUDl_EQ": 1000.0,  # gardé pour compat : ancienne position USD encore ouverte
 }
 DEFAULT_INITIAL_BUDGET = 1000.0
 
@@ -117,21 +123,28 @@ def get_t212_ticker(ticker_yahoo: str) -> str:
     return TICKER_MAPPING_T212.get(ticker_yahoo, ticker_yahoo.split(".")[0])
 
 
-def _validate_and_recalibrate_entry_price(state: dict, yahoo_ticker: str) -> dict:
+def _validate_and_recalibrate_entry_price(state: dict, yahoo_ticker: str, current_pos: dict = None) -> dict:
     """Defend against corrupted entry prices in the portfolio state.
 
-    PROD incident (June 2026): CRUDP.PA's state carried entry_price_etf=15.27
-    (a value that never existed in the price series; max was 14.36) and
-    buy_budget=1081€ for 70.8 shares, while the real fill recorded in
-    trading_history.db was 13.42€ (~950€). The corrupted cost basis then
-    blocked every SELL via _check_sell_loss_guard (threshold = cost*0.998),
-    so the position drifted to -17% with no exit possible.
+    TWO prod incidents drove this:
+      (June 2026) state carried a ghost entry_price_etf=15.27 (never in the
+        price series; real fill 13.42), blocking every SELL via
+        _check_sell_loss_guard -> position drifted to -17%.
+      (July 2026) the LOCAL DB recorded 10.876 while the REAL T212 fill was
+        12.4469 — because insert_transaction logs the Yahoo signal-time price,
+        not the actual T212 execution price. Trusting the DB here would have
+        WRONGLY corrupted a correct state.
 
-    Root cause: sync_state_from_t212 trusts the broker's averagePricePaid with
-    no cross-check. This guard reconciles the stored entry price/budget against
-    the last recorded BUY in trading_history.db; on a >5% discrepancy it
-    recalibrates from the DB (the trusted record of what was actually paid)
-    and logs an ERROR. Returns the (possibly corrected) state.
+    Source-of-truth priority for the recalibration (most authoritative first):
+      1. current_pos.averagePricePaid  — the broker's actual fill price. This
+         is what was really paid; it is always right for a live position.
+      2. trading_history.db            — local log of the signal-time price.
+         NOT the execution price, so it can be wrong (July incident). Used only
+         as a fallback when the broker position is unavailable.
+
+    On a >5% discrepancy between the stored entry_price and the chosen source,
+    the stored value is recalibrated and an ERROR is logged. Returns the
+    (possibly corrected) state.
     """
     pos = state.get("active_position")
     if not pos:
@@ -141,41 +154,46 @@ def _validate_and_recalibrate_entry_price(state: dict, yahoo_ticker: str) -> dic
     if stored_price is None or stored_price <= 0:
         return state
 
-    try:
-        from src.database import get_latest_transaction
-    except Exception:
-        return state  # DB module unavailable — skip validation gracefully
+    # 1. Prefer the broker's real average fill price (most authoritative).
+    truth_price, truth_source, truth_qty, truth_cost = None, None, None, None
+    if current_pos:
+        avg = current_pos.get("averagePrice") or current_pos.get("averagePricePaid") or current_pos.get("avgPrice")
+        if avg:
+            truth_price = float(avg)
+            truth_source = "T212 averagePrice"
+            truth_qty = float(current_pos.get("quantity") or current_pos.get("quantityAvailableForTrading") or 0)
 
-    try:
-        last = get_latest_transaction(yahoo_ticker)
-    except Exception:
+    # 2. Fallback: local DB (signal-time price — may differ from the real fill).
+    if truth_price is None:
+        try:
+            from src.database import get_latest_transaction
+            last = get_latest_transaction(yahoo_ticker)
+            if last and last[1] == "BUY":
+                truth_price = float(last[3])
+                truth_cost = float(last[4])
+                truth_qty = float(last[2])
+                truth_source = "trading_history.db (fallback)"
+        except Exception:
+            pass
+
+    if not truth_price or truth_price <= 0:
         return state
 
-    if not last or last[1] != "BUY":
-        return state
-
-    # last = (date, type, quantity, price, cost)
-    db_price = float(last[3])
-    db_cost = float(last[4])
-    db_qty = float(last[2])
-    if db_price <= 0:
-        return state
-
-    discrepancy = abs(stored_price - db_price) / db_price
+    discrepancy = abs(stored_price - truth_price) / truth_price
     if discrepancy > 0.05:
         logger.error(
             f"🚨 STATE CORRUPTION détectée pour {yahoo_ticker}: entry_price stocké "
-            f"{stored_price:.4f} vs DB {db_price:.4f} (écart {discrepancy:.1%}). "
-            f"Recalage sur trading_history.db."
+            f"{stored_price:.4f} vs {truth_source} {truth_price:.4f} (écart {discrepancy:.1%}). "
+            f"Recalage sur {truth_source}."
         )
-        pos["entry_price_etf"] = db_price
-        pos["entry_price_index"] = db_price
-        if db_qty > 0 and db_cost > 0:
-            pos["buy_budget"] = db_cost
-            # highest_value must stay >= buy_budget for trailing-stop math;
-            # reset conservatively to the (corrected) buy cost.
-            if pos.get("highest_value", 0) < db_cost:
-                pos["highest_value"] = db_cost
+        pos["entry_price_etf"] = truth_price
+        pos["entry_price_index"] = truth_price
+        # Recompute buy_budget from the authoritative qty × price when possible.
+        if truth_qty and truth_qty > 0:
+            new_cost = truth_cost if (truth_cost and truth_cost > 0) else truth_price * truth_qty
+            pos["buy_budget"] = new_cost
+            if pos.get("highest_value", 0) < new_cost:
+                pos["highest_value"] = new_cost
 
     return state
 
@@ -893,11 +911,6 @@ def execute_t212_trade(
     # Charger l'état spécifique au ticker (on utilise le ticker T212 comme clé)
     state = load_portfolio_state(t212_ticker)
 
-    # Defend against corrupted entry prices (see _validate_and_recalibrate_entry_price):
-    # reconcile the stored cost basis against trading_history.db before any
-    # exit-strategy math runs, so a stale/ghost price cannot block a SELL.
-    state = _validate_and_recalibrate_entry_price(state, ticker)
-
     env = os.getenv("T212_ENV", "demo").lower()
     base_url = f"https://{env}.trading212.com/api/v0"
     headers = get_auth_header()
@@ -917,6 +930,14 @@ def execute_t212_trade(
         (p for p in portfolio["positions"] if p["instrument"]["ticker"] == t212_ticker),
         None,
     )
+
+    # Defend against corrupted entry prices (see _validate_and_recalibrate_entry_price):
+    # reconcile the stored cost basis against the BROKER's real averagePricePaid
+    # (authoritative) before any exit-strategy math runs, so a stale/ghost price
+    # cannot block a SELL. Done AFTER current_pos is fetched so the broker price
+    # is the primary source of truth (the local DB can record a wrong signal-time
+    # price — see the July incident: DB=10.876 vs real T212 fill=12.4469).
+    state = _validate_and_recalibrate_entry_price(state, ticker, current_pos)
 
     if current_pos:
         logger.info(f"   - Position détectée : {current_pos['quantity']} actions de {t212_ticker}")
