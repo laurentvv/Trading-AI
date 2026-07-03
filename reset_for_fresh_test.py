@@ -191,7 +191,15 @@ def _move_to_backup(target: Path, backup_dir: Path) -> bool:
 
 
 def _safe_to_wipe(target: Path) -> bool:
-    """Final safety guard: refuse to wipe anything inside a KEEP_PATHS dir."""
+    """Final safety guard: refuse to wipe anything inside a KEEP_PATHS dir,
+    UNLESS the path itself (or a parent) is explicitly listed in WIPE_DIRS.
+
+    Why the exception: KEEP_PATHS protects top-level dirs like `docs/` and
+    `morning_brief/`, but WIPE_DIRS legitimately targets subdirs of those
+    (docs/council_reports, morning_brief/output) which are runtime-generated.
+    Without this exception, _wipe_generic_dir silently skips them — the July
+    2026 PROD reset reported success but left them on disk.
+    """
     try:
         rel = target.resolve().relative_to(REPO_ROOT)
     except ValueError:
@@ -199,7 +207,12 @@ def _safe_to_wipe(target: Path) -> bool:
     parts = rel.parts
     if not parts:
         return False
-    # Top-level dir name must not be in the keep set.
+    # Explicit WIPE_DIRS entry (or a parent of target) always wins.
+    for wipe_dir in WIPE_DIRS:
+        wd = Path(wipe_dir)
+        if rel == wd or wd in rel.parents:
+            return True
+    # Otherwise, the top-level dir must not be in the keep set.
     if parts[0] in KEEP_PATHS:
         return False
     return True
