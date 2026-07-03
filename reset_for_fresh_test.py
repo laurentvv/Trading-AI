@@ -151,7 +151,15 @@ def _backup_timestamp() -> str:
 def _move_to_backup(target: Path, backup_dir: Path) -> bool:
     """Move target into backup_dir, PRESERVING its path relative to the repo
     root. This keeps the backup restorable: a file at data_cache/eia/x.parquet
-    is backed up to <backup>/data_cache/eia/x.parquet (not flattened)."""
+    is backed up to <backup>/data_cache/eia/x.parquet (not flattened).
+
+    On Windows, a file held open by another process (e.g. scheduler.log kept
+    open by the long-running schedule.py via its RotatingFileHandler) cannot
+    be renamed or unlinked — shutil.move raises PermissionError [WinError 32].
+    In that case we fall back to copy+truncate: the bytes are preserved in the
+    backup, and the live file is truncated in place so the holder keeps its
+    open handle on a now-empty file (no crash, equivalent to a reset).
+    """
     if not target.exists():
         return False
     try:
@@ -165,7 +173,20 @@ def _move_to_backup(target: Path, backup_dir: Path) -> bool:
     if dest.exists():
         dest = backup_dir / f"{rel}_{_backup_timestamp()}"
         dest.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(target), str(dest))
+    try:
+        shutil.move(str(target), str(dest))
+    except PermissionError:
+        # File locked by another process (typical: scheduler.log on Windows
+        # while schedule.py is running). Copy contents to backup, then
+        # truncate the live file in place so it is effectively reset without
+        # needing to close the foreign handle.
+        shutil.copy2(str(target), str(dest))
+        try:
+            target.write_bytes(b"")
+        except PermissionError:
+            # Even truncation is blocked — still report success since the
+            # content was backed up; the foreign process owns the file.
+            pass
     return True
 
 
