@@ -682,8 +682,10 @@ class PerformanceMonitor:
             axes[1, 1].set_ylabel("Drawdown (%)")
             axes[1, 1].grid(True, alpha=0.3)
 
-            # Win rate
-            axes[1, 2].plot(df["timestamp"], df["win_rate"] * 100, color="teal", linewidth=2)
+            # Win rate (filter out -1.0 sentinel = "not computable")
+            wr_df = df[df["win_rate"] >= 0]
+            if not wr_df.empty:
+                axes[1, 2].plot(wr_df["timestamp"], wr_df["win_rate"] * 100, color="teal", linewidth=2)
             axes[1, 2].axhline(y=50, color="gray", linestyle="--", alpha=0.7, label="50% Baseline")
             axes[1, 2].set_title("Win Rate Over Time")
             axes[1, 2].set_ylabel("Win Rate (%)")
@@ -818,7 +820,7 @@ class PerformanceMonitor:
             conn.close()
 
             if df.empty:
-                return 0.0
+                return -1.0  # Sentinelle: signifie "non calculable" (aucun trade)
 
             wins = 0
             losses = 0
@@ -841,4 +843,4 @@ class PerformanceMonitor:
             return wins / total_closed_trades
         except Exception as e:
             logger.error(f"Error calculating win rate for {self.ticker}: {e}")
-            return 0.0
+            return -1.0  # Sentinelle: erreur = non calculable (pas 0.0 qui déclencherait une fausse alerte)

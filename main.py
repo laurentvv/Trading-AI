@@ -130,10 +130,16 @@ def run_trading_analysis(
     )
 
     try:
-        # Initialize the system
+        # Initialize the system.
+        # In T212 execution mode, write_db=False: the analysis step must NOT
+        # write phantom simulated trades to trading_history.db — only the
+        # t212_executor writes, after a real broker-confirmed fill. This keeps
+        # the DB as the single source of truth (broker), preventing the
+        # persistent desync where DB showed trades the broker never executed.
         system = EnhancedTradingSystem(
             ticker=ticker,
             initial_portfolio_value=1000 if (is_simulation or is_t212) else 10000,
+            write_db=not is_t212,
         )
 
         # Run full analysis

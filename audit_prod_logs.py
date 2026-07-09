@@ -269,9 +269,17 @@ def audit_parquet():
         for ef in eia_files:
             try:
                 df = pd.read_parquet(ef)
-                idx = df.index
+                # EIA parquets use a "period" column (not "date", not the index).
+                # The old code used df.index, which is a RangeIndex (0,1,2,...)
+                # interpreted as Unix timestamps -> 1970-01-01 (false positive).
+                if "period" in df.columns:
+                    idx = pd.to_datetime(df["period"])
+                elif "date" in df.columns:
+                    idx = pd.to_datetime(df["date"])
+                else:
+                    idx = pd.to_datetime(df.index)
                 if len(idx):
-                    last = pd.to_datetime(idx).max()
+                    last = idx.max()
                     if last < pd.Timestamp("2026-06-01"):
                         stale.append(f"{ef.name}@{last.date()}")
                 statuses.append("OK")
