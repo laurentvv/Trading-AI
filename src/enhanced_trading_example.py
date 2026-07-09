@@ -83,17 +83,25 @@ class EnhancedTradingSystem:
         "SPY": "^GSPC",
     }
 
-    def __init__(self, ticker: str = "QQQ", initial_portfolio_value: float = 100000):
+    def __init__(self, ticker: str = "QQQ", initial_portfolio_value: float = 100000,
+                 write_db: bool = True):
         """
         Initialise le système de trading amélioré.
 
         Args:
             ticker: Symbole de l'ETF à trader
             initial_portfolio_value: Valeur initiale du portefeuille
+            write_db: If False, the hypothetical-trade step will NOT write to
+                trading_history.db (no phantom transactions, no portfolio_state).
+                Use write_db=False in T212 execution mode so the DB only ever
+                contains real broker-confirmed trades (written by t212_executor
+                after a successful fill). Default True preserves the simulation
+                / paper-trading behaviour.
         """
         self.ticker = ticker  # Ticker de TRADING (ex: SXRV.DE)
         self.analysis_ticker = self.ANALYSIS_MAPPING.get(ticker, ticker)  # Ticker d'ANALYSE (ex: ^NDX)
         self.initial_portfolio_value = initial_portfolio_value
+        self.write_db = write_db
 
         # Load centralized configuration
         self.config = self._load_config()
@@ -861,18 +869,29 @@ class EnhancedTradingSystem:
             )
             logger.info(f"TRADE: Executed SELL at ${current_price:.2f}, New Balance: ${new_cash:.2f}")
 
-        # Update portfolio state
+        # Update portfolio state.
+        # In T212 execution mode (write_db=False), skip all DB writes here —
+        # the t212_executor writes the REAL broker-confirmed transaction (with
+        # the actual fill price) after a successful order. Writing a phantom
+        # simulated trade here would desync the DB from the broker truth
+        # (the July 2026 incident: trades existed in DB but not at the broker).
         total_value = new_position * current_price + new_cash
-        insert_portfolio_state(
-            date=analysis_date.strftime("%Y-%m-%d %H:%M:%S"),
-            ticker=self.ticker,
-            position=new_position,
-            cash=new_cash,
-            total_value=total_value,
-            benchmark_value=benchmark_value,
-        )
-        if pending_transactions:
-            insert_transactions_batch(pending_transactions)
+        if self.write_db:
+            insert_portfolio_state(
+                date=analysis_date.strftime("%Y-%m-%d %H:%M:%S"),
+                ticker=self.ticker,
+                position=new_position,
+                cash=new_cash,
+                total_value=total_value,
+                benchmark_value=benchmark_value,
+            )
+            if pending_transactions:
+                insert_transactions_batch(pending_transactions)
+        else:
+            logger.debug(
+                "write_db=False — simulated trade NOT written to DB "
+                "(T212 mode: broker-confirmed writes only)"
+            )
         return trades
 
     def update_performance_monitoring(self, analysis_results, current_etf_price, trades):

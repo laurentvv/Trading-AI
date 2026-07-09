@@ -98,6 +98,20 @@ INITIAL_BUDGETS = {
 }
 DEFAULT_INITIAL_BUDGET = 1000.0
 
+# Quantity decimal precision per T212 instrument. T212 rejects orders whose
+# quantity has more decimals than the instrument allows (API error
+# "quantity-precision-mismatch"). The old heuristic `if "CRUD" in ticker`
+# broke when CRUDP.PA was remapped from CRUDl_EQ to OD7Fd_EQ (the new ticker
+# no longer contains "CRUD"). An explicit table is the reliable fix.
+# Fallback is 2 (safe: T212 rejects excess precision, never insufficient).
+TICKER_QUANTITY_PRECISION = {
+    "SXRVd_EQ": 4,   # iShares S&P 500 EUR — fractional, 4 decimals
+    "SXRV_EQ": 4,
+    "OD7Fd_EQ": 2,   # WisdomTree WTI Crude Oil EUR — 2 decimals max
+    "CRUDl_EQ": 2,   # legacy USD variant
+}
+DEFAULT_QUANTITY_PRECISION = 2
+
 # --- Exit-strategy thresholds (June 2026 exit-strategy audit) ---
 # Four complementary exit mechanisms, evaluated unconditionally before the
 # normal BUY/SELL logic in execute_t212_trade. Order of priority:
@@ -731,8 +745,11 @@ def _execute_buy_order(state, current_pos, ticker, t212_ticker, portfolio, base_
         )
 
     target_budget = min(available_cash, portfolio["cash"]) * 0.95 * sizing_ratio
-    # Déterminer la précision selon le ticker
-    precision = 2 if "CRUD" in t212_ticker.upper() else 4
+    # Déterminer la précision selon l'instrument T212 (table explicite).
+    # L'ancienne heuristique "CRUD" in ticker cassait quand CRUDP.PA a été
+    # remappé vers OD7Fd_EQ (ne contient plus "CRUD") -> precision=4 envoyée
+    # alors que T212 n'accepte que 2 -> erreur quantity-precision-mismatch.
+    precision = TICKER_QUANTITY_PRECISION.get(t212_ticker, DEFAULT_QUANTITY_PRECISION)
     quantity = round(target_budget / current_price, precision)
 
     estimated_cost = quantity * current_price
