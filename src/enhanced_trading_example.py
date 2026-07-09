@@ -138,6 +138,12 @@ class EnhancedTradingSystem:
     def _initialize_portfolio(self, hist_data):
         """Initializes the portfolio if it doesn't exist."""
         if get_latest_portfolio_state(self.ticker) is None:
+            if not self.write_db:
+                logger.debug(
+                    "write_db=False — skipping portfolio initialization in DB "
+                    "(T212 mode: state managed by t212_portfolio_state.json)"
+                )
+                return
             logger.info(f"No existing portfolio found for {self.ticker}. Initializing a new one.")
             insert_portfolio_state(
                 date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -899,7 +905,17 @@ class EnhancedTradingSystem:
         logger.info("Mise à jour du monitoring de performance...")
 
         latest_portfolio_state = get_latest_portfolio_state(self.ticker)
-        _, _, total_value, _ = latest_portfolio_state
+        if latest_portfolio_state is None:
+            # In T212 mode (write_db=False), portfolio_history is not written
+            # by the simulation. Fall back to the initial portfolio value so
+            # performance monitoring still records a metric (no crash).
+            logger.debug(
+                "No portfolio_history for %s (write_db=False) — using initial value.",
+                self.ticker,
+            )
+            total_value = self.initial_portfolio_value
+        else:
+            _, _, total_value, _ = latest_portfolio_state
 
         # Calculate daily return from monitoring history
         daily_return = 0.0
