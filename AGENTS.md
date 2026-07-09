@@ -52,6 +52,9 @@ Gemma 4 12B's `<|think|>` reasoning channel is **active** in production. JSON-ex
 
 - **T212 demo vs live** is governed by `T212_ENV` in `.env.t212` (demo is rate-limit-tolerant; live is not). Never commit credentials.
 - **Per-ticker budget**: `INITIAL_BUDGETS` dict (default 1000€ per ticker), **not** the historical 5000€ hardcoded fallback.
+- **DB write isolation (`write_db`)**: `EnhancedTradingSystem(write_db=...)` controls whether the simulation step (`_execute_hypothetical_trade`) writes to `trading_history.db`. In T212 mode, `main.py` passes `write_db=not is_t212` → **only `t212_executor` writes to the DB, after a broker-confirmed fill**. The simulation still runs (for internal reporting) but does not pollute the DB with phantom trades. **Never set `write_db=True` in `--t212` mode** — it re-creates the July 2026 phantom-trades desync (DB showed trades the broker never executed).
+- **T212 quantity precision**: governed by `TICKER_QUANTITY_PRECISION` dict in `src/t212_executor.py` (not the old `"CRUD" in ticker` heuristic, which broke when CRUDP.PA was remapped to `OD7Fd_EQ`). Add new instruments here; fallback is `DEFAULT_QUANTITY_PRECISION = 2` (safe — T212 rejects excess precision, never insufficient).
+- **win_rate sentinel**: `_calculate_win_rate` (`src/performance_monitor.py`) returns `-1.0` (not `0.0`) when no closed trades exist or on error. The alert condition excludes it via `>= 0`. **Never return `0.0` for "not computable"** — it triggers false "Win rate critically low: 0.00%" HIGH alerts.
 - **Cache staleness**: 1 day (`src/data.py`) — Parquet files older than that are auto-refreshed.
 - **Cycle timeout**: 40 min (`CYCLE_TIMEOUT_SECONDS` in `main.py:38`). On timeout, `cancel_event` is set so the orphan thread cannot place a T212 order even if it finishes later; a per-ticker `threading.Lock` serializes order placement.
 
@@ -103,7 +106,16 @@ PowerShell note: `uv run pytest ...` may fail with "Failed to canonicalize scrip
 - `backtest_prod.py` reads `data_cache/` (repo root, ends ~2026-05-27) instead of `logs_prod/data_cache/` (prod, current) → empty tables when the journal spans an uncovered period. Use `audit_prod_logs.py` instead.
 - **FinAcumen (June 2026) — repaired; converges; feeds the morning brief** (which consumes `main.py` outputs via shared files, no direct import: `main.py` writes `trading_journal.csv`/`trading.log`/`performance_monitor.db` → `morning_brief/tools/` read them → `schedule.py` appends FinAcumen into `morning_market_brief.md`). By design it is **not** an 11th per-cycle vote (that slot is the Weekend Council — §4). Key repair details: `src/core/tools.py` (`lookup_ohlc` accepts a list → dict; rsi/sma/macd added; `pd`/`np` pre-injected so the sandbox's `__import__` ban is harmless) and `src/agents/solver.py` (execute-vs-final-answer branches on *non-empty* `python_code` / `action in BUY|SELL|HOLD`, not key presence).
 
-### 6.1 Resolved follow-ups (Late June 2026 — ADR-002 Suite)
+### 6.1 Resolved follow-ups (July 2026 — phantom-trades & T212 precision suite)
+
+The July 2026 PROD audit found and fixed four bugs (PR #78/#79):
+
+- **Phantom trades (CRITICAL)** — `_execute_hypothetical_trade` wrote SIMULATED trades to `trading_history.db` BEFORE the real T212 order was attempted. When the order failed (precision mismatch) or was skipped (HOLD), the phantom BUY stayed → persistent DB/broker desync (0 positions at broker, phantom BUYs in DB). **Fix**: `write_db=not is_t212` — the simulation no longer writes in T212 mode; only `t212_executor` writes after a broker-confirmed fill.
+- **T212 quantity precision** — the heuristic `if "CRUD" in ticker` broke when CRUDP.PA was remapped to `OD7Fd_EQ` (no longer contains "CRUD") → wrong precision → order rejected. **Fix**: explicit `TICKER_QUANTITY_PRECISION` table.
+- **win_rate false alerts** — `_calculate_win_rate` returned `0.0` (instead of the `-1.0` sentinel) on empty/error → 72 false "Win rate critically low: 0.00%" HIGH alerts. **Fix**: `-1.0` sentinel consistently; alert condition excludes it.
+- **EIA stale false positive** — `audit_prod_logs.py` used `df.index` instead of the `period` column → RangeIndex interpreted as Unix timestamps → `@1970-01-01`. **Fix**: column cascade `period` → `date` → `index`.
+
+### 6.2 Resolved follow-ups (Late June 2026 — ADR-002 Suite)
 
 The end-of-June decision-model audit (`docs/ADR-002-decision-model-quality-audit.md`) remediated the structural bullish bias and the market-derived win_rate metric:
 - **win_rate / Accuracy** — `BUY` is rewarded only if return exceeds `HOLD_NEUTRAL_RETURN_THRESHOLD` (0.5% buffer); `HOLD` is rewarded when the market is flat (stops optimistic models farming drift).
@@ -118,6 +130,8 @@ The end-of-June decision-model audit (`docs/ADR-002-decision-model-quality-audit
 
 - `audit_prod_logs.py` — validates **all** `logs_prod/` files (catalogue, SQLite integrity, parquet freshness, JSON/pkl, FinAcumen state) and runs a corrected backtest against `logs_prod/data_cache/`. Emits `logs_prod/audit_report.md`. (`uv run python audit_prod_logs.py`)
 - `setup_council_models.py` — installs the **four local** Ollama model families the Weekend Council requires (Gemma 4 12B / GLM-4.6V-Flash / Qwen 3.5 9B / Mistral Nemo 12B); reports (without pulling) the cloud Gemini models. Idempotent, skips installed. **Must run on every PROD server** after `git pull` of the council feature (else members fall back to Gemma and diversity is lost). (`uv run python setup_council_models.py`)
+- `reset_for_fresh_test.py` — **MAX reset** for a truly virgin restart. Wipes by pattern (any gitignored file at repo root: `*.db *.log *.json *.csv *.png` + `data_cache/` + runtime dirs). Preserves `.env*`, `.venv`, `.git`, `logs_prod`, `memory-bank`, source code. Gemini quota ledger wiped by default (DEMO); pass `--keep-quota-ledger` on PAID PROD to avoid overspend. Handles Windows locked files (copy+truncate fallback). (`uv run python reset_for_fresh_test.py --dry-run`)
+- `clean_phantom_trades.py` — **targeted cleanup** of the 3 artefacts polluted by the phantom-trades bug (`trading_history.db`, `performance_monitor.db`, `t212_portfolio_state.json`). Preserves all caches, models, prices, EIA. Use after pulling the July 2026 fix, before relaunching. (`uv run python clean_phantom_trades.py --yes`)
 
 ---
 
