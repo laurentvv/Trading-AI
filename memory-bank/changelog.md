@@ -29,6 +29,21 @@
 ...
 
 ## 5. Corrections Récentes
+- **2026-07-09**: Suite de correction phantom-trades + T212 precision + win_rate + EIA (4 bugs, PR #78/#79)
+  * **Bug #1 CRITIQUE — Trades fantômes** : `_execute_hypothetical_trade` inscrivait des trades SIMULÉS dans `trading_history.db` AVANT l'exécution T212 réelle. Quand l'ordre échouait (precision mismatch) ou était skipé (HOLD), le trade fantôme restait → désync DB/broker persistante (0 position broker, 2 BUYs fantômes DB). Survivait au reset car le système recréait les fantômes à chaque cycle. **Fix** : `write_db=not is_t212` — la simulation n'écrit plus en DB en mode T212 ; seul `t212_executor` écrit après confirmation broker. Edge cases `_initialize_portfolio` (skip insert) et `update_performance_monitoring` (guard `None`) couverts dans la PR #79.
+  * **Bug #2 — T212 quantity-precision-mismatch** : l'heuristique `if "CRUD" in ticker` cassait quand CRUDP.PA fut remappé vers `OD7Fd_EQ` (ne contient plus "CRUD") → precision=4 au lieu de 2 → ordre rejeté. **Fix** : table explicite `TICKER_QUANTITY_PRECISION` (fallback=2, sûr).
+  * **Bug #3 — 72 fausses alertes win_rate=0%** : `_calculate_win_rate` retournait `0.0` au lieu de la sentinelle `-1.0` sur table vide/erreur → déclenchait `"Win rate critically low: 0.00%"` à chaque cycle. **Fix** : sentinelle `-1.0` cohérente sur tous les paths ; condition d'alerte l'exclut via `>= 0`.
+  * **Bug #4 — EIA "stale @1970"** : `audit_prod_logs.py` utilisait `df.index` au lieu de la colonne `period` → RangeIndex interprété comme timestamps Unix → 1970-01-01. **Fix** : cascade de colonnes `period` → `date` → `index`.
+  * **Nouveau script** : `clean_phantom_trades.py` — nettoyage ciblé des 3 artefacts pollués (DBs + state JSON), préserve les caches/modèles/prix.
+  * **Validation PROD** : audit post-fix confirme 0 transaction fantôme, 0 fausse alerte, state T212 synced avec broker, 0 nouvelle erreur.
+
+- **2026-07-03**: Réécriture du script de reset (`reset_for_fresh_test.py`, PR #75/#76/#77)
+  * **Contexte** : le script de reset utilisait une liste explicite de fichiers qui s'était désynchronisée du code (7 artefacts runtime manqués : scheduler.log, analyse_morning.log, weekend_council.log, performance_dashboard.png, morning_brief/output/, docs/council_reports/, gemini_quota.db).
+  * **Refonte** : passage à un wipe par **pattern** (toute extension gitignored à la racine : `*.db *.log *.json *.csv *.png *.pkl` + dossiers runtime). Robuste aux futurs artefacts sans maintenance.
+  * **Bug corrigé** : `trading_history.db` était **sauté** quand `cache_moved=True` (cause directe de désync persistante). Le guard `_safe_to_wipe` bloquait aussi les sous-dossiers de dossiers keep (`morning_brief/output`, `docs/council_reports`).
+  * **Ledger Gemini** : wipé par défaut (mode démo) ; flag `--keep-quota-ledger` pour préserver le budget cloud en PROD payante.
+  * **Windows locked files** : fallback copy+truncate pour les fichiers verrouillés (scheduler.log maintenu ouvert par schedule.py).
+
 - **2026-06-28**: Weekend Council — implémentation + code review critique
   * **Contexte** : Ajout d'une rétrospective stratégique hebdomadaire (6 personas LLM) comme 11ème voix du consensus (poids 9.5%, décroissance 7j). Inspiré de `0xNyk/council-of-high-intelligence`.
   * **Code review critique** : L'audit post-implémentation a révélé que le vote council était **inerte en production** — le call site passait `self.analysis_ticker` (`^NDX`) au lieu de `self.ticker` (`SXRV.DE`), donc aucun match avec le bloc `VERDICT_TICKER` du Juge. Corrigé (+5 autres bugs : freshness dupliquée, drift de poids adaptatif, parser FR/percent, pollution DB).
