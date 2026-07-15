@@ -138,20 +138,22 @@ class EIAClient:
         if cached is not None:
             return cached
 
-        # NB: the previous call omitted any `facets` filter and sorted desc,
-        # which let a single recent vintage dominate the response. After the
-        # groupby("period") aggregation this collapsed to a 1-row payload
-        # pinned at 2026-04-01 — and because _save_to_cache bumps the file
-        # mtime unconditionally, the mtime-based TTL hid the degeneracy (the
-        # file looked "fresh" while being 3.5 months stale). Now filters on
-        # the MCO process (imports) and sorts asc, matching the other
-        # endpoints that return multi-period data. July 2026 audit.
+        # NB: the previous call sorted desc with length=months*10. EIA returns
+        # imports broken down by origin, so the `length` rows were dominated by
+        # a single recent month's origins; after groupby("period") this
+        # collapsed to a 1-row payload pinned at 2026-04-01 — and because
+        # _save_to_cache bumps the file mtime unconditionally, the mtime-based
+        # TTL hid the degeneracy (file looked "fresh" while 3.5 months stale).
+        # NOTE: /crude-oil-imports/data does NOT accept a `process` facet
+        # (its valid facets are originId/originType/destinationId/
+        # destinationType/gradeId); an earlier revision tried `facets[process]`
+        # and got HTTP 400 on every cycle. Fix: sort asc + raise length so all
+        # months' origins fit before aggregation. July 2026 audit.
         params = {
-            "facets[process][]": "MCO",
             "frequency": "monthly",
             "sort[0][column]": "period",
             "sort[0][direction]": "asc",
-            "length": str(months * 10),  # More rows because multiple origins
+            "length": str(months * 50),  # ~10 origins/month × 6 months, with headroom
             "data[]": "quantity",
         }
         data = self._make_request("/crude-oil-imports/data", params)
