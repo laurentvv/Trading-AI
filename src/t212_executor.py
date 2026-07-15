@@ -956,6 +956,18 @@ def execute_t212_trade(
     # price — see the July incident: DB=10.876 vs real T212 fill=12.4469).
     state = _validate_and_recalibrate_entry_price(state, ticker, current_pos)
 
+    # force_stop_loss / exit_reason are initialised OUTSIDE the current_pos
+    # branch: a SELL signal can arrive when no position is open (e.g. the risk
+    # manager flips to SELL right after a manual close, or the first SELL on a
+    # fresh ticker). In that case the exit-strategy block below is skipped and
+    # these would otherwise be unbound at the _execute_sell_order call,
+    # raising UnboundLocalError (seen 2026-07-15 PROD once SELL became
+    # reachable after the consensus renormalisation fix). Initialise to safe
+    # defaults so the SELL-with-no-position path degrades to a no-op instead
+    # of crashing.
+    force_stop_loss = False
+    exit_reason = None
+
     if current_pos:
         logger.info(f"   - Position détectée : {current_pos['quantity']} actions de {t212_ticker}")
 
@@ -974,8 +986,6 @@ def execute_t212_trade(
         # signal, this executor-side layer guarantees a deep drawdown always
         # forces a sale even if the caller skipped the risk layer or did not
         # pass is_holding/entry_price_index/price_data.
-        force_stop_loss = False
-        exit_reason = None
 
         # 0. Hard stop-loss (-10%) — highest priority, capital protection.
         hs_signal, hs_force = _evaluate_hard_stop(state, current_pos, t212_ticker)
