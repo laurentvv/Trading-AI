@@ -138,10 +138,19 @@ class EIAClient:
         if cached is not None:
             return cached
 
+        # NB: the previous call omitted any `facets` filter and sorted desc,
+        # which let a single recent vintage dominate the response. After the
+        # groupby("period") aggregation this collapsed to a 1-row payload
+        # pinned at 2026-04-01 — and because _save_to_cache bumps the file
+        # mtime unconditionally, the mtime-based TTL hid the degeneracy (the
+        # file looked "fresh" while being 3.5 months stale). Now filters on
+        # the MCO process (imports) and sorts asc, matching the other
+        # endpoints that return multi-period data. July 2026 audit.
         params = {
+            "facets[process][]": "MCO",
             "frequency": "monthly",
             "sort[0][column]": "period",
-            "sort[0][direction]": "desc",
+            "sort[0][direction]": "asc",
             "length": str(months * 10),  # More rows because multiple origins
             "data[]": "quantity",
         }
@@ -154,7 +163,15 @@ class EIAClient:
             # Aggregate by period to get total US imports
             df_total = df.groupby("period")["quantity"].sum().reset_index()
             df_total = df_total.sort_values("period").reset_index(drop=True)
-            self._save_to_cache(cache_key, df_total, 24)
+            # Refuse to cache a degenerate payload (< 3 months) so the next
+            # cycle re-fetches instead of being silenced by a fresh mtime.
+            if len(df_total) >= 3:
+                self._save_to_cache(cache_key, df_total, 24)
+            else:
+                logger.warning(
+                    f"EIA crude_imports degenerate payload ({len(df_total)} rows) — "
+                    "not cached; will retry next cycle."
+                )
             return df_total
         return self._load_disk_cache_fallback(cache_key)
 

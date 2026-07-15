@@ -334,13 +334,20 @@ class EnhancedDecisionEngine:
         vg_thresholds = self.config.get("model_thresholds", {}).get("vincent_ganne")
         self.vincent_ganne_model = VincentGanneModel(thresholds=vg_thresholds)
 
-        # Adaptive thresholds (Balanced for Index trading)
+        # Adaptive thresholds (Balanced for Index trading).
+        # `sell` loosened from -0.15 to -0.10 (July 2026 audit): the weighted
+        # score's bearish magnitude is structurally smaller than its bullish
+        # one (~half the weighted vote abstains as HOLD every cycle), so the
+        # most bearish cycle observed in 294 PROD rows reached only -0.139 —
+        # just above the old -0.15 cutoff, yielding 0 SELL across the whole
+        # period. -0.10 is reachable while staying conservative. BUY stays at
+        # +0.12 (already reachable). See ADR-002 + July 2026 follow-up.
         self.adaptive_thresholds = {
             "strong_buy": 0.35,
             "buy": 0.12,
             "hold_upper": 0.05,
             "hold_lower": -0.05,
-            "sell": -0.15,
+            "sell": -0.10,
             "strong_sell": -0.45,
         }
 
@@ -502,7 +509,37 @@ class EnhancedDecisionEngine:
         return decision
 
     def _calculate_weighted_score(self, decisions: List[ModelDecision], weights: Dict[str, float], market_data: Dict) -> float:
-        weighted_score = sum(d.strength.value * d.confidence * weights.get(d.model_name, 0.25) for d in decisions)
+        # Normalise over the models that actually VOTED (non-HOLD). Previously
+        # the score was a raw weighted sum over all models, so every HOLD model
+        # (strength 0) diluted the score toward 0 without re-weighting the
+        # others — structurally capping the achievable magnitude well below the
+        # action thresholds. In 294 PROD rows the most bearish cycle reached
+        # only -0.139 (vs the -0.15 SELL cutoff) because ~half the weighted
+        # vote abstained every cycle. Normalising by the voting weight restores
+        # the signal's usable range. See July 2026 audit + ADR-002.
+        voting = [d for d in decisions if d.strength.value != 0]
+        if not voting:
+            return 0.0
+        total_weight = sum(weights.get(d.model_name, 0.25) for d in decisions)
+        voting_weight = sum(weights.get(d.model_name, 0.25) for d in voting)
+        if voting_weight <= 0:
+            return 0.0
+        # Quorum guard: when too little weight voted, normalising would let a
+        # single isolated model swing the score to ±1.0 and trigger a STRONG
+        # signal on no real consensus. 47/294 PROD cycles had <2 voting models
+        # (mostly CRUDP.PA). Below 25% turnout we fall back to the raw (un-
+        # normalised) weighted sum, which stays near 0 → HOLD. Above the quorum
+        # the renormalised score applies in full.
+        if total_weight > 0 and voting_weight / total_weight < 0.25:
+            weighted_score = sum(
+                d.strength.value * d.confidence * weights.get(d.model_name, 0.25)
+                for d in voting
+            )
+        else:
+            weighted_score = sum(
+                d.strength.value * d.confidence * weights.get(d.model_name, 0.25)
+                for d in voting
+            ) / voting_weight
         return self._adjust_for_market_regime(weighted_score, market_data)
 
     def _determine_final_signal(self, adjusted_score: float) -> str:

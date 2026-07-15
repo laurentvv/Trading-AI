@@ -90,12 +90,20 @@ class AdvancedRiskManager:
         self.lookback_period = lookback_period
         self.config = config or {}
 
-        # Risk thresholds
+        # Risk thresholds — applied to the 0-1 *composite* score returned by
+        # calculate_comprehensive_risk (NOT a raw volatility fraction).
+        # Previously {0.01, 0.015, 0.025, 0.04, inf}, which were magnitudes
+        # calibrated for annualised-volatility fractions; applied to a 0-1
+        # composite, any score > 0.04 collapsed to VERY_HIGH, classifying
+        # 100% of PROD cycles (SXRV.DE + CRUDP.PA) as VERY_HIGH and
+        # neutralising every SXRV.DE BUY signal. Re-scaled July 2026 to the
+        # composite range, calibrated on the observed PROD distribution
+        # (~0.42 low to ~0.73 high; VIX was a calm 15-17 the whole time).
         self.volatility_thresholds = {
-            RiskLevel.VERY_LOW: 0.01,
-            RiskLevel.LOW: 0.015,
-            RiskLevel.MODERATE: 0.025,
-            RiskLevel.HIGH: 0.04,
+            RiskLevel.VERY_LOW: 0.20,
+            RiskLevel.LOW: 0.35,
+            RiskLevel.MODERATE: 0.50,
+            RiskLevel.HIGH: 0.65,
             RiskLevel.VERY_HIGH: float("inf"),
         }
 
@@ -235,11 +243,17 @@ class AdvancedRiskManager:
         returns = price_data.pct_change()
         volume_returns_corr = abs(returns.corr(volume_data))
 
-        # Low volume or abnormal volume patterns increase liquidity risk
+        # Low volume or abnormal volume patterns increase liquidity risk.
+        # NB: `pattern_risk = 1 - |corr(volume, returns)|` conflates "volume
+        # uncorrelated with price" with "illiquid" — but thin ETFs have
+        # structurally decorrelated volume (market makers absorb flows),
+        # so this term was inflating every ETF to ~0.98 and pushing the
+        # composite into VERY_HIGH. Capped at 0.5 and down-weighted so the
+        # genuine liquidity signal (volume_risk) dominates. July 2026 audit.
         volume_risk = 1.0 / (1.0 + volume_ratio)  # Lower volume = higher risk
-        pattern_risk = 1.0 - volume_returns_corr  # Low correlation = higher risk
+        pattern_risk = min(0.5, 1.0 - volume_returns_corr)
 
-        liquidity_risk = (volume_risk + pattern_risk) / 2
+        liquidity_risk = volume_risk * 0.6 + pattern_risk * 0.4
         return min(1.0, max(0.0, liquidity_risk))
 
     def assess_market_regime(self, price_data: pd.Series, lookback: int = 60) -> Dict[str, float]:

@@ -647,9 +647,16 @@ class EnhancedTradingSystem:
         }
 
         # 5. Décision hybride améliorée
-        # On désactive le modèle Vincent Ganne pour le Pétrole (absurde de l'utiliser sur lui-même)
+        # Vincent Ganne is a macro "market-bottom" model (oil/gas/yields/DXY)
+        # and is conceptually meaningless as a per-ticker vote on either an
+        # oil instrument (it would score the oil price against itself) or a
+        # broad equity ETF (its macro inputs have no direct bearing on SXRV.DE).
+        # In 294 PROD cycles it emitted BUY/STRONG_BUY on SXRV.DE 147/147
+        # times — pure structural bullish noise. Disabled on both PROD
+        # tickers (July 2026 audit). Re-enable only behind a ticker class
+        # where the macro bottom signal is genuinely predictive.
         is_oil = EIAClient.is_oil_ticker(self.analysis_ticker)
-        effective_vg_indicators = None if is_oil else vg_indicators
+        effective_vg_indicators = None
 
         # Inject is_oil flag into market_data for the decision engine
         market_data["is_oil"] = is_oil

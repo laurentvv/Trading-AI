@@ -28,7 +28,8 @@
 - [ ] Synchroniser les traductions i18n (9 langues) avec les mises à jour README.
 
 ## Prochaine Action Immédiate
-- Exécuter la **review fin juin** dès données suffisantes : `uv run python audit_prod_logs.py` → analyser `logs_prod/audit_report.md` (Sharpe / MaxDD / Win Rate / Alpha par ticker) → décider ajustements de poids.
+- **Audit PROD 2026-07-15 réalisé** : 3 bugs de comportement trouvés (risk manager VERY_HIGH permanent, 0 SELL, EIA stale) → **4 correctifs implémentés et validés** (96/96 tests OK, voir `log.md` 2026-07-15). Après `git pull` PROD : supprimer `logs_prod/data_cache/eia/eia_crude_imports.parquet` puis relancer. Surveiller les prochains cycles : SXRV.DE doit pouvoir trader, des SELL doivent apparaître, le `Risk_Level` doit varier (pas 100% VERY_HIGH).
+- **Review fin juin/août** dès données suffisantes : `uv run python audit_prod_logs.py` → analyser `logs_prod/audit_report.md` (Sharpe / MaxDD / Win Rate / Alpha par ticker) → décider ajustements de poids.
 
 ## Statut des Invariants Critiques (contrôle rapide)
 - [x] Défense JSON bi-couche active aux 4 sites (`<|think|>` préfixe + schema strict + suffixe). *(AGENTS.md §2.1)*
