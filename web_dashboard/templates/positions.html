@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Réconciliation des Positions</h1>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="my-0">Positions Locales (Fichier JSON)</h5>
+            </div>
+            <div class="card-body">
+                <h6>QQQ (NASDAQ)</h6>
+                <pre class="bg-dark text-light p-3 rounded"><code>{{ local_state_qqq | tojson(indent=2) }}</code></pre>
+
+                <h6 class="mt-4">CL=F (WTI)</h6>
+                <pre class="bg-dark text-light p-3 rounded"><code>{{ local_state_wti | tojson(indent=2) }}</code></pre>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="my-0">Positions Réelles (Trading 212)</h5>
+            </div>
+            <div class="card-body">
+                {% if t212_positions is mapping and t212_positions.get('error') %}
+                    <div class="alert alert-danger">{{ t212_positions.error }}</div>
+                {% else %}
+                    <pre class="bg-dark text-light p-3 rounded"><code>{{ t212_positions | tojson(indent=2) }}</code></pre>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

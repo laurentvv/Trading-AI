@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Dashboard Principal</h1>
+</div>
+
+<div class="row">
+    <div class="col-md-4 mb-4">
+        <div class="card bg-primary text-white h-100">
+            <div class="card-body">
+                <h5 class="card-title">État du Système</h5>
+                <p class="card-text">Statut global du robot de trading et de la connexion T212.</p>
+                <a href="/positions" class="btn btn-light btn-sm">Voir Positions</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card bg-success text-white h-100">
+            <div class="card-body">
+                <h5 class="card-title">Derniers Rapports</h5>
+                <p class="card-text">Consultez les briefings matinaux et le council du weekend.</p>
+                <a href="/reports" class="btn btn-light btn-sm">Lire les rapports</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card bg-info text-white h-100">
+            <div class="card-body">
+                <h5 class="card-title">Analyses</h5>
+                <p class="card-text">Historique des transactions et évolution du capital.</p>
+                <a href="/performance" class="btn btn-light btn-sm">Voir Graphiques</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <h3>Derniers Logs Système</h3>
+        <div class="bg-dark p-3 rounded" style="max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 0.85rem;">
+            {% if logs %}
+                {% for log in logs %}
+                    <div class="text-light">{{ log }}</div>
+                {% endfor %}
+            {% else %}
+                <div class="text-muted">Aucun log trouvé ou fichier non accessible.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

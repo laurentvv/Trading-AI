@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Rapports du Système</h1>
+</div>
+
+<ul class="nav nav-tabs mb-4" id="reportTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="morning-tab" data-bs-toggle="tab" data-bs-target="#morning" type="button" role="tab" aria-controls="morning" aria-selected="true">Morning Briefs</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="council-tab" data-bs-toggle="tab" data-bs-target="#council" type="button" role="tab" aria-controls="council" aria-selected="false">Weekend Council</button>
+    </li>
+</ul>
+
+<div class="tab-content" id="reportTabsContent">
+    <!-- Morning Briefs Tab -->
+    <div class="tab-pane fade show active" id="morning" role="tabpanel" aria-labelledby="morning-tab">
+        <div class="accordion" id="accordionMorning">
+            {% for report in morning_reports %}
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="headingM{{ loop.index }}">
+                    <button class="accordion-button {% if not loop.first %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapseM{{ loop.index }}" aria-expanded="{% if loop.first %}true{% else %}false{% endif %}" aria-controls="collapseM{{ loop.index }}">
+                        <i class="bi bi-file-earmark-text me-2"></i> {{ report.name }}
+                    </button>
+                </h2>
+                <div id="collapseM{{ loop.index }}" class="accordion-collapse collapse {% if loop.first %}show{% endif %}" aria-labelledby="headingM{{ loop.index }}" data-bs-parent="#accordionMorning">
+                    <div class="accordion-body">
+                        <div class="markdown-content bg-dark text-light p-3 rounded" style="overflow-x: auto;">
+                            {{ report.content }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="alert alert-info">Aucun Morning Brief trouvé dans morning_brief/output/</div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Weekend Council Tab -->
+    <div class="tab-pane fade" id="council" role="tabpanel" aria-labelledby="council-tab">
+        <div class="accordion" id="accordionCouncil">
+            {% for report in council_reports %}
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="headingC{{ loop.index }}">
+                    <button class="accordion-button {% if not loop.first %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapseC{{ loop.index }}" aria-expanded="{% if loop.first %}true{% else %}false{% endif %}" aria-controls="collapseC{{ loop.index }}">
+                        <i class="bi bi-file-earmark-text me-2"></i> {{ report.name }}
+                    </button>
+                </h2>
+                <div id="collapseC{{ loop.index }}" class="accordion-collapse collapse {% if loop.first %}show{% endif %}" aria-labelledby="headingC{{ loop.index }}" data-bs-parent="#accordionCouncil">
+                    <div class="accordion-body">
+                        <div class="markdown-content bg-dark text-light p-3 rounded" style="overflow-x: auto;">
+                            {{ report.content }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="alert alert-info">Aucun rapport du Conseil trouvé dans docs/council_reports/</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // Parse markdown to HTML
+        document.querySelectorAll('.markdown-content').forEach(function(element) {
+            const rawMarkdown = element.innerHTML.trim();
+            element.innerHTML = marked.parse(rawMarkdown);
+        });
+    });
+</script>
+{% endblock %}

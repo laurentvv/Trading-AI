@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Analyses de Performances</h1>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                Évolution du Portefeuille
+            </div>
+            <div class="card-body">
+                <canvas id="portfolioChart" width="400" height="150"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                Historique des Transactions
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Date</th>
+                                <th>Ticker</th>
+                                <th>Type</th>
+                                <th>Quantité</th>
+                                <th>Prix</th>
+                                <th>Coût</th>
+                                <th>Signal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for tx in transactions %}
+                            <tr>
+                                <td>{{ tx.date }}</td>
+                                <td>{{ tx.ticker }}</td>
+                                <td>
+                                    <span class="badge {% if tx.type == 'BUY' %}bg-success{% else %}bg-danger{% endif %}">
+                                        {{ tx.type }}
+                                    </span>
+                                </td>
+                                <td>{{ tx.quantity }}</td>
+                                <td>{{ tx.price }}</td>
+                                <td>{{ tx.cost }}</td>
+                                <td>{{ tx.signal_source }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center">Aucune transaction trouvée.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const portfolioData = {{ portfolio_history | tojson | safe }};
+
+        if (portfolioData && portfolioData.length > 0) {
+            // Sort by timestamp ascending
+            portfolioData.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+            const labels = portfolioData.map(d => new Date(d.timestamp).toLocaleDateString());
+            const values = portfolioData.map(d => d.total_value);
+
+            const ctx = document.getElementById('portfolioChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Valeur Totale',
+                        data: values,
+                        borderColor: '#0d6efd',
+                        backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}
