@@ -69,7 +69,9 @@
         // Parse markdown to HTML
         document.querySelectorAll('.markdown-content').forEach(function(element) {
             const rawMarkdown = element.innerHTML.trim();
-            element.innerHTML = marked.parse(rawMarkdown);
+            const parsedHtml = marked.parse(rawMarkdown);
+            // Sanitize the HTML before inserting
+            element.innerHTML = DOMPurify.sanitize(parsedHtml);
         });
     });
 </script>

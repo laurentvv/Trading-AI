@@ -56,13 +56,15 @@ def get_recent_logs(lines=50):
         if path.exists():
             try:
                 with open(path, "r", encoding="utf-8") as file:
-                    content = file.readlines()
-                    logs.extend([f"[{f}] {line.strip()}" for line in content[-lines:] if line.strip()])
+                    file_content = file.readlines()
+                    # Append up to 'lines' lines PER file, instead of truncating all globally.
+                    logs.extend([f"[{f}] {line.strip()}" for line in file_content[-lines:] if line.strip()])
             except Exception as e:
                 logs.append(f"Erreur lecture {f}: {e}")
 
-    # Sort or just limit to latest
-    return logs[-lines:]
+    # If we want the *absolute* last 'lines' logs across all files, we can sort by date/time if present.
+    # Otherwise we just return them all so we don't truncate older files silently.
+    return logs
 
 @app.get("/")
 def read_root(request: Request, username: Annotated[str, Depends(get_current_username)]):
@@ -144,7 +146,7 @@ def read_reports(request: Request, username: Annotated[str, Depends(get_current_
         "council_reports": council_reports
     })
 
-from src.t212_executor import load_portfolio_state, get_t212_positions, get_t212_ticker
+from src.t212_executor import load_portfolio_state, get_t212_positions
 
 @app.get("/positions")
 def read_positions(request: Request, username: Annotated[str, Depends(get_current_username)]):
