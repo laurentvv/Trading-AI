@@ -67,7 +67,7 @@ PowerShell note: `uv run pytest ...` may fail with "Failed to canonicalize scrip
 | Goal | Command |
 |---|---|
 | Mocked unit tests (deterministic, no Ollama) | `.venv\Scripts\python.exe -m pytest tests/test_llm_client.py tests/test_llm_prompts.py tests/test_oil_bench_model.py tests/test_weekend_council.py -v` |
-| Live weekend council (Gemini members + Ollama locals, ~5 min) | `uv run python src/council/weekend_council.py --days 7` |
+| Live weekend council (Gemini members + Ollama locals, ~5 min) | `uv run python -m src.council.weekend_council --days 7` |
 | Live LLM JSON harness (requires `ollama serve`) | `.venv\Scripts\python.exe tests/check_llm_json.py` |
 | Full pipeline, T212 demo | `uv run main.py --t212` |
 | Prod logs audit + corrected backtest | `uv run python audit_prod_logs.py` |
