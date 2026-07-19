@@ -664,6 +664,13 @@ class AdaptiveWeightManager:
             base_weight = self.base_weights[model]
             smoothed_weights[model] = smoothing_factor * new_weight + (1 - smoothing_factor) * base_weight
 
+        # ENFORCE RULE: Block models with win_rate < 45%
+        for model in self.base_weights.keys():
+            perf = all_performances.get(model)
+            if perf is not None and 0 <= perf.win_rate < 0.45:
+                logger.warning(f"🚨 Bloquage de {model} : win_rate ({perf.win_rate:.2%}) inférieur à 45%. Poids forcé à 0.0.")
+                smoothed_weights[model] = 0.0
+
         total_smoothed = sum(smoothed_weights.values())
         if total_smoothed > 0:
             smoothed_weights = {k: v / total_smoothed for k, v in smoothed_weights.items()}
