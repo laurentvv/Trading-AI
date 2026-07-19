@@ -722,6 +722,12 @@ class EnhancedTradingSystem:
             ticker=self.ticker,
         )
 
+        # GEL TECHNIQUE (Recommandation du Weekend Council)
+        if risk_adjusted_signal in ["BUY", "STRONG_BUY"]:
+            logger.warning("🚨 GEL TECHNIQUE ACTIF : Suspension de toute NOUVELLE prise de position (BUY -> HOLD).")
+            risk_adjusted_signal = "HOLD"
+            adjustment_reason = "Gel technique imposé par le Weekend Council"
+
         if risk_adjusted_signal != enhanced_decision.final_signal:
             logger.warning(
                 f"Signal ajuste par la gestion des risques: {enhanced_decision.final_signal} -> {risk_adjusted_signal}"
