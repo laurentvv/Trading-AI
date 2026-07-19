@@ -901,7 +901,12 @@ def _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, heade
 
     if sell_resp is not None and sell_resp.status_code in [200, 201, 202]:
         logger.info("✅ Vente effectuée.")
-        buy_cost = state["active_position"]["buy_budget"] if state.get("active_position") else current_value_eur
+        if state.get("active_position"):
+            buy_cost = state["active_position"]["buy_budget"]
+        else:
+            avg_price = current_pos.get("averagePrice") or current_pos.get("avgPrice") or 0.0
+            t212_buy_cost = float(avg_price) * total_qty
+            buy_cost = t212_buy_cost if t212_buy_cost > 0 else current_value_eur
         entry_time_str = _record_sell_transaction(state, current_value_eur, total_qty, ticker, db_date, signal_source, buy_cost)
         save_portfolio_state(state, t212_ticker)
         _update_feedback_loop(entry_time_str, db_date, current_value_eur, buy_cost)
