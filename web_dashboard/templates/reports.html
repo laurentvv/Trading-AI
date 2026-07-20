@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-8">
+    <div>
+        <h1 class="text-3xl font-bold text-white tracking-tight">Rapports du Système</h1>
+        <p class="text-slate-400 mt-1">Intelligence cognitive, analyses et décisions IA.</p>
+    </div>
+</div>
+
+<div x-data="{ tab: 'morning' }" class="w-full">
+    <!-- Tabs -->
+    <div class="flex space-x-1 border-b border-white/10 mb-6">
+        <button @click="tab = 'morning'" 
+                :class="{ 'text-accent border-accent': tab === 'morning', 'text-slate-400 border-transparent hover:text-slate-200 hover:border-slate-500': tab !== 'morning' }" 
+                class="px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2">
+            <i data-lucide="sunrise" class="w-4 h-4"></i> Morning Briefs
+        </button>
+        <button @click="tab = 'council'" 
+                :class="{ 'text-accent border-accent': tab === 'council', 'text-slate-400 border-transparent hover:text-slate-200 hover:border-slate-500': tab !== 'council' }" 
+                class="px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2">
+            <i data-lucide="users" class="w-4 h-4"></i> Weekend Council
+        </button>
+    </div>
+
+    <!-- Morning Briefs Tab -->
+    <div x-show="tab === 'morning'" class="space-y-4">
+        {% for report in morning_reports %}
+        <details class="glass-card rounded-xl overflow-hidden group" {% if loop.first %}open{% endif %}>
+            <summary class="px-6 py-4 cursor-pointer select-none flex items-center justify-between bg-white/5 hover:bg-white/10 transition-colors list-none">
+                <div class="flex items-center gap-3 text-white font-medium">
+                    <i data-lucide="file-text" class="w-5 h-5 text-accent"></i>
+                    {{ report.name }}
+                </div>
+                <i data-lucide="chevron-down" class="w-5 h-5 text-slate-400 transition-transform group-open:rotate-180"></i>
+            </summary>
+            <div class="px-6 py-6 border-t border-white/5 bg-background/50">
+                <div class="markdown-content prose prose-invert prose-slate max-w-none prose-a:text-accent prose-pre:bg-primary/50 prose-pre:border prose-pre:border-white/5 prose-headings:text-white">
+                    {{ report.content }}
+                </div>
+            </div>
+        </details>
+        {% else %}
+        <div class="bg-blue-500/10 border border-blue-500/20 text-blue-200 p-4 rounded-lg flex items-center gap-3">
+            <i data-lucide="info" class="w-5 h-5 text-blue-400"></i>
+            <p class="text-sm">Aucun Morning Brief trouvé dans morning_brief/output/</p>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Weekend Council Tab -->
+    <div x-show="tab === 'council'" class="space-y-4" style="display: none;">
+        {% for report in council_reports %}
+        <details class="glass-card rounded-xl overflow-hidden group" {% if loop.first %}open{% endif %}>
+            <summary class="px-6 py-4 cursor-pointer select-none flex items-center justify-between bg-white/5 hover:bg-white/10 transition-colors list-none">
+                <div class="flex items-center gap-3 text-white font-medium">
+                    <i data-lucide="gavel" class="w-5 h-5 text-purple-400"></i>
+                    {{ report.name }}
+                </div>
+                <i data-lucide="chevron-down" class="w-5 h-5 text-slate-400 transition-transform group-open:rotate-180"></i>
+            </summary>
+            <div class="px-6 py-6 border-t border-white/5 bg-background/50">
+                <div class="markdown-content prose prose-invert prose-slate max-w-none prose-a:text-accent prose-pre:bg-primary/50 prose-pre:border prose-pre:border-white/5 prose-headings:text-white">
+                    {{ report.content }}
+                </div>
+            </div>
+        </details>
+        {% else %}
+        <div class="bg-blue-500/10 border border-blue-500/20 text-blue-200 p-4 rounded-lg flex items-center gap-3">
+            <i data-lucide="info" class="w-5 h-5 text-blue-400"></i>
+            <p class="text-sm">Aucun rapport du Conseil trouvé dans docs/council_reports/</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Alpine.js for Tabs -->
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        document.querySelectorAll('.markdown-content').forEach(function(element) {
+            const rawMarkdown = element.innerHTML.trim();
+            const parsedHtml = marked.parse(rawMarkdown);
+            element.innerHTML = DOMPurify.sanitize(parsedHtml);
+        });
+        
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+</script>
+<!-- Tailwind Typography plugin -->
+<script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+{% endblock %}

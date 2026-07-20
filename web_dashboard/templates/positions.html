@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+    <div>
+        <h1 class="text-3xl font-bold text-white tracking-tight">Réconciliation des Positions</h1>
+        <p class="text-slate-400 mt-1">Comparatif détaillé entre l'état interne de l'IA et le broker.</p>
+    </div>
+    
+    <div class="flex items-center gap-2 text-sm text-slate-400 bg-primary/30 px-3 py-1.5 rounded-full border border-white/5">
+        <div class="w-2 h-2 rounded-full bg-accent animate-pulse"></div>
+        Live Sync
+    </div>
+</div>
+
+<!-- Macro to display local state card -->
+{% macro render_local_state(title, icon_name, state_dict, is_error=False) %}
+<div class="glass-card rounded-xl overflow-hidden flex flex-col group transition-all duration-300 hover:shadow-lg hover:shadow-black/50">
+    <div class="bg-gradient-to-r from-primary/80 to-secondary/80 border-b border-white/5 px-5 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="p-1.5 bg-blue-500/20 rounded-md text-blue-400">
+                <i data-lucide="{{ icon_name }}" class="w-4 h-4"></i>
+            </div>
+            <h3 class="font-semibold text-white tracking-tight">{{ title }}</h3>
+        </div>
+        <span class="text-[10px] uppercase font-bold tracking-wider text-slate-500 bg-white/5 px-2 py-0.5 rounded">Local</span>
+    </div>
+    <div class="p-5 flex-1 flex flex-col gap-4">
+        {% if is_error or state_dict.get('error') %}
+            <div class="bg-destructive/10 border border-destructive/20 text-destructive-foreground p-3 rounded-lg flex items-start gap-2">
+                <i data-lucide="alert-triangle" class="w-4 h-4 shrink-0 mt-0.5 text-destructive"></i>
+                <p class="text-sm">{{ state_dict.error | default("Erreur de chargement") }}</p>
+            </div>
+        {% else %}
+            <!-- Summary Stats -->
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-background/40 border border-white/5 rounded-lg p-3">
+                    <div class="text-xs text-slate-400 mb-1">Capital Courant</div>
+                    <div class="text-lg font-medium text-white tabular-nums">{{ state_dict.current_capital | round(2) }} €</div>
+                </div>
+                <div class="bg-background/40 border border-white/5 rounded-lg p-3">
+                    <div class="text-xs text-slate-400 mb-1">P&L Réalisé</div>
+                    <div class="text-lg font-medium tabular-nums {% if state_dict.total_realized_pl > 0 %}text-accent{% elif state_dict.total_realized_pl < 0 %}text-destructive{% else %}text-white{% endif %}">
+                        {{ state_dict.total_realized_pl | round(2) }} €
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Active Position -->
+            <div>
+                <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Position Active</div>
+                {% if state_dict.active_position %}
+                    <div class="bg-accent/5 border border-accent/10 rounded-lg p-3">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-accent/20 text-accent uppercase tracking-wider">Ouverte</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-sm">
+                            <div class="text-slate-400">Quantité:</div>
+                            <div class="text-white text-right tabular-nums">{{ state_dict.active_position.quantity | default(0) }}</div>
+                            <div class="text-slate-400">Prix d'entrée:</div>
+                            <div class="text-white text-right tabular-nums">{{ state_dict.active_position.entry_price | default(0) }}</div>
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="bg-background/30 border border-white/5 rounded-lg p-4 flex items-center justify-center text-slate-500 text-sm">
+                        <i data-lucide="minus" class="w-4 h-4 mr-2"></i>
+                        Aucune position ouverte
+                    </div>
+                {% endif %}
+            </div>
+            
+            <!-- Details toggler -->
+            <details class="mt-2 group/details">
+                <summary class="text-xs text-slate-400 hover:text-slate-200 cursor-pointer select-none flex items-center gap-1 transition-colors">
+                    <i data-lucide="code" class="w-3 h-3"></i> 
+                    <span>Voir JSON brut</span>
+                    <i data-lucide="chevron-down" class="w-3 h-3 transition-transform group-open/details:rotate-180 ml-auto"></i>
+                </summary>
+                <pre class="mt-2 bg-[#0d1117] border border-white/5 text-slate-300 p-3 rounded-lg font-mono text-[10px] overflow-x-auto shadow-inner"><code>{{ state_dict | tojson(indent=2) }}</code></pre>
+            </details>
+        {% endif %}
+    </div>
+</div>
+{% endmacro %}
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+    <!-- LOCAL POSITIONS -->
+    <div class="flex flex-col gap-6">
+        <h2 class="text-lg font-semibold text-white border-b border-white/10 pb-2 flex items-center gap-2">
+            <i data-lucide="database" class="w-5 h-5 text-slate-400"></i>
+            État Interne (Base de données)
+        </h2>
+        
+        {{ render_local_state("SXRV.DE (NASDAQ)", "cpu", local_state_qqq) }}
+        {{ render_local_state("CRUDP.PA (WTI)", "droplet", local_state_wti) }}
+    </div>
+
+    <!-- T212 POSITIONS -->
+    <div class="flex flex-col gap-6">
+        <h2 class="text-lg font-semibold text-white border-b border-white/10 pb-2 flex items-center gap-2">
+            <i data-lucide="briefcase" class="w-5 h-5 text-slate-400"></i>
+            Broker (Trading 212)
+        </h2>
+
+        <div class="glass-card rounded-xl overflow-hidden flex flex-col">
+            <div class="bg-gradient-to-r from-accent/10 to-transparent border-b border-accent/20 px-5 py-4 flex items-center gap-3">
+                <div class="p-1.5 bg-accent/20 rounded-md text-accent">
+                    <i data-lucide="gantt-chart" class="w-4 h-4"></i>
+                </div>
+                <h3 class="font-semibold text-white tracking-tight">Portefeuille Réel</h3>
+            </div>
+            
+            <div class="p-5 flex-1">
+                {% if t212_positions is mapping and t212_positions.get('error') %}
+                    <div class="bg-destructive/10 border border-destructive/20 text-destructive-foreground p-4 rounded-lg flex items-start gap-3">
+                        <i data-lucide="alert-triangle" class="w-5 h-5 shrink-0 mt-0.5 text-destructive"></i>
+                        <p class="text-sm">{{ t212_positions.error }}</p>
+                    </div>
+                {% elif t212_positions | length == 0 %}
+                    <div class="bg-blue-500/10 border border-blue-500/20 text-blue-200 p-8 rounded-lg flex flex-col items-center justify-center text-center gap-3">
+                        <i data-lucide="shield-check" class="w-8 h-8 text-blue-400/50"></i>
+                        <p class="text-sm">Aucune position réelle ouverte sur Trading 212. Le portefeuille est liquide.</p>
+                    </div>
+                {% else %}
+                    <div class="flex flex-col gap-4">
+                        {% for pos in t212_positions %}
+                            {% set is_profit = pos.walletImpact.unrealizedProfitLoss > 0 %}
+                            {% set is_loss = pos.walletImpact.unrealizedProfitLoss < 0 %}
+                            
+                            <div class="bg-background/40 border border-white/5 rounded-xl p-4 hover:border-white/10 transition-colors">
+                                <div class="flex justify-between items-start mb-3 border-b border-white/5 pb-3">
+                                    <div>
+                                        <div class="font-semibold text-white text-base">{{ pos.instrument.ticker }}</div>
+                                        <div class="text-xs text-slate-400 mt-0.5">{{ pos.instrument.name }}</div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">P&L Latent</div>
+                                        <div class="font-medium text-lg tabular-nums {% if is_profit %}text-accent{% elif is_loss %}text-destructive{% else %}text-white{% endif %}">
+                                            {% if is_profit %}+{% endif %}{{ pos.walletImpact.unrealizedProfitLoss | round(2) }} {{ pos.walletImpact.currency }}
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
+                                    <div class="flex justify-between">
+                                        <span class="text-slate-500">Quantité</span>
+                                        <span class="text-slate-200 font-medium tabular-nums">{{ pos.quantity }}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-slate-500">Prix Actuel</span>
+                                        <span class="text-slate-200 font-medium tabular-nums">{{ pos.currentPrice }}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-slate-500">PRU</span>
+                                        <span class="text-slate-200 font-medium tabular-nums">{{ pos.averagePricePaid | round(4) }}</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-slate-500">Valeur</span>
+                                        <span class="text-slate-200 font-medium tabular-nums">{{ pos.walletImpact.currentValue | round(2) }} {{ pos.walletImpact.currency }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <details class="mt-6 group/details border-t border-white/5 pt-4">
+                        <summary class="text-xs text-slate-500 hover:text-slate-300 cursor-pointer select-none flex items-center justify-center gap-1 transition-colors">
+                            <i data-lucide="braces" class="w-3 h-3"></i> 
+                            <span>Inspecter la réponse API brute</span>
+                        </summary>
+                        <pre class="mt-3 bg-[#0d1117] border border-white/5 text-slate-400 p-3 rounded-lg font-mono text-[10px] overflow-x-auto shadow-inner"><code>{{ t212_positions | tojson(indent=2) }}</code></pre>
+                    </details>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+</script>
+{% endblock %}
