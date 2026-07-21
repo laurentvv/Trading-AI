@@ -19,7 +19,7 @@
   <br />
   <h1>📈 Hybrid AI Trading System 📈</h1>
   <p>
-    An expert decision-support system for NASDAQ and Oil (WTI) ETF trading, leveraging a 12-model hybrid artificial intelligence for robust and nuanced trading signals.
+    An expert decision-support system for NASDAQ and Oil (WTI) ETF trading, leveraging a 14-model hybrid artificial intelligence for robust and nuanced trading signals.
   </p>
 </div>
 
@@ -62,7 +62,7 @@
 
 ## 🌟 About the Project
 
-This project is an expert decision-support system for ETF trading, using a 12-model hybrid AI approach. It is designed to provide a comprehensive and robust analysis by combining several AI perspectives.
+This project is an expert decision-support system for ETF trading, using a 14-model hybrid AI approach. It is designed to provide a comprehensive and robust analysis by combining several AI perspectives.
 
 ### 🚀 Dual-Ticker Strategy (Analysis vs. Trading)
 The system uses an innovative approach to maximize model accuracy:
@@ -157,9 +157,9 @@ The system leverages a highly robust, multi-tier architecture to ensure maximum 
 - **Integration**: The main daily execution engine (`main.py`) uses Gemini for real-time multi-model consensus, while the asynchronous Weekend Council (`council`) integrates Gemini specifically for certain roles (like the Judge and Sceptique) alongside diverse local Ollama models.
 
 ### 🧠 FinAcumen (Financial Memory)
-L'architecture FinAcumen a été intégrée pour doter les modèles IA locaux d'une **mémoire d'expérience** et d'outils déterministes. Cela résout le problème de l'amnésie des LLMs.
-- FinAcumen fonctionne **de manière asynchrone la nuit** (via `schedule.py`) pour bénéficier de la pleine puissance du CPU sans bloquer les cycles de trading.
-- Son rapport qualitatif profond est automatiquement ajouté au **Morning Market Brief** pour guider le LLM de décision tout au long de la journée de trading.
+The FinAcumen architecture was integrated to equip local AI models with an **experience memory** and deterministic tools. This solves the problem of LLM amnesia.
+- FinAcumen runs **asynchronously at night** (via `schedule.py`) to benefit from full CPU power without blocking trading cycles.
+- Its deep qualitative report is automatically added to the **Morning Market Brief** to guide the decision LLM throughout the trading day.
 
 ## 📂 Project Structure
 
@@ -314,7 +314,7 @@ uv run main.py --t212
 The system includes a **standalone production backtest engine** (`backtest_prod.py`) that replays actual prod signals from `logs_prod/trading_journal.csv` against real prices from `data_cache/` Parquet files.
 
 ### Features
-- **Real signals**: Replays the exact decisions of the 12-model hybrid engine.
+- **Real signals**: Replays the exact decisions of the 14-model hybrid engine.
 - **Real prices**: Uses actual ETF OHLCV data (SXRV.DE, CRUDP.PA) — no US proxies.
 - **T212 fees**: Simulates Trading 212's 0.1% per-trade fee model.
 - **Baseline comparison**: Automatically computes buy-and-hold performance as benchmark.

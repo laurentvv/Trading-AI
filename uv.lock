@@ -3892,7 +3892,7 @@ wheels = [
 
 [[package]]
 name = "timesfm"
-version = "2.0.0"
+version = "2.0.2"
 source = { directory = "vendor/timesfm" }
 dependencies = [
     { name = "huggingface-hub" },
