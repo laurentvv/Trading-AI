@@ -95,12 +95,12 @@ except ImportError:  # pragma: no cover - exercised only without the wheel
 REASONING_CASCADE_PAID = (
     "gemini-2.5-pro",          # Pro: best reasoning, paid-only
     "gemini-3.5-flash",
-    "gemini-3.1-pro",          # 3.1 Pro: strong reasoning
+    "gemini-3.1-pro-preview",  # 3.1 Pro: strong reasoning (preview suffix required)
     "gemini-3-flash-preview",
     "gemini-3.1-flash-lite",   # huge RPD budget
     "gemini-2.5-flash",
-    "gemma-4-31b",             # text-only safety net
-    "gemma-4-26b",
+    "gemma-4-31b-it",          # text-only safety net (-it suffix required)
+    "gemma-4-26b-a4b-it",
 )
 
 # Vision: multimodal only (Gemma excluded).
@@ -118,8 +118,8 @@ REASONING_CASCADE_FREE = (
     "gemini-3-flash-preview",
     "gemini-3.1-flash-lite",
     "gemini-2.5-flash",
-    "gemma-4-31b",
-    "gemma-4-26b",
+    "gemma-4-31b-it",
+    "gemma-4-26b-a4b-it",
 )
 
 VISION_CASCADE_FREE = (
@@ -145,7 +145,7 @@ COUNCIL_MEMBER_CASCADE_FREE = (
     "gemini-2.5-flash",        # primary: fast, strong instruction-following
     "gemini-3.1-flash-lite",   # huge RPD budget, decent reasoning
     "gemini-2.5-flash-lite",
-    "gemma-4-26b",             # text-only safety net
+    "gemma-4-26b-a4b-it",      # text-only safety net (-a4b-it suffix required)
 )
 # The Judge fires ONCE per run but performs the hardest job (synthesising the
 # full transcript into a structured verdict). It runs on the PAID cascade so
@@ -154,13 +154,13 @@ COUNCIL_MEMBER_CASCADE_FREE = (
 COUNCIL_JUDGE_CASCADE_PAID = (
     "gemini-2.5-pro",          # best synthesis, paid-only
     "gemini-3.5-flash",
-    "gemini-3.1-pro",
+    "gemini-3.1-pro-preview",  # (preview suffix required)
     "gemini-2.5-flash",        # safety net within paid tier
 )
 COUNCIL_JUDGE_CASCADE_FREE = (
     "gemini-3.5-flash",
     "gemini-2.5-flash",
-    "gemma-4-26b",
+    "gemma-4-26b-a4b-it",
 )
 
 # JSON schema enforced server-side via ``response_schema``. Mirrors the Ollama

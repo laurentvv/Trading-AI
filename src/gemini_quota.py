@@ -62,12 +62,12 @@ LIMITS_PAID: Dict[str, Tuple[int, int]] = {
     # --- Reasoning / decision tier (text, heaviest budget) ---------------
     "gemini-2.5-pro": (150, 1000),
     "gemini-3.5-flash": (1000, 10000),
-    "gemini-3.1-pro": (25, 250),
+    "gemini-3.1-pro-preview": (25, 250),
     "gemini-3-flash-preview": (1000, 10000),
     "gemini-3.1-flash-lite": (4000, 150000),
     "gemini-2.5-flash": (1000, 10000),
-    "gemma-4-31b": (30, 14400),
-    "gemma-4-26b": (30, 14400),
+    "gemma-4-31b-it": (30, 14400),
+    "gemma-4-26b-a4b-it": (30, 14400),
     # --- Vision tier (multimodal; Gemma excluded — not image-capable) ----
     "gemini-2.0-flash": (2000, 10000),
 }
@@ -81,8 +81,8 @@ LIMITS_FREE: Dict[str, Tuple[int, int]] = {
     "gemini-3-flash-preview": (5, 20),
     "gemini-3.1-flash-lite": (15, 500),
     "gemini-2.5-flash": (5, 20),
-    "gemma-4-31b": (15, 1500),
-    "gemma-4-26b": (15, 1500),
+    "gemma-4-31b-it": (15, 1500),
+    "gemma-4-26b-a4b-it": (15, 1500),
     # --- Vision tier (multimodal) ----------------------------------------
     "gemini-2.0-flash": (5, 20),
     # --- Web-summary tier (text, light) ----------------------------------
@@ -101,8 +101,14 @@ DEFAULT_PAID_DAILY_CAP = 200
 # accumulated; when the 30-day sum hits this budget, all paid models are blocked
 # and calls fall back to the free tier / Ollama. Override via the environment.
 #
-# Default calibrated to the user's stated budget of 8.6 €/month (June 2026).
-DEFAULT_PAID_MONTHLY_BUDGET_EUR = 8.6
+# Set BELOW the Google AI Studio monthly spend cap (~8.6 € as of July 2026).
+# Cost is metered post-call (from usage_metadata after the response returns),
+# so the in-flight call that crosses the threshold is already billed by Google.
+# A ~0.6 € margin (8 € vs 8.6 €) stops the local guard before Google's 429
+# RESOURCE_EXHAUSTED fires — the July 2026 run hit 8.93 € and got blocked
+# server-side because the 8.6 € local budget matched Google's cap with no room
+# for the trailing call. July 2026 billing fix.
+DEFAULT_PAID_MONTHLY_BUDGET_EUR = 8.0
 
 # Window length (days) for the rolling cost budget.
 MONTHLY_BUDGET_WINDOW_DAYS = 30
@@ -121,12 +127,12 @@ PRICE_TABLE_EUR_PER_MTOKEN: Dict[str, Tuple[float, float]] = {
     # --- Reasoning / decision tier (text) --------------------------------
     "gemini-2.5-pro":          (1.85, 11.10),   # $2.00/$12.00 per Mtok
     "gemini-3.5-flash":        (0.28, 1.67),    # $0.30/$1.80
-    "gemini-3.1-pro":          (1.85, 11.10),
+    "gemini-3.1-pro-preview":  (1.85, 11.10),
     "gemini-3-flash-preview":  (0.28, 1.67),
     "gemini-3.1-flash-lite":   (0.09, 0.37),    # $0.10/$0.40
     "gemini-2.5-flash":        (0.09, 0.37),
-    "gemma-4-31b":             (0.09, 0.37),    # approx (open weights, low)
-    "gemma-4-26b":             (0.09, 0.37),
+    "gemma-4-31b-it":          (0.09, 0.37),    # approx (open weights, low)
+    "gemma-4-26b-a4b-it":      (0.09, 0.37),
     # --- Vision tier (multimodal) ----------------------------------------
     "gemini-2.0-flash":        (0.09, 0.37),
 }

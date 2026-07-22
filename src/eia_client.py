@@ -138,22 +138,29 @@ class EIAClient:
         if cached is not None:
             return cached
 
-        # NB: the previous call sorted desc with length=months*10. EIA returns
-        # imports broken down by origin, so the `length` rows were dominated by
-        # a single recent month's origins; after groupby("period") this
-        # collapsed to a 1-row payload pinned at 2026-04-01 — and because
+        # NB: this endpoint returns imports broken down by origin × grade ×
+        # destination, so a SINGLE monthly period spans ~2000-3000 rows. Two
+        # earlier bugs collapsed the payload to one period:
+        #   (1) sort ASC started at the oldest data (2009-01), so `length`
+        #       rows all fell inside one ancient month;
+        #   (2) `length=months*50` (300) was far too small — even one recent
+        #       month needs >2000 rows, so 300 rows never crossed a month
+        #       boundary regardless of sort direction.
+        # After groupby("period") this produced a 1-row payload, and because
         # _save_to_cache bumps the file mtime unconditionally, the mtime-based
-        # TTL hid the degeneracy (file looked "fresh" while 3.5 months stale).
-        # NOTE: /crude-oil-imports/data does NOT accept a `process` facet
-        # (its valid facets are originId/originType/destinationId/
-        # destinationType/gradeId); an earlier revision tried `facets[process]`
-        # and got HTTP 400 on every cycle. Fix: sort asc + raise length so all
-        # months' origins fit before aggregation. July 2026 audit.
+        # TTL hid the degeneracy (file looked "fresh" while years stale).
+        # Fix: sort DESC (recent months first) + length 5000 (the API's hard
+        # cap — verified live) so the response covers the latest ~3 months
+        # before aggregation. The <3-rows guard below still refuses a stale
+        # payload if the source ever shrinks again. July 2026 audit.
+        # NOTE: /crude-oil-imports/data does NOT accept a `process` or
+        # `period` facet (HTTP 400); valid facets are originId/originType/
+        # destinationId/destinationType/gradeId.
         params = {
             "frequency": "monthly",
             "sort[0][column]": "period",
-            "sort[0][direction]": "asc",
-            "length": str(months * 50),  # ~10 origins/month × 6 months, with headroom
+            "sort[0][direction]": "desc",  # recent first (asc started at 2009 → 1 period)
+            "length": "5000",  # API hard cap; ~2000-3000 rows/month → latest ~3 months
             "data[]": "quantity",
         }
         data = self._make_request("/crude-oil-imports/data", params)
