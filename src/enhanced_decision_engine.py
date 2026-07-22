@@ -351,6 +351,13 @@ class EnhancedDecisionEngine:
             "strong_sell": -0.45,
         }
 
+        # Minimum distinct voting models required for a STRONG (BUY/SELL) signal.
+        # Below this count the quorum guard caps the score out of the STRONG
+        # band (see _calculate_weighted_score). 3 = a thin but real consensus;
+        # 2 survivors (e.g. grebenkov + council on SXRV.DE) must not emit
+        # STRONG_BUY just because the adaptive weights inflated them.
+        self.MIN_VOTERS_FOR_STRONG = 3
+
         # Track model performance for weight adjustment
         self.model_performance_history = {}
 
@@ -520,21 +527,50 @@ class EnhancedDecisionEngine:
         voting = [d for d in decisions if d.strength.value != 0]
         if not voting:
             return 0.0
-        total_weight = sum(weights.get(d.model_name, 0.25) for d in decisions)
+        # Sum over the FULL roster (every model the engine was given weights
+        # for), not just the models that produced a decision this cycle. The
+        # previous denominator — sum over `decisions` only — shrank along with
+        # turnout: when most of the roster is structurally absent (oil_bench
+        # off on non-oil tickers, vincent_ganne disabled, several models at
+        # adaptive weight ~0), the denominator collapsed to the few survivors
+        # and voting_weight/total_weight approached 1.0, neutralising the
+        # quorum guard. Three agreeing bullish survivors could then saturate
+        # the renormalised score toward +1.0 and emit STRONG_BUY on no real
+        # consensus (SXRV.DE 2026-07-22 09:02). See July 2026 + ADR-002 +
+        # AGENTS.md §6.0.
+        total_weight = sum(weights.values())
         voting_weight = sum(weights.get(d.model_name, 0.25) for d in voting)
         if voting_weight <= 0:
             return 0.0
-        # Quorum guard: when too little weight voted, normalising would let a
-        # single isolated model swing the score to ±1.0 and trigger a STRONG
-        # signal on no real consensus. 47/294 PROD cycles had <2 voting models
-        # (mostly CRUDP.PA). Below 25% turnout we fall back to the raw (un-
-        # normalised) weighted sum, which stays near 0 → HOLD. Above the quorum
-        # the renormalised score applies in full.
-        if total_weight > 0 and voting_weight / total_weight < 0.25:
+        # Quorum guard (two layers, both required):
+        #  (1) Weight turnout — voting_weight/total_weight < 25%. Catches the
+        #      case where few models are in `decisions` at all.
+        #  (2) Absolute voter count — fewer than MIN_VOTERS_FOR_STRONG distinct
+        #      models voted. NEEDED in addition to (1) because the adaptive
+        #      weight manager renormalises weights over the *survivors* before
+        #      they reach us: when most models sit at weight ~0, the few
+        #      survivors get inflated so voting_weight/total_weight can still
+        #      exceed 0.25 even though only 2 models actually voted. The count
+        #      floor is turnout-independent and blocks a thin consensus from
+        #      saturating the score into a STRONG signal.
+        # Below either quorum we use the raw (un-normalised) weighted sum,
+        # which stays near 0 → HOLD; a STRONG threshold then cannot be reached
+        # without genuine numerical consensus.
+        low_weight_turnout = total_weight > 0 and voting_weight / total_weight < 0.25
+        below_voter_floor = len(voting) < self.MIN_VOTERS_FOR_STRONG
+        if low_weight_turnout or below_voter_floor:
             weighted_score = sum(
                 d.strength.value * d.confidence * weights.get(d.model_name, 0.25)
                 for d in voting
             )
+            # Hard-cap the raw score out of the STRONG band when the voter
+            # floor isn't met: even high-confidence survivors must not emit a
+            # STRONG signal without enough voters behind them. The cap sits
+            # just below the strong_buy / strong_sell magnitudes so the result
+            # can still reach a plain BUY/SELL but never STRONG_*.
+            if below_voter_floor:
+                cap = abs(self.adaptive_thresholds["strong_buy"]) - 1e-9
+                weighted_score = max(-cap, min(cap, weighted_score))
         else:
             weighted_score = sum(
                 d.strength.value * d.confidence * weights.get(d.model_name, 0.25)

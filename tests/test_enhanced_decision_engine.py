@@ -239,6 +239,86 @@ class TestCouncilVoteIntegration(unittest.TestCase):
         council = next(d for d in decision.individual_decisions if d.model_name == "council")
         self.assertEqual(council.confidence, 1.0)
 
+    # --- Quorum guard regression (July 2026 — SXRV.DE STRONG_BUY on 3 survivors)
+    def test_quorum_guard_blocks_strong_signal_on_low_turnout(self):
+        """Few survivors voting must NOT saturate the score into STRONG_BUY.
+
+        Reproduces SXRV.DE 2026-07-22 09:02: with most of the roster absent
+        (oil_bench off on non-oil, vincent_ganne disabled, several models at
+        adaptive weight ~0), only grebenkov + council actually produced a
+        decision. The pre-fix denominator summed `decisions` only, so the
+        turnout ratio approached 1.0 and the renormalised branch saturated the
+        score into STRONG_BUY. With the fix (roster-wide denominator + voter
+        floor + STRONG cap), 2 survivors can still nudge the score toward a
+        plain BUY but cannot emit STRONG_BUY.
+        """
+        weights = dict(self.engine.base_weights)
+        decisions = [
+            self._decision("grebenkov", "STRONG_BUY", 0.95, 2),
+            self._decision("council", "STRONG_BUY", 0.90, 2),
+        ]
+        score = self.engine._calculate_weighted_score(decisions, weights, {})
+        signal = self.engine._determine_final_signal(score)
+        # Capped just below the STRONG band → must NOT be STRONG_BUY.
+        self.assertLess(score, self.engine.adaptive_thresholds["strong_buy"],
+                        f"score {score:.3f} must stay below STRONG_BUY threshold")
+        self.assertNotEqual(signal, "STRONG_BUY",
+                            f"2-model quorum must not emit STRONG_BUY, got {signal}")
+
+    def test_quorum_guard_blocks_strong_on_renormalized_weights(self):
+        """The critical PROD case: adaptive weights renormalised over survivors.
+
+        When most models sit at weight ~0, the adaptive weight manager
+        renormalises the survivors up (grebenkov≈0.45, council≈0.55 here) so
+        voting_weight/total_weight exceeds 0.25 — the weight-quorum alone
+        would NOT fire. The voter-count floor (MIN_VOTERS_FOR_STRONG) is what
+        blocks STRONG here: 2 voters < 3 → score capped out of STRONG band.
+        This is the exact SXRV.DE 2026-07-22 09:02 failure mode.
+        """
+        # Survivors inflated by adaptive renormalisation; everyone else ~0.
+        weights = {
+            "classic": 0.0, "llm_text": 0.0, "llm_visual": 0.0, "sentiment": 0.0,
+            "timesfm": 0.0, "vincent_ganne": 0.0, "oil_bench": 0.0, "tensortrade": 0.0,
+            "grebenkov": 0.455, "hmm_model": 0.0, "council": 0.545,
+        }
+        decisions = [
+            self._decision("grebenkov", "STRONG_BUY", 0.95, 2),
+            self._decision("council", "STRONG_BUY", 0.90, 2),
+        ]
+        score = self.engine._calculate_weighted_score(decisions, weights, {})
+        signal = self.engine._determine_final_signal(score)
+        self.assertLess(score, self.engine.adaptive_thresholds["strong_buy"],
+                        f"capped score {score:.3f} must stay below STRONG_BUY")
+        self.assertNotEqual(signal, "STRONG_BUY",
+                            f"2-voter consensus must not emit STRONG_BUY, got {signal}")
+
+    def test_quorum_guard_allows_signal_on_high_turnout(self):
+        """Counter-regression: a genuine majority voting must still act.
+
+        Ensures the fix didn't over-suppress: when most of the roster votes
+        the same way (>= MIN_VOTERS_FOR_STRONG voters AND turnout > 25%), the
+        renormalised branch applies and a clear bullish consensus still
+        produces a BUY/STRONG_BUY.
+        """
+        weights = dict(self.engine.base_weights)
+        # 8 of 10 models vote BUY/STRONG_BUY — well above both quorum gates.
+        decisions = [
+            self._decision("classic", "BUY", 0.80, 1),
+            self._decision("llm_text", "BUY", 0.75, 1),
+            self._decision("llm_visual", "BUY", 0.70, 1),
+            self._decision("sentiment", "BUY", 0.72, 1),
+            self._decision("timesfm", "STRONG_BUY", 0.85, 2),
+            self._decision("tensortrade", "BUY", 0.65, 1),
+            self._decision("grebenkov", "STRONG_BUY", 0.90, 2),
+            self._decision("hmm_model", "BUY", 0.60, 1),
+        ]
+        score = self.engine._calculate_weighted_score(decisions, weights, {})
+        signal = self.engine._determine_final_signal(score)
+        self.assertGreater(score, self.engine.adaptive_thresholds["buy"],
+                           f"genuine consensus score {score:.3f} should clear BUY threshold")
+        self.assertIn(signal, ("BUY", "STRONG_BUY"),
+                      f"high-turnout bullish consensus must act, got {signal}")
+
 
 if __name__ == "__main__":
     unittest.main()
