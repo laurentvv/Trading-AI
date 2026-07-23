@@ -65,3 +65,9 @@ Ce fichier suit les idées et leur statut pour améliorer le système de trading
     *   **Description :** Rendre le ticker cible configurable.
     *   **Statut :** Inutile
     *   **Priorité :** Faible
+
+12. **Intégration du modèle de fondation Kronos (shiyu-coder/Kronos)**
+    *   **Description :** Ajouter Kronos (modèle pré-entraîné sur K-lines, AAAI 2026, MIT) comme 12ᵉ modèle de décision dans le consensus.
+    *   **Statut :** ⛔ **REJETÉ (2026-07-23)** — Implémenté entièrement puis rejeté après backtest 10 ans sur les tickers PROD (SXRV.DE +17.2% vs Buy&Hold +99.7% ; CRUDP.PA 0% vs +142.9%). Le modèle pré-entraîné sur données intraday 5-min de marchés émergents produit des signaux massivement baissiers (biais mean-reversion) sur nos ETF daily : 0 signal d'achat sur CRUDP.PA en 1279 bars. Détails et conditions de réouverture dans `log.md` [2026-07-23].
+    *   **Priorité :** N/A (piste fermée)
+    *   **Leçon :** Tout nouveau modèle doit passer le bench 10 ans vs Buy&Hold **et** Hold-only avant activation.

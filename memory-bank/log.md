@@ -63,3 +63,34 @@
 - **Test de régression** `tests/test_prod_regression.py` (6 tests) : rejoue les vraies données logs_prod/ → assert SXRV.DE < 50% VERY_HIGH, SELL atteignable, EIA pas de cache dégénéré.
 - **Validation** : 96/96 tests OK (suite mockée complète + régression). `test_bias_removal.py` corrigé par le quorum guard (1 SELL seul → HOLD, pas STRONG_SELL).
 - **Rappel PROD** : supprimer `logs_prod/data_cache/eia/eia_crude_imports.parquet` après `git pull` pour forcer le re-fetch EIA.
+
+## [2026-07-23] eval | ⛔ Kronos (shiyu-coder/Kronos) TESTÉ ET REJETÉ — NE PAS RÉINTÉGRER
+
+> **⚠️ AVERTISSEMENT PERMANENT AUX AGENTS FUTURS** : l'intégration du modèle de fondation **Kronos** (`NeoQuasar/Kronos-base`, repo `shiyu-coder/Kronos`, AAAI 2026, licence MIT) a été **implémentée entièrement puis rejetée** après un backtest 10 ans sur les tickers PROD. **Ne pas réitérer cette expérience** sauf si les conditions de la section "Pour rouvrir" ci-dessous sont réunies.
+
+### Contexte
+Demande explicite d'intégrer Kronos comme 12ᵉ modèle de décision (module `KronosModel(BaseModel)`, vendor `vendor/kronos/`, poids `0.06`, ADR-004). Implémentation complète et techniquement fonctionnelle : 23 tests mockés + 52 tests de régression OK, inférence live validée (~5s/cycle sur CPU), bug `DatetimeIndex.dt` corrigé.
+
+### Pourquoi rejeté — preuve par backtest 10 ans
+Bench `tests/bench_kronos_10y.py` (créé puis supprimé) sur données réelles yfinance (5 ans dispo, ETF n'existent que depuis 2021), rebalance hebdomadaire, frais T212 0.1% :
+
+| Stratégie | SXRV.DE | CRUDP.PA | (ETF haussiers : +100% / +143% sur la période) |
+|---|---|---|---|
+| Buy & Hold | **+99.7%** | **+142.9%** | référence |
+| Kronos | +17.2% | **+0.0%** | loin du marché |
+
+**Cause racine** : Kronos-base est pré-entraîné sur des **K-lines intraday 5-min de marchés émergents** (XSHG/A-shares). Appliqué en **daily sur des ETF européens**, il produit des signaux **massivement baissiers** (biais mean-reversion inadapté) :
+- SXRV.DE : 688 STRONG_SELL / 420 HOLD / **seulement 80 signaux acheteurs** sur 1268 bars.
+- CRUDP.PA : **0 signal d'achat** sur 1279 bars (1160 HOLD, 119 SELL) → 100% cash, 0% de rendement.
+- Magnitudes prédites irréalistes (±27% sur 5 jours) → le modèle extrapole mal hors de son domaine d'entraînement.
+
+### Décision
+Branch `feat/kronos-decision-module` **supprimée**, tous les artefacts retirés (module, tests, vendor, setup, ADR-04). Retour propre à `main`.
+
+### Pour rouvrir (conditions strictes)
+Ne réintégrer Kronos **que si** l'une de ces conditions est démontrable :
+1. **Fine-tuning** sur données daily ETF européens (le modèle pré-entraîné brut est inadapté, mais l'architecture pourrait l'être après réentraînement — coût important).
+2. Usage sur tickers **intraday 5-min** proches du domaine d'entraînement (marchés émergents), pas sur nos ETF daily.
+3. Test préalable d'un **autre checkpoint** (Kronos-small 24.7M, ou un futur modèle daily) avec le même bench 10 ans → ne réintégrer que si Kronos bat Buy&Hold ou au moins Hold-only sur les deux tickers.
+
+**Leçon générale** : tout nouveau modèle de décision doit passer le **bench 10 ans vs Buy&Hold ET Hold-only** sur les tickers PROD avant d'être activé. Un poids conservateur + quorum guard limitent les dégâts mais ne transforment pas un signal non pertinent en valeur ajoutée.
