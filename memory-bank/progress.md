@@ -28,8 +28,10 @@
 - [ ] Synchroniser les traductions i18n (9 langues) avec les mises à jour README.
 
 ## Prochaine Action Immédiate
-- **Audit PROD 2026-07-15 réalisé** : 3 bugs de comportement trouvés (risk manager VERY_HIGH permanent, 0 SELL, EIA stale) → **4 correctifs implémentés et validés** (96/96 tests OK, voir `log.md` 2026-07-15). Après `git pull` PROD : supprimer `logs_prod/data_cache/eia/eia_crude_imports.parquet` puis relancer. Surveiller les prochains cycles : SXRV.DE doit pouvoir trader, des SELL doivent apparaître, le `Risk_Level` doit varier (pas 100% VERY_HIGH).
-- **Review fin juin/août** dès données suffisantes : `uv run python audit_prod_logs.py` → analyser `logs_prod/audit_report.md` (Sharpe / MaxDD / Win Rate / Alpha par ticker) → décider ajustements de poids.
+- **Audit PROD 2026-07-27 réalisé + correctif win_rate** : le gate dur `win_rate < 45%` (`adaptive_weight_manager.py`) neutralisait 8 modèles sur 10 (win_rate structurellement < 45% sur ETF peu volatils car la métrique ADR-002 inclut une dead-zone). Remplacé par une **rampe douce** `WIN_RATE_SOFT_FLOOR=0.25` → `CEIL=0.50` (facteur linéaire) — préserve la diversité de l'ensemble au lieu de l'effondrer à 3 votants. 36/36 tests OK, 0 régression. Détails : `log.md` 2026-07-27, AGENTS.md §6.3.
+- **Reset complet PROD décidé** : vu l'accumulation de bugs (gate non-commité, EIA dégénéré, modèles 404 — ces 2 derniers déjà corrigés par le `git pull` 2026-07-27 50906b6), exécuter après merge du fix win_rate : `git pull` PROD puis `uv run python reset_for_fresh_test.py --dry-run` et `--yes` (DEMO ; `--keep-quota-ledger` si PAID). Premier cycle plus lent (re-download/re-train).
+- **Surveiller après reset** : logs `Réduction de ...` (INFO) au lieu de `🚨 Bloquage` ; ~7 votants significatifs ; diversité restaurée ; SELL doit rester atteignable ; `Risk_Level` doit varier (pas 100% VERY_HIGH).
+- **Review fin août** dès données suffisantes : `uv run python audit_prod_logs.py` → analyser `logs_prod/audit_report.md` (Sharpe / MaxDD / Win Rate / Alpha par ticker) → décider ajustements de poids.
 
 ## Statut des Invariants Critiques (contrôle rapide)
 - [x] Défense JSON bi-couche active aux 4 sites (`<|think|>` préfixe + schema strict + suffixe). *(AGENTS.md §2.1)*

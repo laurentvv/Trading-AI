@@ -94,3 +94,44 @@ Ne réintégrer Kronos **que si** l'une de ces conditions est démontrable :
 3. Test préalable d'un **autre checkpoint** (Kronos-small 24.7M, ou un futur modèle daily) avec le même bench 10 ans → ne réintégrer que si Kronos bat Buy&Hold ou au moins Hold-only sur les deux tickers.
 
 **Leçon générale** : tout nouveau modèle de décision doit passer le **bench 10 ans vs Buy&Hold ET Hold-only** sur les tickers PROD avant d'être activé. Un poids conservateur + quorum guard limitent les dégâts mais ne transforment pas un signal non pertinent en valeur ajoutée.
+
+## [2026-07-27] fix | Rampe douce win_rate remplaçant le gate dur 45% + reset complet PROD
+
+### Contexte — audit logs_prod (snapshot 2026-07-27 11:09)
+L'audit des derniers logs PROD a révélé que **8 modèles sur 10 étaient neutralisés** (`Poids forcé à 0.0`) par le gate dur `win_rate < 45%` (`adaptive_weight_manager.py:670`) :
+- classic 32.9% · hmm 33.2% · llm_text 26.3% · llm_visual 28.2% · oil_bench 25.8% · sentiment 27.5% · tensortrade 34.6% · timesfm 32.4% → **tous bloqués**.
+- Seuls survivants : vincent_ganne (60.4%), grebenkov (44.1%, juste sous le seuil), council.
+- **Conséquence** : l'ensemble s'effondre à 3 votants, la diversité disparaît, et un BUY fragile passe sur CRUDP.PA (confiance 0.19, council SELL) via le `OIL SPECIAL RISK MODE`.
+
+### Cause racine
+Le `win_rate` (ADR-002) est une **précision directionnelle + dead-zone** (`HOLD_NEUTRAL_RETURN_THRESHOLD=0.005`) : un signal n'est compté correct que si la direction **et l'amplitude** dépassent la dead-zone. Sur des ETF européens faiblement volatils (std return ~2%, 26.6% des jours dans la dead-zone), cette métrique est **structurellement < 45%** — même pour des modèles directionnellement corrects. Re-construction depuis la DB PROD :
+- tensortrade : 35.5% (gate) vs **51.4%** en précision directionnelle pure (delta +15.9%).
+- oil_bench : 27.3% vs **40.1%** (+12.8%) · hmm : 34.1% vs 44.5% (+10.3%) · grebenkov : 45.3% vs 51.9%.
+- llm_text (27.1%) et sentiment (28.3%) : réellement mauvais (delta ~0%).
+
+Un **gate dur à 45% sur cette métrique** était donc la mauvaise forme : il tuait de bons modèles sur marchés peu volatils. Le gate binaire n'existait dans aucun code commité (note PR #86 : *"the 'Bloquage' log message exists in no committed code; PROD is running an uncommitted revision"*).
+
+### Correctif — rampe douce (pénalité continue)
+- `src/adaptive_weight_manager.py` : 2 constantes module `WIN_RATE_SOFT_FLOOR=0.25`, `WIN_RATE_SOFT_CEIL=0.50`. Le bloc gate dur `if win_rate < 0.45: weight = 0.0` devient un **facteur multiplicatif linéaire** dans la bande [FLOOR, CEIL] : `(wr − FLOOR)/(CEIL − FLOOR)`, clampé [0, 1]. Sous le FLOOR → 0 (vraiment mauvais tué) ; au-dessus du CEIL → 1.0 (pas de pénalité).
+- **Effet attendu sur les win_rate PROD actuels** : vincent_ganne 60%→1.00, grebenkov 44%→0.77, tensortrade 35%→0.38, classic 33%→0.32, hmm 33%→0.33, timesfm 32%→0.30, llm_visual 28%→0.13, sentiment 28%→0.10, llm_text 26%→0.05, oil_bench 26%→0.03 → **~7 votants significatifs** au lieu de 3 ; les modèles réellement mauvais restent quasi-éteints.
+- La renormalisation existante (`total_smoothed`) est conservée — elle s'applique après le facteur.
+- **Non-redondant** avec `calculate_performance_score` (qui normalise et n'éteint jamais) : la rampe agit en Stage 3 post-smoothing, le score est un ranking relatif continu en Stage 1.
+
+### Test de régression
+`tests/test_adaptive_weight_manager.py::test_soft_winrate_ramp_preserves_diversity` : 3 modèles (strong 0.90 / weak 0.30 / garbage 0.10) → assert weak survie (poids > 0, régression vs gate dur), ranking strong ≥ weak > garbage préservé, garbage (sous FLOOR) = 0.0.
+
+### Validation
+36/36 tests OK (`tests/test_adaptive_weight_manager.py` + `test_enhanced_decision_engine.py` + `test_prod_regression.py`), dont le quorum guard (#86), le SELL reachable, l'EIA non-dégénéré, le risk manager. **0 régression.**
+
+### Décision associée — reset complet PROD
+Vu l'accumulation de bugs (gate non-commité, EIA dégénéré, modèles 404, win_rate pollué par l'historique), l'utilisateur a décidé un **reset complet** via le script existant `reset_for_fresh_test.py` (pas de nouveau script). Wipe total : models entraînés, caches prix, EIA, portfolio, win_rate DB, gemini quota (DEMO). Le prochain cycle retélécharge et réentraîne depuis zéro.
+
+### Déploiement PROD (à exécuter par l'utilisateur)
+Le `git pull` 2026-07-27 a réussi (fast-forward 32df1dd → 50906b6 — corrigeait déjà les modèles 404 + EIA #86). Après merge de ce fix :
+1. `git pull` sur PROD (récupère la rampe douce).
+2. `uv run python reset_for_fresh_test.py --dry-run` puis `--yes` (DEMO → wipe quota OK ; si PAID, passer `--keep-quota-ledger`).
+3. Relancer le pipeline. Premier cycle plus lent (re-download/re-train).
+4. Surveiller : `Réduction de ...` (INFO) au lieu de `🚨 Bloquage` ; ~7 votants ; diversité restaurée.
+
+### Leçon générale
+Un **gate dur sur une métrique à dead-zone** = effondrement d'ensemble sur marchés peu volatils. Toujours préférer une pénalité continue, et calibrer les seuils par rapport à la **distribution empirique** de la métrique, pas une intuition (45% = "bon" est arbitraire pour cette métrique). Documenté dans AGENTS.md §6.3.

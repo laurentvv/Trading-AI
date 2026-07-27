@@ -17,6 +17,16 @@ logger = logging.getLogger(__name__)
 # correct when the market barely moved (|return_1d| below this value).
 HOLD_NEUTRAL_RETURN_THRESHOLD = 0.005
 
+# Soft win-rate penalty (replaces the former hard 45% kill switch, 2026-07-27).
+# Models below WIN_RATE_SOFT_FLOOR are fully suppressed (genuinely bad models);
+# between FLOOR and CEIL the weight is scaled linearly; at/above CEIL no
+# penalty. A hard cliff collapsed the ensemble to ~3 voters on low-volatility
+# European ETF markets — the directional dead-zone (above) keeps the metric
+# structurally below 45% there, so a step at 45% was the wrong shape. See the
+# 2026-07-27 PROD audit in memory-bank/log.md and AGENTS.md §6.3.
+WIN_RATE_SOFT_FLOOR = 0.25
+WIN_RATE_SOFT_CEIL = 0.50
+
 
 def _signal_correct_mask(df: pd.DataFrame) -> pd.Series:
     """Return a boolean mask: was each prediction directionally correct?
@@ -664,12 +674,35 @@ class AdaptiveWeightManager:
             base_weight = self.base_weights[model]
             smoothed_weights[model] = smoothing_factor * new_weight + (1 - smoothing_factor) * base_weight
 
-        # ENFORCE RULE: Block models with win_rate < 45%
+        # SOFT win-rate penalty (replaces the former hard 45% kill switch,
+        # 2026-07-27). The directional dead-zone (HOLD_NEUTRAL_RETURN_THRESHOLD)
+        # keeps win_rate structurally below 45% on low-volatility ETF markets,
+        # so a step at 45% was the wrong shape — it collapsed the ensemble to
+        # ~3 voters. Now we scale continuously between FLOOR (suppressed) and
+        # CEIL (unpenalised): a poor-but-directional model keeps a reduced
+        # voice, a genuinely bad one is still silenced.
         for model in self.base_weights.keys():
             perf = all_performances.get(model)
-            if perf is not None and 0 <= perf.win_rate < 0.45:
-                logger.warning(f"🚨 Bloquage de {model} : win_rate ({perf.win_rate:.2%}) inférieur à 45%. Poids forcé à 0.0.")
-                smoothed_weights[model] = 0.0
+            if perf is not None and perf.win_rate >= 0:
+                wr = perf.win_rate
+                if wr < WIN_RATE_SOFT_CEIL:
+                    factor = max(
+                        0.0,
+                        (wr - WIN_RATE_SOFT_FLOOR)
+                        / (WIN_RATE_SOFT_CEIL - WIN_RATE_SOFT_FLOOR),
+                    )
+                    smoothed_weights[model] *= factor
+                    if factor < 0.1:
+                        logger.warning(
+                            f"Réduction forte de {model} : win_rate {wr:.2%} "
+                            f"→ facteur {factor:.2f} (sous le plancher "
+                            f"{WIN_RATE_SOFT_FLOOR:.0%})."
+                        )
+                    else:
+                        logger.info(
+                            f"Réduction de {model} : win_rate {wr:.2%} "
+                            f"→ facteur {factor:.2f}."
+                        )
 
         total_smoothed = sum(smoothed_weights.values())
         if total_smoothed > 0:

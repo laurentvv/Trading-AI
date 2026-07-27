@@ -137,6 +137,16 @@ The end-of-June decision-model audit (`docs/ADR-002-decision-model-quality-audit
 
 **Still open after ADR-002:** isotonic TensorTrade recalibration (current cap is interim), upstream sentiment-data skew, unifying the two `regime_adjustments` dicts, `return_5d` population.
 
+### 6.3 Resolved follow-ups (27 July 2026 — win-rate soft ramp + PROD reset)
+
+The 27 July 2026 PROD audit (`logs_prod/trading.log` snapshot) found the ensemble had **collapsed to 3 voters** because a hard `win_rate < 45%` gate (`adaptive_weight_manager.py`) had force-zeroed **8 of 10 models**. Root cause + fix:
+
+- **Hard win-rate gate killed the ensemble on low-volatility markets** (`adaptive_weight_manager.py`, the block formerly labelled `# ENFORCE RULE: Block models with win_rate < 45%`) — the `win_rate` metric (ADR-002) is a *directional accuracy + dead-zone* (`HOLD_NEUTRAL_RETURN_THRESHOLD=0.005`): a signal counts as correct only if the **direction AND magnitude** exceed the dead-zone. On low-volatility European ETFs (~26.6% of days fall inside the dead-zone, std return ~2%), this metric is **structurally below 45%** even for directionally-correct models. Reconstruction from the PROD DB: tensortrade scored 35.5% under the gate but **51.4%** on pure directional accuracy (delta +15.9%); oil_bench 27.3% vs 40.1%; hmm 34.1% vs 44.5%. A *step at 45%* was therefore the wrong shape. **Fix**: replaced the binary kill with a **continuous soft ramp** — two module constants `WIN_RATE_SOFT_FLOOR=0.25` / `WIN_RATE_SOFT_CEIL=0.50`; the smoothed weight is multiplied by a linear factor `(wr − FLOOR)/(CEIL − FLOOR)` clamped to `[0,1]`. Below FLOOR → silenced (genuinely bad models); in-band → reduced but non-zero (preserves diversity); at/above CEIL → unpenalised. Non-redundant with `calculate_performance_score` (a relative ranking that never zeroes) — the ramp acts post-smoothing. Regression test `tests/test_adaptive_weight_manager.py::test_soft_winrate_ramp_preserves_diversity`.
+- **`git pull` 2026-07-27 (fast-forward 32df1dd → 50906b6)** deployed on PROD the two earlier fixes that had been blocked by a local `README.md` conflict: the **stale Gemini model names** (#86 — `gemini-3.1-pro`/`gemma-4-31b`/`gemma-4-26b` → `-preview`/`-it`/`-a4b-it`; eliminated the 189× 404 per cycle) and the **EIA `crude_imports` degenerate payload** (#86 — `sort DESC` + `length=5000`).
+- **PROD full reset decided** (cumulative bugs): `uv run python reset_for_fresh_test.py --yes` (DEMO; `--keep-quota-ledger` on PAID to avoid a Gemini-budget overspend). This wipes `data_cache/` entirely, so it also serves as the EIA-cache invalidation — no separate `data_cache/eia/eia_crude_imports.parquet` deletion needed.
+
+> **General lesson:** a *hard gate on a dead-zone metric* collapses the ensemble on low-volatility markets. Prefer a continuous penalty, and calibrate thresholds against the **empirical distribution** of the metric, not an intuition ("45% = good" is arbitrary for this metric). The hard gate had also never been committed — PROD was running an uncommitted revision (PR #86 note: *"the 'Bloquage' log message exists in no committed code"*) — a reminder to never let uncommitted behavioural changes reach PROD.
+
 ---
 
 ## 7. Tooling scripts
