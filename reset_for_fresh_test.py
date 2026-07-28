@@ -70,8 +70,9 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import shutil
-import sys
 from pathlib import Path
+
+from reset_lib import dry_run_or_confirm
 
 REPO_ROOT = Path(__file__).resolve().parent
 BACKUP_ROOT = REPO_ROOT / "reset_backup"
@@ -132,16 +133,6 @@ WIPE_DIRS = [
 
 # File preserved inside data_cache/ ONLY when --keep-quota-ledger is passed.
 KEEP_QUOTA_LEDGER_NAME = "gemini_quota.db"
-
-
-def _confirm(prompt: str, assume_yes: bool) -> bool:
-    if assume_yes:
-        return True
-    try:
-        answer = input(f"{prompt} [y/N] ").strip().lower()
-    except EOFError:
-        return False
-    return answer in ("y", "yes", "o", "oui")
 
 
 def _backup_timestamp() -> str:
@@ -418,17 +409,13 @@ def main() -> int:
         print(f"  [keep] {k}{'/' if is_dir else ''}")
     print("  [keep] *.py *.md *.toml *.yaml *.bat *.lock (fichiers source/config)")
 
-    print()
-    if args.dry_run:
-        print("[DRY-RUN] Termine. Relancez sans --dry-run pour executer.")
-        return 0
-
-    if not _confirm(
-        "\nConfirmer le VIDAGE COMPLET ? (tout est backup puis efface)",
+    gate = dry_run_or_confirm(
+        args.dry_run,
         args.yes,
-    ):
-        print("Annule. Aucune modification effectuee.")
-        return 1
+        "\nConfirmer le VIDAGE COMPLET ? (tout est backup puis efface)",
+    )
+    if gate is not None:
+        return gate
 
     # ---- Real execution --------------------------------------------------
     stamp = _backup_timestamp()

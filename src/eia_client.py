@@ -132,7 +132,17 @@ class EIAClient:
         return self._load_disk_cache_fallback(cache_key)
 
     def get_crude_imports(self, months: int = 6) -> pd.DataFrame:
-        """Fetches US Crude Oil Imports data from EIA v2."""
+        """Fetches US Crude Oil Imports data from EIA v2.
+
+        Args:
+            months: requested number of months of history. Currently a soft
+              hint only — the request always pulls the API's hard cap of 5000
+              rows (the latest ~3 months after aggregation) because the
+              origin × grade × destination breakdown means a single month
+              already spans ~2000-3000 rows. Kept in the signature for API
+              compatibility; the <3-rows guard below enforces a sane floor.
+        """
+        _ = months  # API-compat param (see docstring); currently a soft hint only
         cache_key = "crude_imports"
         cached = self._get_from_cache(cache_key, 24)  # 24h TTL for monthly data
         if cached is not None:

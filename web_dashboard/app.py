@@ -71,8 +71,8 @@ def read_root(request: Request, username: Annotated[str, Depends(get_current_use
     logs = get_recent_logs()
     return templates.TemplateResponse(request=request, name="index.html", context={"username": username, "logs": logs})
 
-import sqlite3
-import pandas as pd
+import sqlite3  # noqa: E402  -- must run after sys.path.insert above
+import pandas as pd  # noqa: E402
 
 def get_db_connection():
     db_path = Path(BASE_DIR.parent) / "trading_history.db"
@@ -146,7 +146,7 @@ def read_reports(request: Request, username: Annotated[str, Depends(get_current_
         "council_reports": council_reports
     })
 
-from src.t212_executor import load_portfolio_state, get_t212_positions
+from src.t212_executor import load_portfolio_state, get_t212_positions  # noqa: E402
 
 @app.get("/positions")
 def read_positions(request: Request, username: Annotated[str, Depends(get_current_username)]):

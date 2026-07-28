@@ -61,8 +61,6 @@ from typing import Any, Dict, Optional, Tuple
 from dotenv import load_dotenv
 
 from src.gemini_quota import (
-    LIMITS_FREE,
-    LIMITS_PAID,
     QuotaTracker,
     TIER_FREE,
     TIER_PAID,

@@ -21,27 +21,17 @@ import subprocess
 import sys
 
 from src.council.council_prompts import JUDGE_MODEL, MEMBER_MODELS
+from src.council.ollama_helpers import is_model_installed
 
 # The canonical default model is also required as the universal fallback.
 from src.llm_client import TEXT_LLM_MODEL
 
+# Keep the local name for callers (alias to the shared helper).
+model_installed = is_model_installed
+
 # Models routed to the cloud (prefixed "gemini:") are never installed locally —
 # they hit the Google Gemini API via GeminiGateway and only need an API key.
 CLOUD_PREFIX = "gemini:"
-
-
-def model_installed(model: str) -> bool:
-    """Checks whether a model is already present in the local Ollama."""
-    try:
-        import requests
-
-        resp = requests.get("http://localhost:11434/api/tags", timeout=5)
-        if resp.status_code != 200:
-            return False
-        installed = {m.get("name", "") for m in resp.json().get("models", [])}
-        return model in installed
-    except Exception:
-        return False
 
 
 def main() -> int:
@@ -62,7 +52,7 @@ def main() -> int:
     print("Weekend Council — installation des modèles Ollama")
     print("=" * 70)
     if cloud_models:
-        print(f"\n☁  Modèles cloud (Gemini API, pas de pull local) :")
+        print("\n☁  Modèles cloud (Gemini API, pas de pull local) :")
         for m in cloud_models:
             tier = "payante" if "pro" in m.lower() else "gratuite"
             print(f"     - {m}  (clé {tier} via .env)")

@@ -192,7 +192,14 @@ def compute_call_cost_eur(
 
     The free tier is unmetered — callers should not record a cost for free-tier
     calls (``record()`` ignores ``cost_eur`` when ``tier == free``).
+
+    Args:
+        model: model id (must be a key in PRICE_TABLE_EUR_PER_MTOKEN).
+        usage_metadata: token counts from the SDK response.
+        output_chars: reserved API parameter, currently unused (kept for a
+          possible future char-based fallback when token counts are absent).
     """
+    _ = output_chars  # API-compat param (see docstring); reserved for future use
     if model not in PRICE_TABLE_EUR_PER_MTOKEN:
         return 0.0  # unknown model — no price entry, daily-cap backstop covers it
     in_price, out_price = PRICE_TABLE_EUR_PER_MTOKEN[model]
