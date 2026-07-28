@@ -135,3 +135,37 @@ Le `git pull` 2026-07-27 a réussi (fast-forward 32df1dd → 50906b6 — corrige
 
 ### Leçon générale
 Un **gate dur sur une métrique à dead-zone** = effondrement d'ensemble sur marchés peu volatils. Toujours préférer une pénalité continue, et calibrer les seuils par rapport à la **distribution empirique** de la métrique, pas une intuition (45% = "bon" est arbitraire pour cette métrique). Documenté dans AGENTS.md §6.3.
+
+## [2026-07-28] fix | Sur-correction ADR-002 : biais bearish (classic dead-band, prompt visual, pipeline sentiment)
+
+### Contexte — audit logs_prod (1 jour, 30 cycles, 27-28 juillet)
+Après le déploiement de la rampe douce win_rate (`f22bbfc`), 1 jour de PROD a révélé que **3 modèles n'émettaient jamais de BUY** : `classic` (0/30), `llm_visual` (0/30), `sentiment` (0/30, toujours HOLD). Le marché baissier de la période (-3.1% le 27, -0.6% le 28) justifie les SELL, mais le 0 BUY est **structurel** (sur un marché haussier, classic n'atteindrait toujours pas 0.58, llm_visual exigerait toujours un "textbook pattern"). Deux investigations root-cause (agents Explore) convergent : le correctif ADR-002 (juin 2026, anti-biais-bullish) a **sur-corrigé** en 3 endroits indépendants, créant un biais bearish symétrique.
+
+### Correctif 1 — `src/classic_model.py` : dead-band + calibration
+**Problème** : BUY nécessitait `proba(1) ≥ 0.58` (dead-band `CLASSIC_HOLD_MARGIN=0.08` autour de 0.5) + la calibration **isotonic** aplatit proba vers 0.5 sur un classifieur faible (F1≈0.32, recall≈0.25) → 0.58 inaccessible → 0 BUY / 30 cycles. SELL toujours à 0.650 (cap).
+**Fix** : `CLASSIC_HOLD_MARGIN` 0.08 → **0.04** (BUY requiert proba ≥ 0.54, dead-band symétrique 16→8 points) + calibration **isotonic → sigmoid** (Platt scaling, aplatit moins sur classifieur faible). Cap `CLASSIC_CONFIDENCE_CAP=0.65` inchangé (garde le plafond anti-overconfidence ADR-002).
+
+### Correctif 2 — `src/gemini_gateway.py` + `src/llm_client.py` : prompt visual symétrisé
+**Problème** : le prompt `_CHART_ANALYST_PROMPT` forçait HOLD sur "ambiguous, mixed, or mostly sideways" (barre basse = presque tout) et exigeait "textbook unmistakable pattern + >0.7 confidence" pour BUY/SELL (barre très haute) + temperature 0.4 (conservateur) → 0 BUY / 30 cycles.
+**Fix** : instructions symétrisées — BUY sur "recognizable uptrend (higher lows, breakout above resistance)", SELL sur "recognizable downtrend", HOLD "ONLY when genuinely directionless", "apply the SAME confidence standard to BUY and SELL". Temperature 0.4 → **0.6** (analyse_chart Gemini + Ollama fallback). Identique dans les 2 fichiers.
+
+### Correctif 3 — `src/news_fetcher.py` : 3 bugs sentiment (sentiment_score toujours ~0)
+**Bug A — rate-limit silencieux** (ligne 60) : sur `Information`, l'ancien code faisait `break` → retournait 0 sans signaler clairement. **Fix** : WARNING explicite + `continue` (préserve les headlines collectées des requêtes précédentes).
+**Bug B — AlphaEar crash silencieux** (ligne 99) : `get_unified_trends()` retourne une STRING markdown, pas une liste de dicts ; itérer dessus avec `.get("title","")` → `AttributeError` → `except Exception` silencieux → AlphaEar n'a jamais contribué. **Fix** : appel `fetch_hot_news(source_id)` qui retourne `List[Dict]` avec clé `"title"` (confirmé dans `news_tools.py:46`), + logger les erreurs.
+**Bug C — moyenne non-filtrée** (ligne 68) : l'ancienne boucle sommait `ticker_sentiment_score` de TOUS les tickers mentionnés dans chaque article (SPY, MSFT dans une story oil) → diluait le score vers ~0.10. **Fix** : filtrer les rows dont `ticker` matche le ticker cible. Si 0 match, retourner 0 (no signal) plutôt que la moyenne bruitée.
+**Bonus** : branche morte supprimée (`elif gn_headlines` / `else` identiques).
+
+### Test de régression
+`tests/test_classic_model.py` : 2 nouveaux tests `test_buy_signal_reachable_on_bullish_features` (features bullish fortes → pred_int == 1) et `test_sell_signal_reachable_on_bearish_features` (features bearish fortes → pred_int == 0). Ce test aurait empêché le bug de passer inaperçu (il aurait échoué sur l'ancien isotonic+0.08). Les tests ADR-002 existants (`TestBaisRemovalInvariants`) pinnaient la *symétrie des thresholds* mais pas la *reachability des signaux* depuis les modèles calibrés/promptés — c'est exactement la faille.
+
+### Validation
+45/45 tests OK (`test_classic_model` + `test_llm_prompts` + `test_enhanced_decision_engine` + `test_prod_regression` + `test_adaptive_weight_manager`), dont le quorum guard, le SELL reachable, l'EIA non-dégénéré, la rampe win_rate, et les nouveaux tests BUY/SELL reachable. **0 régression.**
+
+### Déploiement PROD (à exécuter par l'utilisateur)
+1. `git pull` sur PROD.
+2. **Pas de reset complet** — `model_performance.db` est valide (30 cycles, données réelles). Les win_rate se recalculeront avec les nouveaux comportements.
+3. **Invalidation cache classic** : supprimer `data_cache/models/classic_*.pkl` sur PROD (le modèle sera retrained au prochain cycle avec la calibration sigmoid). Ne pas toucher aux autres caches.
+4. Relancer. Surveiller : classic doit émettre quelques BUY ; llm_visual idem ; sentiment doit dépasser 0.15 sur certaines journées (quand l'API news renvoie du signal directionnel).
+
+### Leçon générale
+Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-corrige. Toujours valider non seulement que l'ancien biais disparaît, mais que la **reachability** des signaux dans les deux directions est préservée — par un test de bout en bout sur fixtures bull ET bear, pas seulement par la symétrie des thresholds. Documenté dans AGENTS.md §6.4.

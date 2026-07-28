@@ -57,16 +57,29 @@ def fetch_alpha_vantage_news(ticker: str, api_key: str):
             response.raise_for_status()
             data = response.json()
 
-            if "Information" in data and "limit" in data.get("Information", ""):
-                logger.warning("Limite Alpha Vantage atteinte, arret des requetes.")
-                break
+            # Bug A fix (July 2026): the old `break` on rate-limit silently zeroed
+            # the score AND discarded headlines collected from earlier successful
+            # queries. Now log explicitly and `continue` to preserve what we have.
+            if "Information" in data:
+                logger.warning(
+                    f"Alpha Vantage rate-limit/notice for query '{query}': "
+                    f"{str(data.get('Information', ''))[:120]}. Skipping this query."
+                )
+                continue
 
             for item in data.get("feed", []):
                 title = item.get("title", "")
                 if title and title not in all_headlines:
                     all_headlines.append(title)
+                # Bug C fix (July 2026): the old loop summed ticker_sentiment_score
+                # across ALL tickers mentioned in each article (e.g. SPY, MSFT in an
+                # oil story), diluting the score toward 0. Now filter to rows whose
+                # ticker field matches the target ticker.
                 for sentiment in item.get("ticker_sentiment", []):
                     try:
+                        sent_ticker = str(sentiment.get("ticker", "")).upper()
+                        if sent_ticker and sent_ticker != ticker.upper():
+                            continue
                         total_sentiment += float(sentiment.get("ticker_sentiment_score", 0))
                         sentiment_count += 1
                     except (ValueError, TypeError):
@@ -91,14 +104,28 @@ def fetch_alpha_ear_trends():
 
     try:
         tools = NewsNowTools()
-        # Aggregating news from multiple financial sources
-        trends = tools.get_unified_trends(sources=["cls", "weibo", "wallstreetcn"])
-
-        # Simple sentiment heuristic for AlphaEar (can be enhanced with another LLM call)
-        # For now, we return the headlines and a neutral/positive default if trends exist
-        headlines = [t.get("title", "") for t in trends if t.get("title")]
-        return headlines, 0.1 if headlines else 0
-    except Exception:
+        # Bug B fix (July 2026): the old call used `get_unified_trends()` which
+        # returns a Markdown STRING, then iterated it with `.get("title", "")` —
+        # iterating a string yields characters, `.get` raised AttributeError, and
+        # the bare `except` swallowed it silently (so AlphaEar never contributed).
+        # Now call `fetch_hot_news()` per source, which returns List[Dict] with a
+        # "title" key (confirmed in news_tools.py).
+        headlines = []
+        for source_id in ("cls", "wallstreetcn"):
+            try:
+                items = tools.fetch_hot_news(source_id, count=10)
+                for it in items:
+                    t = it.get("title", "")
+                    if t:
+                        headlines.append(t)
+            except Exception as e:
+                logger.warning(f"AlphaEar fetch_hot_news('{source_id}') failed: {e}")
+                continue
+        # No per-article sentiment score from this source; neutral default when
+        # headlines exist so it contributes context without biasing the score.
+        return headlines, 0.0
+    except Exception as e:
+        logger.warning(f"AlphaEar trends failed: {e}")
         return [], 0
 
 
@@ -146,11 +173,12 @@ if __name__ == "__main__":
 
     # Merge results
     all_headlines = av_headlines + ae_headlines + gn_headlines
-    # Weighted average
+    # Weighted average. The old `elif gn_headlines` / `else` branches were
+    # identical (both = ae_sentiment) so gn_sentiment was never used — dead code.
+    # Google News RSS provides no per-ticker sentiment (returns 0.0), so when AV
+    # is empty we fall back to the neutral AlphaEar default.
     if av_headlines:
         final_sentiment = (av_sentiment * 0.7) + (ae_sentiment * 0.3)
-    elif gn_headlines:
-        final_sentiment = ae_sentiment
     else:
         final_sentiment = ae_sentiment
 

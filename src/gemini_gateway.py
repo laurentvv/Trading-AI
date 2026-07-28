@@ -185,8 +185,10 @@ ACT AS A PROFESSIONAL CHART ANALYST. Analyze the attached price chart image.
 3. Indicators: Look at the visual shape of indicators (RSI divergences, MACD crossovers).
 
 IMPORTANT: Your role is purely geometric and visual validation.
-- If the chart is ambiguous, mixed, or mostly sideways, you MUST output "HOLD" with low confidence (< 0.5).
-- Reserve "BUY" or "SELL" with high confidence (> 0.7) ONLY for textbook, unmistakable patterns.
+- Output "BUY" when you see a recognizable uptrend (higher lows, breakout above resistance).
+- Output "SELL" when you see a recognizable downtrend (lower highs, breakdown below support).
+- Output "HOLD" ONLY when the chart is genuinely directionless (no clear trend or pattern).
+- Apply the SAME confidence standard to BUY and SELL (do not demand stronger evidence for one direction).
 """
 
 _FINANCIAL_ANALYST_SYSTEM = (
@@ -407,7 +409,7 @@ class GeminiGateway:
             contents,
             paid_cascade=VISION_CASCADE_PAID,
             free_cascade=VISION_CASCADE_FREE,
-            temperature=0.4,
+            temperature=0.6,
             max_output_tokens=1024,
             system_instruction="You are an objective geometric chart analyst. " + _NO_THOUGHT_SUFFIX,
             json_schema=_TRADING_DECISION_SCHEMA,

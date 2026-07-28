@@ -18,12 +18,19 @@ logger = logging.getLogger(__name__)
 _MODEL_CACHE_DIR = Path("data_cache") / "models"
 _MODEL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-# --- Classic-model bias mitigation (June 2026 audit) ---
+# --- Classic-model bias mitigation (June 2026 audit, revised July 2026) ---
 # The classifier's predict_proba is uncalibrated and overconfident (tree
 # ensembles cluster near 1.0), and the model had no neutral class. These two
 # constants add a HOLD band and a confidence ceiling to stop classic from
 # inflating the consensus weighted_score and driving a structural BUY bias.
-CLASSIC_HOLD_MARGIN = 0.08      # |max_proba - 0.5| below this -> HOLD
+#
+# July 2026 revision (ADR-002 over-correction): the original HOLD_MARGIN=0.08
+# combined with isotonic calibration made BUY unreachable in PROD (0 BUY over
+# 30 cycles — isotonic flattens proba toward 0.5 on a weak classifier, so
+# proba(1) never cleared the 0.58 threshold). Margin reduced 0.08 -> 0.04 and
+# calibration switched isotonic -> sigmoid (Platt), which preserves more
+# probability spread. The confidence cap stays (still anti-overconfidence).
+CLASSIC_HOLD_MARGIN = 0.04      # |max_proba - 0.5| below this -> HOLD
 CLASSIC_CONFIDENCE_CAP = 0.65   # cap raw argmax probability
 
 
@@ -116,9 +123,9 @@ def _calibrate_model(base_estimator, X, y):
         from sklearn.model_selection import TimeSeriesSplit
 
         # base_estimator must be unfitted — CalibratedClassifierCV clones it per fold.
-        calib = CalibratedClassifierCV(base_estimator, method="isotonic", cv=TimeSeriesSplit(n_splits=3))
+        calib = CalibratedClassifierCV(base_estimator, method="sigmoid", cv=TimeSeriesSplit(n_splits=3))
         calib.fit(X, y)
-        logger.info("Calibration isotonic appliquée au modèle classique (TimeSeriesSplit).")
+        logger.info("Calibration sigmoid (Platt) appliquée au modèle classique (TimeSeriesSplit).")
         return calib
     except Exception as e:
         logger.warning(f"Calibration isotonic échouée (fallback modèle brut): {e}")

@@ -544,9 +544,11 @@ def get_visual_llm_decision(image_path: Path) -> ModelResult:
     3. Indicators: Look at the visual shape of indicators (RSI divergences, MACD crossovers).
 
     IMPORTANT: Your role is purely geometric and visual validation.
-    - If the chart is ambiguous, mixed, or mostly sideways, you MUST output "HOLD" with low confidence (< 0.5).
-    - Reserve "BUY" or "SELL" with high confidence (> 0.7) ONLY for textbook, unmistakable patterns.
-    
+    - Output "BUY" when you see a recognizable uptrend (higher lows, breakout above resistance).
+    - Output "SELL" when you see a recognizable downtrend (lower highs, breakdown below support).
+    - Output "HOLD" ONLY when the chart is genuinely directionless (no clear trend or pattern).
+    - Apply the SAME confidence standard to BUY and SELL (do not demand stronger evidence for one direction).
+
     Output ONLY a valid JSON object exactly like this:
     {
       "signal": "BUY|SELL|HOLD",
@@ -561,7 +563,7 @@ def get_visual_llm_decision(image_path: Path) -> ModelResult:
         "images": [image_base64],
         "stream": False,
         "format": SCHEMA_TRADING_DECISION,
-        "options": {"temperature": 0.4, "num_predict": 1024},
+        "options": {"temperature": 0.6, "num_predict": 1024},
         "system": "<|think|> You are an objective geometric chart analyst. Return ONLY the requested JSON object — never add a 'thought' key.",
     }
 

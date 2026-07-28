@@ -28,9 +28,9 @@
 - [ ] Synchroniser les traductions i18n (9 langues) avec les mises à jour README.
 
 ## Prochaine Action Immédiate
-- **Audit PROD 2026-07-27 réalisé + correctif win_rate** : le gate dur `win_rate < 45%` (`adaptive_weight_manager.py`) neutralisait 8 modèles sur 10 (win_rate structurellement < 45% sur ETF peu volatils car la métrique ADR-002 inclut une dead-zone). Remplacé par une **rampe douce** `WIN_RATE_SOFT_FLOOR=0.25` → `CEIL=0.50` (facteur linéaire) — préserve la diversité de l'ensemble au lieu de l'effondrer à 3 votants. 36/36 tests OK, 0 régression. Détails : `log.md` 2026-07-27, AGENTS.md §6.3.
-- **Reset complet PROD décidé** : vu l'accumulation de bugs (gate non-commité, EIA dégénéré, modèles 404 — ces 2 derniers déjà corrigés par le `git pull` 2026-07-27 50906b6), exécuter après merge du fix win_rate : `git pull` PROD puis `uv run python reset_for_fresh_test.py --dry-run` et `--yes` (DEMO ; `--keep-quota-ledger` si PAID). Premier cycle plus lent (re-download/re-train).
-- **Surveiller après reset** : logs `Réduction de ...` (INFO) au lieu de `🚨 Bloquage` ; ~7 votants significatifs ; diversité restaurée ; SELL doit rester atteignable ; `Risk_Level` doit varier (pas 100% VERY_HIGH).
+- **Audit PROD 2026-07-28 réalisé + correctif biais bearish (sur-correction ADR-002)** : après 1 jour de PROD post-reset, 3 modèles n'émettaient jamais de BUY (classic 0/30, llm_visual 0/30, sentiment 0/30). Le correctif ADR-002 (anti-biais-bullish) avait sur-corrigé en 3 endroits. **3 correctifs implémentés** : (1) classic dead-band 0.08→0.04 + isotonic→sigmoid ; (2) prompt visual symétrisé + temp 0.4→0.6 ; (3) 3 bugs sentiment (rate-limit silencieux, AlphaEar cassé, moyenne non-filtrée). 45/45 tests OK, 0 régression, 2 nouveaux tests BUY/SELL-reachable. Détails : `log.md` 2026-07-28, AGENTS.md §6.4.
+- **Déploiement PROD** : `git pull` puis supprimer `data_cache/models/classic_*.pkl` (retrain sigmoid au prochain cycle). **Pas de reset complet** (`model_performance.db` valide).
+- **Surveiller après pull** : classic et llm_visual doivent émettre quelques BUY au fil des cycles ; sentiment doit dépasser 0.15 sur certaines journées. Si biais bearish persiste après 1 semaine, investiguer plus profond.
 - **Review fin août** dès données suffisantes : `uv run python audit_prod_logs.py` → analyser `logs_prod/audit_report.md` (Sharpe / MaxDD / Win Rate / Alpha par ticker) → décider ajustements de poids.
 
 ## Statut des Invariants Critiques (contrôle rapide)
