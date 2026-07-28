@@ -40,6 +40,7 @@ from src.council.council_prompts import (
 )
 from src.database import DB_PATH
 from src.llm_client import OLLAMA_BASE_URL, TEXT_LLM_MODEL, strip_thinking_debris
+from src.council.ollama_helpers import is_model_installed
 
 # Load GEMINI_API_KEY / GEMINI_API_KEY_PAY so the gateway can authenticate.
 # Per project convention (see src/data.py, src/gemini_gateway.py).
@@ -433,17 +434,13 @@ def _ollama_chat(model, system_prompt, user_prompt, temperature=0.7, num_predict
 
 
 def _model_available(model: str) -> bool:
-    """Checks whether a model is installed locally in Ollama."""
-    try:
-        import requests
+    """Checks whether a model is installed locally in Ollama.
 
-        resp = requests.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=5)
-        if resp.status_code != 200:
-            return False
-        installed = {m.get("name", "") for m in resp.json().get("models", [])}
-        return model in installed
-    except Exception:
-        return False
+    Thin wrapper over the shared ``is_model_installed`` helper so this module
+    honors the configured ``OLLAMA_BASE_URL`` (the helper defaults to
+    localhost, identical in practice but explicit here).
+    """
+    return is_model_installed(model, base_url=OLLAMA_BASE_URL)
 
 
 def ask_llm(

@@ -50,6 +50,8 @@ SAFETY
 from __future__ import annotations
 
 import argparse
+
+from reset_lib import dry_run_or_confirm
 import datetime as dt
 import shutil
 from pathlib import Path
@@ -63,16 +65,6 @@ WIPE_FILES = [
     "performance_monitor.db",      # false win_rate alerts + realtime_metrics
     "t212_portfolio_state.json",   # portfolio state (resyncs from broker)
 ]
-
-
-def _confirm(prompt: str, assume_yes: bool) -> bool:
-    if assume_yes:
-        return True
-    try:
-        answer = input(f"{prompt} [y/N] ").strip().lower()
-    except EOFError:
-        return False
-    return answer in ("y", "yes", "o", "oui")
 
 
 def _backup_timestamp() -> str:
@@ -160,17 +152,13 @@ def main() -> int:
     print("  [keep] *.png dashboards, .env*, .venv, .git, logs_prod, memory-bank")
     print("  [keep] src/ tests/ docs/ scripts/  (code source)")
 
-    print()
-    if args.dry_run:
-        print("[DRY-RUN] Termine. Relancez sans --dry-run pour executer.")
-        return 0
-
-    if not _confirm(
-        "\nConfirmer le nettoyage ? (3 fichiers backup puis effaces)",
+    gate = dry_run_or_confirm(
+        args.dry_run,
         args.yes,
-    ):
-        print("Annule. Aucune modification effectuee.")
-        return 1
+        "\nConfirmer le nettoyage ? (3 fichiers backup puis effaces)",
+    )
+    if gate is not None:
+        return gate
 
     # ---- Execution ----
     stamp = _backup_timestamp()
