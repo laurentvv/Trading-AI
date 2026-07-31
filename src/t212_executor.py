@@ -128,6 +128,38 @@ TIME_STOP_SOFT_LOSS = 0.05  # Below entry by less than this, time-stop still sel
 HARD_STOP_DRAWDOWN = 0.10   # Latent loss >= -10% -> EMERGENCY SELL (bypass guard)
 SOFT_STOP_ALERT = 0.05      # Latent loss >= -5% -> WARNING only
 
+# Anti-churn: minimum holding time before a consensus SELL is honoured. Without
+# this, the ~30 min PROD cycle lets a BUY be reversed to SELL the very next
+# cycle (gap BUY->SELL = 1 cycle observed in the 30 July 2026 PROD audit, with
+# 3 churned round-trips in one day, each closed at a small loss the sell-loss
+# guard failed to block). A 4h floor = half a EUR trading day: enough to filter
+# intraday noise while staying responsive. Emergency exits (hard-stop / time-
+# stop, i.e. force_stop_loss=True) ALWAYS bypass this — capital protection is
+# never throttled. BUY->SELL only (a re-entry SELL->BUY stays free).
+MIN_HOLDING_HOURS = 4
+
+
+def _get_avg_price(current_pos: dict) -> float:
+    """Broker average fill price per share, single source of truth.
+
+    Trading 212's /equity/positions payload exposes ``averagePricePaid`` (the
+    real average fill price). The older ``averagePrice`` / ``avgPrice`` aliases
+    are kept as fallbacks for safety but are NOT returned by the live API —
+    their documented absence (`TRADING212_API_GUIDE.md`, memory-bank changelog
+    2026-05-04) silently broke `_check_sell_loss_guard`, which read only
+    ``averagePrice``: the field resolved to None -> avg_price=0 -> the guard's
+    cross-check `max(state_buy_budget, t212_buy_cost)` collapsed onto
+    `state_buy_budget` alone (itself underestimated, being the Yahoo signal-time
+    price), letting losing sells through. This helper centralises the field
+    cascade so every broker-price read site stays consistent.
+    """
+    return float(
+        current_pos.get("averagePricePaid")
+        or current_pos.get("averagePrice")
+        or current_pos.get("avgPrice")
+        or 0.0
+    )
+
 
 def get_t212_ticker(ticker_yahoo: str) -> str:
     """Consistently maps a Yahoo ticker to a T212 instrument ticker."""
@@ -171,10 +203,10 @@ def _validate_and_recalibrate_entry_price(state: dict, yahoo_ticker: str, curren
     # 1. Prefer the broker's real average fill price (most authoritative).
     truth_price, truth_source, truth_qty, truth_cost = None, None, None, None
     if current_pos:
-        avg = current_pos.get("averagePrice") or current_pos.get("averagePricePaid") or current_pos.get("avgPrice")
+        avg = _get_avg_price(current_pos)
         if avg:
-            truth_price = float(avg)
-            truth_source = "T212 averagePrice"
+            truth_price = avg
+            truth_source = "T212 averagePricePaid"
             truth_qty = float(current_pos.get("quantity") or current_pos.get("quantityAvailableForTrading") or 0)
 
     # 2. Fallback: local DB (signal-time price — may differ from the real fill).
@@ -538,8 +570,8 @@ def _evaluate_trailing_stop(state: dict, current_pos: dict, t212_ticker: str) ->
 
     current_value_eur = current_pos["walletImpact"]["currentValue"]
     total_qty = current_pos["quantityAvailableForTrading"]
-    avg_price = current_pos.get("averagePrice") or current_pos.get("avgPrice") or 0.0
-    t212_buy_cost = float(avg_price) * total_qty
+    avg_price = _get_avg_price(current_pos)
+    t212_buy_cost = avg_price * total_qty
     state_buy_cost = state["active_position"].get("buy_budget", 0.0)
     reference_cost = (
         max(state_buy_cost, t212_buy_cost) if max(state_buy_cost, t212_buy_cost) > 0 else current_value_eur
@@ -674,12 +706,49 @@ def _evaluate_time_stop(state: dict, t212_ticker: str) -> tuple[str | None, bool
     # latent loss does not keep the dead position alive forever.
     return "SELL", True
 
+def _evaluate_min_holding(state: dict, force_stop_loss: bool) -> bool:
+    """Anti-churn guard: block a consensus SELL on a position held for less
+    than ``MIN_HOLDING_HOURS`` (4h).
+
+    Mirrors ``_evaluate_time_stop`` (the inverse — that one *forces* an exit
+    after MAX_HOLDING_DAYS). Returns True when the SELL should be suppressed
+    (converted to a no-op HOLD), False when it may proceed.
+
+    Capital-protection exits (hard-stop, time-stop) carry ``force_stop_loss=True``
+    and are NEVER blocked here — a deep drawdown must always be cut, regardless
+    of how recently the position was opened. This guard only throttles consensus
+    (model-driven) SELLs, which on the ~30 min PROD cycle were reversing a BUY
+    within a single cycle (gap BUY->SELL = 1 cycle, 3 churned round-trips on
+    CRUDP.PA in one day, each closed at a small loss). 31 July 2026 audit.
+    """
+    if force_stop_loss:
+        return False  # emergency exits always pass
+    pos = state.get("active_position")
+    if not pos:
+        return False
+    entry_time_str = pos.get("entry_time")
+    if not entry_time_str:
+        return False
+    try:
+        entry_dt = datetime.datetime.fromisoformat(entry_time_str)
+        age_seconds = (datetime.datetime.now(entry_dt.tzinfo) - entry_dt).total_seconds()
+        age_hours = age_seconds / 3600
+        if age_hours < MIN_HOLDING_HOURS:
+            logger.info(
+                f"🛡 ANTI-CHURN: consensus SELL blocked on position opened "
+                f"{age_hours:.1f}h ago (< {MIN_HOLDING_HOURS}h). Converting to HOLD."
+            )
+            return True
+    except (ValueError, TypeError):
+        pass
+    return False
+
 def _position_reference_cost(current_pos: dict, state: dict) -> float:
     """Shared cost basis for take-profit / trailing-stop math (max of T212 avg
     and locally-tracked buy_budget). Returns 0.0 if no usable reference."""
-    avg_price = current_pos.get("averagePrice") or current_pos.get("avgPrice") or 0.0
+    avg_price = _get_avg_price(current_pos)
     total_qty = current_pos.get("quantityAvailableForTrading") or current_pos.get("quantity") or 0
-    t212_buy_cost = float(avg_price) * float(total_qty)
+    t212_buy_cost = avg_price * float(total_qty)
     state_buy_cost = state.get("active_position", {}).get("buy_budget", 0.0)
     reference_cost = max(state_buy_cost, t212_buy_cost)
     return reference_cost if reference_cost > 0 else 0.0
@@ -695,8 +764,7 @@ def _execute_buy_order(state, current_pos, ticker, t212_ticker, portfolio, base_
             if not state.get("active_position"):
                 logger.info("🔄 Synchronisation du suivi local avec la position réelle...")
                 entry_price = (
-                    current_pos.get("averagePrice")
-                    or current_pos.get("avgPrice")
+                    _get_avg_price(current_pos)
                     or (
                         current_pos["walletImpact"]["currentValue"] / current_pos["quantity"]
                         if current_pos["quantity"] > 0
@@ -798,9 +866,9 @@ def _execute_buy_order(state, current_pos, ticker, t212_ticker, portfolio, base_
             logger.error(f"❌ Échec de l'achat : {resp.text}")
 
 def _check_sell_loss_guard(current_value_eur: float, current_pos: dict, state: dict) -> float | None:
-    avg_price = current_pos.get("averagePrice") or current_pos.get("avgPrice") or 0.0
+    avg_price = _get_avg_price(current_pos)
     total_qty = current_pos["quantityAvailableForTrading"]
-    t212_buy_cost = float(avg_price) * total_qty
+    t212_buy_cost = avg_price * total_qty
     state_buy_cost = state["active_position"]["buy_budget"] if state.get("active_position") else 0.0
 
     reference_cost = max(state_buy_cost, t212_buy_cost)
@@ -904,8 +972,8 @@ def _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, heade
         if state.get("active_position"):
             buy_cost = state["active_position"]["buy_budget"]
         else:
-            avg_price = current_pos.get("averagePrice") or current_pos.get("avgPrice") or 0.0
-            t212_buy_cost = float(avg_price) * total_qty
+            avg_price = _get_avg_price(current_pos)
+            t212_buy_cost = avg_price * total_qty
             buy_cost = t212_buy_cost if t212_buy_cost > 0 else current_value_eur
         entry_time_str = _record_sell_transaction(state, current_value_eur, total_qty, ticker, db_date, signal_source, buy_cost)
         save_portfolio_state(state, t212_ticker)
@@ -1023,7 +1091,13 @@ def execute_t212_trade(
     if signal == "BUY":
         _execute_buy_order(state, current_pos, ticker, t212_ticker, portfolio, base_url, headers, db_date, signal_source, sizing_ratio)
     elif signal == "SELL":
-        _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, headers, db_date, signal_source, force_stop_loss=force_stop_loss)
+        # Anti-churn: suppress a consensus SELL on a position opened less than
+        # MIN_HOLDING_HOURS ago. Emergency exits (force_stop_loss=True) bypass
+        # this — capital protection is never throttled. BUY->SELL only.
+        if _evaluate_min_holding(state, force_stop_loss):
+            logger.info(f"⏸ SELL supprimé par anti-churn pour {t212_ticker} (position trop récente).")
+        else:
+            _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, headers, db_date, signal_source, force_stop_loss=force_stop_loss)
 
 
 if __name__ == "__main__":

@@ -16,6 +16,15 @@ logger = logging.getLogger(__name__)
 EIA_CACHE_DIR = Path("data_cache") / "eia"
 EIA_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
+# Max acceptable age of the latest `period` in a crude-imports payload. EIA
+# publishes monthly imports ~6 weeks after month-end, so a fresh payload's
+# latest period should never be older than ~2 months. A guard that checks only
+# the row count (`len >= 3`) lets a stale source through: the 31 July 2026 PROD
+# audit found a 3-row payload frozen at 2026-04-01 (4 months old) cached with a
+# fresh mtime, never refreshed because the mtime-based TTL hid the staleness.
+# Validating the *content* freshness — not just the row count — closes that hole.
+MAX_CRUDE_IMPORTS_AGE_DAYS = 70  # ~2 months (monthly publication lag + margin)
+
 
 @dataclass
 class EIACacheEntry:
@@ -182,14 +191,25 @@ class EIAClient:
             # Aggregate by period to get total US imports
             df_total = df.groupby("period")["quantity"].sum().reset_index()
             df_total = df_total.sort_values("period").reset_index(drop=True)
-            # Refuse to cache a degenerate payload (< 3 months) so the next
-            # cycle re-fetches instead of being silenced by a fresh mtime.
-            if len(df_total) >= 3:
+            # Refuse to cache a degenerate payload so the next cycle re-fetches
+            # instead of being silenced by a fresh mtime. Two criteria, BOTH
+            # required (the 31 July 2026 PROD bug was a 3-row payload that
+            # passed the row-count check but was 4 months stale in content):
+            #   (1) at least 3 months of data (row count floor);
+            #   (2) the latest period is recent (content freshness — see
+            #       MAX_CRUDE_IMPORTS_AGE_DAYS). Without (2), a stale source
+            #       returns 3+ ancient months that look "fresh" by mtime.
+            latest_period = df_total["period"].max()
+            age_days = (pd.Timestamp(datetime.now()) - latest_period).days
+            is_stale_content = age_days > MAX_CRUDE_IMPORTS_AGE_DAYS
+            if len(df_total) >= 3 and not is_stale_content:
                 self._save_to_cache(cache_key, df_total, 24)
             else:
                 logger.warning(
-                    f"EIA crude_imports degenerate payload ({len(df_total)} rows) — "
-                    "not cached; will retry next cycle."
+                    f"EIA crude_imports payload refused: {len(df_total)} rows, "
+                    f"latest period {latest_period.date()} ({age_days}d old"
+                    f"{', stale content' if is_stale_content else ''}). "
+                    "Not cached; will retry next cycle."
                 )
             return df_total
         return self._load_disk_cache_fallback(cache_key)

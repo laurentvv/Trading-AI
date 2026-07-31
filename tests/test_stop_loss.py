@@ -1,4 +1,4 @@
-"""Tests for the unified exit strategy (June 2026 audit).
+"""Tests for the unified exit strategy (June 2026 audit + July 2026 churn audit).
 
 Covers the four exit mechanisms added to protect real capital:
   - hard stop-loss (-10% drawdown -> forced SELL, unconditional)
@@ -7,6 +7,13 @@ Covers the four exit mechanisms added to protect real capital:
   - trailing stop (-3% from peak, existing, regression-checked)
   - time-stop (15 days stale -> forced exit)
   - entry_price corruption guard (recalibrates from trading_history.db)
+
+July 2026 additions (churn audit):
+  - sell-loss guard reads the REAL T212 field ``averagePricePaid`` (the old
+    ``averagePrice`` is absent from the live payload and silently neutralised
+    the guard — the root cause of the 30 July churned round-trips).
+  - anti-churn min-holding (4h) blocks a consensus SELL on a fresh position,
+    while emergency exits (force_stop_loss) always pass.
 
 These are pure-function tests — no Ollama, no T212 API. They run in the
 deterministic mocked suite (see AGENTS.md §3).
@@ -25,11 +32,18 @@ if str(_REPO_ROOT) not in sys.path:
 
 
 def _pos(current_value: float, qty: float, avg_price: float) -> dict:
-    """Build a T212-shaped current_pos dict."""
+    """Build a T212-shaped current_pos dict.
+
+    Uses ``averagePricePaid`` — the field the LIVE T212 /equity/positions API
+    actually returns (see TRADING212_API_GUIDE.md, memory-bank changelog
+    2026-05-04). The older ``averagePrice`` alias is NOT returned by the live
+    API; building fixtures with it previously masked the sell-loss-guard bug in
+    CI (the guard read only ``averagePrice`` and silently got 0.0 in PROD).
+    """
     return {
         "quantityAvailableForTrading": qty,
         "quantity": qty,
-        "averagePrice": avg_price,
+        "averagePricePaid": avg_price,
         "walletImpact": {"currentValue": current_value},
     }
 
@@ -300,6 +314,124 @@ class TestEntryPriceGuard(unittest.TestCase):
         with patch("src.database.get_latest_transaction", return_value=None):
             out = _validate_and_recalibrate_entry_price(st, "CRUDP.PA", current_pos=None)
         self.assertAlmostEqual(out["active_position"]["entry_price_etf"], 100.0)
+
+
+class TestSellLossGuardReadsRealT212Field(unittest.TestCase):
+    """July 2026 churn audit — the sell-loss guard must read the REAL broker
+    field ``averagePricePaid``, not the absent ``averagePrice``.
+
+    Root cause of the 30 July PROD churn: the guard read
+    ``current_pos.get("averagePrice")``, a field the live T212 API does NOT
+    return. It resolved to None -> avg_price=0 -> t212_buy_cost=0 -> the guard's
+    cross-check ``max(state_buy_budget, t212_buy_cost)`` collapsed onto
+    ``state_buy_budget`` alone (itself underestimated: the Yahoo signal-time
+    price), so losing sells (-0.8% to -1%) passed unblocked. Three round-trips
+    were churned on CRUDP.PA in one day this way.
+    """
+
+    def test_guard_blocks_a_loss_when_only_average_price_paid_is_present(self):
+        """The PROD payload shape: averagePricePaid set, averagePrice ABSENT.
+
+        The guard must use averagePricePaid to compute t212_buy_cost and block
+        a sale that would realize a loss > 0.2%.
+        """
+        from src.t212_executor import _check_sell_loss_guard
+
+        # Bought 10 @ 100€ = 1000€ real fill (averagePricePaid). Now worth 990€
+        # (-1%). The old buggy guard saw avg_price=0 (no averagePrice field) ->
+        # reference_cost = state buy_budget 985€ (underestimated) -> passed.
+        # After the fix: reference_cost = max(985, 1000) = 1000 -> 990 < 998 -> BLOCKED.
+        st = _state(buy_budget=985.0, entry_price=100.0, entry_time="2026-07-30T10:04:00")
+        # Real payload: averagePricePaid present, averagePrice ABSENT.
+        pos = {
+            "averagePricePaid": 100.0,
+            "quantityAvailableForTrading": 10,
+            "quantity": 10,
+            "walletImpact": {"currentValue": 990.0},
+        }
+        result = _check_sell_loss_guard(current_value_eur=990.0, current_pos=pos, state=st)
+        self.assertIsNone(
+            result,
+            "Guard must BLOCK a -1% sell when averagePricePaid is the only price "
+            "field present (the live T212 payload shape).",
+        )
+
+    def test_guard_lets_a_profit_sell_through(self):
+        from src.t212_executor import _check_sell_loss_guard
+
+        # Bought 10 @ 100€ = 1000€, now 1010€ (+1%) -> in profit, must pass.
+        st = _state(buy_budget=1000.0, entry_price=100.0, entry_time="2026-07-30T10:04:00")
+        pos = {
+            "averagePricePaid": 100.0,
+            "quantityAvailableForTrading": 10,
+            "quantity": 10,
+            "walletImpact": {"currentValue": 1010.0},
+        }
+        result = _check_sell_loss_guard(current_value_eur=1010.0, current_pos=pos, state=st)
+        self.assertIsNotNone(result, "Guard must let a profitable sell through")
+
+    def test_get_avg_price_prefers_average_price_paid(self):
+        """The helper centralising broker-price reads must prefer the live field."""
+        from src.t212_executor import _get_avg_price
+
+        self.assertEqual(_get_avg_price({"averagePricePaid": 12.5}), 12.5)
+        # Fallback chain when the live field is absent (safety only).
+        self.assertEqual(_get_avg_price({"averagePrice": 11.0}), 11.0)
+        self.assertEqual(_get_avg_price({"avgPrice": 10.0}), 10.0)
+        self.assertEqual(_get_avg_price({}), 0.0)
+
+
+class TestAntiChurnMinHolding(unittest.TestCase):
+    """July 2026 churn audit — a consensus SELL on a position opened < 4h ago
+    is suppressed (converted to HOLD). Emergency exits (force_stop_loss=True)
+    always bypass this — capital protection is never throttled.
+
+    Without this guard the ~30 min PROD cycle reversed a BUY within a single
+    cycle (gap BUY->SELL = 1 cycle), churning 3 round-trips on CRUDP.PA on
+    30 July, each closed at a small loss.
+    """
+
+    def test_blocks_consensus_sell_on_fresh_position(self):
+        from src.t212_executor import _evaluate_min_holding
+
+        import datetime as dt
+        # Opened 1h ago — well under the 4h floor.
+        entry = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=1)).isoformat()
+        st = _state(buy_budget=1000.0, entry_price=100.0, entry_time=entry)
+        self.assertTrue(
+            _evaluate_min_holding(st, force_stop_loss=False),
+            "A consensus SELL on a 1h-old position must be blocked.",
+        )
+
+    def test_does_not_block_emergency_exit_on_fresh_position(self):
+        """Capital protection wins over anti-churn: a hard-stop-loss on a
+        fresh position must still execute (a deep drawdown must be cut)."""
+        from src.t212_executor import _evaluate_min_holding
+
+        import datetime as dt
+        entry = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=1)).isoformat()
+        st = _state(buy_budget=1000.0, entry_price=100.0, entry_time=entry)
+        self.assertFalse(
+            _evaluate_min_holding(st, force_stop_loss=True),
+            "An emergency exit (force_stop_loss) must NEVER be blocked by anti-churn.",
+        )
+
+    def test_lets_consensus_sell_through_after_min_holding(self):
+        from src.t212_executor import _evaluate_min_holding
+
+        import datetime as dt
+        # Opened 5h ago — past the 4h floor.
+        entry = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=5)).isoformat()
+        st = _state(buy_budget=1000.0, entry_price=100.0, entry_time=entry)
+        self.assertFalse(
+            _evaluate_min_holding(st, force_stop_loss=False),
+            "A consensus SELL on a 5h-old position must pass (past the 4h floor).",
+        )
+
+    def test_no_block_without_position(self):
+        from src.t212_executor import _evaluate_min_holding
+
+        self.assertFalse(_evaluate_min_holding({"active_position": None}, force_stop_loss=False))
 
 
 if __name__ == "__main__":

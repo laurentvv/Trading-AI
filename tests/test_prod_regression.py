@@ -16,6 +16,8 @@ Guards against three bugs found in the 2026-07-15 PROD audit:
 
 3. EIA crude_imports degenerate cache — a 1-row payload was cached with a
    fresh mtime. Asserts the fetcher refuses to cache a degenerate payload.
+   Extended 31 July 2026: a 3-row payload that passes the row-count check but
+   is months stale in content must also be refused (the live PROD incident).
 
 Skipped when logs_prod/ is absent (dev/CI without PROD data).
 Run: .venv\\Scripts\\python.exe -m pytest tests/test_prod_regression.py -v
@@ -191,7 +193,25 @@ class TestConsensusSellReachable(unittest.TestCase):
 
 
 class TestEiaCrudeImportsNoDegenerateCache(unittest.TestCase):
-    """Bug #4: a 1-row payload was cached with a fresh mtime, hiding staleness."""
+    """Bug #4: a 1-row payload was cached with a fresh mtime, hiding staleness.
+
+    Extended 31 July 2026: a 3-row payload that passes the row-count check but
+    is months stale in CONTENT must also be refused (the live PROD incident).
+    Dates in fixtures are relative to ``now`` so the tests never go stale.
+    """
+
+    @staticmethod
+    def _periods(months_ago_start: int, count: int) -> list[dict]:
+        """Build `count` monthly EIA rows ending `months_ago_start` months back."""
+        from datetime import datetime
+        from dateutil.relativedelta import relativedelta
+        rows = []
+        # EIA months are anchored to the 1st; walk backwards from (now - start).
+        base = datetime(datetime.now().year, datetime.now().month, 1) - relativedelta(months=months_ago_start)
+        for i in range(count):
+            period = (base - relativedelta(months=i)).strftime("%Y-%m-01")
+            rows.append({"period": period, "quantity": str(40000 + i * 100)})
+        return rows
 
     def test_degenerate_payload_not_cached(self):
         from eia_client import EIAClient
@@ -199,8 +219,8 @@ class TestEiaCrudeImportsNoDegenerateCache(unittest.TestCase):
         client = EIAClient()
         client._cache = {}  # bypass memory cache
 
-        # Simulate the degenerate upstream response (1 month, the original bug)
-        degenerate = [{"period": "2026-04-01", "quantity": "45878"}]
+        # Simulate the degenerate upstream response (1 row — the original bug)
+        degenerate = self._periods(months_ago_start=1, count=1)
         with patch.object(client, "_make_request", return_value=degenerate), \
              patch.object(client, "_save_to_cache") as mock_save, \
              patch.object(client, "_get_from_cache", return_value=None):
@@ -209,14 +229,42 @@ class TestEiaCrudeImportsNoDegenerateCache(unittest.TestCase):
         # The fetcher returns what it got, but MUST NOT cache a < 3-row frame.
         self.assertEqual(len(df), 1, "fetcher should still return the rows it got")
         mock_save.assert_not_called()
-        # Sanity: the happy path (>= 3 rows) DOES cache.
-        full = [{"period": f"2026-0{m}-01", "quantity": str(40000 + m * 100)}
-                for m in range(1, 7)]
+        # Sanity: the happy path (>= 3 recent rows) DOES cache.
+        full = self._periods(months_ago_start=1, count=6)
         with patch.object(client, "_make_request", return_value=full), \
              patch.object(client, "_save_to_cache") as mock_save2, \
              patch.object(client, "_get_from_cache", return_value=None):
             client.get_crude_imports(months=6)
         mock_save2.assert_called_once()
+
+    def test_stale_content_not_cached_even_with_enough_rows(self):
+        """31 July 2026 PROD bug: 3 rows but the latest period was 4 months old.
+
+        The row-count guard (`len >= 3`) passed, so the stale payload was cached
+        with a fresh mtime and never refreshed. The content-freshness guard
+        (`age > MAX_CRUDE_IMPORTS_AGE_DAYS`) must refuse it.
+        """
+        from eia_client import EIAClient, MAX_CRUDE_IMPORTS_AGE_DAYS
+
+        client = EIAClient()
+        client._cache = {}
+
+        # 3 rows ending 5 months ago — passes the row-count check, fails the
+        # freshness check (5 months > 70 days).
+        stale = self._periods(months_ago_start=5, count=3)
+        self.assertGreater(
+            5 * 30, MAX_CRUDE_IMPORTS_AGE_DAYS,
+            "test fixture must be older than the staleness threshold",
+        )
+        with patch.object(client, "_make_request", return_value=stale), \
+             patch.object(client, "_save_to_cache") as mock_save, \
+             patch.object(client, "_get_from_cache", return_value=None):
+            df = client.get_crude_imports(months=6)
+
+        # The fetcher still returns the rows it got...
+        self.assertEqual(len(df), 3)
+        # ...but MUST NOT cache stale content (the row count is not enough).
+        mock_save.assert_not_called()
 
 
 if __name__ == "__main__":

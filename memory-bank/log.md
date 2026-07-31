@@ -169,3 +169,16 @@ Après le déploiement de la rampe douce win_rate (`f22bbfc`), 1 jour de PROD a 
 
 ### Leçon générale
 Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-corrige. Toujours valider non seulement que l'ancien biais disparaît, mais que la **reachability** des signaux dans les deux directions est préservée — par un test de bout en bout sur fixtures bull ET bear, pas seulement par la symétrie des thresholds. Documenté dans AGENTS.md §6.4.
+
+## [2026-07-31] fix | Audit PROD 31/07 — 3 causes racines (churn + EIA stale + sell-guard)
+- **Audit** `logs_prod/` (snapshot 31/07 11:04, verdict WARN) → investigation profonde → 3 bugs distincts.
+- **Bug 1 — Cache EIA `crude_imports` stale** (`src/eia_client.py`) : payload de 3 lignes s'arrêtant 2026-04-01 (4 mois stale) mais mtime fraîche → ne se rafraîchit jamais. Cause : guard `len >= 3` ne vérifie que le nombre de lignes, pas la fraîcheur du contenu (dernier `period`). Régression du fix §6.0/§6.3 sous une forme différente. Fix : second critère `MAX_CRUDE_IMPORTS_AGE_DAYS = 70`.
+- **Bug 2 — Sell-loss guard neutralisé** (`src/t212_executor.py:801`, CAUSE RACINE du churn) : le guard lit `current_pos.get("averagePrice")` — champ ABSENT du payload T212 réel (le vrai champ est `averagePricePaid`, documenté absent dans `TRADING212_API_GUIDE.md:32` + `memory-bank/changelog.md:119`). Conséquence : `t212_buy_cost=0.0` → `reference_cost = state_buy_budget` (sous-estimé, prix Yahoo signal-time) → ventes en perte de -0.8% à -1% laissées passer. C'est ce qui a permis les 3 round-trips churnés du 30/07 sur CRUDP.PA. Les tests ne l'attrapaient pas : fixture `_pos` injectait `"averagePrice"` (champ fictif). Fix : helper `_get_avg_price()` priorisant `averagePricePaid`, appliqué aux 4 sites de lecture.
+- **Bug 3 — Aucun anti-churn** : gap BUY→SELL = 1 cycle (~30 min) systématique, aucun min-holding nulle part. Fix : `_evaluate_min_holding` (4h, BUY→SELL uniquement, bypassé par hard-stop-loss pour préserver la protection du capital).
+- **Tests** : extension `test_prod_regression.py` (Bug 1) + `test_stop_loss.py` (Bugs 2 & 3, fixtures corrigées).
+- **Leçon générale** : un guard de cache basé sur la mtime + le nombre de lignes ne suffit pas — il faut valider la **fraîcheur du contenu** (valeur métier), car une source en amont peut renvoyer du stale qui passe les guards quantitatifs. De même, un guard de sécurité qui lit un champ API documenté absent est silencieusement neutralisé — toujours valider les guards contre le **vrai payload API**, pas un mock qui invente des champs.
+
+### Résultat
+- **43/43 tests verts** (`test_stop_loss` + `test_prod_regression` + `test_t212` + `test_eia_client`) ; **67/67 verts** sur la suite LLM élargie (vérification absence de régression transverse). 8 nouveaux tests de régression.
+- **Fichiers modifiés** (4) : `src/eia_client.py`, `src/t212_executor.py`, `tests/test_stop_loss.py`, `tests/test_prod_regression.py`.
+- **Déploiement PROD requis** : `git pull` + suppression de `data_cache/eia/eia_crude_imports.parquet` sur la **machine PROD** (le cache stale actuel resterait sinon — le guard fraîcheur ne s'applique qu'aux nouvelles écritures). Pas de reset DB.
