@@ -9,21 +9,22 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+OUTPUT_DIR = Path(__file__).resolve().parent / "output"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+(OUTPUT_DIR / "tools").mkdir(parents=True, exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
         logging.StreamHandler(sys.stdout),
         logging.FileHandler(
-            Path(__file__).parent / "output" / "morning_brief.log",
+            OUTPUT_DIR / "morning_brief.log",
             encoding="utf-8",
         ),
     ],
 )
 logger = logging.getLogger("morning_brief")
-
-OUTPUT_DIR = Path(__file__).resolve().parent / "output"
-OUTPUT_DIR.mkdir(exist_ok=True)
 
 DEBATE_INSTRUCTIONS = """Tu es un comite d'investissement a 3 voix. Analyse les donnees des outils puis produis un debat structure.
 

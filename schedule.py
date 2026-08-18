@@ -88,6 +88,10 @@ def run_morning_brief():
     """Lance l'exécution du Morning Brief la nuit/au petit matin"""
     logger.info("🌅 Lancement du Morning Brief")
     try:
+        output_dir = Path("morning_brief/output")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        (output_dir / "tools").mkdir(parents=True, exist_ok=True)
+
         cmd = ["uv", "run", "morning_brief/morning_brief.py"]
         # Redirection des logs vers analyse_morning.log
         with open("analyse_morning.log", "a", encoding="utf-8") as f:
@@ -102,9 +106,8 @@ def run_morning_brief():
         # --- FinAcumen Daily Run ---
         logger.info("Lancement de l'analyse profonde FinAcumen (Daily)")
         import json
-        from pathlib import Path
         
-        output_file = Path("morning_brief/output/morning_market_brief.md")
+        output_file = output_dir / "morning_market_brief.md"
         finacumen_section = "\n\n## 5. Analyse Qualitative Profonde (FinAcumen)\n"
         
         for ticker in TICKERS:
@@ -137,12 +140,13 @@ def run_morning_brief():
             else:
                 finacumen_section += f"\n### {ticker}\n- **Erreur:** Résultat non généré.\n"
 
-        if output_file.exists():
-            with open(output_file, "a", encoding="utf-8") as f:
-                f.write(finacumen_section)
-            logger.info("✅ Résultats FinAcumen ajoutés au Morning Brief.")
-        else:
-            logger.error("❌ Fichier morning_market_brief.md introuvable pour ajouter FinAcumen.")
+        if not output_file.exists():
+            today = datetime.now().strftime("%Y-%m-%d")
+            output_file.write_text(f"# Morning Market Brief — {today}\n\n_Note: Morning Brief de base non généré._\n", encoding="utf-8")
+
+        with open(output_file, "a", encoding="utf-8") as f:
+            f.write(finacumen_section)
+        logger.info("✅ Résultats FinAcumen ajoutés au Morning Brief.")
 
     except Exception as e:
         logger.error(f"💥 Erreur critique lors du Morning Brief : {e}")
