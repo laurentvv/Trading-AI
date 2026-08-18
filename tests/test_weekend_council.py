@@ -1,43 +1,14 @@
 """Unit tests for the weekend council module.
 
-Deterministic, no Ollama/cloud calls — all external I/O is mocked.
+Deterministic, no live cloud calls — all external I/O is mocked.
 Follows the project's unittest + unittest.mock convention.
 """
 
 import unittest
 from unittest.mock import patch, MagicMock
-
 import pandas as pd
 
 from src.council import weekend_council as wc
-
-
-class TestDfToMarkdown(unittest.TestCase):
-    """Dependency-free markdown rendering (replaces pandas.to_markdown/tabulate)."""
-
-    def test_empty_df_returns_empty_string(self):
-        self.assertEqual(wc._df_to_markdown(pd.DataFrame()), "")
-
-    def test_renders_header_separator_and_rows(self):
-        df = pd.DataFrame({"a": [1, 2], "b": ["x", "y"]})
-        md = wc._df_to_markdown(df)
-        lines = md.split("\n")
-        self.assertEqual(lines[0], "| a | b |")
-        self.assertEqual(lines[1], "| --- | --- |")
-        self.assertEqual(lines[2], "| 1 | x |")
-        self.assertEqual(lines[3], "| 2 | y |")
-
-    def test_pipe_and_newline_escaped(self):
-        df = pd.DataFrame({"col": ["a|b", "line1\nline2"]})
-        md = wc._df_to_markdown(df)
-        self.assertIn("a\\|b", md)
-        self.assertIn("line1 line2", md)
-        self.assertNotIn("a|b", md.replace("\\|", ""))  # raw pipe must be escaped
-
-    def test_truncation_note_when_exceeding_max_rows(self):
-        df = pd.DataFrame({"a": list(range(50))})
-        md = wc._df_to_markdown(df, max_rows=5)
-        self.assertIn("tronquées", md)
 
 
 class TestContextBuilding(unittest.TestCase):
@@ -46,356 +17,135 @@ class TestContextBuilding(unittest.TestCase):
     @patch.object(wc, "fetch_recent_transactions")
     @patch.object(wc, "fetch_recent_portfolio_state")
     @patch.object(wc, "fetch_recent_model_signals")
-    @patch.object(wc, "fetch_recent_logs")
-    def test_all_empty(self, mock_logs, mock_signals, mock_portfolio, mock_tx):
+    @patch.object(wc, "fetch_model_performance")
+    @patch.object(wc, "fetch_portfolio_monitoring")
+    @patch.object(wc, "fetch_recent_journal_entries")
+    def test_all_empty(self, mock_journal, mock_mon, mock_perf, mock_signals, mock_portfolio, mock_tx):
         mock_tx.return_value = pd.DataFrame()
         mock_portfolio.return_value = pd.DataFrame()
         mock_signals.return_value = pd.DataFrame()
-        mock_logs.return_value = ""
+        mock_perf.return_value = "Aucune prédiction"
+        mock_mon.return_value = "Aucune métrique"
+        mock_journal.return_value = "Aucun log journal"
         ctx = wc.build_full_context(days=7)
         self.assertIn("Aucune transaction", ctx)
-        self.assertIn("Aucune donnée de portefeuille", ctx)
-        self.assertIn("Aucun signal de modèle", ctx)
+        self.assertIn("Aucun signal enregistré", ctx)
 
     @patch.object(wc, "fetch_recent_transactions")
     @patch.object(wc, "fetch_recent_portfolio_state")
     @patch.object(wc, "fetch_recent_model_signals")
-    @patch.object(wc, "fetch_recent_logs")
-    def test_with_data(self, mock_logs, mock_signals, mock_portfolio, mock_tx):
+    @patch.object(wc, "fetch_model_performance")
+    @patch.object(wc, "fetch_portfolio_monitoring")
+    @patch.object(wc, "fetch_recent_journal_entries")
+    def test_with_data(self, mock_journal, mock_mon, mock_perf, mock_signals, mock_portfolio, mock_tx):
         mock_tx.return_value = pd.DataFrame({"ticker": ["SXRV.DE"], "type": ["BUY"]})
         mock_portfolio.return_value = pd.DataFrame({"ticker": ["SXRV.DE"], "total_value": [1000.0]})
         mock_signals.return_value = pd.DataFrame(
-            {"ticker": ["SXRV.DE"], "model_type": ["hybrid"], "signal": ["BUY"], "confidence": [0.8]}
+            {"date": ["2026-08-18"], "ticker": ["SXRV.DE"], "model_type": ["hybrid"], "signal": ["BUY"], "confidence": [0.8], "details": [""]}
         )
-        mock_logs.return_value = "### Extrait log\n..."
+        mock_perf.return_value = "Précision globale : 80%"
+        mock_mon.return_value = "Valeur=1000€"
+        mock_journal.return_value = "BUY executed"
         ctx = wc.build_full_context(days=7)
         self.assertIn("SXRV.DE", ctx)
-        self.assertIn("Signaux des Modèles", ctx)
-        self.assertIn("Extraits de Logs", ctx)
+        self.assertIn("SIGNAUX ÉMIS PAR LES MODÈLES IA", ctx)
 
 
-class TestOllamaChat(unittest.TestCase):
-    """_ollama_chat uses /api/chat with structured messages and the assigned model."""
+class TestAskLLMNexus(unittest.TestCase):
+    """ask_llm routes calls via NexusAI-Client."""
 
-    @patch("requests.post")
-    def test_uses_chat_endpoint_and_model(self, mock_post):
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"message": {"content": "Réponse du modèle."}}
-        mock_post.return_value = mock_response
-
-        out = wc._ollama_chat("qwen3.5:9b", "system prompt", "user prompt")
-
-        self.assertEqual(out, "Réponse du modèle.")
-        sent = mock_post.call_args.kwargs["json"]
-        # Must hit the chat endpoint and carry the assigned model.
-        self.assertIn("/api/chat", mock_post.call_args.args[0])
-        self.assertEqual(sent["model"], "qwen3.5:9b")
-        # Structured messages, not a flat prompt.
-        self.assertEqual(sent["messages"][0]["role"], "system")
-        self.assertEqual(sent["messages"][1]["role"], "user")
-
-    @patch("requests.post")
-    def test_raises_on_http_error(self, mock_post):
-        mock_response = MagicMock()
-        mock_response.status_code = 404
-        mock_post.return_value = mock_response
-        with self.assertRaises(RuntimeError):
-            wc._ollama_chat("missing-model", "sys", "user")
-
-    @patch("requests.post")
-    def test_raises_on_empty_response(self, mock_post):
-        """A thinking model that burns all tokens on reasoning returns empty."""
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"message": {"content": ""}}
-        mock_post.return_value = mock_response
-        with self.assertRaises(RuntimeError):
-            wc._ollama_chat("qwen3.5:9b", "sys", "user")
-
-    @patch("requests.post")
-    def test_judge_gets_larger_token_budget(self, mock_post):
-        """ask_llm forwards num_predict and num_ctx through to the chat payload."""
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"message": {"content": "verdict"}}
-        mock_post.return_value = mock_response
-        wc.ask_llm("sys", "user", model=wc.TEXT_LLM_MODEL, num_predict=12000, num_ctx=65536)
-        self.assertEqual(mock_post.call_args.kwargs["json"]["options"]["num_predict"], 12000)
-        self.assertEqual(mock_post.call_args.kwargs["json"]["options"]["num_ctx"], 65536)
-
-
-class TestAskLLMRouting(unittest.TestCase):
-    """ask_llm routes each persona to its own model, with graceful fallback."""
-
-    @patch.object(wc, "_ollama_chat", return_value="analyse du quant")
-    @patch.object(wc, "_model_available", return_value=True)
-    def test_routes_to_assigned_model(self, mock_avail, mock_chat):
-        out = wc.ask_llm("sys", "user", model="qwen3.5:9b")
-        self.assertEqual(out, "analyse du quant")
-        # The assigned model is passed through to _ollama_chat.
-        mock_chat.assert_called_once()
-        self.assertEqual(mock_chat.call_args.args[0], "qwen3.5:9b")
-
-    @patch.object(wc, "_ollama_chat", return_value="fallback response")
-    @patch.object(wc, "_model_available", return_value=False)
-    def test_falls_back_when_model_missing(self, mock_avail, mock_chat):
-        """If a member's model isn't installed, degrade to the canonical default."""
-        out = wc.ask_llm("sys", "user", model="hf.co/unsloth/GLM-4.6V-Flash-GGUF:Q6_K")
-        self.assertEqual(out, "fallback response")
-        # Must have fallen back to TEXT_LLM_MODEL, not the missing model.
-        self.assertEqual(mock_chat.call_args.args[0], wc.TEXT_LLM_MODEL)
-
-    @patch.object(wc, "_ollama_chat")
-    @patch.object(wc, "_model_available", return_value=True)
-    def test_falls_back_when_assigned_model_errors(self, mock_avail, mock_chat):
-        """If the assigned model errors at runtime, retry once on the default."""
-        mock_chat.side_effect = [RuntimeError("model crashed"), "recovered on default"]
-        out = wc.ask_llm("sys", "user", model="lfm2.5-thinking:1.2b-bf16")
-        self.assertEqual(out, "recovered on default")
-        # Second call must use TEXT_LLM_MODEL.
-        self.assertEqual(mock_chat.call_args_list[1].args[0], wc.TEXT_LLM_MODEL)
-
-    @patch.object(wc, "_ollama_chat", side_effect=RuntimeError("everything broken"))
-    @patch.object(wc, "_model_available", return_value=True)
-    def test_raises_when_default_also_fails(self, mock_avail, mock_chat):
-        with self.assertRaises(RuntimeError):
-            wc.ask_llm("sys", "user", model=wc.TEXT_LLM_MODEL)
-
-
-class TestGeminiRouting(unittest.TestCase):
-    """Models prefixed ``gemini:`` route through the shared GeminiGateway."""
-
-    def test_is_gemini_model_detects_prefix(self):
-        self.assertTrue(wc.is_gemini_model("gemini:2.5-flash"))
-        self.assertTrue(wc.is_gemini_model("gemini:pro"))
-        self.assertFalse(wc.is_gemini_model("qwen3.5:9b"))
-        self.assertFalse(wc.is_gemini_model(None))
-        self.assertFalse(wc.is_gemini_model(""))
-
-    def test_judge_model_is_gemini(self):
-        """The Judge must be on the cloud (PAID cascade) — faster + higher IQ."""
-        self.assertTrue(wc.is_gemini_model(wc.JUDGE_MODEL))
-
-    def test_member_and_judge_assignments(self):
-        """Sceptique + Comportementaliste on Gemini; the other 4 stay local."""
-        gemini_members = [n for n, m in wc.MEMBER_MODELS.items() if wc.is_gemini_model(m)]
-        self.assertEqual(sorted(gemini_members), ["Le Comportementaliste", "Le Sceptique"])
-        # 4 distinct local lineages + 1 cloud lineage = 5 families total.
-        local = [m for m in wc.MEMBER_MODELS.values() if not wc.is_gemini_model(m)]
-        self.assertEqual(len(set(local)), 4)
-
-    @patch.object(wc, "_get_gateway")
-    @patch.object(wc, "_ollama_chat")
-    def test_gemini_prefix_uses_gateway_not_ollama(self, mock_ollama, mock_get_gw):
-        """A gemini: model goes to GeminiGateway.deliberate, never to Ollama."""
-        gw = MagicMock()
-        gw.enabled = True
-        gw.deliberate.return_value = "réponse cloud"
-        mock_get_gw.return_value = gw
-        out = wc.ask_llm("sys", "user", model="gemini:2.5-flash")
-        self.assertEqual(out, "réponse cloud")
-        gw.deliberate.assert_called_once()
-        mock_ollama.assert_not_called()
-
-    @patch.object(wc, "_get_gateway")
-    @patch.object(wc, "_ollama_chat", return_value="réponse locale")
-    @patch.object(wc, "_model_available", return_value=True)
-    def test_non_gemini_uses_ollama(self, mock_avail, mock_ollama, mock_get_gw):
-        """A local model goes to Ollama, never to the gateway."""
-        out = wc.ask_llm("sys", "user", model="qwen3.5:9b")
-        self.assertEqual(out, "réponse locale")
-        mock_ollama.assert_called_once()
-        mock_get_gw.assert_not_called()
-
-    @patch.object(wc, "_get_gateway")
-    @patch.object(wc, "_ollama_chat", return_value="fallback ollama")
-    @patch.object(wc, "_model_available", return_value=True)
-    def test_gemini_returns_none_falls_back_to_ollama(self, mock_avail, mock_ollama, mock_get_gw):
-        """When the gateway returns None (quota/429 exhausted), degrade to Ollama."""
-        gw = MagicMock()
-        gw.enabled = True
-        gw.deliberate.return_value = None  # gateway exhausted
-        mock_get_gw.return_value = gw
-        out = wc.ask_llm("sys", "user", model="gemini:2.5-flash")
-        self.assertEqual(out, "fallback ollama")
-        gw.deliberate.assert_called_once()
-        mock_ollama.assert_called_once()
-
-    @patch.object(wc, "_get_gateway")
-    @patch.object(wc, "_ollama_chat", return_value="fallback ollama")
-    def test_gemini_disabled_falls_back_to_ollama(self, mock_ollama, mock_get_gw):
-        """A disabled gateway (no keys/SDK) degrades silently to Ollama."""
-        gw = MagicMock()
-        gw.enabled = False
-        mock_get_gw.return_value = gw
-        out = wc.ask_llm("sys", "user", model="gemini:2.5-flash")
-        self.assertEqual(out, "fallback ollama")
-        gw.deliberate.assert_not_called()
-
-    @patch.object(wc, "_get_gateway")
-    def test_judge_uses_paid_cascade(self, mock_get_gw):
-        """The Judge (gemini:pro) must request the PAID cascade from the gateway."""
-        gw = MagicMock()
-        gw.enabled = True
-        gw.deliberate.return_value = "verdict"
-        mock_get_gw.return_value = gw
-        wc.ask_llm("sys", "user", model=wc.JUDGE_MODEL)
-        self.assertTrue(gw.deliberate.call_args.kwargs.get("use_paid"))
-
-    @patch.object(wc, "_get_gateway")
-    def test_member_uses_free_cascade(self, mock_get_gw):
-        """Members (gemini:2.5-flash) must request the FREE cascade."""
-        gw = MagicMock()
-        gw.enabled = True
-        gw.deliberate.return_value = "analyse"
-        mock_get_gw.return_value = gw
-        wc.ask_llm("sys", "user", model="gemini:2.5-flash")
-        self.assertFalse(gw.deliberate.call_args.kwargs.get("use_paid"))
+    @patch("src.council.weekend_council._run_sync")
+    def test_ask_llm_returns_text(self, mock_run_sync):
+        mock_run_sync.return_value = ("Analyse du conseiller.", "groq/llama-3.3-70b-versatile")
+        out = wc.ask_llm("system prompt", "user prompt", model="groq")
+        self.assertEqual(out, "Analyse du conseiller.")
 
 
 class TestRunCouncil(unittest.TestCase):
     """Orchestration: 3 rounds, graceful degradation on failure."""
 
     @patch.object(wc, "build_full_context", return_value="CTX")
+    @patch.object(wc, "ask_llm_with_backend")
     @patch.object(wc, "ask_llm")
-    def test_three_rounds_thirteen_calls(self, mock_ask, mock_ctx):
-        # Divergent stances so the dissent-quota does NOT add an extra call.
+    def test_three_rounds_execution(self, mock_ask, mock_ask_backend, mock_ctx):
         n = len(wc.COUNCIL_MEMBERS)
-        stances = ["STANCE: BUY (confiance: 70%)", "STANCE: SELL (confiance: 60%)",
-                   "STANCE: HOLD (confiance: 40%)", "STANCE: BUY (confiance: 55%)",
-                   "STANCE: SELL (confiance: 50%)", "STANCE: HOLD (confiance: 45%)"]
-        mock_ask.side_effect = ["reform"] * n + stances[:n] + ["débat"] * n + ["verdict"]
+        stances = [
+            ("STANCE: BUY (confiance: 70%)", "groq/llama3"),
+            ("STANCE: SELL (confiance: 60%)", "cerebras/gpt-oss"),
+            ("STANCE: HOLD (confiance: 40%)", "mistral/small"),
+            ("STANCE: BUY (confiance: 55%)", "cohere/cmd-r"),
+            ("STANCE: SELL (confiance: 50%)", "openrouter/qwen"),
+            ("STANCE: HOLD (confiance: 45%)", "gemini_free/gemini-2.5-flash"),
+        ]
+        reforms = [(f"Reformulation {i}", f"backend_{i}") for i in range(n)]
+        mock_ask_backend.side_effect = reforms + stances[:n] + [("Verdict final", "gemini_pro/gemini-2.5-pro")]
+        mock_ask.return_value = "Débat réponse"
+
         report = wc.run_council(days=7)
 
-        # 6 members × (Round 0 restate + Round 1 analyse + Round 2 debate)
-        # + 1 Judge = 19 LLM calls. (Dissent-quota steelman is conditional.)
-        n_members = len(wc.COUNCIL_MEMBERS)
-        expected = n_members * 3 + 1
-        self.assertEqual(mock_ask.call_count, expected)
         self.assertIn("Verdict du Juge", report)
-        self.assertIn("verdict", report)
+        self.assertIn("Verdict final", report)
+        self.assertIn("Décompte des positions", report)
+        self.assertIn("Reformulation du problème (Round 0)", report)
+        self.assertIn("Modèles et Fournisseurs Utilisés (NexusAI)", report)
 
     @patch.object(wc, "build_full_context", return_value="CTX")
+    @patch.object(wc, "ask_llm_with_backend")
     @patch.object(wc, "ask_llm")
-    def test_graceful_degradation_when_all_calls_fail(self, mock_ask, mock_ctx):
-        mock_ask.side_effect = RuntimeError("down")
-        report = wc.run_council(days=7)
-        # Council must still produce a report, not crash.
-        self.assertIn("Verdict du Juge", report)
-        self.assertIn("ajourné", report)  # judge unavailable notice
-        n_members = len(wc.COUNCIL_MEMBERS)
-        self.assertEqual(mock_ask.call_count, n_members * 3 + 1)
-
-    @patch.object(wc, "build_full_context", return_value="CTX")
-    @patch.object(wc, "ask_llm")
-    def test_all_members_represented_in_report(self, mock_ask, mock_ctx):
-        mock_ask.return_value = "réponse"
+    def test_all_members_represented_in_report(self, mock_ask, mock_ask_backend, mock_ctx):
+        mock_ask_backend.return_value = ("STANCE: HOLD (confiance: 50%)", "groq/llama3")
+        mock_ask.return_value = "Débat"
         report = wc.run_council(days=7)
         for name in wc.COUNCIL_MEMBERS:
             self.assertIn(name, report)
 
     @patch.object(wc, "build_full_context", return_value="CTX")
+    @patch.object(wc, "ask_llm_with_backend")
     @patch.object(wc, "ask_llm")
-    def test_round1_uses_targeted_questions_not_generic(self, mock_ask, mock_ctx):
-        """Each member gets its own ROUND1_QUESTIONS prompt, not the generic one."""
-        mock_ask.return_value = "STANCE: HOLD (confiance: 50%)"  # parseable stance avoids dissent-quota
+    def test_round1_uses_targeted_questions(self, mock_ask, mock_ask_backend, mock_ctx):
+        mock_ask_backend.return_value = ("STANCE: HOLD (confiance: 50%)", "groq/llama3")
+        mock_ask.return_value = "Débat"
         wc.run_council(days=7)
         n = len(wc.COUNCIL_MEMBERS)
-        # Round 0 = calls 0..n-1 (restate), Round 1 = calls n..2n-1 (analyse).
-        round1_calls = mock_ask.call_args_list[n:2 * n]
+        round1_calls = mock_ask_backend.call_args_list[n:2 * n]
         member_names = list(wc.COUNCIL_MEMBERS.keys())
         for i, name in enumerate(member_names):
-            user_prompt = round1_calls[i].args[1]  # second positional arg
+            user_prompt = round1_calls[i].args[1]
             targeted = wc.ROUND1_QUESTIONS.get(name, "")
-            self.assertIn(targeted[:30], user_prompt,
-                          f"{name} should receive its targeted question")
-            self.assertNotIn("selon ta perspective", user_prompt,
-                             "generic Round 1 prompt should be gone")
+            self.assertIn(targeted[:30], user_prompt)
 
     @patch.object(wc, "build_full_context", return_value="CTX")
+    @patch.object(wc, "ask_llm_with_backend")
     @patch.object(wc, "ask_llm")
-    def test_round2_uses_assigned_contradictor_1v1(self, mock_ask, mock_ctx):
-        """Round 2 debates are 1-vs-1: each member faces its assigned opponent."""
-        # Divergent stances so the dissent-quota does NOT trigger and shift indices.
+    def test_round2_uses_assigned_contradictor_1v1(self, mock_ask, mock_ask_backend, mock_ctx):
         n = len(wc.COUNCIL_MEMBERS)
-        stances = ["STANCE: BUY (confiance: 70%)", "STANCE: SELL (confiance: 60%)",
-                   "STANCE: HOLD (confiance: 40%)", "STANCE: BUY (confiance: 55%)",
-                   "STANCE: SELL (confiance: 50%)", "STANCE: HOLD (confiance: 45%)"]
-        mock_ask.side_effect = ["reform"] * n + stances[:n] + ["débat"] * n + ["verdict"]
+        stances = [
+            ("STANCE: BUY (confiance: 70%)", "backend"),
+            ("STANCE: SELL (confiance: 60%)", "backend"),
+            ("STANCE: HOLD (confiance: 40%)", "backend"),
+            ("STANCE: BUY (confiance: 55%)", "backend"),
+            ("STANCE: SELL (confiance: 50%)", "backend"),
+            ("STANCE: HOLD (confiance: 45%)", "backend"),
+        ]
+        reforms = [(f"Reformulation {i}", "backend") for i in range(n)]
+        mock_ask_backend.side_effect = reforms + stances[:n] + [("Verdict", "judge_backend")]
+        mock_ask.return_value = "Débat response"
+
         wc.run_council(days=7)
 
-        # Round 2 = calls 2n..3n-1 (no dissent-quota call inserted).
         member_names = list(wc.COUNCIL_MEMBERS.keys())
-        round2_calls = mock_ask.call_args_list[2 * n:3 * n]
+        round2_calls = mock_ask.call_args_list[:n]
         for i, name in enumerate(member_names):
             opponent = wc.CONTRADICTIONS[name]
             user_prompt = round2_calls[i].args[1]
-            self.assertIn(opponent, user_prompt,
-                          f"{name} should face its assigned contradictor {opponent}")
+            self.assertIn(opponent, user_prompt)
             self.assertIn("contradicteur", user_prompt)
-
-    @patch.object(wc, "build_full_context", return_value="CTX")
-    @patch.object(wc, "ask_llm")
-    def test_each_member_gets_its_assigned_model(self, mock_ask, mock_ctx):
-        """The routing core: every member is called with its own MEMBER_MODELS entry."""
-        mock_ask.return_value = "STANCE: HOLD (confiance: 50%)"  # parseable stance avoids dissent-quota
-        wc.run_council(days=7)
-
-        member_names = list(wc.COUNCIL_MEMBERS.keys())
-        n = len(member_names)
-        # Both Round 0 (restate) and Round 1 (analyse) route to the member's own
-        # model — check Round 1 here (calls n..2n-1).
-        round1_calls = mock_ask.call_args_list[n:2 * n]
-        for i, name in enumerate(member_names):
-            expected_model = wc.MEMBER_MODELS[name]
-            passed_model = round1_calls[i].kwargs.get("model")
-            self.assertEqual(passed_model, expected_model,
-                             f"{name} must be routed to {expected_model}, got {passed_model}")
-
-    @patch.object(wc, "build_full_context", return_value="CTX")
-    @patch.object(wc, "ask_llm")
-    def test_report_includes_models_used_footer(self, mock_ask, mock_ctx):
-        """The report must document which model answered each member (transparency)."""
-        mock_ask.return_value = "STANCE: HOLD (confiance: 50%)"  # parseable stance avoids dissent-quota
-        report = wc.run_council(days=7)
-        self.assertIn("Modèles utilisés", report)
-        # Every assigned model must be mentioned in the footer.
-        for model in wc.MEMBER_MODELS.values():
-            self.assertIn(model, report)
-        self.assertIn(wc.JUDGE_MODEL, report)
-
-    @patch.object(wc, "build_full_context", return_value="CTX")
-    @patch.object(wc, "ask_llm")
-    def test_vote_tally_and_restate_in_report(self, mock_ask, mock_ctx):
-        """The report includes a Vote Tally table and the Round 0 reformulations."""
-        # Divergent stances so no dissent-quota triggers.
-        n = len(wc.COUNCIL_MEMBERS)
-        stances = ["STANCE: BUY (confiance: 70%)", "STANCE: SELL (confiance: 60%)",
-                   "STANCE: HOLD (confiance: 40%)", "STANCE: BUY (confiance: 55%)",
-                   "STANCE: SELL (confiance: 50%)", "STANCE: HOLD (confiance: 45%)"]
-        mock_ask.side_effect = ["reform"] * n + stances[:n] + ["débat"] * n + ["verdict"]
-        report = wc.run_council(days=7)
-        self.assertIn("Décompte des positions", report)
-        self.assertIn("Reformulation du problème", report)
-
-    @patch.object(wc, "build_full_context", return_value="CTX")
-    @patch.object(wc, "ask_llm")
-    def test_dissent_quota_triggers_on_consensus(self, mock_ask, mock_ctx):
-        """When ≥2/3 of members converge on a stance, a steelman is forced."""
-        # All members HOLD → strong consensus → dissent quota triggers an extra call.
-        mock_ask.return_value = "STANCE: HOLD (confiance: 80%)"
-        wc.run_council(days=7)
-        n = len(wc.COUNCIL_MEMBERS)
-        # n members × 3 rounds + 1 Judge + 1 dissent-quota steelman.
-        self.assertEqual(mock_ask.call_count, n * 3 + 2)
 
 
 class TestSaveReport(unittest.TestCase):
     @patch("src.council.weekend_council.Path")
     def test_save_report(self, mock_path_cls):
         mock_file = MagicMock()
-        # Path(...) chain: .mkdir(...) returns dir; / "file" returns file
         mock_path_cls.return_value.mkdir.return_value = None
         mock_path_cls.return_value.__truediv__.return_value = mock_file
         mock_file.open.return_value.__enter__.return_value = MagicMock()

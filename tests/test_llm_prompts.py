@@ -17,7 +17,6 @@ from unittest.mock import patch, MagicMock
 
 class TestLLMPrompts(unittest.TestCase):
     def setUp(self):
-        # Données de test réalistes
         self.sample_data = pd.DataFrame(
             [
                 {
@@ -41,94 +40,48 @@ class TestLLMPrompts(unittest.TestCase):
     def test_construct_llm_prompt_content(self):
         """Affiche et vérifie le prompt texte généré."""
         prompt = construct_llm_prompt(self.sample_data, self.headlines, self.web_context, self.vg_indicators)
-
-        print("\n" + "=" * 50)
-        print("🔍 ANALYSE DU PROMPT TEXTUEL GÉNÉRÉ :")
-        print("=" * 50)
-        print(prompt)
-        print("=" * 50)
-
-        # Vérifications
         self.assertIn("Close Price: 15230.50", prompt)
         self.assertIn("RSI (14): 42.15", prompt)
         self.assertIn("Speculative Sentiment (Hyperliquid", prompt)
 
-    @patch("src.llm_client.requests.post")
-    def test_visual_llm_prompt(self, mock_post):
-        """Affiche et vérifie le prompt visuel."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "response": json.dumps(
-                {
-                    "signal": "HOLD",
-                    "confidence": 0.65,
-                    "analysis": "Visual double bottom detected on H1 chart.",
-                }
-            )
+    @patch("src.llm_client._query_nexus_vision")
+    def test_visual_llm_prompt(self, mock_query_vision):
+        """Affiche et vérifie l'appel visuel."""
+        mock_query_vision.return_value = {
+            "signal": "HOLD",
+            "confidence": 0.65,
+            "analysis": "Visual double bottom detected on H1 chart.",
+            "_provider": "gemini_free",
+            "_model": "gemini-2.5-flash",
         }
-        mock_post.return_value = mock_response
 
-        # Création d'une image factice
         dummy_path = Path("dummy_chart.png")
         dummy_path.write_bytes(b"fake_binary_data_for_test")
 
-        get_visual_llm_decision(dummy_path)
+        try:
+            result = get_visual_llm_decision(dummy_path)
+            self.assertEqual(result.signal, "HOLD")
+            self.assertEqual(result.confidence, 0.65)
+            self.assertIn("nexus_vision", result.metadata.get("backend", ""))
+        finally:
+            if dummy_path.exists():
+                dummy_path.unlink()
 
-        # Récupération du payload envoyé à Ollama
-        args, kwargs = mock_post.call_args
-        payload = kwargs["json"]
-
-        print("\n" + "=" * 50)
-        print("🖼️ ANALYSE DU PROMPT VISUEL GÉNÉRÉ :")
-        print("=" * 50)
-        print(payload["prompt"])
-        print("\n[Réponse brute attendue du modèle] :")
-        print(mock_response.json.return_value["response"])
-        print("=" * 50)
-
-        self.assertIn("geometric patterns", payload["prompt"])
-        if dummy_path.exists():
-            dummy_path.unlink()
-
-    @patch("src.llm_client.requests.post")
-    def test_llm_search_query_logic(self, mock_post):
-        """Note: La génération de query de recherche est dans web_researcher.py,
-        mais nous vérifions ici comment le LLM traite le contexte web.
-
-        Gemini (if a real GEMINI_API_KEY is present in the environment) is
-        short-circuited here so this test exercises the mocked Ollama path
-        deterministically — otherwise a live Gemini call would make the
-        assertion non-reproducible.
-        """
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "response": json.dumps(
-                {
-                    "signal": "BUY",
-                    "confidence": 0.88,
-                    "analysis": "Web context confirms bullish bias.",
-                }
-            )
+    @patch("src.llm_client._query_nexus")
+    def test_llm_search_query_logic(self, mock_query):
+        mock_query.return_value = {
+            "signal": "BUY",
+            "confidence": 0.88,
+            "analysis": "Web context confirms bullish bias.",
+            "_provider": "groq",
+            "_model": "llama-3.3-70b-versatile",
         }
-        mock_post.return_value = mock_response
 
-        # Neutralize the cloud tiers (Gemini + FreeLLMClient) so only the
-        # mocked Ollama path runs — keeping this test deterministic. The Gemini
-        # gateway reads its key via src.gemini_gateway.os.getenv at __init__,
-        # so returning "" disables it (enabled=False → returns None → falls
-        # through to Ollama). FreeLLMClient is likewise unimportable in tests.
-        with patch("src.llm_client.time.sleep"), \
-             patch("src.gemini_gateway.os.getenv", return_value=""):
-            result = get_llm_decision(self.sample_data, web_context=self.web_context)
-
-        print("\n" + "=" * 50)
-        print("🌐 RÉSULTAT DU TRAITEMENT DU CONTEXTE WEB :")
-        print("=" * 50)
-        print(f"Signal: {result.signal} | Confidence: {result.confidence}")
-        print(f"Analysis: {result.reasoning}")
-        print("=" * 50)
+        result = get_llm_decision(self.sample_data, web_context=self.web_context)
 
         self.assertEqual(result.signal, "BUY")
+        self.assertEqual(result.confidence, 0.88)
+        self.assertIn("nexus", result.metadata.get("backend", ""))
 
 
 if __name__ == "__main__":

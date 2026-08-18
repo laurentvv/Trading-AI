@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from dotenv import load_dotenv
 from typing import List, Dict
-from llm_client import TEXT_LLM_MODEL, _query_ollama, SCHEMA_SEARCH_QUERY
+from llm_client import _query_nexus
 
 try:
     from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
@@ -196,17 +196,14 @@ def generate_search_query(ticker: str, latest_data: pd.DataFrame = None, use_cac
     }}
     """
 
-    payload = {
-        "model": TEXT_LLM_MODEL,
-        "prompt": prompt.strip(),
-        "stream": False,
-        "format": SCHEMA_SEARCH_QUERY,
-        "options": {"temperature": 0.4, "num_predict": 512},
-        "system": "<|think|> You are a professional financial researcher. Be precise and focus on current market catalysts. Output ONLY the requested JSON object — never add a 'thought' key.",
-    }
-
     try:
-        response = _query_ollama(payload, expected_keys=["query"])
+        response = _query_nexus(
+            prompt,
+            system_prompt="You are a professional financial researcher. Be precise and focus on current market catalysts. Output ONLY valid JSON.",
+            expected_keys=["query"],
+            temperature=0.4,
+            max_tokens=512,
+        )
         query = response.get("query")
         if _is_query_valid(query):
             logger.info(f"Generated search query: '{query}'")

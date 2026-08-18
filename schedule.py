@@ -50,20 +50,16 @@ def is_market_open():
 
 def run_trading_cycle():
     """Lance l'exécution de main.py pour tous les tickers"""
-    # Vérification préalable de la santé d'Ollama
+    # Vérification préalable de la disponibilité des fournisseurs IA
     try:
-        import requests
+        from src.llm_client import check_ai_health
+        ai_ok = check_ai_health()
+    except Exception as e:
+        logger.warning(f"Impossible de vérifier la santé IA : {e}")
+        ai_ok = True
 
-        try:
-            resp = requests.get("http://localhost:11434/api/tags", timeout=5)
-            ollama_ok = resp.status_code == 200
-        except (requests.ConnectionError, requests.Timeout):
-            ollama_ok = False
-    except ImportError:
-        ollama_ok = True  # Si requests n'est pas dispo, on laisse passer
-
-    if not ollama_ok:
-        logger.critical("OLLAMA INDISPONIBLE — cycle de trading ignoré.")
+    if not ai_ok:
+        logger.critical("AUCUN FOURNISSEUR IA CONFIGURÉ — cycle de trading ignoré.")
         return
 
     logger.info(f"🚀 Lancement du cycle de trading pour {TICKERS}")

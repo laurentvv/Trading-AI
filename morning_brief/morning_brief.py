@@ -2,9 +2,9 @@ import json
 import logging
 import sys
 import unicodedata
+import asyncio
 from datetime import datetime
 from pathlib import Path
-
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -26,21 +26,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger("morning_brief")
 
-DEBATE_INSTRUCTIONS = """Tu es un comite d'investissement a 3 voix. Analyse les donnees des outils puis produis un debat structure.
+DEBATE_INSTRUCTIONS = """Tu es un comité d'investissement à 3 voix pour Trading-AI. Analyse les données collectées par les outils et produis un Morning Market Brief rigoureux et structuré en Markdown.
 
-ETAPE 1 - Voix THE BULL :
-Analyse TOUS les arguments haussiers : supports WTI tenus, MA price > MA200, RSI non surachte, logs systeme OK, macro positive, sentiment favorable.
+ÉTAPE 1 - Voix THE BULL :
+Analyse TOUS les arguments haussiers : supports WTI tenus, moyennes mobiles, RSI sain, logs système nominaux, macro/sentiment favorables.
 
-ETAPE 2 - Voix THE BEAR :
-Recherche ACTIVEMENT les failles et risques : WTI surachat (RSI>70), slippage detecte, erreurs systeme, macro incertaine, volumes faibles, divergence baissiere.
+ÉTAPE 2 - Voix THE BEAR :
+Recherche ACTIVEMENT les failles et risques : surachat WTI, volatilité, slippage éventuel, signaux d'alertes, macro incertaine, divergences.
 
-ETAPE 3 - Voix RISK MANAGER (Decision Finale) :
-Arbitre le debat en te basant sur le drawdown actuel du portefeuille. Si drawdown > 5% => bias Bear obligatoire. Si drawdown < 2% et Bull convaincant => bias Bull possible. Sinon => Neutral.
-Produis la recommandation finale avec position sizing.
+ÉTAPE 3 - Voix RISK MANAGER (Décision Finale) :
+Arbitre le débat en te basant sur le drawdown actuel du portefeuille et l'état des risques.
+Produis la recommandation finale, le biais recommandé (Bull / Bear / Neutral) et le position sizing optimal.
 
-Format de sortie obligatoire : Markdown strict selon le template fourni dans la tache.
-Utilise final_answer() pour retourner le markdown complet.
-"""
+Format de sortie obligatoire : Markdown strict respectant exactement le template demandé."""
 
 MARKDOWN_TEMPLATE = """# Morning Market Brief — {date}
 
@@ -93,7 +91,7 @@ def _clean_output(raw: str) -> str:
     return text.strip()
 
 
-def validate_markdown_output(final_answer, _memory, agent):
+def validate_markdown_output(final_answer):
     cleaned = _clean_output(str(final_answer))
     text = _strip_accents(cleaned)
     required = [
@@ -108,6 +106,67 @@ def validate_markdown_output(final_answer, _memory, agent):
     return True
 
 
+async def generate_brief_async() -> str:
+    from nexusai_client import AIGateway
+    from morning_brief.tools.analyze_trading_logs import AnalyzeTradingLogsTool
+    from morning_brief.tools.audit_portfolio_performance import AuditPortfolioPerformanceTool
+    from morning_brief.tools.analyze_wti_market import AnalyzeWtiMarketTool
+    from morning_brief.tools.analyze_nasdaq import AnalyzeNasdaqTool
+    from morning_brief.tools.analyze_market_sentiment import AnalyzeMarketSentimentTool
+
+    logger.info("Executing Morning Brief tools...")
+    logs_res = AnalyzeTradingLogsTool().forward()
+    port_res = AuditPortfolioPerformanceTool().forward()
+    wti_res = AnalyzeWtiMarketTool().forward()
+    nasdaq_res = AnalyzeNasdaqTool().forward()
+    sent_res = AnalyzeMarketSentimentTool().forward()
+
+    tools_summary = f"""### DONNÉES SYSTÈME ET MARCHÉ COLLECTÉES :
+
+1. LOGS & SYSTÈME :
+{logs_res}
+
+2. AUDIT PORTEFEUILLE :
+{port_res}
+
+3. ANALYSE WTI (PÉTROLE) :
+{wti_res}
+
+4. ANALYSE NASDAQ :
+{nasdaq_res}
+
+5. SENTIMENT & MACRO :
+{sent_res}
+"""
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    template = MARKDOWN_TEMPLATE.format(date=today)
+
+    prompt = f"""Tu es le rédacteur en chef et comité d'investissement de Trading-AI.
+Aujourd'hui nous sommes le {today}.
+
+{tools_summary}
+
+CONSIGNE :
+Rédige le Morning Market Brief complet en suivant rigoureusement le template Markdown ci-dessous. Remplis chaque section avec les données réelles fournies ci-dessus.
+
+Template Markdown obligatoire :
+{template}
+"""
+
+    logger.info("Querying NexusAI Gateway for Morning Brief synthesis...")
+    async with AIGateway.auto_fallback() as client:
+        resp = await client.generate_text(
+            prompt,
+            system_prompt=DEBATE_INSTRUCTIONS,
+            temperature=0.3,
+            max_tokens=4096,
+            json_mode=False,
+        )
+        logger.info(f"Morning Brief received from [{resp.provider} / {resp.model}].")
+        return _clean_output(resp.text)
+
+
 def main():
     project_root = str(Path(__file__).resolve().parents[1])
     script_dir = str(Path(__file__).resolve().parent)
@@ -116,80 +175,23 @@ def main():
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
 
-    import requests
+    today = datetime.now().strftime("%Y-%m-%d")
+    logger.info("Starting Morning Market Brief generation via NexusAI-Client...")
 
     try:
-        resp = requests.get("http://localhost:11434/api/tags", timeout=5)
-        resp.raise_for_status()
-        logger.info("Ollama server is reachable.")
-    except Exception:
-        logger.error(
-            "Ollama server is not reachable at http://localhost:11434. "
-            "Start it with 'ollama serve' and try again."
-        )
-        sys.exit(1)
-
-    from smolagents import CodeAgent, LiteLLMModel
-
-    from morning_brief.tools.analyze_trading_logs import AnalyzeTradingLogsTool
-    from morning_brief.tools.audit_portfolio_performance import AuditPortfolioPerformanceTool
-    from morning_brief.tools.analyze_wti_market import AnalyzeWtiMarketTool
-    from morning_brief.tools.analyze_nasdaq import AnalyzeNasdaqTool
-    from morning_brief.tools.analyze_market_sentiment import AnalyzeMarketSentimentTool
-
-    today = datetime.now().strftime("%Y-%m-%d")
-    template = MARKDOWN_TEMPLATE.format(date=today)
-
-    model = LiteLLMModel(
-        model_id="ollama_chat/hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K",
-        api_base="http://localhost:11434",
-        num_ctx=16384,
-        timeout=1200,
-    )
-
-    agent = CodeAgent(
-        tools=[
-            AnalyzeTradingLogsTool(),
-            AuditPortfolioPerformanceTool(),
-            AnalyzeWtiMarketTool(),
-            AnalyzeNasdaqTool(),
-            AnalyzeMarketSentimentTool(),
-        ],
-        model=model,
-        instructions=DEBATE_INSTRUCTIONS,
-        additional_authorized_imports=[
-            "json", "datetime", "re", "pathlib",
-            "math", "statistics", "collections", "itertools",
-            "unicodedata", "logging",
-        ],
-        max_steps=6,
-        planning_interval=None,
-        use_structured_outputs_internally=True,
-        final_answer_checks=[validate_markdown_output],
-        executor_kwargs={"timeout_seconds": 120},
-    )
-
-    task = (
-        f"Genere le Morning Market Brief du {today}.\n"
-        f"Step 1: Appelle les 5 outils dans un seul bloc de code.\n"
-        f"Step 2: Synthetise le debat des 3 personas (Bull/Bear/Risk Manager).\n"
-        f"Step 3: Retourne le markdown complet via final_answer().\n\n"
-        f"Template obligatoire:\n{template}"
-    )
-
-    logger.info("Starting Morning Market Brief generation...")
-    result = agent.run(task)
-    logger.info("Morning Market Brief generation complete.")
+        md_content = asyncio.run(generate_brief_async())
+    except Exception as e:
+        logger.error(f"Error during Morning Brief generation: {e}")
+        md_content = f"# Morning Market Brief — {today}\n\n*Erreur lors de la génération automatique: {e}*\n"
 
     output_path = OUTPUT_DIR / "morning_market_brief.md"
-    md_content = _clean_output(str(result))
     output_path.write_text(md_content, encoding="utf-8")
 
     tools_dir = OUTPUT_DIR / "tools"
     summary_path = tools_dir / "full_summary.json"
     summary_data = {"date": today, "validation": "PASS"}
     try:
-        validate_markdown_output(md_content, None, None)
+        validate_markdown_output(md_content)
     except ValueError as e:
         summary_data["validation"] = f"PARTIAL: {e}"
     summary_path.write_text(json.dumps(summary_data, indent=2), encoding="utf-8")

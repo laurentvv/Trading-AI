@@ -3,7 +3,7 @@ import logging
 from typing import Dict, Any
 
 from src.core.tools import NumericalReasoningEngine, AnswerConsolidationGate
-from src.llm_client import TEXT_LLM_MODEL, SCHEMA_FINACUMEN_SOLVER, OLLAMA_API_URL, _strip_thinking_prefix
+from src.llm_client import _query_nexus, strip_thinking_debris
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +13,7 @@ class SolverAgent:
     Main ReAct loop orchestrating the Numerical Reasoning Engine and generating final decisions.
     """
 
-    def __init__(self, model_name: str = TEXT_LLM_MODEL, max_iterations: int = 6):
+    def __init__(self, model_name: str = "nexusai", max_iterations: int = 6):
         self.model_name = model_name
         self.max_iterations = max_iterations
         self.engine = NumericalReasoningEngine()
@@ -81,42 +81,25 @@ Finish with the final decision (do NOT fetch data repeatedly).
 - To return the final answer, return a JSON EXACTLY like this: {{"python_code": "", "action": "BUY|SELL|HOLD", "confidence": 0.8, "reasoning": "your reasoning"}}
 - You MUST provide ALL 4 keys ("python_code", "action", "confidence", "reasoning") in every response. Use empty strings or "NONE"/0.0 for fields you are not using.
 </Invariants>
-...never add a 'thought' key.
 """
-        import requests
 
         current_prompt = f"Context:\n{context}\n\nStart your reasoning and next action following the invariants."
 
         for iteration in range(self.max_iterations):
             logger.info(f"Solver Iteration {iteration + 1}/{self.max_iterations}")
 
-            payload = {
-                "model": self.model_name,
-                "prompt": current_prompt,
-                "stream": False,
-                "format": SCHEMA_FINACUMEN_SOLVER,
-                "options": {"temperature": 0.1, "num_predict": 2048},
-                "system": system_prompt,
-            }
-
             try:
-                response = requests.post(OLLAMA_API_URL, json=payload, timeout=1800)
-                response.raise_for_status()
+                action_data = _query_nexus(
+                    current_prompt,
+                    system_prompt=system_prompt,
+                    expected_keys=["python_code", "action", "confidence", "reasoning"],
+                    temperature=0.1,
+                    max_tokens=2048,
+                )
 
-                raw_output = response.json().get("response", "").strip()
-                clean_output = _strip_thinking_prefix(raw_output)
+                clean_output = json.dumps(action_data)
                 trajectory.append(f"Model: {clean_output}")
 
-                # Parse JSON
-                try:
-                    action_data = json.loads(clean_output)
-                except json.JSONDecodeError:
-                    current_prompt += "\n\nModel Output Error: Invalid JSON. Please output strictly valid JSON according to invariants."
-                    continue
-
-                # Le schema impose toujours les 4 cles. On distingue :
-                #  - demande d'execution : python_code NON vide
-                #  - reponse finale     : python_code vide ET action != NONE
                 wants_execute = bool(str(action_data.get("python_code", "")).strip())
                 action_val = str(action_data.get("action", "")).upper()
                 is_final_answer = action_val in ("BUY", "SELL", "HOLD")
@@ -130,10 +113,6 @@ Finish with the final decision (do NOT fetch data repeatedly).
                     if result["error"]:
                         output_str += f"Error:\n{result['error']}\n"
 
-                    # Si le code a simplement assigné des donnees sans les afficher
-                    # (cas typique: ``data = lookup_ohlc(...)``), on les renvoie
-                    # explicitement au modele, sinon il boucle sans jamais voir
-                    # ce qu'il a recupere (cause racine des timeouts prod).
                     ns = self.engine.namespace
                     if not result["output"]:
                         fetched = ns.get("data")
@@ -146,10 +125,8 @@ Finish with the final decision (do NOT fetch data repeatedly).
                     current_prompt += f"\n\nModel:\n{clean_output}\n\nObservation:\n{output_str}"
 
                 elif is_final_answer and "confidence" in action_data and "reasoning" in action_data:
-                    # Final Answer
                     trajectory.append(f"Action: final_answer({action_data})")
 
-                    # Validate via the gate
                     validation = AnswerConsolidationGate.verify(trajectory, action_data)
                     if validation["valid"]:
                         return {"status": "success", "decision": action_data, "trajectory": trajectory}

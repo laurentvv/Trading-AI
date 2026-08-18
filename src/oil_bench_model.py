@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import yfinance as yf
 
 from eia_client import EIAClient
-from llm_client import TEXT_LLM_MODEL, _query_ollama, SCHEMA_OIL_ALLOCATION
+from llm_client import _query_nexus
 from enhanced_decision_engine import BaseModel, ModelResult
 from typing import Dict, Any
 
@@ -164,15 +164,13 @@ Return ONLY a JSON object:
         return prompt.strip()
 
     def _query_llm(self, prompt: str) -> dict:
-        payload = {
-            "model": TEXT_LLM_MODEL,
-            "prompt": prompt,
-            "stream": False,
-            "format": SCHEMA_OIL_ALLOCATION,
-            "options": {"temperature": 0.1, "num_predict": 1024},
-            "system": "<|think|> You are a senior commodity quantitative analyst specializing in WTI Crude Oil. Return ONLY valid JSON — never add a 'thought' key.",
-        }
-        return _query_ollama(payload, expected_keys=["allocation", "reasoning"])
+        return _query_nexus(
+            prompt,
+            system_prompt="You are a senior commodity quantitative analyst specializing in WTI Crude Oil. Return ONLY valid JSON.",
+            expected_keys=["allocation", "reasoning"],
+            temperature=0.1,
+            max_tokens=1024,
+        )
 
     def _translate_signal(self, llm_response: dict) -> dict:
         try:

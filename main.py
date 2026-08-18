@@ -24,7 +24,7 @@ sys.path.append(str(Path(__file__).parent / "src"))
 from enhanced_trading_example import EnhancedTradingSystem
 from t212_executor import execute_t212_trade, load_portfolio_state as load_t212_state
 from database import get_latest_portfolio_state, get_latest_transaction
-from llm_client import check_ollama_health
+from llm_client import check_ai_health
 from bootstrap import setup_environment
 
 # Load environment
@@ -100,16 +100,16 @@ def run_trading_analysis(
 
     console = Console()
 
-    # Vérification santé Ollama avant chaque cycle
-    ollama_ok = check_ollama_health()
-    if not ollama_ok:
-        logger.critical(f"OLLAMA INDISPONIBLE pour {ticker} — le cycle de trading est ignoré.")
+    # Vérification santé IA avant chaque cycle
+    ai_ok = check_ai_health()
+    if not ai_ok:
+        logger.critical(f"AUCUN FOURNISSEUR IA CONFIGURÉ pour {ticker} — le cycle de trading est ignoré.")
         console.print(
             Panel(
-                f"[bold red]OLLAMA INDISPONIBLE (localhost:11434)[/bold red]\n\n"
+                f"[bold red]AUCUN FOURNISSEUR IA CONFIGURÉ (NexusAI)[/bold red]\n\n"
                 f"Le cycle pour {ticker} est ignoré. Les modèles LLM sont indispensables.\n"
-                f"Vérifiez que le service Ollama est démarré.",
-                title="Ollama Healthcheck Échoué",
+                f"Vérifiez vos clés API dans le fichier .env.",
+                title="AI Healthcheck Échoué",
                 border_style="red",
             )
         )
