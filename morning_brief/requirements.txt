@@ -1,4 +1,3 @@
-smolagents[litellm]>=1.26.0
 yfinance>=0.2.40
 feedparser>=6.0.0
 beautifulsoup4>=4.12.0
