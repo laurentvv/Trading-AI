@@ -1,7 +1,7 @@
 import re
 from collections import Counter
 
-from smolagents import Tool
+from morning_brief.tools.base import BaseTool as Tool
 
 from morning_brief.tools.rss_helpers import COMMON_FEEDS
 

@@ -466,14 +466,24 @@ class EnhancedTradingSystem:
         # ----------------------------------------------------------------
         if web_context:
             try:
-                from src.gemini_gateway import GeminiGateway
+                from nexusai_client import AIGateway
+                from src.llm_client import _run_sync
 
-                gw = GeminiGateway()
-                if gw.enabled:
-                    summarized = gw.summarize_web_context(web_context)
-                    if summarized:
-                        web_context = summarized
-                        logger.info("Web context summarized via Gemini summary tier.")
+                async def _summarize():
+                    async with AIGateway.auto_fallback() as client:
+                        resp = await client.generate_text(
+                            f"Summarize the following macro/market web research into 3 crisp bullet points:\n\n{web_context[:3000]}",
+                            system_prompt="You are an expert macroeconomic research summarizer.",
+                            temperature=0.2,
+                            max_tokens=512,
+                            json_mode=False,
+                        )
+                        return resp.text.strip()
+
+                summarized = _run_sync(_summarize())
+                if summarized:
+                    web_context = summarized
+                    logger.info("Web context summarized via NexusAI summary tier.")
             except Exception as e:
                 logger.warning(f"Web summarization failed ({e}). Using raw context.")
 

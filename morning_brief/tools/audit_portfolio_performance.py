@@ -1,4 +1,4 @@
-from smolagents import Tool
+from morning_brief.tools.base import BaseTool as Tool
 
 
 def _resolve_db_path(db_path: str | None) -> str:

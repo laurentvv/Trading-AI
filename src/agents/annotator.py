@@ -1,7 +1,7 @@
 import logging
-
-# Adjusting import to use existing LLM integration
-from src.llm_client import TEXT_LLM_MODEL
+import asyncio
+from nexusai_client import AIGateway
+from src.llm_client import _run_sync, strip_thinking_debris
 
 logger = logging.getLogger(__name__)
 
@@ -12,14 +12,13 @@ class AnnotatorAgent:
     adapted to the current market context.
     """
 
-    def __init__(self, model_name: str = TEXT_LLM_MODEL):
+    def __init__(self, model_name: str = "nexusai"):
         self.model_name = model_name
 
     def run_annotator(self, memory_block: str, current_market_context: str) -> str:
         """
         Takes the XML <Memory_Handling> block and returns strict directives.
         """
-        # If no memories were retrieved, return an empty string
         if "No relevant memories" in memory_block or "No memories available" in memory_block:
             return "<!-- No historical directives applicable for the current context -->"
 
@@ -42,29 +41,19 @@ class AnnotatorAgent:
         Output ONLY the directives. Do not include any introductory or concluding text.
         """
 
-        payload = {
-            "model": self.model_name,
-            "prompt": prompt.strip(),
-            "stream": False,
-            "options": {"temperature": 0.2, "num_predict": 512},
-            "system": "<|think|> You are a strict rules annotator. Never add a 'thought' key.",
-        }
-
-        # We don't use schema for this one as we want free text, but we use the _query_ollama helper
-        # by bypassing the json strictness, or we can just make a direct request.
-        import requests
-        from src.llm_client import OLLAMA_API_URL, _strip_thinking_prefix
+        async def _generate():
+            async with AIGateway.auto_fallback() as client:
+                resp = await client.generate_text(
+                    prompt.strip(),
+                    system_prompt="You are a strict rules annotator.",
+                    temperature=0.2,
+                    max_tokens=512,
+                    json_mode=False,
+                )
+                return strip_thinking_debris(resp.text.strip())
 
         try:
-            response = requests.post(OLLAMA_API_URL, json=payload, timeout=1800)
-            response.raise_for_status()
-
-            raw_output = response.json().get("response", "").strip()
-            # Remove thinking tokens
-            clean_output = _strip_thinking_prefix(raw_output)
-
-            return clean_output.strip()
-
+            return _run_sync(_generate())
         except Exception as e:
             logger.error(f"AnnotatorAgent failed: {e}")
             return f"<!-- Error generating directives: {e} -->"

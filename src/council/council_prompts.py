@@ -6,19 +6,11 @@ and a SPECIFIC QUESTION, plus an explicit instruction not to recite raw
 figures that the others will already cite. This is what produces genuine
 analytical divergence instead of members restating the same numbers.
 
-Model assignment: each member is bound to a DISTINCT model family chosen
-for the natural affinity of that family with the role, mixing local Ollama
-models (genuine reasoning diversity) with cloud Gemini calls (speed — a
-cloud call takes seconds vs minutes on CPU Ollama). The 6 members span 5
-families (Gemma / GLM / Qwen / Mistral / Gemini). Models prefixed
-``gemini:`` are routed to the Gemini API through the shared
-``GeminiGateway`` (same QuotaTracker / billing cap as ``get_llm_decision``);
-the Judge uses the paid cascade, members use the free cascade.
+Model assignment: each member is bound to a DISTINCT cloud provider
+through NexusAI-Client (Groq, Cerebras, Mistral, Cohere, OpenRouter/OrcaRouter/Nvidia,
+Gemini Free, and Gemini Pro for the Judge).
 """
 
-# Each member is paired with a specific contradictor for Round 2 (1-vs-1).
-# The mapping is resolved symmetrically. Pairs are chosen to maximise
-# productive tension: macro-vs-contrarian, risk-vs-stats, execution-vs-behaviour.
 CONTRADICTIONS = {
     "Le Stratège": "Le Sceptique",
     "Le Sceptique": "Le Stratège",
@@ -28,41 +20,17 @@ CONTRADICTIONS = {
     "Le Comportementaliste": "Le Tacticien",
 }
 
-# Model assignment per persona. Each member runs on a DISTINCT model family
-# (5 families for 6 members). The Sceptique and Comportementaliste share the
-# Gemini family but are kept in separate analytical lanes by their targeted
-# questions (system-bias vs market-behaviour), the same way the original LFM
-# doublon worked — but on a model strong enough to emit a parseable STANCE
-# (the 1.2B LFM produced a broken "SELL|HOLD|BUY" placeholder on 2026-06-28).
-#
-#   - Gemma 4 12B (Google, Ollama)         → narrative big-picture (Stratège)
-#   - GLM-4.6V-Flash (Zhipu/Z.ai, Ollama)  → infrastructure/risk analysis
-#   - Qwen 3.5 9B (Alibaba, Ollama)        → numbers/rigour (Quant)
-#   - Gemini 2.5 Flash (Google, cloud)     → contrarian + behavioural analysis
-#                                            (Sceptique system-bias +
-#                                             Comportementaliste market-bias)
-#   - Mistral Nemo 12B (Mistral, Ollama)   → factuality/common-sense (Tacticien)
-#
-# ``gemini:`` models are routed to the Gemini API via GeminiGateway.deliberate()
-# (members → FREE cascade, Judge → PAID cascade) — seconds vs minutes on CPU
-# Ollama. Quota is tracked by the shared QuotaTracker (billing cap protected).
+# Provider/model assignment per persona via NexusAI-Client
 MEMBER_MODELS = {
-    "Le Stratège": "hf.co/unsloth/gemma-4-12b-it-GGUF:Q6_K",
-    "Le Gestionnaire de Risque": "hf.co/unsloth/GLM-4.6V-Flash-GGUF:Q6_K",
-    "Le Quant": "qwen3.5:9b",
-    "Le Sceptique": "gemini:2.5-flash",
-    "Le Tacticien": "mistral-nemo:12b-instruct-2407-q6_K",
-    "Le Comportementaliste": "gemini:2.5-flash",
+    "Le Stratège": "openrouter",
+    "Le Gestionnaire de Risque": "cerebras",
+    "Le Quant": "groq",
+    "Le Sceptique": "mistral",
+    "Le Tacticien": "cohere",
+    "Le Comportementaliste": "gemini_free",
 }
-# The Judge performs the hardest job — synthesising the full transcript into a
-# structured verdict. ``gemini:pro`` routes to the PAID cascade (Gemini 2.5 Pro
-# anchors it) via GeminiGateway. The QuotaTracker daily cap (GEMINI_PAY_DAILY_CAP,
-# default 200) bounds billing. Cloud call → ~2-30s vs ~30min for Qwen3.5 local.
-JUDGE_MODEL = "gemini:pro"
+JUDGE_MODEL = "gemini_pro"
 
-# Targeted Round 1 question per persona. Replaces the generic "Quelle est ton
-# analyse ?" that caused members to converge on the same surface observations.
-# Each question forces the member into their own analytical lane.
 ROUND1_QUESTIONS = {
     "Le Stratège": (
         "À partir de ce contexte, quel est LE scénario macroéconomique dominant "
@@ -101,7 +69,6 @@ ROUND1_QUESTIONS = {
         "des autres acteurs — pas notre système (ça, c'est le Sceptique)."
     ),
 }
-
 
 COUNCIL_MEMBERS = {
     "Le Stratège": {
@@ -225,18 +192,12 @@ JUDGE_PROMPT = {
     ),
 }
 
-# Round 0 instruction — each member restates the central question before
-# analysing. If their reformulations diverge, the question itself may be
-# poorly framed (this is the "Problem Restate Gate" from the original design).
 RESTATE_INSTRUCTION = (
     "Avant d'analyser, reformule en UNE seule phrase : "
     "« Quelle est vraiment la question centrale à résoudre cette semaine ? » "
     "Ne donne pas encore ton analyse — isole juste le vrai problème."
 )
 
-# Each member must end its Round 1 analysis with an explicit, parseable
-# position so the Judge can produce a weighted tally instead of guessing
-# from prose.
 STANCE_SUFFIX = (
     "\n\nTermine OBLIGATOIREMENT ton analyse par une ligne exactement au format : "
     "STANCE: BUY|SELL|HOLD (confiance: XX%)"

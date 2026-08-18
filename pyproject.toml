@@ -10,9 +10,6 @@ dependencies = [
     "ddgs>=9.14.4",
     "einops>=0.8.2",
     "feedparser>=6.0.12",
-    "free-llm-api-keys",
-    "google-api-core>=2.31.0",
-    "google-genai>=1.0.0",
     "huggingface-hub>=1.17.0",
     "hyperliquid-python-sdk>=0.23.0",
     "jax>=0.4.0",
@@ -36,13 +33,13 @@ dependencies = [
     "seaborn>=0.13.2",
     "setuptools>=82.0.1",
     "shap>=0.49.1",
-    "smolagents[litellm]>=1.26.0",
     "stable-baselines3>=2.8.0",
     "tensortrade>=1.0.4",
     "timesfm>=2.0.0",
     "torch>=2.10.0",
     "tqdm>=4.67.3",
     "yfinance>=1.4.1",
+    "nexusai-client>=0.4.1",
 ]
 
 [tool.pytest.ini_options]
@@ -55,4 +52,3 @@ target-version = "py312"
 
 [tool.uv.sources]
 timesfm = { path = "vendor/timesfm" }
-free-llm-api-keys = { git = "https://github.com/laurentvv/free-llm-api-keys-python.git" }

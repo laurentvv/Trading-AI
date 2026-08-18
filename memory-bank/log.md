@@ -197,3 +197,19 @@ Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-
   - Test de régression dédié `tests/test_morning_brief_init.py` (suppression complète de `output/` puis import/init automatique) : PASS.
   - 67/67 tests unitaires : PASS.
 
+## [2026-08-18] feat | Migration complète vers NexusAI-Client & Suppression totale des IA locales
+- **Objectif** : Remplacer l'ensemble de la gestion des IA (Ollama local, FreeLLMClient, GeminiGateway ad-hoc, modèles GGUF locaux, think-mode Ollama) par le SDK unifié [`NexusAI-Client`](https://github.com/laurentvv/NexusAI-Client) (`nexusai-client>=0.3.1`).
+- **Refactorisations réalisées** :
+  1. **Noyau LLM (`src/llm_client.py`)** : Replaçage de tous les appels texte et vision par `AIGateway.auto_fallback()` et `AIGateway.auto_fallback_vision()` avec `_run_sync` pour compatibilité synchrone. Préservation du parsing JSON robuste et du nettoyage des marqueurs.
+  2. **Modèles Spécialisés** : `src/oil_bench_model.py`, `src/web_researcher.py`, `src/agents/solver.py`, `src/agents/annotator.py` (FinAcumen) migrés vers `_query_nexus`.
+  3. **Weekend Council (`src/council/weekend_council.py` & `council_prompts.py`)** : Distribution multi-modèles cloud authentique entre personas (Groq, Cerebras, Mistral, Cohere, OpenRouter/Nvidia, Gemini Free & Pro) avec fallback automatique.
+  4. **Morning Brief (`morning_brief/morning_brief.py`)** : Exécution directe des outils locaux + synthèse via `NexusAI-Client`.
+  5. **Orchestrateur & Scripts** : `main.py`, `schedule.py`, `src/enhanced_trading_example.py` migrés sur `check_ai_health()` et le client NexusAI.
+  6. **Suppression des fichiers obsolètes** : suppression de `setup_council_models.py`, `src/council/ollama_helpers.py`, `src/gemini_gateway.py`, `src/gemini_quota.py`, `tests/test_gemini_gateway.py`, retrait de `free-llm-api-keys`.
+- **Validation** :
+  - **193/193 tests unitaires pytest** : PASS (0 échec).
+  - **Morning Brief** : exécuté en direct avec synthèse multi-fournisseur cloud (`PASS`).
+  - **Weekend Council** : 3 rounds exécutés avec rapport complet et décompte de positions générés.
+  - **Cycle `main.py --simul`** : analyse complète multi-modèles (11 voix) exécutée en **34.6 secondes** (contre 10-15 min auparavant).
+
+
