@@ -206,10 +206,20 @@ Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-
   4. **Morning Brief (`morning_brief/morning_brief.py`)** : Exécution directe des outils locaux + synthèse via `NexusAI-Client`.
   5. **Orchestrateur & Scripts** : `main.py`, `schedule.py`, `src/enhanced_trading_example.py` migrés sur `check_ai_health()` et le client NexusAI.
   6. **Suppression des fichiers obsolètes** : suppression de `setup_council_models.py`, `src/council/ollama_helpers.py`, `src/gemini_gateway.py`, `src/gemini_quota.py`, `tests/test_gemini_gateway.py`, retrait de `free-llm-api-keys`.
-- **Validation** :
-  - **193/193 tests unitaires pytest** : PASS (0 échec).
-  - **Morning Brief** : exécuté en direct avec synthèse multi-fournisseur cloud (`PASS`).
-  - **Weekend Council** : 3 rounds exécutés avec rapport complet et décompte de positions générés.
-  - **Cycle `main.py --simul`** : analyse complète multi-modèles (11 voix) exécutée en **34.6 secondes** (contre 10-15 min auparavant).
+## [2026-08-18] refactor | Python Health Audit Remediation (Code Quality & Complexity)
+- **Audit statique (`python-health-audit`)** :
+  - Identification de 12 findings Ruff, dont un bug critique `F821 Undefined name Path` dans `schedule.py` (lignes 87 & 123).
+  - Détection de deux hotspots de complexité cyclomatique de Rang E dans le code applicatif (`run_trading_analysis` dans `main.py` et `calculate_adaptive_weights` dans `src/adaptive_weight_manager.py`).
+- **Remédiations appliquées** :
+  1. `schedule.py` : ajout de l'import manquant `from pathlib import Path`.
+  2. `src/agents/annotator.py` & `src/agents/solver.py` : suppression des imports inutilisés (`asyncio`, `strip_thinking_debris`).
+  3. `.agents/skills/ui-ux-pro-max/` : correction des f-strings statiques et suppression des variables inutilisées (`0 erreur Ruff`).
+  4. `vendor/timesfm/build/` : suppression du répertoire d'artefacts de build pour éliminer les fausses duplications de code.
+  5. `main.py` : refactorisation de `run_trading_analysis` par extraction des fonctions modulaires `_execute_t212_orders`, `_write_trading_journal` et `_render_summary_panel` (passage de Rang E à Rang C).
+  6. `src/adaptive_weight_manager.py` : extraction de `_apply_soft_win_rate_penalties` et `_build_adjustment_reasoning` (passage de Rang E à Rang C).
+- **Résultats & Validation** :
+  - **193/193 tests unitaires** : PASS (100% de succès, 0 régression).
+  - **Note globale du rapport** : passée à **`C`** (0 erreur Ruff, indice MI ~60.1, 0 hotspot Rang E applicatif).
+
 
 
