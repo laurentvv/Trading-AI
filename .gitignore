@@ -52,7 +52,8 @@ docs/council_reports/
 api_keys.txt
 config.ini
 secrets.json
-logs_prod/trading.log.1
+logs_prod/
+.zcode/
 alerte-wti-main/
 # Backups created by reset_for_fresh_test.py (operator-only, never commit)
 reset_backup/

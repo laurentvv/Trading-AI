@@ -182,3 +182,18 @@ Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-
 - **43/43 tests verts** (`test_stop_loss` + `test_prod_regression` + `test_t212` + `test_eia_client`) ; **67/67 verts** sur la suite LLM élargie (vérification absence de régression transverse). 8 nouveaux tests de régression.
 - **Fichiers modifiés** (4) : `src/eia_client.py`, `src/t212_executor.py`, `tests/test_stop_loss.py`, `tests/test_prod_regression.py`.
 - **Déploiement PROD requis** : `git pull` + suppression de `data_cache/eia/eia_crude_imports.parquet` sur la **machine PROD** (le cache stale actuel resterait sinon — le guard fraîcheur ne s'applique qu'aux nouvelles écritures). Pas de reset DB.
+
+## [2026-08-18] fix | Audit PROD 18/08 & Fix Morning Brief output auto-creation
+- **Audit `logs_prod/` (2026-07-27 -> 2026-08-18, 588 cycles)** :
+  - **Verdict global** : ✅ SAIN. 20 transactions réelles T212 confirmées, consensus équilibré (BUY, SELL, HOLD actifs).
+  - **Weekend Council** : 100% opérationnel sans erreur, rapports générés et 11ème voix active.
+  - **Cause racine des 22 échecs Morning Brief** : dans `morning_brief/morning_brief.py`, `logging.basicConfig` configurait un `FileHandler` pointant vers `morning_brief/output/morning_brief.log` AVANT que le répertoire `morning_brief/output` ne soit créé (`OUTPUT_DIR.mkdir()`). Sur une machine PROD ou un clone propre (où `output/` est gitignored), l'import/lancement échouait immédiatement avec `FileNotFoundError: [Errno 2] No such file or directory`.
+- **Fixes appliqués** :
+  1. `morning_brief/morning_brief.py` : définition de `OUTPUT_DIR` et création systématique avec `OUTPUT_DIR.mkdir(parents=True, exist_ok=True)` et `(OUTPUT_DIR / "tools").mkdir(parents=True, exist_ok=True)` avant `logging.basicConfig`.
+  2. `morning_brief/tools/__init__.py` : `TOOLS_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)` garanti dans `save_tool_result`.
+  3. `schedule.py` (`run_morning_brief`) : création préventive de `morning_brief/output` + fallback header si le markdown de base est manquant pour garantir que FinAcumen peut toujours écrire son rapport.
+  4. `src/bootstrap.py` : création automatique du dossier parent pour tout `log_file` personnalisé avant `RotatingFileHandler`.
+- **Validation** :
+  - Test de régression dédié `tests/test_morning_brief_init.py` (suppression complète de `output/` puis import/init automatique) : PASS.
+  - 67/67 tests unitaires : PASS.
+
