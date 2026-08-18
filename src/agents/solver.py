@@ -3,7 +3,7 @@ import logging
 from typing import Dict, Any
 
 from src.core.tools import NumericalReasoningEngine, AnswerConsolidationGate
-from src.llm_client import _query_nexus, strip_thinking_debris
+from src.llm_client import _query_nexus
 
 logger = logging.getLogger(__name__)
 

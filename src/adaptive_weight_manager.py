@@ -674,13 +674,30 @@ class AdaptiveWeightManager:
             base_weight = self.base_weights[model]
             smoothed_weights[model] = smoothing_factor * new_weight + (1 - smoothing_factor) * base_weight
 
-        # SOFT win-rate penalty (replaces the former hard 45% kill switch,
-        # 2026-07-27). The directional dead-zone (HOLD_NEUTRAL_RETURN_THRESHOLD)
-        # keeps win_rate structurally below 45% on low-volatility ETF markets,
-        # so a step at 45% was the wrong shape — it collapsed the ensemble to
-        # ~3 voters. Now we scale continuously between FLOOR (suppressed) and
-        # CEIL (unpenalised): a poor-but-directional model keeps a reduced
-        # voice, a genuinely bad one is still silenced.
+        # SOFT win-rate penalty
+        smoothed_weights = self._apply_soft_win_rate_penalties(smoothed_weights, all_performances)
+
+        # Generate adjustment reasoning
+        reasoning = self._build_adjustment_reasoning(market_regime, performance_scores, smoothed_weights)
+
+        # Calculate confidence based on data quality and consistency
+        confidence = min(0.9, 0.3 + (models_with_data / len(self.base_weights)) * 0.6)
+
+        return WeightAdjustment(
+            model_weights=smoothed_weights,
+            adjustment_reason=reasoning,
+            confidence=confidence,
+            market_regime=market_regime,
+            performance_period=f"{self.lookback_days} days",
+        )
+
+    def _apply_soft_win_rate_penalties(
+        self,
+        weights: dict[str, float],
+        all_performances: dict,
+    ) -> dict[str, float]:
+        """Apply soft continuous win-rate penalty for models below threshold."""
+        adjusted = weights.copy()
         for model in self.base_weights.keys():
             perf = all_performances.get(model)
             if perf is not None and perf.win_rate >= 0:
@@ -691,7 +708,7 @@ class AdaptiveWeightManager:
                         (wr - WIN_RATE_SOFT_FLOOR)
                         / (WIN_RATE_SOFT_CEIL - WIN_RATE_SOFT_FLOOR),
                     )
-                    smoothed_weights[model] *= factor
+                    adjusted[model] *= factor
                     if factor < 0.1:
                         logger.warning(
                             f"Réduction forte de {model} : win_rate {wr:.2%} "
@@ -704,20 +721,24 @@ class AdaptiveWeightManager:
                             f"→ facteur {factor:.2f}."
                         )
 
-        total_smoothed = sum(smoothed_weights.values())
-        if total_smoothed > 0:
-            smoothed_weights = {k: v / total_smoothed for k, v in smoothed_weights.items()}
+        total_adjusted = sum(adjusted.values())
+        if total_adjusted > 0:
+            return {k: v / total_adjusted for k, v in adjusted.items()}
+        return adjusted
 
-        # Generate adjustment reasoning
-        reasoning_parts = []
-        reasoning_parts.append(f"Market regime: {market_regime}")
+    def _build_adjustment_reasoning(
+        self,
+        market_regime: str,
+        performance_scores: dict[str, float],
+        smoothed_weights: dict[str, float],
+    ) -> str:
+        """Build summary string explaining the weight changes."""
+        reasoning_parts = [f"Market regime: {market_regime}"]
 
-        # Identify top performing model
         if performance_scores:
             top_model = max(performance_scores.keys(), key=lambda k: performance_scores[k])
             reasoning_parts.append(f"Top performer: {top_model}")
 
-        # Identify significant weight changes
         significant_changes = []
         for model, new_weight in smoothed_weights.items():
             base_weight = self.base_weights[model]
@@ -727,20 +748,9 @@ class AdaptiveWeightManager:
                 significant_changes.append(f"{model} {direction} by {abs(change):.1%}")
 
         if significant_changes:
-            reasoning_parts.extend(significant_changes[:2])  # Limit to top 2 changes
+            reasoning_parts.extend(significant_changes[:2])
 
-        reasoning = "; ".join(reasoning_parts)
-
-        # Calculate confidence based on data quality and consistency
-        confidence = min(0.9, 0.3 + (models_with_data / len(self.base_weights)) * 0.6)
-
-        return WeightAdjustment(
-            model_weights=smoothed_weights,
-            adjustment_reason=reasoning,
-            confidence=confidence,
-            market_regime=market_regime,
-            performance_period=f"{self.lookback_days} days",
-        )
+        return "; ".join(reasoning_parts)
 
     def resolve_previous_predictions(self, dates_prices: dict):
         """

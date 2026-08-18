@@ -20,7 +20,6 @@ several files at once, so we want the full list in one run).
 import csv
 import json
 import sys
-from pathlib import Path
 
 from core import CSV_CONFIG, STACK_CONFIG, _STACK_COLS, DATA_DIR
 

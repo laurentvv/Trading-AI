@@ -11,6 +11,7 @@ import csv
 import threading
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from dotenv import load_dotenv
 from rich.console import Console
@@ -89,6 +90,212 @@ def check_setup() -> bool:
 
 
 
+def _execute_t212_orders(
+    ticker: str,
+    system: EnhancedTradingSystem,
+    decision: Any,
+    risk: Any,
+    results: dict,
+    cancel_event: threading.Event | None,
+    console: Console,
+) -> str:
+    """Handle position checking, risk overrides and order execution on Trading 212."""
+    from t212_executor import get_t212_ticker, INITIAL_BUDGETS, DEFAULT_INITIAL_BUDGET
+
+    t212_key = get_t212_ticker(ticker)
+    t212_state = load_t212_state(t212_key)
+
+    is_holding = t212_state.get("active_position") is not None
+    entry_price_index = (
+        t212_state.get("active_position", {}).get("entry_price_index")
+        if is_holding
+        else None
+    )
+
+    signal, adjustment_reason = system.risk_manager.get_risk_adjusted_signal(
+        decision.final_signal,
+        decision.final_confidence,
+        risk,
+        price_data=results["market_data"].get("price_series"),
+        ticker=ticker,
+        is_holding=is_holding,
+        entry_price_index=entry_price_index,
+    )
+
+    if signal != decision.final_signal:
+        console.print(
+            f"[bold orange3]⚠️ Risk Management Override: {decision.final_signal} -> {signal}[/bold orange3]"
+        )
+        if "INERTIA" in adjustment_reason:
+            console.print(f"[bold cyan]ℹ️ {adjustment_reason}[/bold cyan]")
+
+    if signal not in ["BUY", "STRONG_BUY", "SELL", "STRONG_SELL"]:
+        console.print(f"[bold blue]ℹ️ No trade executed (Signal is {signal})[/bold blue]")
+        return signal
+
+    exec_signal = "BUY" if "BUY" in signal else "SELL"
+    if cancel_event is not None and cancel_event.is_set():
+        logger.warning(
+            f"⏱ Cycle for {ticker} was cancelled — skipping T212 {exec_signal} "
+            f"(original signal was {signal}) to avoid orphan-thread trade"
+        )
+        console.print(
+            f"[bold orange3]⏱ T212 {exec_signal} SKIPPED: cycle was cancelled by timeout[/bold orange3]"
+        )
+        return signal
+
+    ticker_lock = _get_ticker_lock(ticker)
+    with ticker_lock:
+        if cancel_event is not None and cancel_event.is_set():
+            logger.warning(f"⏱ Cancel detected after lock — skipping T212 {exec_signal}")
+            return signal
+
+        console.print(
+            f"[bold yellow]🚀 Execution of the signal on Trading 212 for {ticker}... (original: {signal})[/bold yellow]"
+        )
+        budget_ticker = INITIAL_BUDGETS.get(t212_key, DEFAULT_INITIAL_BUDGET)
+        rec_eur = None
+        try:
+            rec_eur = results["position_sizing"].recommended_size
+            sizing_ratio = max(0.3, min(rec_eur / budget_ticker, 1.0)) if budget_ticker > 0 else 0.75
+        except (KeyError, AttributeError, TypeError):
+            sizing_ratio = 0.75
+
+        rec_str = f"{rec_eur:.0f}€" if rec_eur is not None else "?"
+        logger.info(
+            f"📏 Sizing: risk-manager recommended {rec_str} "
+            f"-> sizing_ratio={sizing_ratio:.2f} (budget {budget_ticker}€)"
+        )
+
+        execute_t212_trade(
+            exec_signal,
+            decision.final_confidence,
+            ticker=ticker,
+            analysis_date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            signal_source="IA_HYBRID_T212",
+            sizing_ratio=sizing_ratio,
+        )
+
+    return signal
+
+
+def _write_trading_journal(
+    ticker: str,
+    decision: Any,
+    confidence: float,
+    risk_level: str,
+    signal: str,
+    is_t212: bool,
+) -> None:
+    """Write trading analysis row to trading_journal.csv."""
+    journal_file = "trading_journal.csv"
+    file_exists = Path(journal_file).exists()
+
+    with open(journal_file, mode="a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        header = [
+            "Timestamp",
+            "Ticker",
+            "FINAL_SIGNAL",
+            "Confidence",
+            "Risk_Level",
+            "Risk_Adjusted",
+            "T212_Capital",
+        ]
+        model_names = [
+            "classic",
+            "llm_text",
+            "llm_visual",
+            "sentiment",
+            "timesfm",
+            "tensortrade",
+            "vincent_ganne",
+        ]
+        for m in model_names:
+            header.append(f"Model_{m}")
+
+        if not file_exists:
+            writer.writerow(header)
+
+        from t212_executor import get_t212_ticker
+        t212_key = get_t212_ticker(ticker) if is_t212 else ticker
+        t212_state = load_t212_state(t212_key, sync=False)
+        capital_val = t212_state.get("current_capital", 1000.0)
+
+        row = [
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            ticker,
+            decision.final_signal,
+            f"{confidence:.2%}",
+            risk_level,
+            signal,
+            f"{capital_val:.2f} €",
+        ]
+
+        dec_map = {d.model_name: f"{d.signal}({d.confidence:.2f})" for d in decision.individual_decisions}
+        for m in model_names:
+            row.append(dec_map.get(m, "N/A"))
+
+        writer.writerow(row)
+
+
+def _render_summary_panel(
+    ticker: str,
+    signal: str,
+    confidence: float,
+    risk_level: str,
+    is_simulation: bool,
+    is_t212: bool,
+    results: dict,
+    console: Console,
+) -> None:
+    """Render Rich summary table inside a panel."""
+    color = "green" if "BUY" in signal else "red" if "SELL" in signal else "yellow"
+    summary_table = Table(box=None)
+    summary_table.add_column("Property", style="dim")
+    summary_table.add_column("Value")
+
+    summary_table.add_row("TICKER", f"[bold]{ticker}[/bold]")
+    summary_table.add_row("FINAL DECISION", f"[bold {color}]{signal}[/bold {color}]")
+    summary_table.add_row("CONFIDENCE", f"{confidence:.2%}")
+    summary_table.add_row("RISK LEVEL", f"{risk_level}")
+
+    if is_simulation:
+        state = get_latest_portfolio_state(ticker)
+        last_tx = get_latest_transaction(ticker)
+        if state:
+            summary_table.add_row("---", "---")
+            summary_table.add_row("PORTFOLIO VALUE", f"[bold]{state[2]:.2f} €[/bold]")
+            summary_table.add_row("CASH", f"{state[1]:.2f} €")
+            summary_table.add_row("SHARES", f"{state[0]:.4f}")
+            if last_tx:
+                summary_table.add_row("LAST TRADE", f"{last_tx[1]} on {last_tx[0]}")
+    elif is_t212:
+        from t212_executor import get_t212_ticker
+        t212_key = get_t212_ticker(ticker)
+        t212_state = load_t212_state(t212_key, sync=False)
+        cap_val = t212_state.get("current_capital", 1000.0)
+        pl_val = t212_state.get("total_realized_pl", 0.0)
+        active_pos = t212_state.get("active_position")
+
+        summary_table.add_row("---", "---")
+        summary_table.add_row("T212 CAPITAL", f"[bold]{cap_val:.2f} €[/bold]")
+        summary_table.add_row("T212 P/L", f"{pl_val:+.2f} €")
+        if active_pos:
+            summary_table.add_row("T212 POSITION", f"{active_pos['quantity']} shares")
+    else:
+        summary_table.add_row("REC. POSITION", f"${results['position_sizing'].recommended_size:,.2f}")
+
+    console.print(
+        Panel(
+            summary_table,
+            title=f"🎯 [bold]TRADING SIGNAL: {ticker}[/bold]",
+            border_style=color,
+            expand=False,
+        )
+    )
+
+
 def run_trading_analysis(
     ticker: str,
     is_simulation: bool = False,
@@ -156,199 +363,36 @@ def run_trading_analysis(
 
         # T212 Execution
         if is_t212:
-            from t212_executor import get_t212_ticker
-
-            t212_key = get_t212_ticker(ticker)
-            t212_state = load_t212_state(t212_key)
-
-            # --- AJOUT : Récupération de l'état de position pour le Risk Manager ---
-            is_holding = t212_state.get("active_position") is not None
-            entry_price_index = t212_state.get("active_position", {}).get("entry_price_index") if is_holding else None
-
-            # Recalculer le signal avec la conscience de la position
-            # On ré-interroge le risk manager avec les infos de position
-            signal, adjustment_reason = system.risk_manager.get_risk_adjusted_signal(
-                decision.final_signal,
-                decision.final_confidence,
-                risk,
-                price_data=results["market_data"].get(
-                    "price_series"
-                ),  # Passé par system.perform_enhanced_analysis si on le modifie
+            signal = _execute_t212_orders(
                 ticker=ticker,
-                is_holding=is_holding,
-                entry_price_index=entry_price_index,
+                system=system,
+                decision=decision,
+                risk=risk,
+                results=results,
+                cancel_event=cancel_event,
+                console=console,
             )
 
-            if signal != decision.final_signal:
-                console.print(
-                    f"[bold orange3]⚠️ Risk Management Override: {decision.final_signal} -> {signal}[/bold orange3]"
-                )
-                if "INERTIA" in adjustment_reason:
-                    console.print(f"[bold cyan]ℹ️ {adjustment_reason}[/bold cyan]")
+        # Journalisation CSV pour débriefing détaillé
+        _write_trading_journal(
+            ticker=ticker,
+            decision=decision,
+            confidence=confidence,
+            risk_level=risk_level,
+            signal=signal,
+            is_t212=is_t212,
+        )
 
-            if signal in ["BUY", "STRONG_BUY", "SELL", "STRONG_SELL"]:
-                exec_signal = "BUY" if "BUY" in signal else "SELL"
-
-                # --- Safety: cancel check + per-ticker lock ---
-                # If the cycle has been cancelled (timeout from main loop),
-                # do NOT place a real T212 order — the user has already been
-                # told "HOLD appliqué". This prevents orphan threads from
-                # executing real-money trades after the panel has been shown.
-                if cancel_event is not None and cancel_event.is_set():
-                    logger.warning(
-                        f"⏱ Cycle for {ticker} was cancelled — skipping T212 {exec_signal} "
-                        f"(original signal was {signal}) to avoid orphan-thread trade"
-                    )
-                    console.print(
-                        f"[bold orange3]⏱ T212 {exec_signal} SKIPPED: cycle was cancelled by timeout[/bold orange3]"
-                    )
-                else:
-                    ticker_lock = _get_ticker_lock(ticker)
-                    with ticker_lock:
-                        # Re-check cancel_event after acquiring the lock —
-                        # protects against the case where the lock was held
-                        # by an orphan from a previous cycle that just released it.
-                        if cancel_event is not None and cancel_event.is_set():
-                            logger.warning(f"⏱ Cancel detected after lock — skipping T212 {exec_signal}")
-                        else:
-                            console.print(
-                                f"[bold yellow]🚀 Execution of the signal on Trading 212 for {ticker}... (original: {signal})[/bold yellow]"
-                            )
-                            # --- Sizing: wire the advanced risk-manager's Kelly +
-                            # risk-adjusted recommendation (single source of truth),
-                            # replacing the ad-hoc confidence*1.5 heuristic.
-                            # The risk manager computes a recommended € amount from
-                            # signal strength, confidence, risk score and historical
-                            # performance (Kelly). Convert it to a [0.3, 1.0] ratio of
-                            # the per-ticker budget so the executor scales the order.
-                            from t212_executor import INITIAL_BUDGETS, DEFAULT_INITIAL_BUDGET
-                            budget_ticker = INITIAL_BUDGETS.get(t212_key, DEFAULT_INITIAL_BUDGET)
-                            rec_eur = None
-                            try:
-                                rec_eur = results["position_sizing"].recommended_size
-                                sizing_ratio = max(0.3, min(rec_eur / budget_ticker, 1.0)) if budget_ticker > 0 else 0.75
-                            except (KeyError, AttributeError, TypeError):
-                                sizing_ratio = 0.75  # graceful fallback
-                            rec_str = f"{rec_eur:.0f}€" if rec_eur is not None else "?"
-                            logger.info(f"📏 Sizing: risk-manager recommended {rec_str} "
-                                        f"-> sizing_ratio={sizing_ratio:.2f} (budget {budget_ticker}€)")
-
-                            execute_t212_trade(
-                                exec_signal,
-                                confidence,
-                                ticker=ticker,
-                                analysis_date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                                signal_source="IA_HYBRID_T212",
-                                sizing_ratio=sizing_ratio,
-                            )
-            else:
-                console.print(f"[bold blue]ℹ️ No trade executed (Signal is {signal})[/bold blue]")
-
-        # --- AJOUT : Journalisation CSV pour débriefing détaillé ---
-        journal_file = "trading_journal.csv"
-        file_exists = Path(journal_file).exists()
-
-        with open(journal_file, mode="a", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-
-            # Création de l'en-tête dynamique basé sur les modèles présents
-            header = [
-                "Timestamp",
-                "Ticker",
-                "FINAL_SIGNAL",
-                "Confidence",
-                "Risk_Level",
-                "Risk_Adjusted",
-                "T212_Capital",
-            ]
-            # Ajouter des colonnes pour chaque modèle possible
-            model_names = [
-                "classic",
-                "llm_text",
-                "llm_visual",
-                "sentiment",
-                "timesfm",
-                "tensortrade",
-                "vincent_ganne",
-            ]
-            for m in model_names:
-                header.append(f"Model_{m}")
-
-            if not file_exists:
-                writer.writerow(header)
-
-            t212_key = get_t212_ticker(ticker) if is_t212 else ticker
-            t212_state = load_t212_state(t212_key, sync=False)
-            capital_val = t212_state.get("current_capital", 1000.0)
-
-            # Préparation de la ligne de données
-            row = [
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                ticker,
-                decision.final_signal,
-                f"{confidence:.2%}",
-                risk_level,
-                signal,  # Le signal réellement exécuté (après risk management)
-                f"{capital_val:.2f} €",
-            ]
-
-            # Dictionnaire des décisions pour un mapping facile
-            dec_map = {d.model_name: f"{d.signal}({d.confidence:.2f})" for d in decision.individual_decisions}
-            for m in model_names:
-                row.append(dec_map.get(m, "N/A"))
-
-            writer.writerow(row)
-        # ------------------------------------------------
-
-        # Color coding
-        color = "green" if "BUY" in signal else "red" if "SELL" in signal else "yellow"
-
-        # Final Summary Panel
-        summary_table = Table(box=None)
-        summary_table.add_column("Property", style="dim")
-        summary_table.add_column("Value")
-
-        summary_table.add_row("TICKER", f"[bold]{ticker}[/bold]")
-        summary_table.add_row("FINAL DECISION", f"[bold {color}]{signal}[/bold {color}]")
-        summary_table.add_row("CONFIDENCE", f"{confidence:.2%}")
-        summary_table.add_row("RISK LEVEL", f"{risk_level}")
-
-        if is_simulation:
-            # Show current simulation state
-            state = get_latest_portfolio_state(ticker)
-            last_tx = get_latest_transaction(ticker)
-
-            if state:
-                summary_table.add_row("---", "---")
-                summary_table.add_row("PORTFOLIO VALUE", f"[bold]{state[2]:.2f} €[/bold]")
-                summary_table.add_row("CASH", f"{state[1]:.2f} €")
-                summary_table.add_row("SHARES", f"{state[0]:.4f}")
-                if last_tx:
-                    summary_table.add_row("LAST TRADE", f"{last_tx[1]} on {last_tx[0]}")
-        elif is_t212:
-            from t212_executor import get_t212_ticker
-
-            t212_key = get_t212_ticker(ticker)
-            t212_state = load_t212_state(t212_key, sync=False)
-            cap_val = t212_state.get("current_capital", 1000.0)
-            pl_val = t212_state.get("total_realized_pl", 0.0)
-            active_pos = t212_state.get("active_position")
-
-            summary_table.add_row("---", "---")
-            summary_table.add_row("T212 CAPITAL", f"[bold]{cap_val:.2f} €[/bold]")
-            summary_table.add_row("T212 P/L", f"{pl_val:+.2f} €")
-            if active_pos:
-                summary_table.add_row("T212 POSITION", f"{active_pos['quantity']} shares")
-        else:
-            summary_table.add_row("REC. POSITION", f"${results['position_sizing'].recommended_size:,.2f}")
-
-        console.print(
-            Panel(
-                summary_table,
-                title=f"🎯 [bold]TRADING SIGNAL: {ticker}[/bold]",
-                border_style=color,
-                expand=False,
-            )
+        # Affichage du panneau de résumé
+        _render_summary_panel(
+            ticker=ticker,
+            signal=signal,
+            confidence=confidence,
+            risk_level=risk_level,
+            is_simulation=is_simulation,
+            is_t212=is_t212,
+            results=results,
+            console=console,
         )
 
         return signal
