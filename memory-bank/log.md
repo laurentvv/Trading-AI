@@ -280,3 +280,11 @@ Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-
 - Exécution : reset_for_fresh_test.py --dry-run puis --yes → backup reset_backup/20260819_160050 (data_cache, DBs, journal CSV, state T212, logs, dashboards, briefs, rapports council).
 - État vérifié : plus aucun fichier runtime (journal/state/DB/logs/lock), data_cache vide.
 - IMPORTANT : les correctifs GO-gates ne vivent QUE sur cette machine (non commités). Le run 30 jours doit se faire sur la machine PROD → commit + push + pull nécessaires avant lancement là-bas.
+## [2026-08-19] gen | Commit + push main : déploiement GO-gates vers PROD
+- Commit 83d7d4b « fix(t212): remediate all 7 GO-gates from independent PROD audit » poussé sur origin/main (26 fichiers, +2914/-261).
+- uv.lock reverté avant commit (timesfm 2.0.2→2.0.0 involontaire) ; morning_brief/output/.gitkeep restauré ; memory-bank/feature_list.json désormais tracké (était piégé par *.json du .gitignore).
+- Étape suivante (machine PROD) : git pull → tests → sonde démo → reset_for_fresh_test → start_scheduler.bat (protocole docs/PLAN_RUN_DEMO_30J.md).
+## [2026-08-19] eval | Premier cycle du run 30 jours validé (log PROD 16:05-16:11)
+- Marqueurs GO-gates tous présents : fill confirmé au prix réel (1446.0132 vs signal 1447.60), stop broker #53600367141 @ 1301.41 GTC, equity= dans le sync, rate-limits 429 absorbés, SELL sans position = no-op propre.
+- CONSTAT DÉFINITIF : l'API T212 (démo) rejette le champ takeProfit sur les ordres market (400 Invalid payload) → fallback « ordre nu + stop dédié » systématique. Take-profit logiciel, stop capitaliaire broker. Consigné dans TRADING212_API_GUIDE.md.
+- Observations normales post-reset : PPO réentraîné (2000 steps) puis rechargé pour le 2e ticker (zip partagé — limite M3 connue) ; sizing au plancher 0.30 (Kelly sur historique vide) → 285 € déployés.
