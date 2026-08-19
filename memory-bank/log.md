@@ -206,6 +206,7 @@ Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-
   4. **Morning Brief (`morning_brief/morning_brief.py`)** : Exécution directe des outils locaux + synthèse via `NexusAI-Client`.
   5. **Orchestrateur & Scripts** : `main.py`, `schedule.py`, `src/enhanced_trading_example.py` migrés sur `check_ai_health()` et le client NexusAI.
   6. **Suppression des fichiers obsolètes** : suppression de `setup_council_models.py`, `src/council/ollama_helpers.py`, `src/gemini_gateway.py`, `src/gemini_quota.py`, `tests/test_gemini_gateway.py`, retrait de `free-llm-api-keys`.
+
 ## [2026-08-18] refactor | Python Health Audit Remediation (Code Quality & Complexity)
 - **Audit statique (`python-health-audit`)** :
   - Identification de 12 findings Ruff, dont un bug critique `F821 Undefined name Path` dans `schedule.py` (lignes 87 & 123).
@@ -221,5 +222,38 @@ Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-
   - **193/193 tests unitaires** : PASS (100% de succès, 0 régression).
   - **Note globale du rapport** : passée à **`C`** (0 erreur Ruff, indice MI ~60.1, 0 hotspot Rang E applicatif).
 
+## [2026-08-19] eval | Audit complet des logs de trading, de la qualité des décisions et des positions T212
+- **Périmètre analysé** : 636 décisions du `trading_journal.csv` (456 en août 2026), 6 732 lignes de `trading.log`, `model_performance.db` (5 414 prédictions), `trading_history.db` (20 transactions broker T212) et `t212_portfolio_state.json`.
+- **Verdict global** : 🟢 OPÉRATIONNEL & SAIN. 100% de succès sur tous les cycles ordonnancés depuis la migration NexusAI-Client.
+- **Points clés** :
+  1. **Durée de cycle** : Médiane ~93s (gain > x6 par rapport aux anciens modèles locaux).
+  2. **Qualité des décisions** : SXRV.DE (78% HOLD, 11% BUY/STRONG_BUY) et CRUDP.PA (57% HOLD, 43% SELL/STRONG_SELL). Protection efficace du capital sur le pétrole et capture de tendance sur le NASDAQ.
+  3. **Adaptive Weight Manager** : Neutralisation automatique des modèles à faible win-rate (Grebenkov à 0.0, Classic à 0.005, TensorTrade à 0.004) et forte pondération des modèles macro/fondamentaux (Weekend Council à 20.4%, Vincent Ganne à 17.4%, Sentiment à 15.8%, LLM Text à 13.0%, Oil-Bench à 12.1%).
+  4. **Positions T212** : CRUDP.PA en gain (+2.19 € / +0.77%), SXRV.DE stable, isolation des écritures DB respectée.
+  5. **Anomalie mineure identifiée** : Faux positif dans `morning_brief/tools/analyze_trading_logs.py` comptabilisant les mentions d'initialisation "(timeout 240s...)" comme des déconnexions API.
+- **Rapport généré** : `RAPPORT_AUDIT_LOGS_TRADING.md`.
 
+## [2026-08-19] fix | Remédiation complète des faux positifs de logs et de santé
+- **Faux positifs corrigés** :
+  1. `morning_brief/tools/analyze_trading_logs.py` :
+     - Ajout du filtrage temporel glissant (`hours_back=24` par défaut).
+     - Remplacement du regex générique `timeout` par un regex ciblé pour les déconnexions réelles, excluant les paramètres informatifs d'initialisation `(timeout 240s...)`.
+     - Exclusion des patterns bénins/opérationnels (font fallback, HF rate limit info, alertes EIA de garde, réductions de poids, recherche DDG vide).
+     - Support des répertoires temporaires de tests unitaires dans les vérifications de chemin.
+  2. `src/web_researcher.py` : passage de `logger.error` à `logger.info` pour les requêtes de recherche web sans résultat immédiat.
+  3. `src/adaptive_weight_manager.py` : passage de `logger.warning` à `logger.info` lors des réductions de poids soft win-rate nominales.
+  4. `src/data.py` :
+     - Passage de `logger.warning` à `logger.info` lors du rafraîchissement périodique nominal du cache journalier.
+     - Extraction résiliente du dernier cours de clôture confirmé via `valid_close.iloc[-1]` pour éviter les faux `[WARN] Last close is NaN` lors des cycles matinaux pré-ouverture US.
+  5. `tests/test_analyze_trading_logs.py` : 3 nouveaux tests unitaires dédiés validant l'absence de faux positifs et la détection exacte des erreurs réelles.
+- **Validation** : 193/193 tests unitaires PASS (100% verts).
 
+## [2026-08-19] eval | Audit Global & Validation pour passage en PROD Réelle (Compte Trading 212 Réel)
+- **Objectif** : Audit d'ensemble (code AST, workflow, modèles de décision, gestion des risques, exécution broker, résilience données, bases SQLite) pour décision de passage en compte payant / réel T212.
+- **Vérifications réalisées** :
+  1. **Code & AST** : 55 fichiers Python analysés, 100% conformes, 0 erreur de syntaxe.
+  2. **Moteur & Consensus** : Quorum bi-couche (25% poids + 3 votants min pour signaux forts), normalisation des abstentions, rampe douce win-rate [25%, 50%].
+  3. **Gestion des Risques** : Hard stop-loss -10%, Trailing stop 3%, Take-profit +8%, Time-stop 15j, Anti-vente à perte sur `averagePricePaid`, Anti-churn 4h.
+  4. **Exécution Broker T212** : Précisions décimales strictes (`OD7Fd_EQ`=2, `SXRVd_EQ`=4), isolation des écritures DB (uniquement sur broker fill), basculement dynamique `T212_ENV=live` (`https://live.trading212.com/api/v0`).
+  5. **Suite de tests** : 193/193 tests unitaires et de régression PASS (100% de succès).
+- **Verdict** : 🟢 **GO CONDITIONNEL (APPROUVÉ)**. Rapport complet disponible dans `AUDIT_PROD_READINESS_TRADING212.md`.

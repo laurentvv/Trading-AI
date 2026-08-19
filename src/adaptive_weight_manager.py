@@ -710,7 +710,7 @@ class AdaptiveWeightManager:
                     )
                     adjusted[model] *= factor
                     if factor < 0.1:
-                        logger.warning(
+                        logger.info(
                             f"Réduction forte de {model} : win_rate {wr:.2%} "
                             f"→ facteur {factor:.2f} (sous le plancher "
                             f"{WIN_RATE_SOFT_FLOOR:.0%})."

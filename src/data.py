@@ -176,7 +176,7 @@ def get_etf_data(ticker: str, period: str = "5y", force_refresh: bool = False) -
             last_date = pd.Timestamp(hist_data.index[-1])
             cache_age = (pd.Timestamp.now() - last_date).total_seconds() / 86400
             if (pd.Timestamp.now() - last_date) > pd.Timedelta(days=1):
-                logger.warning(
+                logger.info(
                     f"Cache stale: last data date is {last_date.date()} ({cache_age:.1f} days old), refreshing..."
                 )
                 hist_data = None
@@ -768,17 +768,13 @@ def get_vincent_ganne_indicators() -> dict:
                 continue
 
             close_col = data["Close"]
-            if close_col is None or close_col.dropna().empty:
+            valid_close = close_col.dropna() if close_col is not None else pd.Series(dtype=float)
+            if valid_close.empty:
                 indicators[f"{name}_price"] = None
                 logger.warning(f"[WARN] Close column empty for {name} ({ticker})")
                 continue
 
-            last_close = close_col.iloc[-1]
-            if last_close is None or (isinstance(last_close, float) and np.isnan(last_close)):
-                indicators[f"{name}_price"] = None
-                logger.warning(f"[WARN] Last close is NaN for {name} ({ticker})")
-                continue
-
+            last_close = valid_close.iloc[-1]
             current_price = float(last_close.iloc[0]) if hasattr(last_close, "iloc") else float(last_close)
             indicators[f"{name}_price"] = current_price
 
@@ -788,13 +784,13 @@ def get_vincent_ganne_indicators() -> dict:
                 indicators["Brent_spread"] = b_spot - current_price
                 logger.info(f"Brent Spread (Dated vs Futs) calculated: ${indicators['Brent_spread']:.2f}")
 
-            ma200_series = close_col.rolling(window=200).mean()
+            ma200_series = valid_close.rolling(window=200).mean()
             ma200_val = ma200_series.iloc[-1]
 
             # Fallback for MA200 if insufficient data (common for Urea/UME=F)
             if ma200_val is None or (isinstance(ma200_val, float) and np.isnan(ma200_val)):
                 logger.info(f"MA200 not available for {name}, trying MA50 fallback...")
-                ma50_series = close_col.rolling(window=50).mean()
+                ma50_series = valid_close.rolling(window=50).mean()
                 ma200_val = ma50_series.iloc[-1]
                 fallback_name = "MA50"
             else:

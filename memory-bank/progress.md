@@ -17,9 +17,9 @@
 - [x] FinAcumen réparé (2026-06-23) : convergence `status: success` (était `timeout` à chaque run).
 - [x] Weekend Council déployé + code review critique (2026-06-28) : 11ème voix (9.5%) active.
 - [x] FinAcumen : 6 bugs corrigés (`src/core/tools.py`, `src/agents/solver.py`).
-- [x] **Migration NexusAI-Client (2026-08-18)** : Remplacement complet d'Ollama et de toutes les IA locales par `nexusai-client`. Vitesse par cycle : **~35s** (au lieu de 10-15 min). 193/193 tests unitaires OK.
-- [ ] **Review fin juin/août 2026** : évaluer Sharpe, win rate, précision par modèle.
-- [ ] Décider d'éventuels ajustements de poids (AdaptiveWeightManager).
+- [x] **Migration NexusAI-Client (2026-08-18)** : Remplacement complet d'Ollama et de toutes les IA locales par `nexusai-client`. Vitesse par cycle : **~93s** (au lieu de 10-15 min). 193/193 tests unitaires OK.
+- [x] **Audit Global pour passage en PROD Réelle (2026-08-19)** : Audit complet (code, flux, modèles, risques, broker T212, base de données). Verdict : **GO CONDITIONNEL (APPROUVÉ)**. Rapport généré dans `AUDIT_PROD_READINESS_TRADING212.md`.
+- [ ] **Déploiement Compte Réel Trading 212** : Configuration de la clé API Live dans `.env.t212` et lancement du scheduler.
 
 ### Suivis (post-validation)
 - [ ] Optimisation des poids par grid search (`backtest_prod.py`). *(F-20)*
@@ -29,11 +29,10 @@
 - [ ] Synchroniser les traductions i18n (9 langues) avec les mises à jour README.
 
 ## Prochaine Action Immédiate
-- **Migration NexusAI-Client finalisée et validée** :
-  1. 193/193 tests pytest verts.
-  2. Test en conditions réelles du Morning Brief, du Weekend Council et de `main.py --simul` validés.
-  3. Fichiers locaux obsolètes purgés.
-  4. Prêt pour commit / PR.
+- **Lancement en Production Réelle (Compte Payant T212)** :
+  1. Suivre le protocole de déploiement (Étape 7 du rapport d'audit).
+  2. Configurer la clé API Live dans `.env.t212`.
+  3. Lancer le scheduler automatique : `uv run schedule.py`.
 
 ## Statut des Invariants Critiques (contrôle rapide)
 - [x] Architecture NexusAI Cloud active (auto_fallback & auto_fallback_vision) avec validation JSON stricte (`_find_dict_with_keys`).

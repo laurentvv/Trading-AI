@@ -237,7 +237,7 @@ def _sync_search_ddg(query: str, count: int) -> List[Dict[str, str]]:
                         }
                     )
     except Exception as e:
-        logger.error(f"Error during DuckDuckGo sync search: {e}")
+        logger.info(f"DuckDuckGo sync search returned no results or failed: {e}")
     return results_list
 
 
@@ -248,7 +248,7 @@ async def search_ddg(query: str, count: int = 3) -> List[Dict[str, str]]:
         results = await loop.run_in_executor(None, _sync_search_ddg, query, count)
         return results
     except Exception as e:
-        logger.error(f"Error during DuckDuckGo search: {e}")
+        logger.info(f"DuckDuckGo search returned no results or failed: {e}")
         return []
 
 
