@@ -97,7 +97,7 @@ class TestSafeRequest(unittest.TestCase):
 
         # Assert
         self.assertEqual(result, mock_resp)
-        mock_request.assert_called_once_with("GET", "http://test.com")
+        mock_request.assert_called_once_with("GET", "http://test.com", timeout=10.0)
 
     @patch("time.sleep")
     @patch("src.t212_executor._t212_session.request")

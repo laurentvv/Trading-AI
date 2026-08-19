@@ -1,4 +1,6 @@
+import os
 import time
+import threading
 import subprocess
 import logging
 from datetime import datetime, timedelta
@@ -24,11 +26,90 @@ COUNCIL_DAY = 5           # Saturday (0=Mon ... 5=Sat, 6=Sun)
 COUNCIL_DAYS_ANALYZED = 7
 COUNCIL_TIMEOUT = 172800    # 48h (tout le week-end) pour laisser le temps aux modèles de réfléchir
 
+# GO-gate 6 (audit 2026-08-19 I1): inter-process instance lock. Concurrent
+# scheduler instances were OBSERVED in PROD (3 launches within 61s on 18/08,
+# doubled cycles on 19/08) — they double-analyse, fight over the state file
+# and can issue concurrent orders.
+SCHEDULER_LOCK_FILE = Path("scheduler.lock")
+SCHEDULER_LOCK_STALE_SECONDS = 2 * 3600  # a lock untouched for 2h is dead
+LOCK_KEEPER_INTERVAL = 30                # refresh cadence (background thread)
+
 # Setup Logging
 setup_environment("scheduler.log")
 
 logger = logging.getLogger("TradingScheduler")
 console = Console()
+
+
+def acquire_scheduler_lock(lock_path: Path = SCHEDULER_LOCK_FILE) -> bool:
+    """Create the instance lock exclusively. Returns True when this process
+    owns it. An existing lock older than SCHEDULER_LOCK_STALE_SECONDS is
+    broken (the lock-keeper thread touches the file every 30s, so a live
+    scheduler never looks stale — even during a 48h blocking council run)."""
+    lock_path = Path(lock_path)
+    while True:
+        try:
+            fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            with os.fdopen(fd, "w") as f:
+                f.write(str(os.getpid()))
+            logger.info(f"🔒 Verrou scheduler acquis ({lock_path}, PID {os.getpid()}).")
+            return True
+        except FileExistsError:
+            try:
+                age = time.time() - lock_path.stat().st_mtime
+            except OSError:
+                continue  # lock vanished between open and stat — retry
+            if age > SCHEDULER_LOCK_STALE_SECONDS:
+                logger.warning(
+                    f"⚠️ Verrou scheduler périmé ({age / 3600:.1f}h sans activité) — "
+                    f"casse et reprise."
+                )
+                try:
+                    lock_path.unlink()
+                except OSError:
+                    pass
+                continue
+            return False
+
+
+def refresh_scheduler_lock(lock_path: Path = SCHEDULER_LOCK_FILE) -> None:
+    try:
+        Path(lock_path).touch()
+    except OSError:
+        pass
+
+
+def release_scheduler_lock(lock_path: Path = SCHEDULER_LOCK_FILE) -> None:
+    try:
+        Path(lock_path).unlink()
+        logger.info("🔓 Verrou scheduler libéré.")
+    except OSError:
+        pass
+
+
+def _start_lock_keeper(stop_event: threading.Event) -> threading.Thread:
+    """Background thread keeping the lock mtime fresh even while the main
+    loop is blocked in a long subprocess (e.g. the 48h weekend council)."""
+
+    def _keep():
+        while not stop_event.wait(LOCK_KEEPER_INTERVAL):
+            refresh_scheduler_lock()
+
+    t = threading.Thread(target=_keep, daemon=True, name="scheduler-lock-keeper")
+    t.start()
+    return t
+
+
+def _morning_brief_done_today(brief_path: Path = None) -> bool:
+    """True when today's brief file already exists (mtime-based). Survives
+    scheduler restarts, mirroring the council's disk guard."""
+    path = Path(brief_path) if brief_path else Path("morning_brief/output/morning_market_brief.md")
+    if not path.exists():
+        return False
+    try:
+        return datetime.fromtimestamp(path.stat().st_mtime).date() == datetime.now().date()
+    except OSError:
+        return False
 
 
 def is_market_open():
@@ -212,11 +293,119 @@ def get_dashboard(status_msg, last_run, next_run, morning_brief_status, council_
     )
 
 
+def scheduler_tick(state: dict) -> None:
+    """One scheduler pass: trading cycles when the market is open, morning
+    brief / weekend council when closed. Raises on unexpected errors — the
+    main loop catches them (GO-gate 6, audit 2026-08-19 I2)."""
+    open_status, msg = is_market_open()
+    now = datetime.now()
+
+    if open_status:
+        if now >= state["next_run"]:
+            # C'est l'heure de bosser
+            run_trading_cycle()
+            state["last_run_time"] = now.strftime("%H:%M:%S")
+            # On calcule le prochain créneau
+            state["next_run"] = now + timedelta(minutes=INTERVAL_MINUTES)
+
+        status_display = f"[bold green]ACTIF[/bold green] - {msg}"
+    else:
+        status_display = f"[bold yellow]VEILLE[/bold yellow] - {msg}"
+
+        # GO-gate 6 catch-up: run any time from MORNING_BRIEF_HOUR onwards
+        # while not already produced today (disk check survives restarts).
+        # The old `now.hour == 1` window silently skipped the brief whenever
+        # the machine was off between 01:00 and 01:59 — 22 consecutive missed
+        # days in the previous PROD run.
+        if now.hour >= MORNING_BRIEF_HOUR:
+            if state["last_morning_brief_date"] != now.date() and not _morning_brief_done_today():
+                run_morning_brief()
+                state["last_morning_brief_date"] = now.date()
+
+        # Check for Weekend Council — runs ONCE per week on Saturday
+        # at COUNCIL_HOUR (default 01:00). The anti-double-execution guard
+        # combines an in-memory flag AND a persistent check: if today's
+        # report already exists on disk (e.g. the scheduler crashed
+        # mid-council and restarted), skip the run instead of redoing
+        # the whole 6-member council.
+        if now.weekday() == COUNCIL_DAY:
+            if now.hour == COUNCIL_HOUR and now.minute >= COUNCIL_MINUTE:
+                if state["last_council_date"] != now.date():
+                    report_path = Path("docs/council_reports") / f"council_report_{now.date()}.md"
+                    if report_path.exists():
+                        logger.info(f"📋 Rapport du council déjà présent ({report_path}) — run sauté.")
+                        state["last_council_date"] = now.date()
+                    else:
+                        run_weekend_council()
+                        state["last_council_date"] = now.date()
+
+    if state["last_morning_brief_date"] == now.date():
+        mb_status = "[bold green]Terminé aujourd'hui[/bold green]"
+    else:
+        mb_status = f"[bold yellow]En attente (catch-up dès {MORNING_BRIEF_HOUR:02d}:{MORNING_BRIEF_MINUTE:02d})[/bold yellow]"
+
+    # Council status: only meaningful on Saturday (the weekly run day)
+    if now.weekday() == COUNCIL_DAY:
+        if state["last_council_date"] == now.date():
+            council_status = "[bold green]Terminé aujourd'hui[/bold green]"
+        else:
+            council_status = f"[bold yellow]En attente ({COUNCIL_HOUR:02d}:{COUNCIL_MINUTE:02d})[/bold yellow]"
+    else:
+        days = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
+        council_status = f"[dim]Hors samedi (prochain: {days[COUNCIL_DAY]} {COUNCIL_HOUR:02d}:{COUNCIL_MINUTE:02d})[/dim]"
+
+    # Affichage Dashboard
+    console.clear()
+    console.print(
+        get_dashboard(
+            status_display,
+            state["last_run_time"],
+            state["next_run"].strftime("%H:%M:%S") if open_status else "À l'ouverture",
+            mb_status,
+            council_status,
+        )
+    )
+
+
+def run_loop_iteration(state: dict) -> bool:
+    """One pass that NEVER dies on an unexpected exception (GO-gate 6,
+    audit 2026-08-19 I2: any non-KeyboardInterrupt error used to kill the
+    scheduler silently — no more cycles until a human noticed)."""
+    try:
+        scheduler_tick(state)
+        return True
+    except KeyboardInterrupt:
+        raise
+    except Exception:
+        logger.exception(
+            "💥 Exception non gérée dans l'itération du scheduler — la boucle CONTINUE (GO-gate 6)."
+        )
+        return False
+
+
 def main():
-    last_run_time = "Aucun"
-    next_run = datetime.now()
-    last_morning_brief_date = None
-    last_council_date = None
+    # GO-gate 6 (audit I1): refuse to run alongside another live instance.
+    if not acquire_scheduler_lock():
+        logger.critical(
+            "❌ Une autre instance du scheduler est ACTIVE (verrou scheduler.lock détenu) — arrêt immédiat."
+        )
+        console.print(
+            Panel(
+                "[bold red]Instance dupliquée refusée[/bold red]\n\n"
+                "Une autre instance du scheduler détient scheduler.lock.\n"
+                "Fermez-la avant d'en relancer une nouvelle.",
+                title="Scheduler déjà actif",
+                border_style="red",
+            )
+        )
+        sys.exit(1)
+
+    state = {
+        "last_run_time": "Aucun",
+        "next_run": datetime.now(),
+        "last_morning_brief_date": None,
+        "last_council_date": None,
+    }
 
     console.clear()
     console.print(
@@ -226,80 +415,21 @@ def main():
         )
     )
 
+    stop_event = threading.Event()
+    _start_lock_keeper(stop_event)
+
     try:
         while True:
-            open_status, msg = is_market_open()
-            now = datetime.now()
-
-            if open_status:
-                if now >= next_run:
-                    # C'est l'heure de bosser
-                    run_trading_cycle()
-                    last_run_time = now.strftime("%H:%M:%S")
-                    # On calcule le prochain créneau
-                    next_run = now + timedelta(minutes=INTERVAL_MINUTES)
-
-                status_display = f"[bold green]ACTIF[/bold green] - {msg}"
-            else:
-                status_display = f"[bold yellow]VEILLE[/bold yellow] - {msg}"
-                
-                # Check for Morning Brief outside of trading hours (e.g. 06:00 AM)
-                if now.hour == MORNING_BRIEF_HOUR and now.minute >= MORNING_BRIEF_MINUTE:
-                    if last_morning_brief_date != now.date():
-                        run_morning_brief()
-                        last_morning_brief_date = now.date()
-
-                # Check for Weekend Council — runs ONCE per week on Saturday
-                # at COUNCIL_HOUR (default 01:00). The anti-double-execution guard
-                # combines an in-memory flag AND a persistent check: if today's
-                # report already exists on disk (e.g. the scheduler crashed
-                # mid-council and restarted), skip the run instead of redoing
-                # the whole 6-member council.
-                if now.weekday() == COUNCIL_DAY:
-                    if now.hour == COUNCIL_HOUR and now.minute >= COUNCIL_MINUTE:
-                        if last_council_date != now.date():
-                            from pathlib import Path
-                            report_path = Path("docs/council_reports") / f"council_report_{now.date()}.md"
-                            if report_path.exists():
-                                logger.info(f"📋 Rapport du council déjà présent ({report_path}) — run sauté.")
-                                last_council_date = now.date()
-                            else:
-                                run_weekend_council()
-                                last_council_date = now.date()
-
-            if last_morning_brief_date == now.date():
-                mb_status = "[bold green]Terminé aujourd'hui[/bold green]"
-            else:
-                mb_status = f"[bold yellow]En attente ({MORNING_BRIEF_HOUR:02d}:{MORNING_BRIEF_MINUTE:02d})[/bold yellow]"
-
-            # Council status: only meaningful on Saturday (the weekly run day)
-            if now.weekday() == COUNCIL_DAY:
-                if last_council_date == now.date():
-                    council_status = "[bold green]Terminé aujourd'hui[/bold green]"
-                else:
-                    council_status = f"[bold yellow]En attente ({COUNCIL_HOUR:02d}:{COUNCIL_MINUTE:02d})[/bold yellow]"
-            else:
-                days = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
-                council_status = f"[dim]Hors samedi (prochain: {days[COUNCIL_DAY]} {COUNCIL_HOUR:02d}:{COUNCIL_MINUTE:02d})[/dim]"
-
-            # Affichage Dashboard
-            console.clear()
-            console.print(
-                get_dashboard(
-                    status_display,
-                    last_run_time,
-                    next_run.strftime("%H:%M:%S") if open_status else "À l'ouverture",
-                    mb_status,
-                    council_status,
-                )
-            )
-
+            run_loop_iteration(state)
             # Attendre 30 secondes avant de re-checker le scheduler
             time.sleep(30)
 
     except KeyboardInterrupt:
         console.print("\n[bold red]Scheduler arrêté par l'utilisateur.[/bold red]")
         sys.exit(0)
+    finally:
+        stop_event.set()
+        release_scheduler_lock()
 
 
 if __name__ == "__main__":

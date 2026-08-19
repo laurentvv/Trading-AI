@@ -200,7 +200,7 @@ def _write_trading_journal(
             "Confidence",
             "Risk_Level",
             "Risk_Adjusted",
-            "T212_Capital",
+            "T212_Equity",
         ]
         model_names = [
             "classic",
@@ -220,7 +220,11 @@ def _write_trading_journal(
         from t212_executor import get_t212_ticker
         t212_key = get_t212_ticker(ticker) if is_t212 else ticker
         t212_state = load_t212_state(t212_key, sync=False)
-        capital_val = t212_state.get("current_capital", 1000.0)
+        # GO-gate 7 (audit 2026-08-19): the old T212_Capital column mixed the
+        # position value (when open) with cash (when flat), producing a fake
+        # -71.6% drawdown. The equity (budget + realized + unrealized) is the
+        # real per-ticker performance curve.
+        capital_val = t212_state.get("equity", t212_state.get("current_capital", 1000.0))
 
         row = [
             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),

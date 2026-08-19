@@ -58,6 +58,29 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+# Window (trading days) used for the daily volatility estimate feeding the
+# decision engine and the adaptive weight manager.
+VOLATILITY_WINDOW_DAYS = 20
+# Fallback when not enough returns: a CALM daily regime (1%/day). The old
+# default 0.15 was annualized-scale and permanently tripped every
+# "high volatility" branch (GO-gate 4, audit 2026-08-19 C4).
+DEFAULT_DAILY_VOLATILITY = 0.01
+
+
+def compute_daily_volatility(returns: "pd.Series") -> float:
+    """DAILY volatility of the last VOLATILITY_WINDOW_DAYS returns.
+
+    Consumers (EnhancedDecisionEngine.VOLATILITY_* thresholds,
+    AdaptiveWeightManager regime detection) are calibrated on daily std:
+    ~0.01 calm, >0.04 genuinely volatile. Never annualize here (no *sqrt(252))
+    — the historical bug made the regime dampers (score *= 0.8) fire on
+    every single cycle.
+    """
+    if returns is None or len(returns) < 2:
+        logger.warning("Insufficient data for volatility calculation, using calm default")
+        return DEFAULT_DAILY_VOLATILITY
+    return float(returns.tail(VOLATILITY_WINDOW_DAYS).std())
+
 # --- Constants for the Alpha Vantage API ---
 # IMPORTANT: It is strongly recommended to use an environment variable for your API key.
 ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
@@ -633,11 +656,13 @@ class EnhancedTradingSystem:
 
         # 3. Calcul des poids adaptatifs
         returns = hist_data["Close"].pct_change().dropna()
-        if len(returns) < 2:
-            current_volatility = 0.15  # Default volatility
-            logger.warning("Insufficient data for volatility calculation, using default")
-        else:
-            current_volatility = returns.std() * np.sqrt(252)
+        # DAILY volatility (GO-gate 4, audit 2026-08-19 C4): the decision
+        # engine and weight manager thresholds (VOLATILITY_HIGH_THRESHOLD=0.04,
+        # regime high_vol=0.03) are calibrated for DAILY std. The previous
+        # `* np.sqrt(252)` produced an ANNUALIZED figure (~0.15-0.25 for an
+        # equity ETF) which permanently tripped the "high volatility" branches
+        # (score *= 0.8 every cycle, regime "crisis" forever).
+        current_volatility = compute_daily_volatility(returns)
 
         weight_adjustment = self.weight_manager.calculate_adaptive_weights(
             market_data=hist_data["Close"], volatility=current_volatility
@@ -922,15 +947,39 @@ class EnhancedTradingSystem:
         logger.info("Mise à jour du monitoring de performance...")
 
         latest_portfolio_state = get_latest_portfolio_state(self.ticker)
+        active_positions = 1
+        cash_balance = 0.0
         if latest_portfolio_state is None:
             # In T212 mode (write_db=False), portfolio_history is not written
-            # by the simulation. Fall back to the initial portfolio value so
-            # performance monitoring still records a metric (no crash).
-            logger.debug(
-                "No portfolio_history for %s (write_db=False) — using initial value.",
-                self.ticker,
-            )
+            # by the simulation. GO-gate 7 (audit 2026-08-19): use the REAL
+            # broker-backed per-ticker equity instead of the constant initial
+            # value — portfolio_value was 1000.00 on all 649 realtime_metrics
+            # rows, making the whole monitoring decorative.
             total_value = self.initial_portfolio_value
+            try:
+                try:
+                    from src.t212_executor import (
+                        load_portfolio_state as _load_t212,
+                        get_t212_ticker as _t212_key,
+                    )
+                except ImportError:
+                    from t212_executor import (
+                        load_portfolio_state as _load_t212,
+                        get_t212_ticker as _t212_key,
+                    )
+                t_state = _load_t212(_t212_key(self.ticker), sync=False)
+                total_value = float(
+                    t_state.get("equity", t_state.get("current_capital", self.initial_portfolio_value))
+                )
+                open_pos = t_state.get("active_position")
+                active_positions = 1 if open_pos else 0
+                cash_balance = total_value - float((open_pos or {}).get("buy_budget", 0.0))
+                logger.debug(
+                    "Monitoring %s from T212 state: equity=%.2f (audit C3/G7).",
+                    self.ticker, total_value,
+                )
+            except Exception as e:
+                logger.debug("T212 equity unavailable for %s: %e — initial value used.", self.ticker, e)
         else:
             _, _, total_value, _ = latest_portfolio_state
 
@@ -968,6 +1017,8 @@ class EnhancedTradingSystem:
             daily_return=daily_return,
             trades_data=trades,
             model_predictions=model_accuracy,
+            active_positions=active_positions,
+            cash_balance=cash_balance,
         )
 
         # Génération du dashboard

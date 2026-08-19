@@ -335,20 +335,25 @@ class EnhancedDecisionEngine:
         self.vincent_ganne_model = VincentGanneModel(thresholds=vg_thresholds)
 
         # Adaptive thresholds (Balanced for Index trading).
-        # `sell` loosened from -0.15 to -0.10 (July 2026 audit): the weighted
-        # score's bearish magnitude is structurally smaller than its bullish
-        # one (~half the weighted vote abstains as HOLD every cycle), so the
-        # most bearish cycle observed in 294 PROD rows reached only -0.139 —
-        # just above the old -0.15 cutoff, yielding 0 SELL across the whole
-        # period. -0.10 is reachable while staying conservative. BUY stays at
-        # +0.12 (already reachable). See ADR-002 + July 2026 follow-up.
+        # GO-gate 4 recalibration (audit 2026-08-19 C4): the volatility fed to
+        # _adjust_for_market_regime used to be ANNUALIZED while these
+        # thresholds and VOLATILITY_HIGH_THRESHOLD (0.04) are DAILY-scale —
+        # the score was therefore damped by x0.8 on EVERY cycle. The unit bug
+        # is now fixed (compute_daily_volatility) and these thresholds are
+        # rescaled by 1/0.8 to preserve the EFFECTIVE historical behaviour
+        # (old effective cut = old_threshold / 0.8): buy 0.12->0.15,
+        # sell -0.10->-0.125, strong 0.35->0.4375 / -0.45->-0.5625. The
+        # July-2026 empirical calibration (max bearish score -0.139 observed)
+        # was measured on damped scores, hence the rescale instead of a fresh
+        # symmetric calibration (decision: keep behaviour comparable for the
+        # 30-day demo run).
         self.adaptive_thresholds = {
-            "strong_buy": 0.35,
-            "buy": 0.12,
+            "strong_buy": 0.4375,
+            "buy": 0.15,
             "hold_upper": 0.05,
             "hold_lower": -0.05,
-            "sell": -0.10,
-            "strong_sell": -0.45,
+            "sell": -0.125,
+            "strong_sell": -0.5625,
         }
 
         # Minimum distinct voting models required for a STRONG (BUY/SELL) signal.

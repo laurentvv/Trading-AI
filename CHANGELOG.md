@@ -5,6 +5,19 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/en/
 
 ## [Unreleased]
 
+### Fixed — 2026-08-19 — GO-gates 1-7 : remédiation des bloquants de l'audit indépendant PROD
+Correctifs des 7 GO-gates identifiés par l'audit indépendant (`docs/AUDIT_PROD_INDEPENDANT_2026-08-19.md`) en préparation d'un run de validation de 30 jours en démo T212 (`docs/PLAN_RUN_DEMO_30J.md`). 252/252 tests verts (+56 nouveaux).
+
+- **GO-gate 1 (C1) — idempotence des ordres** : `safe_request` timeout par défaut (10 s) ; nouveau `post_order_market` (timeout 15 s) qui réconcilie la position broker AVANT tout retry post-erreur réseau (l'endpoint n'est pas idempotent — plus aucun risque de double achat sur réponse perdue).
+- **GO-gate 2 (C2) — protections broker** : `takeProfit` +8 % attaché à l'ordre market (fallback ordre nu si refusé) ; ordre stop GTC dédié à −10 % du fill réel ; **ratchet** annuler-remplacer vers `peak×0.90` strictement croissant avec replacement d'urgence (jamais de position nue) ; la sync adopte/annule les stops résiduels. Décision utilisateur : stop-loss MOUVANT.
+- **GO-gate 3 (C3) — fills confirmés** : état et DB écrits uniquement après observation du fill chez le broker (poll 6×2 s) ; prix `averagePricePaid` réel en base (plus le prix signal Yahoo qui produisait ~9,9 € d'écart comptable).
+- **GO-gate 4 (C4) — volatilité quotidienne** : `compute_daily_volatility` (std 20 j, plus de ×√252) — l'amortissement ×0.8 permanent et le régime « crisis » perpétuel disparaissent ; seuils recalés ×1/0.8 (BUY 0.15 / SELL −0.125 / STRONG ±0.4375/−0.5625) pour préserver le comportement effectif (décision utilisateur).
+- **GO-gate 5 (C5/C6) — sécurité des données** : suppression du bloc « Method 4 » (macro synthétique aléatoire persistée en cache) ; TTL 7 jours sur les caches macro ; le fallback cache de prix refuse les caches > 3 jours (plus de trading sur données périmées).
+- **GO-gate 6 (I1/I2) — scheduler** : verrou d'instance `scheduler.lock` (O_EXCL + PID + détection périmé 2 h + thread lock-keeper) ; la boucle survit à toute exception non KeyboardInterrupt ; rattrapage du Morning Brief (plus de fenêtre 01:00-01:59 unique) ; `start_scheduler.bat` relance après crash (arrêt propre sur code 0).
+- **GO-gate 7 (G7) — mesure** : equity par ticker = budget + P&L réalisé FIFO + latent, persistée (`state["equity"]`), journalisée (colonne `T212_Equity` remplaçant le faux `T212_Capital` qui affichait un drawdown −71,6 % artefactuel) et injectée dans `performance_monitor` (plus de 1000 € constant sur 649 lignes).
+- **Tests** : +56 (`test_t212_orders` 23, `test_data_safety` 10, `test_scheduler_lock` 12, `test_equity_tracking` 9, régressions vol dans `test_prod_regression` +6) ; sonde live démo `tests/check_t212_stops.py` (consentement requis).
+- **Docs/invariants** : `AGENTS.md` §2.2/§3 mis à jour, `TRADING212_API_GUIDE.md` (idempotence, stop mouvant), `docs/PLAN_RUN_DEMO_30J.md` (protocole + critères GO/NO-GO du run).
+
 ### Added — 2026-06-28 — Weekend Council (11th consensus voice)
 A weekly, async, multi-persona LLM retrospective that runs every **Saturday at 01:00** and feeds its verdict back into the real-time consensus as the **11th weighted vote** (9.5%). Adapted from [`0xNyk/council-of-high-intelligence`](https://github.com/0xNyk/council-of-high-intelligence). See `docs/ADR-003-weekend-council-11th-voice.md`.
 

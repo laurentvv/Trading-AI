@@ -6,35 +6,51 @@
 > Voir `AGENTS.md §1` pour la discipline des 4 fichiers.
 
 ## Objectif Actuel
-- [ ] **Période de validation PROD** (2026-05-29 → 2026-06-30) : confirmer que tous les modèles performent correctement sur de vraies transactions T212, puis ajuster les poids si nécessaire. *(F-19)*
+- [ ] **Sprint « GO-gates PROD » (2026-08-19 →)** : remédier les 7 bloquants de l'audit indépendant
+  (`docs/AUDIT_PROD_INDEPENDANT_2026-08-19.md`) pour permettre un **nouveau run de 30 jours en démo T212**
+  mesuré correctement (equity réelle, P&L fills réels, stops broker). Le passage en compte réel reste
+  conditionné aux résultats de ce run (voir `docs/COMPARAISON_AUDIT_INDEPENDANT_vs_READINESS_2026-08-19.md`).
 
 ## Jalons de l'Itération
 
-### Période de validation (en cours)
-- [x] Fresh start PROD — toutes les DBs wipeées (`trading_history.db`, `model_performance.db`).
-- [x] TensorTrade PPO persistence déployée (`data_cache/tensortrade/ppo_model.zip`, env 10 features).
-- [x] Premier cycle PROD validé (2026-05-29) : SXRV.DE + CRUDP.PA en ~488 sec, 0 référence Kronos.
-- [x] FinAcumen réparé (2026-06-23) : convergence `status: success` (était `timeout` à chaque run).
-- [x] Weekend Council déployé + code review critique (2026-06-28) : 11ème voix (9.5%) active.
-- [x] FinAcumen : 6 bugs corrigés (`src/core/tools.py`, `src/agents/solver.py`).
-- [x] **Migration NexusAI-Client (2026-08-18)** : Remplacement complet d'Ollama et de toutes les IA locales par `nexusai-client`. Vitesse par cycle : **~93s** (au lieu de 10-15 min). 193/193 tests unitaires OK.
-- [x] **Audit Global pour passage en PROD Réelle (2026-08-19)** : Audit complet (code, flux, modèles, risques, broker T212, base de données). Verdict : **GO CONDITIONNEL (APPROUVÉ)**. Rapport généré dans `AUDIT_PROD_READINESS_TRADING212.md`.
-- [ ] **Déploiement Compte Réel Trading 212** : Configuration de la clé API Live dans `.env.t212` et lancement du scheduler.
+### Sprint GO-gates (en cours)
+- [x] Audit indépendant complet + confrontation avec le rapport préexistant (NO-GO, 7 bloquants).
+- [x] Plan de remédiation approuvé (seuils préservés ×1/0.8 ; TP fixe +8 % + SL mouvant ratchet peak×0.90 ; scheduler self-contained).
+- [x] Contrat gelé (`contract.md`, 29 critères) + features F-30→F-36 déclarées.
+- [x] Gate 1 (F-30) : timeout + idempotence ordres — `post_order_market` avec réconciliation broker.
+- [x] Gate 2 (F-31) : SL mouvant + TP broker + ratchet cancel/replace + sync stops.
+- [x] Gate 3 (F-32) : fill confirmé + prix réel (`averagePricePaid`).
+- [x] Gate 4 (F-33) : vol quotidienne + seuils préservés.
+- [x] Gate 5 (F-34) : macro synthétique interdite, TTL 7 j, staleness prix 3 j.
+- [x] Gate 6 (F-35) : verrou d'instance, boucle résiliente, rattrapage brief, .bat superviseur.
+- [x] Gate 7 (F-36) : equity FIFO + colonne T212_Equity + monitoring réel.
+- [x] Suite pytest complète : **252/252 PASS** (+56 nouveaux tests, 0 échec).
+- [x] Docs : `docs/PLAN_RUN_DEMO_30J.md`, `TRADING212_API_GUIDE.md`, `AGENTS.md` §2.2/§3, `CHANGELOG.md`.
+- [ ] Sonde démo `tests/check_t212_stops.py` (feu vert utilisateur requis).
+- [ ] Smoke cycle démo + reset propre + lancement run 30 jours (`docs/PLAN_RUN_DEMO_30J.md`).
 
-### Suivis (post-validation)
-- [ ] Optimisation des poids par grid search (`backtest_prod.py`). *(F-20)*
-- [ ] Recalibration isotonic TensorTrade (cap intérimaire selon ADR-002). *(F-21)*
-- [ ] Corriger `backtest_prod.py` : lire `logs_prod/data_cache/` au lieu du cache racine périmé.
-- [ ] Source de prix live alternative pour ETFs sans position T212 ouverte (SXRV.DE).
-- [ ] Synchroniser les traductions i18n (9 langues) avec les mises à jour README.
+### Historique (sprints précédents — acquis)
+- [x] Migration NexusAI-Client complète (2026-08-18), cycle ~93 s, 193→196 tests verts.
+- [x] Audit GO conditionnel précédent (rapport `AUDIT_PROD_READINESS_TRADING212.md`) — **contredit par
+  l'audit indépendant (NO-GO)** ; voir la confrontation pour la réconciliation des deux lectures.
+
+### Suivis (post-sprint, hors périmètre GO-gates)
+- [ ] M1 : échec classic → vote SELL fantôme (neutraliser en HOLD).
+- [ ] M2 : distinction HOLD technique vs HOLD modèle dans la base perf.
+- [ ] M3 : cycle de vie PPO TensorTrade (par ticker, réentraînement planifié).
+- [ ] M4 : dé-doublonner le double comptage du council.
+- [ ] M7 : UNIQUE (date, modèle) + seuil en jours dans les poids adaptatifs ; drawdown série inversée.
+- [ ] Optimisation des poids par grid search (`backtest_prod.py`).
 
 ## Prochaine Action Immédiate
-- **Lancement en Production Réelle (Compte Payant T212)** :
-  1. Suivre le protocole de déploiement (Étape 7 du rapport d'audit).
-  2. Configurer la clé API Live dans `.env.t212`.
-  3. Lancer le scheduler automatique : `uv run schedule.py`.
+- **Sonde broker démo** (avec feu vert utilisateur) : `uv run python tests/check_t212_stops.py`
+  → consigner le bilan dans `TRADING212_API_GUIDE.md`.
+- Puis : reset propre (`reset_for_fresh_test.py --dry-run` puis `--yes`), vérifier
+  `T212_ENV=demo`, lancer `.\start_scheduler.bat` — protocole complet et critères
+  de GO/NO-GO dans `docs/PLAN_RUN_DEMO_30J.md`.
 
 ## Statut des Invariants Critiques (contrôle rapide)
-- [x] Architecture NexusAI Cloud active (auto_fallback & auto_fallback_vision) avec validation JSON stricte (`_find_dict_with_keys`).
-- [x] Budget 1000€/ticker (`INITIAL_BUDGETS`), pas le fallback 5000€.
+- [x] Architecture NexusAI Cloud active (auto_fallback & auto_fallback_vision) avec validation JSON stricte.
+- [x] Budget 1000 €/ticker (`INITIAL_BUDGETS`), pas le fallback 5000 €.
 - [x] Cache staleness 1 jour, cycle timeout 40 min, orphan-thread lock par ticker.
+- [x] `write_db = not is_t212` — seul l'exécuteur broker écrit en DB (à préserver pendant tout le sprint).

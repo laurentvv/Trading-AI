@@ -712,6 +712,8 @@ class PerformanceMonitor:
         daily_return: float,
         trades_data: List[Dict],
         model_predictions: Dict[str, Dict],
+        active_positions: int = 1,
+        cash_balance: float = 0.0,
     ):
         """
         Main update method for real-time monitoring.
@@ -721,6 +723,9 @@ class PerformanceMonitor:
             daily_return: Today's return
             trades_data: List of recent trades
             model_predictions: Recent model predictions and outcomes
+            active_positions: Real open-position count (GO-gate 7, audit
+                2026-08-19 — used to be hardcoded 1)
+            cash_balance: Real cash (GO-gate 7 — used to be hardcoded 0.0)
         """
         try:
             # Calculate metrics
@@ -786,8 +791,8 @@ class PerformanceMonitor:
                 max_drawdown=max_drawdown,
                 win_rate=win_rate,
                 total_trades=len(trades_data),
-                active_positions=1,  # Simplified
-                cash_balance=0.0,  # Would need actual data
+                active_positions=active_positions,
+                cash_balance=cash_balance,
                 model_accuracy=model_accuracy,
                 risk_metrics={},  # Could add specific risk metrics
             )

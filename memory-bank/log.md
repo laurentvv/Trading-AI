@@ -257,3 +257,26 @@ Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-
   4. **Exécution Broker T212** : Précisions décimales strictes (`OD7Fd_EQ`=2, `SXRVd_EQ`=4), isolation des écritures DB (uniquement sur broker fill), basculement dynamique `T212_ENV=live` (`https://live.trading212.com/api/v0`).
   5. **Suite de tests** : 193/193 tests unitaires et de régression PASS (100% de succès).
 - **Verdict** : 🟢 **GO CONDITIONNEL (APPROUVÉ)**. Rapport complet disponible dans `AUDIT_PROD_READINESS_TRADING212.md`.
+
+## [2026-08-19] init | Sprint GO-gates PROD — remédiation des 7 bloquants de l'audit indépendant
+- **Contexte** : audit indépendant (NO-GO) + confrontation avec le rapport GO existant. Décision utilisateur : corriger les 7 GO-gates puis relancer 30 jours de démo.
+- **Décisions actées** : seuils préservés ×1/0.8 (BUY 0.15 / SELL −0.125) ; TP broker fixe +8 % + SL mouvant ratchet peak×0.90 (annuler-remplacer) ; durcissement scheduler self-contained.
+- **Préparation** : contract.md gelé (29 critères), features F-30→F-36 déclarées, progress.md réinitialisé pour le sprint.
+- **Prochaine étape** : Gate 1-2-3 dans src/t212_executor.py (timeout/idempotence, SL/TP broker, fill confirmé).
+## [2026-08-19] gen | GO-gates 1-3 implémentées (src/t212_executor.py + tests/test_t212_orders.py)
+- **Gate 1 (C1)** : safe_request timeout=10s par défaut ; post_order_market dédié (timeout 15s, retry 429 sûr, réconciliation position broker avant tout retry post-erreur réseau, dernière réconciliation après échec final) — plus aucun re-POST aveugle.
+- **Gate 2 (C2)** : takeProfit +8% attaché à l'ordre market (fallback ordre nu si 400) ; ordre stop GTC dédié à −10 % du fill réel après confirmation ; ratchet annuler-remplacer vers peak×0.90 strictement croissant avec replacement d'urgence ; sync adopte/annule les stops résiduels.
+- **Gate 3 (C3)** : _confirm_fill (poll positions/historique, 6×2s) ; état et DB écrits seulement après fill observé, au prix averagePricePaid réel.
+- **Tests** : tests/test_t212_orders.py — 23 nouveaux tests (timeout, anti double-POST, TP/stop payload, fill réel, ratchet haut seulement, emergency, self-heal). Assertion test_safe_request_success mise à jour (timeout=10.0). 56/56 verts sur (t212_orders + t212 + stop_loss + prod_regression).
+## [2026-08-19] gen | GO-gates 4-7 implémentées + validation complète
+- **Gate 4 (C4)** : compute_daily_volatility (std 20 j, non annualisée) dans enhanced_trading_example ; seuils adaptés ×1/0.8 dans enhanced_decision_engine (BUY 0.15 / SELL −0.125 / STRONG ±0.4375/−0.5625) ; commentaires adaptive_weight_manager. +6 tests régression (TestVolatilityUnitFix).
+- **Gate 5 (C5/C6)** : data.py — bloc « Method 4 » (macro synthétique) SUPPRIMÉ ; TTL 7 j sur _load_macro_data_from_cache (mtime) ; _price_cache_is_fresh + MAX_STALE_PRICE_CACHE_DAYS=3 : fallback refusé si périmé. +10 tests (test_data_safety).
+- **Gate 6 (I1/I2)** : schedule.py — verrou scheduler.lock (O_EXCL+PID+stale 2 h, lock-keeper thread), scheduler_tick/run_loop_iteration (boucle survit aux exceptions), rattrapage Morning Brief (≥01h + garde disque mtime) ; start_scheduler.bat avec boucle de relance (arrêt propre si code 0). +12 tests (test_scheduler_lock).
+- **Gate 7 (G7)** : _fifo_pnl + equity (budget+réalisé FIFO+latent) dans sync_state_from_t212 ; colonne T212_Equity dans main.py ; performance_monitor.update_monitoring(+active_positions, +cash_balance) et monitoring alimenté par l'equity T212 réelle. +9 tests (test_equity_tracking).
+- **Validation** : suite complète 252/252 PASS (0 échec). Sonde live démo tests/check_t212_stops.py écrite (exécution en attente du feu vert utilisateur). Docs : PLAN_RUN_DEMO_30J.md, TRADING212_API_GUIDE.md, AGENTS.md §2.2/§3, CHANGELOG.
+- **Reste à faire** : (1) sonde démo avec feu vert, (2) reset_for_fresh_test + lancement du run 30 j via start_scheduler.bat.
+## [2026-08-19] fix | Reset local exécuté pour le run 30 jours
+- Contexte : l'utilisateur reset le compte T212 démo (côté app) et demande le reset de la prod locale. PROD = AUTRE machine (les processus python locaux ne sont pas le scheduler de prod).
+- Exécution : reset_for_fresh_test.py --dry-run puis --yes → backup reset_backup/20260819_160050 (data_cache, DBs, journal CSV, state T212, logs, dashboards, briefs, rapports council).
+- État vérifié : plus aucun fichier runtime (journal/state/DB/logs/lock), data_cache vide.
+- IMPORTANT : les correctifs GO-gates ne vivent QUE sur cette machine (non commités). Le run 30 jours doit se faire sur la machine PROD → commit + push + pull nécessaires avant lancement là-bas.

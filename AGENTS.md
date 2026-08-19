@@ -51,9 +51,16 @@ All local LLMs (Ollama, local GGUF models) have been completely removed and repl
 ### 2.2 Other invariants (non-exhaustive)
 
 - **T212 demo vs live** is governed by `T212_ENV` in `.env.t212` (demo is rate-limit-tolerant; live is not). Never commit credentials.
+- **Order safety (GO-gate 1, 2026-08-19)**: order POSTs go through `post_order_market` (timeout 15 s; on network error the broker position is re-checked BEFORE any retry — never blind-retry a market order, the endpoint is not idempotent). `safe_request` is for read-only calls.
+- **Broker-side protection (GO-gate 2)**: every open position must have a dedicated GTC stop order (`stop_order_id`/`stop_price` in the state); the ratchet moves it UP only (peak×0.90, cancel-and-replace). A position knowingly without a stop is a CRITICAL event. Market BUYs carry an attached `takeProfit` (+8 %) with a bare-order fallback if refused.
+- **Fill confirmation (GO-gate 3)**: state and DB are written only after the fill is observed at the broker (`averagePricePaid`), never on a bare 2xx.
+- **Volatility is DAILY** (GO-gate 4): `compute_daily_volatility` (20-day std, never annualized) feeds the decision engine and weight manager — their thresholds are daily-scale. Decision thresholds: buy 0.15 / sell −0.125 / strong ±0.4375/−0.5625 (rescaled ×1/0.8, behaviour preserved).
+- **Data safety (GO-gate 5)**: synthetic macro data is FORBIDDEN (the old "Method 4" is deleted); macro caches TTL 7 days; the price-cache fallback refuses caches older than 3 days (no trading on stale data).
+- **Scheduler (GO-gate 6)**: single instance enforced by `scheduler.lock` (O_EXCL + PID + stale 2 h, kept fresh by a lock-keeper thread); the loop survives any non-KeyboardInterrupt exception; morning brief has catch-up (runs any time after 01:00 when missing that day).
 - **Per-ticker budget**: `INITIAL_BUDGETS` dict (default 1000€ per ticker), **not** the historical 5000€ hardcoded fallback.
 - **DB write isolation (`write_db`)**: `EnhancedTradingSystem(write_db=...)` controls whether the simulation step (`_execute_hypothetical_trade`) writes to `trading_history.db`. In T212 mode, `main.py` passes `write_db=not is_t212` → **only `t212_executor` writes to the DB, after a broker-confirmed fill**. The simulation still runs (for internal reporting) but does not pollute the DB with phantom trades. **Never set `write_db=True` in `--t212` mode**.
-- **T212 quantity precision**: governed by `TICKER_QUANTITY_PRECISION` dict in `src/t212_executor.py`. Fallback is `DEFAULT_QUANTITY_PRECISION = 2`.
+- **T212 quantity precision**: governed by `TICKER_QUANTITY_PRECISION` dict in `src/t212_executor.py`. Fallback is `DEFAULT_QUANTITY_PRECISION = 2`. Price fields use `PRICE_DECIMALS = 2`.
+- **Equity (GO-gate 7)**: per-ticker equity = `initial_budget + realized_pl (FIFO) + unrealized` — persisted as `state["equity"]`, written to the journal column `T212_Equity` and fed to `performance_monitor`. `current_capital` keeps its old sizing semantics (position value when open).
 - **win_rate sentinel**: `_calculate_win_rate` (`src/performance_monitor.py`) returns `-1.0` (not `0.0`) when no closed trades exist or on error.
 - **Cache staleness**: 1 day (`src/data.py`) — Parquet files older than that are auto-refreshed.
 - **Cycle timeout**: 40 min (`CYCLE_TIMEOUT_SECONDS` in `main.py`).
@@ -67,10 +74,14 @@ PowerShell note: `uv run pytest ...` may fail with "Failed to canonicalize scrip
 | Goal | Command |
 |---|---|
 | Mocked unit tests | `.venv\Scripts\python.exe -m pytest tests/test_llm_client.py tests/test_llm_prompts.py tests/test_oil_bench_model.py tests/test_weekend_council.py tests/test_morning_brief_init.py -v` |
+| Full mocked suite (GO-gates included) | `.venv\Scripts\python.exe -m pytest tests/ -q --basetemp=data_cache/test_tmp` (ignores live harnesses: `test_crawl4ai`, `check_*`, `bench_*`, `run_short_backtest`) |
+| Order-safety / stops / equity unit tests | `.venv\Scripts\python.exe -m pytest tests/test_t212_orders.py tests/test_scheduler_lock.py tests/test_equity_tracking.py tests/test_data_safety.py -v` |
+| Live broker-stop probe (DEMO only, consent required) | `uv run python tests/check_t212_stops.py` |
 | Live weekend council (NexusAI Cloud multi-provider) | `uv run python -m src.council.weekend_council --days 7` |
 | Live LLM JSON harness (NexusAI Cloud) | `uv run python tests/check_llm_json.py` |
 | Full pipeline, simulation | `uv run main.py --simul` |
 | Full pipeline, T212 demo | `uv run main.py --t212` |
+| Supervised scheduler (lock + auto-restart) | `.\start_scheduler.bat` |
 | Morning Market Brief generation | `uv run python morning_brief/morning_brief.py` |
 
 ---

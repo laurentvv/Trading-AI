@@ -511,7 +511,11 @@ class AdaptiveWeightManager:
 
         Args:
             market_data: Recent price data
-            volatility: Current volatility measure
+            volatility: Current volatility measure — DAILY std (see
+                enhanced_trading_example.compute_daily_volatility). The
+                thresholds below (0.03 default) are daily-scale: an annualized
+                figure (~0.15+) classified every single session as
+                "volatile"/"crisis" (GO-gate 4, audit 2026-08-19 C4).
 
         Returns:
             Market regime string

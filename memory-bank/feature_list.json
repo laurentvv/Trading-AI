@@ -1,0 +1,249 @@
+{
+  "$comment": "Cartographie complète et structurée des fonctionnalités du projet. Source unique de vérité sur l'état des fonctionnalités. Généré le 2026-06-30 lors de la mise en place du système de mémoire déterministe (voir AGENTS.md §1). Mis à jour dès qu'une fonctionnalité change de statut.",
+  "schema_version": "1.0",
+  "last_updated": "2026-08-19",
+  "features": [
+    {
+      "id": "F-01",
+      "name": "Moteur de consensus multi-modèles (EnhancedDecisionEngine)",
+      "description": "Agrégateur de consensus pondérant les signaux de 12 modèles hétérogènes vers une décision BUY/SELL/HOLD unique. Interface standardisée ModelResult (signal, confidence, reasoning). Poids adaptatifs via AdaptiveWeightManager.",
+      "status": "completed",
+      "dependencies": []
+    },
+    {
+      "id": "F-02",
+      "name": "ClassicModel (Scikit-Learn)",
+      "description": "Modèle quantitatif (RandomForest / GradientBoosting / LogisticRegression) validé par TimeSeriesSplit. Signal agressif (25% du consensus cognitif).",
+      "status": "completed",
+      "dependencies": [
+        "F-01"
+      ]
+    },
+    {
+      "id": "F-03",
+      "name": "TimesFM 2.5 (Google Research)",
+      "description": "Modèle de fondation pour le forecast de séries temporelles. Installation patchée via setup_timesfm.py avant uv sync.",
+      "status": "completed",
+      "dependencies": [
+        "F-01"
+      ]
+    },
+    {
+      "id": "F-04",
+      "name": "TensorTrade / PPO (stable-baselines3)",
+      "description": "Agent de Reinforcement Learning (PPO) dans un environnement Gymnasium custom (SimpleTradingEnv, 10 features). Persistance du modèle dans data_cache/tensortrade/ppo_model.zip. Premier cycle : entraînement 2000 steps ; cycles suivants : load + fine-tune 500 steps.",
+      "status": "completed",
+      "dependencies": [
+        "F-01"
+      ]
+    },
+    {
+      "id": "F-05",
+      "name": "LLM texte + vision (Gemma 4 12B / Ollama + cascade Gemini)",
+      "description": "Analyse textuelle et visuelle des charts. Cascade 4-tier (Gemini payant → Gemini free → free-llm proxies → Ollama local). Vision (VL) reste exclusivement sur Ollama (les proxies gratuits refusent les images). Défense JSON bi-couche (AGENTS.md §2.1).",
+      "status": "completed",
+      "dependencies": [
+        "F-01",
+        "F-09"
+      ]
+    },
+    {
+      "id": "F-06",
+      "name": "OilBenchModel (cognitif pétrole)",
+      "description": "Modèle cognitif spécialisé Gemma 4 pour le WTI fusionnant indicateurs techniques, fondamentaux EIA et sentiment. Un des 4 sites d'appel LLM protégés par la défense JSON bi-couche.",
+      "status": "completed",
+      "dependencies": [
+        "F-05",
+        "F-07"
+      ]
+    },
+    {
+      "id": "F-07",
+      "name": "EIAClient (fondamentaux énergie)",
+      "description": "Client API EIA v2 : stocks hebdomadaires de brut (WSTK), importations US, taux d'utilisation raffineries (agrégation PADD), prévisions STEO pour WTI/Brent/demande mondiale.",
+      "status": "completed",
+      "dependencies": []
+    },
+    {
+      "id": "F-08",
+      "name": "VincentGanneModel (verrou géopolitique Nasdaq)",
+      "description": "Signal BUY-only exclusif au Nasdaq, validant les points bas via stabilité énergétique (WTI, Brent, Gaz, Urée, DXY). Bloque l'achat si WTI > 94$. Désactivé sur le pétrole (anti auto-référence).",
+      "status": "completed",
+      "dependencies": [
+        "F-01"
+      ]
+    },
+    {
+      "id": "F-09",
+      "name": "Sentiment hybride (AlphaEar + Hyperliquid + Alpha Vantage)",
+      "description": "Sentiment social (AlphaEar via src/news_fetcher.py), spéculatif on-chain (Hyperliquid : Funding Rate, Open Interest) et classique (Alpha Vantage). Détection des excès spéculatifs comme indicateur contrarien.",
+      "status": "completed",
+      "dependencies": []
+    },
+    {
+      "id": "F-10",
+      "name": "Weekend Council (11ème voix du consensus)",
+      "description": "Rétrospective multi-personas LLM hebdomadaire (samedi 01:00). 6 personas sur 5 familles de modèles distinctes (diversité réelle). Protocole 4 rounds + anti-groupthink. Verdict du Juge = 11ème vote pondéré (9.5%), décroissance linéaire 7 jours. Voir docs/ADR-003.",
+      "status": "completed",
+      "dependencies": [
+        "F-01",
+        "F-11"
+      ]
+    },
+    {
+      "id": "F-11",
+      "name": "Gemini Gateway cloud (2-tier partagé)",
+      "description": "Passerelle Gemini unique (src/gemini_gateway.py) partagée par décision/vision/web/council. 2 clés (GEMINI_API_KEY free, GEMINI_API_KEY_PAY payant), cascade + QuotaTracker (RPM/RPD + GEMINI_PAY_DAILY_CAP). Retourne None sur épuisement → fallback Ollama.",
+      "status": "completed",
+      "dependencies": []
+    },
+    {
+      "id": "F-12",
+      "name": "Exécution Trading 212 (démo/live)",
+      "description": "Couche d'exécution réelle via API T212 v0. T212_ENV (.env.t212) gouverne démo vs live. Prix live EUR (<0.5s) via /equity/positions. Sync portefeuille depuis T212 (FIFO). Sérialisation des ordres par thread.Lock par ticker.",
+      "status": "completed",
+      "dependencies": []
+    },
+    {
+      "id": "F-13",
+      "name": "Gestion du risque centralisée (AdvancedRiskManager)",
+      "description": "Centralisation Anti-Loss (Stop-Loss) + Trailing Stop. Seuils de confiance trend-aware. Sizing progressif (75%-100%). Filtre BUY/SELL si confiance < 40%, downgrade HOLD entre 20-40%. Budget 1000€/ticker (INITIAL_BUDGETS).",
+      "status": "completed",
+      "dependencies": [
+        "F-01"
+      ]
+    },
+    {
+      "id": "F-14",
+      "name": "FinAcumen (mémoire financière agentic)",
+      "description": "Couche agentic nocturne (src/finacumen_main.py) : boucle ReAct (Annotator + Solver) sur une mémoire TF-IDF. Produit un signal BUY/SELL/HOLD par ticker avec indicateurs cités. Couplage au main par fichiers partagés (pas un vote du consensus temps réel). Nourrit le morning brief.",
+      "status": "completed",
+      "dependencies": []
+    },
+    {
+      "id": "F-15",
+      "name": "Morning Brief (agent nocturne autonome)",
+      "description": "Workflow smolagents (morning_brief/morning_brief.py) à 01:00 via schedule.py. Crawl des logs API, données EIA, débat Bull vs Bear. Rapport morning_market_brief.md injecté dans le prompt LLM du cycle de trading. Append de la section FinAcumen par schedule.py.",
+      "status": "completed",
+      "dependencies": [
+        "F-14"
+      ]
+    },
+    {
+      "id": "F-16",
+      "name": "Scheduler autonome (schedule.py)",
+      "description": "Orchestrateur Windows (start_scheduler.bat). Boucle temps réel (main.py par ticker par intervalle, 8:30-18:00) + couche nocturne (morning brief + FinAcumen) + Weekend Council (samedi 01:00, subprocess isolé, fenêtre 48h COUNCIL_TIMEOUT=172800).",
+      "status": "completed",
+      "dependencies": [
+        "F-10",
+        "F-15"
+      ]
+    },
+    {
+      "id": "F-17",
+      "name": "Backtest production autonome (backtest_prod.py / audit_prod_logs.py)",
+      "description": "Replay des signaux réels de trading_journal.csv contre les prix parquet avec frais T212 (0.1%). Compare vs buy-and-hold (Sharpe, MaxDD, Win Rate, Alpha). audit_prod_logs.py lit logs_prod/data_cache/ (cache courant) contrairement à backtest_prod.py (cache racine périmé).",
+      "status": "completed",
+      "dependencies": []
+    },
+    {
+      "id": "F-18",
+      "name": "Résilience réseau (circuit breakers yfinance)",
+      "description": "Trackers séparés _yf_info_tracker (metadata, non-critique) et _yf_download_tracker (données). Après 3 échecs consécutifs, blocage 120s. Timeout 10s sur tous les appels yfinance. Cache parquet auto-invalidation > 1 jour.",
+      "status": "completed",
+      "dependencies": []
+    },
+    {
+      "id": "F-19",
+      "name": "Période de validation PROD (2026-05-29 → 2026-06-30)",
+      "description": "Fresh start PROD : DBs wipeés, TensorTrade PPO persistence déployée. 1 mois de validation pour confirmer tous les modèles sur vraies transactions T212. Review fin juin : Sharpe, win rate, précision par modèle → ajustements de poids éventuels.",
+      "status": "in_progress",
+      "dependencies": [
+        "F-04",
+        "F-12",
+        "F-13"
+      ]
+    },
+    {
+      "id": "F-20",
+      "name": "Optimisation des poids par grille (backtest grid search)",
+      "description": "Optimisation automatique des pondérations des modèles via backtest_prod.py grid search. Actuellement en attente — dépend des résultats de la période de validation F-19.",
+      "status": "pending",
+      "dependencies": [
+        "F-17",
+        "F-19"
+      ]
+    },
+    {
+      "id": "F-21",
+      "name": "Recalibration isotonic TensorTrade",
+      "description": "Recalibration isotonic du modèle TensorTrade (cap actuel est intérimaire selon ADR-002). Ouvert après ADR-002.",
+      "status": "pending",
+      "dependencies": [
+        "F-04"
+      ]
+    },
+    {
+      "id": "F-22",
+      "name": "Mémoire déterministe 4-fichiers",
+      "description": "Système de mémoire persistante déterministe (feature_list.json, contract.md, progress.md, log.md) dans memory-bank/. Reconstruit l'état de l'agent à chaque initialisation sans dépendre de la fenêtre de contexte. Voir AGENTS.md §1.",
+      "status": "completed",
+      "dependencies": []
+    },
+    {
+      "id": "F-30",
+      "name": "GO-gate 1 — Timeout + idempotence des ordres T212",
+      "description": "safe_request timeout par défaut ; post_order_market dédié : POST ordre timeout 15s, retry 429 sûr, réconciliation position broker avant tout retry post-RequestException (plus de double-ordre possible). Réf. audit indépendant 2026-08-19 C1.",
+      "status": "completed",
+      "dependencies": []
+    },
+    {
+      "id": "F-31",
+      "name": "GO-gate 2 — Stop-loss mouvant + take-profit côté broker T212",
+      "description": "stopLoss/takeProfit attachés à l'ordre market (−10 %/+8 %) ; après fill, ordre stop dédié GOOD_TILL_CANCEL ; ratchet annuler-remplacer chaque cycle vers peak×0.90 (strictement croissant, jamais de position nue). Réf. C2.",
+      "status": "completed",
+      "dependencies": [
+        "F-30"
+      ]
+    },
+    {
+      "id": "F-32",
+      "name": "GO-gate 3 — Confirmation de fill + prix réel en base",
+      "description": "Poll positions/history après 2xx ; active_position construit sur averagePricePaid ; insert_transaction au prix de fill réel (plus le prix signal). Non-confirmé = aucun write state. Réf. C3.",
+      "status": "completed",
+      "dependencies": [
+        "F-30"
+      ]
+    },
+    {
+      "id": "F-33",
+      "name": "GO-gate 4 — Correction unité volatilité + seuils préservés",
+      "description": "Vol quotidienne (plus de ×√252) ; seuils recalés ×1/0.8 (BUY 0.15, SELL −0.125, STRONG ±0.4375/−0.5625) pour préserver le comportement observé. Réf. C4.",
+      "status": "completed",
+      "dependencies": []
+    },
+    {
+      "id": "F-34",
+      "name": "GO-gate 5 — Données : macro synthétique interdite, TTL caches, staleness prix",
+      "description": "Suppression du fallback « Method 4 » (données aléatoires) ; TTL 7j sur caches macro ; fallback cache prix limité à 3 jours sinon refus de trader. Réf. C5/C6.",
+      "status": "completed",
+      "dependencies": []
+    },
+    {
+      "id": "F-35",
+      "name": "GO-gate 6 — Scheduler : verrou d'instance + résilience",
+      "description": "scheduler.lock inter-processus (O_EXCL + PID + stale 2h), boucle attrapant toutes les exceptions, rattrapage Morning Brief, start_scheduler.bat avec boucle de relance. Réf. I1/I2.",
+      "status": "completed",
+      "dependencies": []
+    },
+    {
+      "id": "F-36",
+      "name": "GO-gate 7 — Mesure du run : equity FIFO, journal, monitoring réel",
+      "description": "equity = initial_budget + P&L réalisé FIFO + latent persisté dans le state ; colonne T212_Equity dans le journal CSV ; performance_monitor alimenté avec les vraies valeurs en mode T212. Réf. M11/chaîne reporting.",
+      "status": "completed",
+      "dependencies": [
+        "F-32"
+      ]
+    }
+  ]
+}

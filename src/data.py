@@ -153,6 +153,32 @@ def _inject_t212_live_price(hist_data: pd.DataFrame, ticker: str) -> pd.DataFram
     return hist_data
 
 
+# GO-gate 5 (audit 2026-08-19 C6): maximum age of a price cache served as an
+# emergency FALLBACK after all download attempts failed. The nominal 1-day
+# freshness check only runs on the load path — the fallback used to accept a
+# cache of ANY age (a delisted ticker or a week-long Yahoo outage meant
+# trading on week-old prices).
+MAX_STALE_PRICE_CACHE_DAYS = 3
+
+
+def _price_cache_is_fresh(cache_filepath: Path, max_days: float = MAX_STALE_PRICE_CACHE_DAYS) -> bool:
+    """True if the cached price series' LAST DATA DATE is within ``max_days``.
+
+    Tz-aware indices are normalized to naive before comparison (European
+    tickers frequently come back tz-aware from yfinance).
+    """
+    try:
+        idx = pd.read_parquet(cache_filepath).index
+        last_date = pd.Timestamp(idx[-1])
+        if last_date.tzinfo is not None:
+            last_date = last_date.tz_localize(None)
+        age_days = (pd.Timestamp.now() - last_date).total_seconds() / 86400.0
+        return age_days <= max_days
+    except Exception as e:
+        logger.warning(f"Could not assess price cache freshness {cache_filepath}: {e}")
+        return False
+
+
 def get_etf_data(ticker: str, period: str = "5y", force_refresh: bool = False) -> tuple[pd.DataFrame, dict]:
     """
     Retrieves ETF and VIX data, with a local caching system.
@@ -163,7 +189,6 @@ def get_etf_data(ticker: str, period: str = "5y", force_refresh: bool = False) -
     CACHE_DIR.mkdir(exist_ok=True)
     cache_filename = f"{ticker.replace('.', '_')}_max_with_vix.parquet"
     cache_filepath = CACHE_DIR / cache_filename
-
     hist_data = None
     info = {}
 
@@ -260,6 +285,16 @@ def get_etf_data(ticker: str, period: str = "5y", force_refresh: bool = False) -
                 else:
                     # Last attempt failed, try to use any cached data
                     if cache_filepath.exists():
+                        # GO-gate 5 (audit 2026-08-19 C6): a stale cache is
+                        # REFUSED here — trading on week-old prices after a
+                        # data-source outage is worse than skipping a cycle.
+                        if not _price_cache_is_fresh(cache_filepath):
+                            logger.critical(
+                                f"❌ Price cache for {ticker} is older than "
+                                f"{MAX_STALE_PRICE_CACHE_DAYS} days — REFUSING the fallback "
+                                f"(no trading on stale data, audit 2026-08-19 C6)."
+                            )
+                            raise e
                         try:
                             logger.warning("All download attempts failed, trying to use cached data...")
                             hist_data = pd.read_parquet(cache_filepath)
@@ -299,12 +334,26 @@ def _get_macro_cache_filepath(function: str, symbol: str = None, interval: str =
     return MACRO_CACHE_DIR / filename
 
 
-def _load_macro_data_from_cache(cache_filepath: Path) -> pd.DataFrame:
+def _load_macro_data_from_cache(cache_filepath: Path, max_age_days: float = 7.0) -> pd.DataFrame:
     """
     Loads macroeconomic data from a Parquet cache file.
+
+    GO-gate 5 (audit 2026-08-19 C5): macro caches previously NEVER expired —
+    CPI / Fed funds / unemployment could stay frozen at their first-launch
+    values for months. A cache older than ``max_age_days`` (file mtime) is
+    treated as absent so the caller refetches.
     """
     if cache_filepath.exists():
         try:
+            import time as _time
+
+            age_days = (_time.time() - cache_filepath.stat().st_mtime) / 86400.0
+            if age_days > max_age_days:
+                logger.info(
+                    f"Macro cache expired: {cache_filepath.name} "
+                    f"({age_days:.1f} days old > {max_age_days:.0f} days) — refetching."
+                )
+                return pd.DataFrame()
             logger.info(f"Loading macro data from cache: {cache_filepath}")
             return pd.read_parquet(cache_filepath)
         except Exception as e:
@@ -591,32 +640,16 @@ def get_macro_data_multi_source(indicator: str, force_refresh: bool = False) -> 
         except Exception as e:
             logger.warning(f"Alpha Vantage failed for {indicator}: {e}")
 
-    # Method 4: Create realistic default data as fallback
-    logger.warning(f"All external sources failed for {indicator}, creating realistic default data")
-
-    try:
-        import numpy as np
-
-        # Create 2 years of monthly data with the default value plus realistic variation
-        end_date = datetime.now()
-        dates = pd.date_range(end=end_date, periods=24, freq="MS")  # Monthly start
-
-        base_value = config["default_value"]
-        # Add some realistic variation (±5% with trend)
-        np.random.seed(42)  # For reproducible results
-        trend = np.linspace(-0.02, 0.02, len(dates))  # Small trend
-        noise = np.random.normal(0, base_value * 0.02, len(dates))  # 2% noise
-        values = base_value * (1 + trend + noise)
-
-        df = pd.DataFrame({"date": dates, "value": values})
-
-        logger.info(f"[OK] Created {len(df)} realistic default data points for {indicator} (base: {base_value})")
-        _save_macro_data_to_cache(df, cache_filepath)
-        return df
-
-    except Exception as e:
-        logger.error(f"[ERROR] Failed to create default data for {indicator}: {e}")
-        return pd.DataFrame()
+    # GO-gate 5 (audit 2026-08-19 C5): the previous "Method 4" fabricated 24
+    # months of RANDOM macro data around a default value AND persisted it to
+    # the cache — synthetic interest rates/CPI could silently feed the
+    # feature pipeline forever. All sources failing is now an explicit
+    # failure; the macro features degrade to absent (callers tolerate None).
+    logger.error(
+        f"All external sources failed for {indicator} — REFUSING to fabricate "
+        f"synthetic macro data (audit 2026-08-19 C5). Returning empty frame."
+    )
+    return pd.DataFrame()
 
 
 def get_fred_data_via_pdr(series_id: str, force_refresh: bool = False) -> pd.DataFrame:

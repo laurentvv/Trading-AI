@@ -192,6 +192,73 @@ class TestConsensusSellReachable(unittest.TestCase):
         self.assertGreater(engine.adaptive_thresholds["sell"], -0.139)
 
 
+class TestVolatilityUnitFix(unittest.TestCase):
+    """GO-gate 4 (audit 2026-08-19 C4): the volatility fed to the decision
+    engine / weight manager used to be ANNUALIZED while every threshold
+    (VOLATILITY_HIGH_THRESHOLD=0.04, regime high_vol=0.03) is DAILY-scale —
+    the score was damped x0.8 on EVERY cycle and the regime was permanently
+    "volatile"/"crisis"."""
+
+    def test_compute_daily_volatility_is_daily_scale(self):
+        from enhanced_trading_example import compute_daily_volatility
+
+        rng = np.random.default_rng(42)
+        returns = pd.Series(rng.normal(0.0, 0.01, 60))  # calm daily regime
+        vol = compute_daily_volatility(returns)
+        self.assertLess(vol, 0.04, "A 1%/day series must NOT look 'high volatility'")
+        self.assertGreater(vol, 0.0)
+        # The old annualized formula would have returned ~0.01*sqrt(252)=0.159.
+        self.assertLess(vol, 0.05)
+
+    def test_compute_daily_volatility_uses_recent_window(self):
+        from enhanced_trading_example import compute_daily_volatility, VOLATILITY_WINDOW_DAYS
+
+        calm = pd.Series([0.001] * 60)
+        wild_tail = pd.Series([0.05, -0.06] * 10)  # last 20 days: wild
+        vol = compute_daily_volatility(pd.concat([calm, wild_tail]).reset_index(drop=True))
+        self.assertGreater(vol, 0.04, "A wild recent window must trip the high-vol threshold")
+        self.assertLessEqual(len(wild_tail), VOLATILITY_WINDOW_DAYS * 2)
+
+    def test_compute_daily_volatility_insufficient_data_defaults_calm(self):
+        from enhanced_trading_example import compute_daily_volatility, DEFAULT_DAILY_VOLATILITY
+
+        self.assertEqual(compute_daily_volatility(pd.Series([], dtype=float)), DEFAULT_DAILY_VOLATILITY)
+        self.assertEqual(compute_daily_volatility(None), DEFAULT_DAILY_VOLATILITY)
+        self.assertLess(DEFAULT_DAILY_VOLATILITY, 0.04)
+
+    def test_calm_daily_vol_does_not_damp_score(self):
+        """A calm ETF (2%/day) must NOT trigger the x0.8 regime damping —
+        the exact production bug: annualized ~0.15 tripped it every cycle."""
+        from enhanced_decision_engine import EnhancedDecisionEngine
+
+        engine = EnhancedDecisionEngine()
+        score = engine._adjust_for_market_regime(0.5, {"volatility": 0.02, "rsi": 50})
+        self.assertAlmostEqual(score, 0.5)
+
+    def test_high_daily_vol_still_damps(self):
+        from enhanced_decision_engine import EnhancedDecisionEngine
+
+        engine = EnhancedDecisionEngine()
+        score = engine._adjust_for_market_regime(0.5, {"volatility": 0.05, "rsi": 50})
+        self.assertAlmostEqual(score, 0.4)
+
+    def test_thresholds_rescaled_to_preserve_behaviour(self):
+        """After removing the permanent x0.8 damping, thresholds are rescaled
+        by 1/0.8 so the EFFECTIVE cut-offs stay identical to the calibrated
+        historical behaviour (decision: comparable 30-day demo run)."""
+        from enhanced_decision_engine import EnhancedDecisionEngine
+
+        engine = EnhancedDecisionEngine()
+        t = engine.adaptive_thresholds
+        self.assertAlmostEqual(t["buy"], 0.15)
+        self.assertAlmostEqual(t["sell"], -0.125)
+        self.assertAlmostEqual(t["strong_buy"], 0.4375)
+        self.assertAlmostEqual(t["strong_sell"], -0.5625)
+        # Effective equivalence: old_threshold == new_threshold * 0.8
+        self.assertAlmostEqual(t["buy"] * 0.8, 0.12)
+        self.assertAlmostEqual(t["sell"] * 0.8, -0.10)
+
+
 class TestEiaCrudeImportsNoDegenerateCache(unittest.TestCase):
     """Bug #4: a 1-row payload was cached with a fresh mtime, hiding staleness.
 

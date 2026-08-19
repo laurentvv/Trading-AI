@@ -138,6 +138,27 @@ SOFT_STOP_ALERT = 0.05      # Latent loss >= -5% -> WARNING only
 # never throttled. BUY->SELL only (a re-entry SELL->BUY stays free).
 MIN_HOLDING_HOURS = 4
 
+# --- Broker-side protection & order safety (GO-gates 1-3, audit 2026-08-19) ---
+# The official T212 API documents that POST /equity/orders/market is NOT
+# idempotent: a blind retry after a lost response can create a duplicate
+# order. post_order_market() therefore reconciles against the broker
+# position before any retry (GO-gate 1).
+ORDER_POST_TIMEOUT = 15.0       # network budget for an order POST
+DEFAULT_REQUEST_TIMEOUT = 10.0  # every other API call
+# Protection attached/placed at the broker so a position survives a dead
+# scheduler/machine (GO-gate 2). The take-profit is fixed (+8%, mirrors
+# TAKE_PROFIT_TARGET). The stop-loss is MOVING: an initial -10% is placed
+# right after fill, then ratcheted UP each cycle to peak*(1-10%) via
+# cancel-and-replace — never lowered, floor = entry*(1-10%).
+BROKER_TAKE_PROFIT_PCT = 0.08
+BROKER_STOP_LOSS_PCT = 0.10
+BROKER_STOP_RATCHET_PCT = 0.10
+PRICE_DECIMALS = 2              # T212 price fields: 2 decimals (safe on EUR instruments)
+# Fill confirmation polling (GO-gate 3): a 2xx means "accepted", not
+# "executed" — the broker position must be observed before any state/DB write.
+FILL_CONFIRM_ATTEMPTS = 6
+FILL_CONFIRM_DELAY = 2.0
+
 
 def _get_avg_price(current_pos: dict) -> float:
     """Broker average fill price per share, single source of truth.
@@ -301,6 +322,45 @@ def get_t212_order_history(ticker=None, limit=50):
     return {"items": []}
 
 
+def _fifo_pnl(order_items) -> tuple[float, float]:
+    """FIFO matching over FILLED broker orders (GO-gate 7, audit 2026-08-19).
+
+    Returns (realized_pl, open_cost): the realized P&L of closed round-trips
+    and the cost basis of the still-open quantity (unmatched BUY lots). The
+    per-ticker equity is derived from it:
+        equity = initial_budget + realized_pl + (position_value - open_cost)
+    """
+    realized = 0.0
+    lots: list[list[float]] = []  # FIFO queue of [qty, price]
+    for item in order_items or []:
+        if not isinstance(item, dict):
+            continue
+        order = item.get("order", {})
+        fill = item.get("fill", {})
+        if order.get("status") != "FILLED" or not fill:
+            continue
+        side = order.get("side", "")
+        qty = abs(float(fill.get("quantity", 0) or 0))
+        price = float(fill.get("price", 0) or 0)
+        if qty <= 0 or price <= 0:
+            continue
+        if side == "BUY":
+            lots.append([qty, price])
+        elif side == "SELL":
+            remaining = qty
+            while remaining > 1e-9 and lots:
+                lot_qty, lot_price = lots[0]
+                matched = min(remaining, lot_qty)
+                realized += matched * (price - lot_price)
+                remaining -= matched
+                if lot_qty - matched <= 1e-9:
+                    lots.pop(0)
+                else:
+                    lots[0] = [lot_qty - matched, lot_price]
+    open_cost = sum(q * p for q, p in lots)
+    return realized, open_cost
+
+
 def sync_state_from_t212(t212_ticker):
     """
     Build portfolio state from T212 real data instead of local JSON.
@@ -314,9 +374,17 @@ def sync_state_from_t212(t212_ticker):
         "initial_budget": budget,
         "current_capital": budget,
         "total_realized_pl": 0.0,
+        "unrealized_pl": 0.0,
+        "equity": budget,
         "active_position": None,
         "t212_synced": True,
     }
+
+    # GO-gate 7: realized P&L via FIFO over the full broker order history
+    # (shared by both branches so open/flat stay consistent).
+    order_data = get_t212_order_history(ticker=t212_ticker, limit=50)
+    realized_pl, _open_cost = _fifo_pnl(order_data.get("items", []))
+    state["total_realized_pl"] = realized_pl
 
     if current_pos:
         entry_price = float(current_pos.get("averagePricePaid", 0) or current_pos.get("averagePrice", 0))
@@ -335,37 +403,51 @@ def sync_state_from_t212(t212_ticker):
             "highest_value": max(current_value, buy_cost),
         }
 
-        # Calculate capital: if position is open, capital = value of position
-        # Realized P&L comes from order history
+        # Capital: if position is open, capital = value of position (sizing
+        # semantics — unchanged). GO-gate 7 adds the TRUE per-ticker equity:
+        # budget + realized (FIFO) + unrealized.
         state["current_capital"] = current_value
-        unrealized_pl = current_value - buy_cost
+        state["unrealized_pl"] = current_value - buy_cost
+        state["equity"] = budget + realized_pl + (current_value - buy_cost)
         logger.info(
             f"T212 sync: {t212_ticker} | qty={qty} | entry={entry_price:.4f} | "
             f"current={current_price:.4f} | value={current_value:.2f} EUR | "
-            f"unrealized P&L={unrealized_pl:+.2f} EUR"
+            f"unrealized P&L={state['unrealized_pl']:+.2f} EUR | "
+            f"equity={state['equity']:.2f} EUR"
         )
+
+        # GO-gate 2: adopt the standing broker stop order into the state so
+        # the ratchet survives restarts (the state file is a cache, the broker
+        # is the source of truth).
+        try:
+            _headers = get_auth_header()
+        except ValueError:
+            _headers = None
+        if _headers:
+            standing_stop = _get_active_stop_order(t212_ticker, _headers)
+            if standing_stop is not None:
+                state["active_position"]["stop_order_id"] = standing_stop.get("id")
+                state["active_position"]["stop_price"] = float(standing_stop.get("stopPrice") or 0.0)
     else:
-        # No position - capital stays at budget (cash not invested)
-        # Check order history for realized P&L
-        order_data = get_t212_order_history(ticker=t212_ticker, limit=20)
-        total_pl = 0.0
-        buys = []
-        for item in order_data.get("items", []):
-            order = item.get("order", {})
-            fill = item.get("fill", {})
-            if order.get("status") != "FILLED" or not fill:
-                continue
-            side = order.get("side", "")
-            qty = float(fill.get("quantity", 0))
-            price = float(fill.get("price", 0))
-            if side == "BUY":
-                buys.append({"qty": qty, "price": price})
-            elif side == "SELL" and buys:
-                buy = buys.pop(0)
-                total_pl += qty * (price - buy["price"])
-        state["total_realized_pl"] = total_pl
-        state["current_capital"] = budget + total_pl
-        logger.info(f"T212 sync: {t212_ticker} | no position | realized P&L={total_pl:+.2f} EUR")
+        # No position: capital = budget + realized, equity identical.
+        state["current_capital"] = budget + realized_pl
+        state["equity"] = budget + realized_pl
+        logger.info(
+            f"T212 sync: {t212_ticker} | no position | realized P&L={realized_pl:+.2f} EUR | "
+            f"equity={state['equity']:.2f} EUR"
+        )
+
+        # GO-gate 2 cleanup: position is gone (TP/stop/manual close) — any
+        # standing stop order left behind is cancelled.
+        try:
+            _headers = get_auth_header()
+        except ValueError:
+            _headers = None
+        if _headers:
+            leftover = _get_active_stop_order(t212_ticker, _headers)
+            if leftover is not None and leftover.get("id"):
+                logger.info(f"🧹 Sync: position fermée mais stop #{leftover.get('id')} toujours actif — annulation.")
+                _cancel_order(leftover.get("id"), _headers)
 
     return state
 
@@ -529,13 +611,16 @@ def get_real_price_eur(ticker_yahoo=None):
 
 _t212_session = requests.Session()
 
-def safe_request(method: str, url: str, **kwargs) -> requests.Response | None:
+def safe_request(method: str, url: str, timeout: float = DEFAULT_REQUEST_TIMEOUT, **kwargs) -> requests.Response | None:
     """
     Execute an HTTP request with error handling and retry logic.
+
+    Read-only endpoints may retry on network errors (harmless). Order POSTs
+    must NOT use this function — see post_order_market().
     """
     for attempt in range(3):
         try:
-            resp = _t212_session.request(method, url, **kwargs)
+            resp = _t212_session.request(method, url, timeout=timeout, **kwargs)
             if resp.status_code == 429 or (resp.status_code == 400 and "TooManyRequests" in resp.text):
                 wait = (attempt + 1) * 2
                 logger.warning(f"⚠️ Rate limit atteint, attente de {wait}s...")
@@ -549,6 +634,263 @@ def safe_request(method: str, url: str, **kwargs) -> requests.Response | None:
             continue
     logger.error("❌ Échec de la requête après 3 tentatives.")
     return None
+
+
+def _position_exists(t212_ticker: str, headers: dict) -> bool | None:
+    """Best-effort check of the live broker position for one instrument.
+
+    Returns None when the check itself failed (network) — callers treat it as
+    "unknown" rather than "absent".
+    """
+    try:
+        resp = _t212_session.get(f"{_get_t212_base_url()}/equity/positions", headers=headers, timeout=DEFAULT_REQUEST_TIMEOUT)
+        if resp.status_code == 200:
+            return any(p.get("instrument", {}).get("ticker") == t212_ticker for p in resp.json())
+    except requests.exceptions.RequestException as e:
+        logger.debug(f"Position reconciliation fetch failed: {e}")
+    return None
+
+
+def post_order_market(order_data: dict, headers: dict, t212_ticker: str) -> tuple[requests.Response | None, bool]:
+    """
+    POST a market order with a timeout and idempotence-by-reconciliation.
+
+    The endpoint is not idempotent (official docs): a blind retry after a lost
+    response can duplicate the order. Rules applied here:
+      - 429 / 400 TooManyRequests -> the order was NOT executed, retry is safe;
+      - RequestException / timeout after send -> the order MAY have executed;
+        the broker position is re-checked BEFORE any retry. If the position
+        appeared (BUY) or disappeared (SELL), no re-POST is issued.
+
+    Returns (response, reconciled_fill): reconciled_fill=True means the
+    response was lost but the order is known executed (response is None).
+    """
+    url = f"{_get_t212_base_url()}/equity/orders/market"
+    side = "BUY" if order_data.get("quantity", 0) > 0 else "SELL"
+    existed_before = _position_exists(t212_ticker, headers)
+
+    for attempt in range(3):
+        try:
+            resp = _t212_session.post(url, headers=headers, json=order_data, timeout=ORDER_POST_TIMEOUT)
+        except requests.exceptions.RequestException as e:
+            wait = (attempt + 1) * 2
+            logger.warning(f"⚠️ Erreur réseau sur POST d'ordre ({side}): {e}. Réconciliation broker avant toute décision ({wait}s)...")
+            time.sleep(wait)
+            exists_now = _position_exists(t212_ticker, headers)
+            if exists_now is not None:
+                if side == "BUY" and exists_now and not existed_before:
+                    logger.error(
+                        f"🚨 POST {side}: réponse perdue MAIS position apparue chez le broker — "
+                        f"ordre exécuté, AUCUN re-POST (anti double-achat)."
+                    )
+                    return None, True
+                if side == "SELL" and existed_before and not exists_now:
+                    logger.error(
+                        f"🚨 POST {side}: réponse perdue MAIS position disparue chez le broker — "
+                        f"ordre exécuté, AUCUN re-POST."
+                    )
+                    return None, True
+            continue
+        if resp.status_code == 429 or (resp.status_code == 400 and "TooManyRequests" in resp.text):
+            wait = (attempt + 1) * 2
+            logger.warning(f"⚠️ Rate limit sur POST d'ordre, attente de {wait}s (ordre non exécuté, retry sûr)...")
+            time.sleep(wait)
+            continue
+        return resp, False
+
+    # Last-chance reconciliation: the order may have landed during the final attempt.
+    exists_now = _position_exists(t212_ticker, headers)
+    if exists_now is not None:
+        if side == "BUY" and exists_now and not existed_before:
+            logger.error("🚨 POST BUY: échec final MAIS position apparue chez le broker — ordre exécuté, AUCUN re-POST.")
+            return None, True
+        if side == "SELL" and existed_before and not exists_now:
+            logger.error("🚨 POST SELL: échec final MAIS position disparue chez le broker — ordre exécuté, AUCUN re-POST.")
+            return None, True
+    logger.error("❌ Échec du POST d'ordre après 3 tentatives (avec réconciliation intermédiaire).")
+    return None, False
+
+
+def _confirm_fill(t212_ticker: str, headers: dict, side: str, expected_qty: float | None = None) -> dict | None:
+    """
+    Poll the broker until an accepted order shows an observable effect
+    (GO-gate 3). A 2xx means "accepted", not "executed".
+
+    BUY  -> returns the position dict (averagePricePaid available) once it
+            appears on /equity/positions.
+    SELL -> returns the FILLED sell dict {quantity, price, ...} from
+            /equity/history/orders, preferring a fill matching expected_qty.
+    Returns None if nothing is confirmed within the polling budget.
+    """
+    url_pos = f"{_get_t212_base_url()}/equity/positions"
+    url_hist = f"{_get_t212_base_url()}/equity/history/orders?limit=10&ticker={t212_ticker}"
+    for attempt in range(FILL_CONFIRM_ATTEMPTS):
+        try:
+            if side == "BUY":
+                resp = _t212_session.get(url_pos, headers=headers, timeout=DEFAULT_REQUEST_TIMEOUT)
+                if resp.status_code == 200:
+                    for p in resp.json():
+                        if p.get("instrument", {}).get("ticker") == t212_ticker:
+                            return p
+            else:
+                resp = _t212_session.get(url_hist, headers=headers, timeout=DEFAULT_REQUEST_TIMEOUT)
+                if resp.status_code == 200:
+                    payload = resp.json()
+                    items = payload.get("items", []) if isinstance(payload, dict) else payload
+                    fallback = None
+                    for item in items:
+                        order, fill = item.get("order", {}), item.get("fill", {})
+                        if order.get("status") != "FILLED" or not fill:
+                            continue
+                        qty = abs(float(fill.get("quantity", 0) or 0))
+                        if expected_qty is not None and abs(qty - expected_qty) < 1e-4:
+                            return fill
+                        if fallback is None:
+                            fallback = fill
+                    if fallback is not None:
+                        return fallback
+        except (requests.exceptions.RequestException, ValueError, TypeError) as e:
+            logger.debug(f"Fill confirmation poll error: {e}")
+        if attempt < FILL_CONFIRM_ATTEMPTS - 1:
+            time.sleep(FILL_CONFIRM_DELAY)
+    return None
+
+
+def _place_stop_order(t212_ticker: str, quantity: float, stop_price: float, headers: dict) -> tuple[int | None, float | None]:
+    """
+    Place a dedicated SELL STOP order (GOOD_TILL_CANCEL) so the position is
+    protected broker-side even if this machine dies (GO-gate 2). Returns
+    (order_id, stop_price) or (None, None).
+
+    Duplicate-stop risk on a lost response is accepted deliberately: two sell
+    stops on one position over-protect (the second is rejected once the first
+    filled) instead of under-protecting.
+    """
+    rounded = round(stop_price, PRICE_DECIMALS)
+    payload = {
+        "ticker": t212_ticker,
+        "quantity": -abs(quantity),
+        "stopPrice": rounded,
+        "timeValidity": "GOOD_TILL_CANCEL",
+    }
+    resp = safe_request("POST", f"{_get_t212_base_url()}/equity/orders/stop", headers=headers, json=payload)
+    if resp is not None and resp.status_code in (200, 201, 202):
+        order_id = None
+        try:
+            order_id = resp.json().get("id")
+        except (ValueError, AttributeError):
+            pass
+        logger.info(f"🔐 Stop-loss broker placé: #{order_id} {t212_ticker} @ {rounded:.2f} (GTC, qty {-abs(quantity)}).")
+        return order_id, rounded
+    logger.error(f"❌ Échec du placement du stop broker {t212_ticker} @ {rounded:.2f}: {resp.text if resp is not None else 'réseau'}")
+    return None, None
+
+
+def _cancel_order(order_id, headers: dict) -> bool:
+    """Cancel a standing broker order (used by the ratchet and cleanups)."""
+    try:
+        resp = _t212_session.delete(f"{_get_t212_base_url()}/equity/orders/{order_id}", headers=headers, timeout=DEFAULT_REQUEST_TIMEOUT)
+        if resp.status_code in (200, 204):
+            return True
+        logger.warning(f"⚠️ Annulation ordre #{order_id}: statut {resp.status_code} — {resp.text[:200]}")
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"⚠️ Annulation ordre #{order_id}: erreur réseau ({e}).")
+    return False
+
+
+def _get_active_stop_order(t212_ticker: str, headers: dict) -> dict | None:
+    """Find the standing SELL STOP order for an instrument, if any."""
+    try:
+        resp = _t212_session.get(f"{_get_t212_base_url()}/equity/orders", headers=headers, timeout=DEFAULT_REQUEST_TIMEOUT)
+        if resp.status_code == 200:
+            payload = resp.json()
+            items = payload if isinstance(payload, list) else payload.get("items", [])
+            for o in items:
+                if (
+                    o.get("instrument", {}).get("ticker") == t212_ticker
+                    and o.get("type") == "STOP"
+                    and o.get("side") == "SELL"
+                    and o.get("status") in ("WORKING", "LOCAL", "UNCONFIRMED", "CONFIRMED", "NEW")
+                ):
+                    return o
+    except (requests.exceptions.RequestException, ValueError) as e:
+        logger.debug(f"Active stop orders fetch failed: {e}")
+    return None
+
+
+def _ratchet_stop_order(state: dict, current_pos: dict, t212_ticker: str, headers: dict) -> None:
+    """
+    Move the broker stop UP to peak_price * (1 - BROKER_STOP_RATCHET_PCT)
+    (GO-gate 2, user decision: moving stop). Strictly monotonic — the stop is
+    never lowered. If the delete succeeds but the replacement fails, an
+    emergency stop is re-placed at the previous level: the position is never
+    left knowingly unprotected.
+    """
+    pos = state.get("active_position")
+    if not pos:
+        return
+    qty = float(
+        current_pos.get("quantity")
+        or current_pos.get("quantityAvailableForTrading")
+        or pos.get("quantity")
+        or 0
+    )
+    if qty <= 0:
+        return
+    highest = pos.get("highest_value") or 0.0
+    peak_price = highest / qty
+    if peak_price <= 0:
+        return
+    desired = round(peak_price * (1 - BROKER_STOP_RATCHET_PCT), PRICE_DECIMALS)
+    current_stop = float(pos.get("stop_price") or 0.0)
+
+    # Self-heal: a position without a known stop gets one at entry*(1-10%).
+    if not pos.get("stop_order_id"):
+        entry = _get_avg_price(current_pos) or pos.get("entry_price_etf") or 0.0
+        floor_stop = round(entry * (1 - BROKER_STOP_LOSS_PCT), PRICE_DECIMALS) if entry > 0 else 0.0
+        target = max(desired, floor_stop)
+        if target <= 0:
+            return
+        order_id, placed_price = _place_stop_order(t212_ticker, qty, target, headers)
+        if order_id is not None:
+            pos["stop_order_id"] = order_id
+            pos["stop_price"] = placed_price or target
+            save_portfolio_state(state, t212_ticker)
+        return
+
+    if desired <= current_stop + 0.01:
+        return
+
+    order_id = pos.get("stop_order_id")
+    if not _cancel_order(order_id, headers):
+        logger.warning(f"⚠️ Ratchet: stop #{order_id} non supprimable — stop inchangé ce cycle ({current_stop:.2f}).")
+        return
+
+    new_id, new_price = _place_stop_order(t212_ticker, qty, desired, headers)
+    if new_id is None:
+        logger.critical(
+            f"🚨 RATCHET: stop supprimé mais replacement à {desired:.2f} échoué — "
+            f"replacement d'urgence à l'ancien niveau {current_stop:.2f}."
+        )
+        if current_stop > 0:
+            new_id, new_price = _place_stop_order(t212_ticker, qty, current_stop, headers)
+        if new_id is None:
+            logger.critical(
+                "🚨 Position sans stop broker connu — le hard stop logiciel (-10%) reste la défense active. "
+                "Nouvel essai au cycle suivant."
+            )
+            pos.pop("stop_order_id", None)
+            pos.pop("stop_price", None)
+            save_portfolio_state(state, t212_ticker)
+            return
+
+    pos["stop_order_id"] = new_id
+    pos["stop_price"] = new_price or desired
+    save_portfolio_state(state, t212_ticker)
+    logger.info(
+        f"🔐 Ratchet: stop broker {t212_ticker} remonté {current_stop:.2f} -> {pos['stop_price']:.2f} "
+        f"(peak {peak_price:.4f} × {1 - BROKER_STOP_RATCHET_PCT:.2f})."
+    )
 
 
 def _get_portfolio_info(base_url: str, headers: dict) -> dict:
@@ -830,39 +1172,84 @@ def _execute_buy_order(state, current_pos, ticker, t212_ticker, portfolio, base_
         logger.error("❌ Quantité nulle ou négative, abandon.")
         return
 
-    # 3. Passage de l'ordre
+    # 3. Passage de l'ordre (GO-gate 1: timeout + réconciliation ; GO-gate 2: TP attaché)
     logger.info(f"🚀 Envoi de l'ordre d'achat de {quantity} {t212_ticker}...")
-    order_data = {"ticker": t212_ticker, "quantity": quantity}
-    resp = safe_request("POST", f"{base_url}/equity/orders/market", headers=headers, json=order_data)
+    order_data = {
+        "ticker": t212_ticker,
+        "quantity": quantity,
+        "takeProfit": round(current_price * (1 + BROKER_TAKE_PROFIT_PCT), PRICE_DECIMALS),
+    }
+    resp, reconciled = post_order_market(order_data, headers, t212_ticker)
+    if resp is not None and resp.status_code == 400 and "TooManyRequests" not in resp.text:
+        # The attached takeProfit is not officially documented on market
+        # orders — if the API refuses it, retry once with a bare payload
+        # (a plain 400 means the order was NOT created, so the retry is safe).
+        logger.warning(f"⚠️ Ordre avec takeProfit rejeté (400) — re-POST sans attache: {resp.text[:300]}")
+        resp, reconciled = post_order_market({"ticker": t212_ticker, "quantity": quantity}, headers, t212_ticker)
 
-    if resp is not None and resp.status_code in [200, 201, 202]:
-        logger.info(f"✅ Ordre placé ! Quantité : {quantity}")
+    if (resp is not None and resp.status_code in [200, 201, 202]) or reconciled:
+        # GO-gate 3: a 2xx means "accepted" — confirm the fill at the broker
+        # before writing any state, and use the real fill price everywhere.
+        confirmed_pos = _confirm_fill(t212_ticker, headers, side="BUY")
+        if confirmed_pos is None:
+            logger.error(
+                f"❌ Achat {t212_ticker}: fill NON confirmé après {FILL_CONFIRM_ATTEMPTS} sondes — "
+                f"aucune écriture d'état/DB ; la sync du cycle suivant réconcilera."
+            )
+            return
+
+        fill_price = _get_avg_price(confirmed_pos) or current_price
+        fill_qty = float(
+            confirmed_pos.get("quantity")
+            or confirmed_pos.get("quantityAvailableForTrading")
+            or quantity
+        )
+        fill_value = float(confirmed_pos.get("walletImpact", {}).get("currentValue", 0) or fill_price * fill_qty)
+        logger.info(
+            f"✅ Ordre exécuté et confirmé ! Quantité: {fill_qty} @ {fill_price:.4f} "
+            f"(valeur {fill_value:.2f} € ; prix signal était {current_price:.4f})."
+        )
         state["active_position"] = {
             "ticker": t212_ticker,
-            "quantity": quantity,
-            "buy_budget": estimated_cost,
-            "entry_price_etf": current_price,
+            "quantity": fill_qty,
+            "buy_budget": fill_price * fill_qty,
+            "entry_price_etf": fill_price,
             "entry_price_index": index_price,
             "entry_time": datetime.datetime.now().isoformat(),
+            "highest_value": max(fill_value, fill_price * fill_qty),
         }
+        # GO-gate 7: buying converts cash into a position — the per-ticker
+        # equity is unchanged (set it if the state did not carry one).
+        state.setdefault("equity", state.get("current_capital", fill_price * fill_qty))
+        state["unrealized_pl"] = fill_value - fill_price * fill_qty
         save_portfolio_state(state, t212_ticker)
 
-        # --- Enregistrement SQLITE après confirmation ---
+        # GO-gate 2: dedicated GTC stop order at -10% of the REAL fill price
+        # (ratcheted upward by _ratchet_stop_order on later cycles).
+        stop_id, stop_price = _place_stop_order(
+            t212_ticker, fill_qty, fill_price * (1 - BROKER_STOP_LOSS_PCT), headers
+        )
+        if stop_id is not None:
+            state["active_position"]["stop_order_id"] = stop_id
+            state["active_position"]["stop_price"] = stop_price
+            save_portfolio_state(state, t212_ticker)
+
+        # --- Enregistrement SQLITE après fill confirmé, au prix RÉEL ---
         if insert_transaction:
             insert_transaction(
                 date=db_date,
                 ticker=ticker,
                 type="BUY",
-                quantity=quantity,
-                price=current_price,
-                cost=estimated_cost,
+                quantity=fill_qty,
+                price=fill_price,
+                cost=fill_price * fill_qty,
                 signal_source=signal_source,
-                reason=f"T212 Order Confirmed (Index: {index_price:.2f})",
+                reason=f"T212 Fill Confirmed (avgPricePaid {fill_price:.4f}; Index: {index_price:.2f})",
             )
     else:
-        if resp is None:
-            logger.error("❌ Échec de l'achat : réseau (pas de réponse de l'API)")
-        else:
+        if resp is None and not reconciled:
+            logger.error("❌ Échec de l'achat : réseau (pas de réponse de l'API, réconciliation négative)")
+        elif resp is not None:
             logger.error(f"❌ Échec de l'achat : {resp.text}")
 
 def _check_sell_loss_guard(current_value_eur: float, current_pos: dict, state: dict) -> float | None:
@@ -889,6 +1276,9 @@ def _record_sell_transaction(state, current_value_eur, total_qty, ticker, db_dat
 
     state["current_capital"] = current_value_eur + residual_cash
     state["total_realized_pl"] += current_value_eur - buy_cost
+    # GO-gate 7: after a full exit, equity = budget + realized P&L.
+    state["unrealized_pl"] = 0.0
+    state["equity"] = state.get("initial_budget", 1000.0) + state["total_realized_pl"]
 
     logger.info("💰 Détail capital :")
     logger.info(f"   - Produit vente : {current_value_eur:.2f} €")
@@ -965,23 +1355,41 @@ def _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, heade
     logger.info(f"📉 Vente de TOUTE la position sur {t212_ticker} ({total_qty} actions)")
 
     order_data = {"ticker": t212_ticker, "quantity": -total_qty}
-    sell_resp = safe_request("POST", f"{base_url}/equity/orders/market", headers=headers, json=order_data)
+    sell_resp, reconciled = post_order_market(order_data, headers, t212_ticker)
 
-    if sell_resp is not None and sell_resp.status_code in [200, 201, 202]:
-        logger.info("✅ Vente effectuée.")
+    if (sell_resp is not None and sell_resp.status_code in [200, 201, 202]) or reconciled:
+        # GO-gate 3: confirm the actual fill from the broker order history —
+        # the pre-sale snapshot (current_value_eur) is only a fallback.
+        sell_fill = _confirm_fill(t212_ticker, headers, side="SELL", expected_qty=total_qty)
+        if sell_fill is None:
+            logger.error(
+                f"❌ Vente {t212_ticker}: fill NON confirmé — aucun write d'état/DB ; "
+                f"la sync du cycle suivant réconcilera."
+            )
+            return
+        fill_qty = abs(float(sell_fill.get("quantity", 0) or total_qty))
+        fill_price = float(sell_fill.get("price", 0) or (current_value_eur / total_qty if total_qty > 0 else 0))
+        proceeds = fill_qty * fill_price if fill_price > 0 else current_value_eur
+        logger.info(f"✅ Vente exécutée et confirmée: {fill_qty} @ {fill_price:.4f} (produit {proceeds:.2f} €).")
+
+        # GO-gate 2: the standing stop order is now useless — cancel it.
+        stop_id = state.get("active_position", {}).get("stop_order_id") if state.get("active_position") else None
+        if stop_id:
+            _cancel_order(stop_id, headers)
+
         if state.get("active_position"):
             buy_cost = state["active_position"]["buy_budget"]
         else:
             avg_price = _get_avg_price(current_pos)
             t212_buy_cost = avg_price * total_qty
             buy_cost = t212_buy_cost if t212_buy_cost > 0 else current_value_eur
-        entry_time_str = _record_sell_transaction(state, current_value_eur, total_qty, ticker, db_date, signal_source, buy_cost)
+        entry_time_str = _record_sell_transaction(state, proceeds, fill_qty, ticker, db_date, signal_source, buy_cost)
         save_portfolio_state(state, t212_ticker)
-        _update_feedback_loop(entry_time_str, db_date, current_value_eur, buy_cost)
+        _update_feedback_loop(entry_time_str, db_date, proceeds, buy_cost)
     else:
-        if sell_resp is None:
-            logger.error("❌ Erreur lors de la vente : réseau (pas de réponse de l'API)")
-        else:
+        if sell_resp is None and not reconciled:
+            logger.error("❌ Erreur lors de la vente : réseau (pas de réponse de l'API, réconciliation négative)")
+        elif sell_resp is not None:
             logger.error(f"❌ Erreur lors de la vente : {sell_resp.text}")
 
 def execute_t212_trade(
@@ -1087,6 +1495,12 @@ def execute_t212_trade(
             logger.info(f"🎯 Sortie forcée par {exit_reason} (priorité exit-strategy).")
     else:
         logger.info(f"   - Aucune position ouverte sur {t212_ticker}")
+
+    # GO-gate 2: ratchet the broker stop UP while the position stays open
+    # (runs after _evaluate_trailing_stop so highest_value is current). Skipped
+    # when the position is about to be fully sold.
+    if current_pos and signal != "SELL":
+        _ratchet_stop_order(state, current_pos, t212_ticker, headers)
 
     if signal == "BUY":
         _execute_buy_order(state, current_pos, ticker, t212_ticker, portfolio, base_url, headers, db_date, signal_source, sizing_ratio)

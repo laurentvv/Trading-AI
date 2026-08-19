@@ -27,9 +27,26 @@ L'API Trading 212 v0 ne propose **aucun endpoint de données historiques** (cand
 Le système gère nativement les fractions. Lors d'une vente (`SELL`), le script interroge l'API pour récupérer la quantité exacte possédée (ex: `1.8176`) et passe un ordre de vente pour la **totalité** afin de liquider proprement la position.
 
 ### Sécurité et Robustesse
-- **Vérification du Portefeuille** : Le système interroge systématiquement votre cash disponible et vos positions ouvertes **avant** d'envoyer un ordre d'achat ou de vente.
+- **Vérification du Portefeuille** : Le système interroge systématiquement votre cash disponible et positions ouvertes **avant** d'envoyer un ordre d'achat ou de vente.
 - **Gestion des Erreurs API** : Un mécanisme de **Retry automatique** est implémenté pour gérer les erreurs `TooManyRequests` (Code 429), garantissant que les ordres passent même en cas de congestion de l'API.
 - **Résilience des champs API** : L'API T212 peut omettre certains champs (ex: `averagePrice`) dans les réponses positions. Le système utilise un fallback défensif (`currentValue / quantity`) pour calculer le prix d'entrée lors de la synchronisation du portefeuille local.
+
+### Sécurité des Ordres — idempotence par réconciliation (GO-gate 1, 2026-08-19)
+
+La documentation officielle précise que `POST /equity/orders/market` **n'est pas idempotent** : un retry après perte de réponse peut créer un ordre dupliqué. Le système applique donc :
+
+1. **Timeout explicite** (15 s) sur chaque POST d'ordre (`post_order_market`).
+2. **Retry sûr uniquement** : un `429`/`TooManyRequests` (ordre rejeté = non exécuté) est retenté.
+3. **Réconciliation avant tout retry réseau** : après un timeout/erreur réseau, `GET /equity/positions` est consulté — si la position est apparue (BUY) ou disparu (SELL), l'ordre est considéré exécuté et **aucun re-POST** n'est émis (anti double-achat).
+4. **Confirmation de fill** : un code 2xx signifie « accepté », pas « exécuté » — l'état local et la DB ne sont écrits qu'après observation du fill (`averagePricePaid`, prix réel — plus le prix signal Yahoo).
+
+### Protections côté Broker — stop mouvant + take-profit (GO-gate 2, 2026-08-19)
+
+- Chaque ordre market BUY part avec un **`takeProfit` attaché** (+8 %, prix absolu, 2 décimales). Si l'API refuse ce champ non documenté, le fallback « ordre nu + stop dédié » s'active automatiquement.
+- Après fill confirmé, un **ordre stop dédié** est placé : `POST /equity/orders/stop` avec `{ticker, quantity: -qty, stopPrice, timeValidity: "GOOD_TILL_CANCEL"}` à −10 % du prix de fill réel.
+- **Ratchet (stop mouvant)** : à chaque cycle (~30 min), si le plus-haut de la position (`highest_value`) progresse, le stop est **annulé** (`DELETE /equity/orders/{id}`) puis **replacé plus haut** à `peak × 0.90` — strictement croissant, jamais abaissé. Si le replacement échoue après suppression, un stop d'urgence est replacé à l'ancien niveau (jamais de position volontairement sans stop).
+- La conséquence : une position réelle reste protégée chez le broker même si la machine/scheduler meurt — les stops logiciels (hard stop −10 %, trailing −3 %, time-stop 15 j) restent actifs en parallèle comme défense interne.
+- *Validation live à effectuer sur démo : `uv run python tests/check_t212_stops.py` (consigner le bilan ici).*
 
 ---
 
@@ -89,4 +106,4 @@ Le système synchronise désormais son état directement depuis T212 :
 3. **Fichier de suivi :** `t212_portfolio_state.json` est le "journal de bord" de l'IA. Ne pas le supprimer manuellement si une position est active.
 
 ---
-*Dernière mise à jour : 15 mai 2026.*
+*Dernière mise à jour : 19 août 2026 (GO-gates 1-3 : idempotence par réconciliation, fills confirmés, stop mouvant broker).*
