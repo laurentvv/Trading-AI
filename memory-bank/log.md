@@ -288,3 +288,6 @@ Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-
 - Marqueurs GO-gates tous présents : fill confirmé au prix réel (1446.0132 vs signal 1447.60), stop broker #53600367141 @ 1301.41 GTC, equity= dans le sync, rate-limits 429 absorbés, SELL sans position = no-op propre.
 - CONSTAT DÉFINITIF : l'API T212 (démo) rejette le champ takeProfit sur les ordres market (400 Invalid payload) → fallback « ordre nu + stop dédié » systématique. Take-profit logiciel, stop capitaliaire broker. Consigné dans TRADING212_API_GUIDE.md.
 - Observations normales post-reset : PPO réentraîné (2000 steps) puis rechargé pour le 2e ticker (zip partagé — limite M3 connue) ; sizing au plancher 0.30 (Kelly sur historique vide) → 285 € déployés.
+## [2026-08-19] fix | Verrou scheduler : guérison accélérée après kill brutal
+- Incident PROD : instance tuée brutalement (fenêtre fermée/Stop-Process) → finally non exécuté → scheduler.lock résiduel < 2 h → nouvelles instances refusées.
+- Correctif : SCHEDULER_LOCK_STALE_SECONDS 2 h → 15 min (le lock-keeper rafraîchit toutes les 30 s, marge très large) + message de refus explicite (PID détenteur, âge du verrou, procédure Remove-Item).

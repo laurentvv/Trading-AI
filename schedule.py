@@ -31,7 +31,12 @@ COUNCIL_TIMEOUT = 172800    # 48h (tout le week-end) pour laisser le temps aux m
 # doubled cycles on 19/08) — they double-analyse, fight over the state file
 # and can issue concurrent orders.
 SCHEDULER_LOCK_FILE = Path("scheduler.lock")
-SCHEDULER_LOCK_STALE_SECONDS = 2 * 3600  # a lock untouched for 2h is dead
+# A lock untouched for this long is considered dead. The lock-keeper thread
+# refreshes the file every 30s, so a LIVE scheduler never looks stale — even
+# during a 48h blocking council run. 15 min keeps the recovery window short
+# after a hard kill (console window closed with X / Stop-Process: the finally
+# block never runs and the lock survives — observed 2026-08-19 on PROD).
+SCHEDULER_LOCK_STALE_SECONDS = 15 * 60
 LOCK_KEEPER_INTERVAL = 30                # refresh cadence (background thread)
 
 # Setup Logging
@@ -386,14 +391,25 @@ def run_loop_iteration(state: dict) -> bool:
 def main():
     # GO-gate 6 (audit I1): refuse to run alongside another live instance.
     if not acquire_scheduler_lock():
+        try:
+            lock_age_min = (time.time() - SCHEDULER_LOCK_FILE.stat().st_mtime) / 60
+            lock_pid = SCHEDULER_LOCK_FILE.read_text().strip() or "?"
+        except OSError:
+            lock_age_min, lock_pid = -1, "?"
         logger.critical(
-            "❌ Une autre instance du scheduler est ACTIVE (verrou scheduler.lock détenu) — arrêt immédiat."
+            "❌ Verrou scheduler.lock détenu (PID %s, âge %.0f min) — arrêt immédiat. "
+            "Si AUCUN scheduler n'est actif (Get-Process python), c'est un cadavre de "
+            "kill brutal : supprimez scheduler.lock et relancez.",
+            lock_pid, lock_age_min,
         )
         console.print(
             Panel(
                 "[bold red]Instance dupliquée refusée[/bold red]\n\n"
-                "Une autre instance du scheduler détient scheduler.lock.\n"
-                "Fermez-la avant d'en relancer une nouvelle.",
+                f"Verrou détenu par le PID {lock_pid} (âge : {lock_age_min:.0f} min).\n\n"
+                "1. Un scheduler tourne déjà ailleurs ? Utilisez-le ou arrêtez-le\n"
+                "   (Get-Process python puis Stop-Process -Id <PID>).\n"
+                "2. Aucun scheduler actif ? Le verrou est un résidu de kill brutal :\n"
+                "   Remove-Item .\\scheduler.lock  puis relancez ce script.",
                 title="Scheduler déjà actif",
                 border_style="red",
             )
