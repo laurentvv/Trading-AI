@@ -291,3 +291,10 @@ Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-
 ## [2026-08-19] fix | Verrou scheduler : guérison accélérée après kill brutal
 - Incident PROD : instance tuée brutalement (fenêtre fermée/Stop-Process) → finally non exécuté → scheduler.lock résiduel < 2 h → nouvelles instances refusées.
 - Correctif : SCHEDULER_LOCK_STALE_SECONDS 2 h → 15 min (le lock-keeper rafraîchit toutes les 30 s, marge très large) + message de refus explicite (PID détenteur, âge du verrou, procédure Remove-Item).
+## [2026-08-19] eval | RUN 30 JOURS OFFICIELLEMENT DÉMARRÉ — on laisse tourner
+- Second reset complet (compte démo T212 + reset local PROD) → cycle initial à 16:22 : base vierge, caches frais, PPO réentraîné.
+- Premier trade du run : BUY 0.197 SXRVd_EQ @ 1443.198 (fill réel confirmé, signal était 1446.60) ; stop broker #53600367833 @ 1298.88 GTC (= exactement −10 % du fill). Fallback takeProfit→ordre nu reconfirmé.
+- Ancienne position (0.1969 @ 1446.0132, stop #53600367141) annulée par le reset compte — sans impact, nouveau point de départ retenu.
+- Horizon de décision GO/NO-GO PROD : J+30 ≈ 2026-09-18, critères dans docs/PLAN_RUN_DEMO_30J.md §5.
+- Consignes : plus aucun reset ni cycle manuel ; scheduler via start_scheduler.bat uniquement ; arrêt par Ctrl+C seulement.
+- Sonde check_t212_stops.py : devenue redondante — les mécanismes stop/TP/fill sont validés en production réelle par les cycles des 16:10 et 16:25.

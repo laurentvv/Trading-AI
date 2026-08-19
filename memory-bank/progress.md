@@ -43,11 +43,12 @@
 - [ ] Optimisation des poids par grid search (`backtest_prod.py`).
 
 ## Prochaine Action Immédiate
-- **Sonde broker démo** (avec feu vert utilisateur) : `uv run python tests/check_t212_stops.py`
-  → consigner le bilan dans `TRADING212_API_GUIDE.md`.
-- Puis : reset propre (`reset_for_fresh_test.py --dry-run` puis `--yes`), vérifier
-  `T212_ENV=demo`, lancer `.\start_scheduler.bat` — protocole complet et critères
-  de GO/NO-GO dans `docs/PLAN_RUN_DEMO_30J.md`.
+- **Rien — le run de 30 jours tourne** (départ 2026-08-19 16:22, décision GO/NO-GO ≈ 2026-09-18).
+- Supervision quotidienne/hebdo selon `docs/PLAN_RUN_DEMO_30J.md` §4 (checklist).
+- À guetter dans les logs : `🔐 Ratchet: stop broker ... remonté` (premier plus-haut),
+  l'equity qui dévie de 1000 € selon le P&L, et l'absence de CRITICAL non expliqué.
+- Post-run : évaluer les critères §5 de PLAN_RUN_DEMO_30J, puis seulement discuter
+  du passage en compte réel T212.
 
 ## Statut des Invariants Critiques (contrôle rapide)
 - [x] Architecture NexusAI Cloud active (auto_fallback & auto_fallback_vision) avec validation JSON stricte.
