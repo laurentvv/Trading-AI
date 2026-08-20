@@ -298,3 +298,18 @@ Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-
 - Horizon de décision GO/NO-GO PROD : J+30 ≈ 2026-09-18, critères dans docs/PLAN_RUN_DEMO_30J.md §5.
 - Consignes : plus aucun reset ni cycle manuel ; scheduler via start_scheduler.bat uniquement ; arrêt par Ctrl+C seulement.
 - Sonde check_t212_stops.py : devenue redondante — les mécanismes stop/TP/fill sont validés en production réelle par les cycles des 16:10 et 16:25.
+## [2026-08-20] fix | Audit système, vérification positions réelles T212 & déverrouillage stop broker avant vente
+- **Vérification globale** :
+  - Scheduler en cours d'exécution (PID 3344, verrou actif et maintenu par lock-keeper). Morning brief et FinAcumen générés avec succès.
+  - Position réelle T212 DEMO : `SXRVd_EQ` = 0.197 parts (valeur 285.93 €, P&L latent +1.62 €). Aucune position sur `OD7Fd_EQ`.
+  - Cash disponible T212 : 1 715.69 €.
+- **Analyse d'incident & Correctif** :
+  - Au cycle 09:37, une tentative de vente de SXRV.DE avait échoué avec erreur 400 `Quantity is missing` : l'ordre stop GTC verrouillait les actions (`quantityAvailableForTrading` = 0) et n'était pas annulé avant l'envoi de l'ordre market SELL.
+  - `get_t212_positions()` renvoyait `[]` en cas d'erreur réseau/429 au lieu de `None`, ce qui pouvait amener `sync_state_from_t212` à considérer à tort qu'il n'y avait plus de positions et annuler le stop.
+  - **Correctifs apportés dans `src/t212_executor.py`** :
+    1. `get_t212_positions()` renvoie désormais `None` en cas d'erreur API/429 et `sync_state_from_t212()` ignore la synchro sans écraser l'état local.
+    2. `_execute_sell_order` calcule `total_qty` sur la quantité totale détenue et annule préalablement tout ordre stop GTC actif pour libérer les parts au broker (avec rétablissement de secours si la vente échoue).
+    3. `_check_sell_loss_guard` et `_evaluate_trailing_stop` utilisent la quantité réelle totale pour le coût de référence.
+  - Stop broker de protection rétabli sur T212 (`id=53600390467`, STOP @ 1306.01 €).
+  - Validation : 50/50 tests unitaires passés avec succès.
+

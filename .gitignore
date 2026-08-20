@@ -57,3 +57,7 @@ logs_prod/
 alerte-wti-main/
 # Backups created by reset_for_fresh_test.py (operator-only, never commit)
 reset_backup/
+scheduler.lock
+*.lnk
+morning_brief/output/*.md
+

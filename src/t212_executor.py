@@ -284,15 +284,16 @@ def _get_t212_base_url():
 
 
 def get_t212_positions():
-    """Fetch all open positions from T212 with live prices."""
+    """Fetch all open positions from T212 with live prices. Returns None on failure."""
     try:
         headers = get_auth_header()
         resp = _t212_session.get(f"{_get_t212_base_url()}/equity/positions", headers=headers, timeout=10)
         if resp.status_code == 200:
             return resp.json()
+        logger.warning(f"T212 positions fetch returned status {resp.status_code}: {resp.text[:200]}")
     except Exception as e:
         logger.debug(f"T212 positions fetch failed: {e}")
-    return []
+    return None
 
 
 def get_t212_account_summary():
@@ -366,9 +367,16 @@ def sync_state_from_t212(t212_ticker):
     Build portfolio state from T212 real data instead of local JSON.
     Returns a state dict compatible with the existing system, or None if T212 is unavailable.
     """
-    budget = INITIAL_BUDGETS.get(t212_ticker, DEFAULT_INITIAL_BUDGET)
     positions = get_t212_positions()
-    current_pos = next((p for p in positions if p["instrument"]["ticker"] == t212_ticker), None)
+    if positions is None:
+        logger.warning(f"T212 positions unavailable — skipping sync for {t212_ticker}")
+        return None
+
+    budget = INITIAL_BUDGETS.get(t212_ticker, DEFAULT_INITIAL_BUDGET)
+    current_pos = next(
+        (p for p in positions if (p.get("instrument", {}).get("ticker") == t212_ticker or p.get("ticker") == t212_ticker)),
+        None
+    )
 
     state = {
         "initial_budget": budget,
@@ -910,8 +918,8 @@ def _evaluate_trailing_stop(state: dict, current_pos: dict, t212_ticker: str) ->
     if not state.get("active_position"):
         return None
 
-    current_value_eur = current_pos["walletImpact"]["currentValue"]
-    total_qty = current_pos["quantityAvailableForTrading"]
+    current_value_eur = float(current_pos.get("walletImpact", {}).get("currentValue", 0))
+    total_qty = float(current_pos.get("quantity") or current_pos.get("quantityAvailableForTrading") or 0)
     avg_price = _get_avg_price(current_pos)
     t212_buy_cost = avg_price * total_qty
     state_buy_cost = state["active_position"].get("buy_budget", 0.0)
@@ -1254,7 +1262,7 @@ def _execute_buy_order(state, current_pos, ticker, t212_ticker, portfolio, base_
 
 def _check_sell_loss_guard(current_value_eur: float, current_pos: dict, state: dict) -> float | None:
     avg_price = _get_avg_price(current_pos)
-    total_qty = current_pos["quantityAvailableForTrading"]
+    total_qty = float(current_pos.get("quantity") or current_pos.get("quantityAvailableForTrading") or 0)
     t212_buy_cost = avg_price * total_qty
     state_buy_cost = state["active_position"]["buy_budget"] if state.get("active_position") else 0.0
 
@@ -1335,8 +1343,12 @@ def _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, heade
         save_portfolio_state(state, t212_ticker)
         return
 
-    total_qty = current_pos["quantityAvailableForTrading"]
-    current_value_eur = current_pos["walletImpact"]["currentValue"]
+    total_qty = float(current_pos.get("quantity") or current_pos.get("quantityAvailableForTrading") or 0)
+    current_value_eur = float(current_pos.get("walletImpact", {}).get("currentValue", 0))
+
+    if total_qty <= 0:
+        logger.warning(f"⚠️ Quantité nulle pour {t212_ticker}, vente annulée.")
+        return
 
     # The sell-loss guard blocks any sale that would realize a loss > 0.2%.
     # That guard must be BYPASSED for emergency exits (stop-loss / time-stop)
@@ -1351,6 +1363,18 @@ def _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, heade
         )
     elif _check_sell_loss_guard(current_value_eur, current_pos, state) is None:
         return
+
+    # GO-gate 2: cancel any standing broker STOP order before placing market sell,
+    # because T212 locks the shares while a stop order is active.
+    stop_id = state.get("active_position", {}).get("stop_order_id") if state.get("active_position") else None
+    if not stop_id:
+        standing_stop = _get_active_stop_order(t212_ticker, headers)
+        if standing_stop:
+            stop_id = standing_stop.get("id")
+
+    if stop_id:
+        logger.info(f"🔓 Annulation préalable du stop #{stop_id} avant exécution de la vente marché.")
+        _cancel_order(stop_id, headers)
 
     logger.info(f"📉 Vente de TOUTE la position sur {t212_ticker} ({total_qty} actions)")
 
@@ -1372,11 +1396,6 @@ def _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, heade
         proceeds = fill_qty * fill_price if fill_price > 0 else current_value_eur
         logger.info(f"✅ Vente exécutée et confirmée: {fill_qty} @ {fill_price:.4f} (produit {proceeds:.2f} €).")
 
-        # GO-gate 2: the standing stop order is now useless — cancel it.
-        stop_id = state.get("active_position", {}).get("stop_order_id") if state.get("active_position") else None
-        if stop_id:
-            _cancel_order(stop_id, headers)
-
         if state.get("active_position"):
             buy_cost = state["active_position"]["buy_budget"]
         else:
@@ -1391,6 +1410,10 @@ def _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, heade
             logger.error("❌ Erreur lors de la vente : réseau (pas de réponse de l'API, réconciliation négative)")
         elif sell_resp is not None:
             logger.error(f"❌ Erreur lors de la vente : {sell_resp.text}")
+        # If market sell failed, restore protective stop
+        if stop_id:
+            logger.info(f"🛡️ Rétablissement du stop broker suite à l'échec de la vente...")
+            _ratchet_stop_order(state, current_pos, t212_ticker, headers)
 
 def execute_t212_trade(
     signal,
