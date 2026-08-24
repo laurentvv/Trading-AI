@@ -25,6 +25,11 @@ EIA_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 # Validating the *content* freshness — not just the row count — closes that hole.
 MAX_CRUDE_IMPORTS_AGE_DAYS = 70  # ~2 months (monthly publication lag + margin)
 
+# Circuit breaker for a persistently stale crude_imports source: after a
+# refusal, skip the HTTP call for this many hours instead of hammering the
+# API every cycle (2026-08-24: 226 identical refusals in 5 PROD days).
+CRUDE_REFUSAL_BREAKER_HOURS = 12
+
 
 @dataclass
 class EIACacheEntry:
@@ -157,6 +162,20 @@ class EIAClient:
         if cached is not None:
             return cached
 
+        # Circuit breaker (2026-08-24): while the EIA source itself serves a
+        # stale payload, re-fetching every cycle only burns the API quota and
+        # floods the logs (~226 identical refusals over 5 PROD days). After a
+        # refusal, skip the HTTP call entirely for CRUDE_BREAKER_HOURS.
+        last_refusal = getattr(self, "_crude_refused_at", None)
+        if last_refusal is not None:
+            hours_since = (datetime.now() - last_refusal).total_seconds() / 3600.0
+            if hours_since < CRUDE_REFUSAL_BREAKER_HOURS:
+                logger.debug(
+                    f"EIA crude_imports: circuit breaker actif "
+                    f"({hours_since:.1f}h depuis le dernier refus) — fallback disque."
+                )
+                return self._load_disk_cache_fallback(cache_key)
+
         # NB: this endpoint returns imports broken down by origin × grade ×
         # destination, so a SINGLE monthly period spans ~2000-3000 rows. Two
         # earlier bugs collapsed the payload to one period:
@@ -204,12 +223,20 @@ class EIAClient:
             is_stale_content = age_days > MAX_CRUDE_IMPORTS_AGE_DAYS
             if len(df_total) >= 3 and not is_stale_content:
                 self._save_to_cache(cache_key, df_total, 24)
+                self._crude_refused_at = None
             else:
+                # Arm the circuit breaker only for a stale SOURCE: a transient
+                # degenerate payload (row-count refusal) keeps retrying next
+                # cycle as before.
+                if is_stale_content:
+                    self._crude_refused_at = datetime.now()
                 logger.warning(
                     f"EIA crude_imports payload refused: {len(df_total)} rows, "
                     f"latest period {latest_period.date()} ({age_days}d old"
                     f"{', stale content' if is_stale_content else ''}). "
-                    "Not cached; will retry next cycle."
+                    "Not cached; "
+                    + (f"prochain essai dans {CRUDE_REFUSAL_BREAKER_HOURS}h (circuit breaker)."
+                       if is_stale_content else "will retry next cycle.")
                 )
             return df_total
         return self._load_disk_cache_fallback(cache_key)

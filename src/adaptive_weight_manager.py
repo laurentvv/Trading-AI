@@ -27,6 +27,14 @@ HOLD_NEUTRAL_RETURN_THRESHOLD = 0.005
 WIN_RATE_SOFT_FLOOR = 0.25
 WIN_RATE_SOFT_CEIL = 0.50
 
+# Minimum number of RESOLVED predictions before the soft win-rate penalty may
+# suppress a model. A win rate computed on a handful of observations is pure
+# noise: the 2026-08-20 PROD incident saw ONE round-trip (recorded at
+# return_1d=0.0000 by a fill-price bug) push 6 models to a 0-24% win rate and
+# zero their weights for the rest of the 30-day run — the ensemble degenerated
+# to classic+oil_bench and stopped trading entirely.
+WIN_RATE_MIN_SAMPLES = 20
+
 
 def _signal_correct_mask(df: pd.DataFrame) -> pd.Series:
     """Return a boolean mask: was each prediction directionally correct?
@@ -59,6 +67,10 @@ class ModelPerformance:
     volatility: float
     max_drawdown: float
     last_updated: datetime
+    # Number of predictions the win_rate was computed on. Below
+    # WIN_RATE_MIN_SAMPLES the win rate is statistical noise and must not
+    # drive weight suppression (2026-08-20 incident).
+    n_observations: int = 0
 
     def to_dict(self) -> dict:
         return {
@@ -396,6 +408,7 @@ class AdaptiveWeightManager:
                 volatility=volatility,
                 max_drawdown=max_drawdown,
                 last_updated=datetime.now(),
+                n_observations=int(len(df)),
             )
 
         except Exception as e:
@@ -498,6 +511,7 @@ class AdaptiveWeightManager:
                     volatility=volatility,
                     max_drawdown=max_drawdown,
                     last_updated=datetime.now(),
+                    n_observations=int(len(group)),
                 )
 
         except Exception as e:
@@ -705,6 +719,17 @@ class AdaptiveWeightManager:
         for model in self.base_weights.keys():
             perf = all_performances.get(model)
             if perf is not None and perf.win_rate >= 0:
+                # Minimum-sample guard (2026-08-20 incident): a win rate over
+                # a handful of predictions is noise and must not suppress a
+                # model — one mis-recorded round-trip zeroed 6 models for the
+                # whole 30-day run.
+                n_obs = getattr(perf, "n_observations", 0)
+                if n_obs < WIN_RATE_MIN_SAMPLES:
+                    logger.debug(
+                        f"Win rate {model} ignoré : {n_obs} observation(s) < {WIN_RATE_MIN_SAMPLES} "
+                        f"(échantillon insuffisant, pas de pénalité)."
+                    )
+                    continue
                 wr = perf.win_rate
                 if wr < WIN_RATE_SOFT_CEIL:
                     factor = max(

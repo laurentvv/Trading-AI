@@ -284,15 +284,23 @@ def _get_t212_base_url():
 
 
 def get_t212_positions():
-    """Fetch all open positions from T212 with live prices. Returns None on failure."""
+    """Fetch all open positions from T212 with live prices.
+
+    Returns None when the fetch FAILED (network, auth, 429...) and [] only on
+    a genuine 200-with-no-positions. Callers must treat None as "unknown",
+    never as "no position": swallowing the error as [] made the sync write
+    phantom "no position" states while a position existed (2026-08-20 PROD:
+    equity reset 1001.79 -> 1000.00 mid-cycle on a swallowed 429).
+    """
     try:
         headers = get_auth_header()
         resp = _t212_session.get(f"{_get_t212_base_url()}/equity/positions", headers=headers, timeout=10)
         if resp.status_code == 200:
-            return resp.json()
+            payload = resp.json()
+            return payload if isinstance(payload, list) else []
         logger.warning(f"T212 positions fetch returned status {resp.status_code}: {resp.text[:200]}")
     except Exception as e:
-        logger.debug(f"T212 positions fetch failed: {e}")
+        logger.warning(f"T212 positions fetch failed: {e}")
     return None
 
 
@@ -309,7 +317,12 @@ def get_t212_account_summary():
 
 
 def get_t212_order_history(ticker=None, limit=50):
-    """Fetch historical filled orders from T212."""
+    """Fetch historical filled orders from T212.
+
+    Returns None when the fetch failed (callers must treat it as "unknown",
+    not as an empty history — FIFO realized P&L computed on a phantom empty
+    history silently resets the equity to budget).
+    """
     try:
         headers = get_auth_header()
         params = f"?limit={limit}"
@@ -318,9 +331,10 @@ def get_t212_order_history(ticker=None, limit=50):
         resp = _t212_session.get(f"{_get_t212_base_url()}/equity/history/orders{params}", headers=headers, timeout=10)
         if resp.status_code == 200:
             return resp.json()
+        logger.warning(f"T212 order history fetch returned status {resp.status_code}: {resp.text[:200]}")
     except Exception as e:
-        logger.debug(f"T212 order history fetch failed: {e}")
-    return {"items": []}
+        logger.warning(f"T212 order history fetch failed: {e}")
+    return None
 
 
 def _fifo_pnl(order_items) -> tuple[float, float]:
@@ -367,15 +381,19 @@ def sync_state_from_t212(t212_ticker):
     Build portfolio state from T212 real data instead of local JSON.
     Returns a state dict compatible with the existing system, or None if T212 is unavailable.
     """
+    budget = INITIAL_BUDGETS.get(t212_ticker, DEFAULT_INITIAL_BUDGET)
     positions = get_t212_positions()
     if positions is None:
-        logger.warning(f"T212 positions unavailable — skipping sync for {t212_ticker}")
+        # Unknown broker state: keep the local state file untouched rather
+        # than fabricating a "no position / realized 0" state.
+        logger.warning(f"T212 sync annulée pour {t212_ticker} : positions indisponibles (état local conservé).")
         return None
-
-    budget = INITIAL_BUDGETS.get(t212_ticker, DEFAULT_INITIAL_BUDGET)
     current_pos = next(
-        (p for p in positions if (p.get("instrument", {}).get("ticker") == t212_ticker or p.get("ticker") == t212_ticker)),
-        None
+        (
+            p for p in positions
+            if (p.get("instrument", {}).get("ticker") == t212_ticker or p.get("ticker") == t212_ticker)
+        ),
+        None,
     )
 
     state = {
@@ -391,8 +409,19 @@ def sync_state_from_t212(t212_ticker):
     # GO-gate 7: realized P&L via FIFO over the full broker order history
     # (shared by both branches so open/flat stay consistent).
     order_data = get_t212_order_history(ticker=t212_ticker, limit=50)
-    realized_pl, _open_cost = _fifo_pnl(order_data.get("items", []))
-    state["total_realized_pl"] = realized_pl
+    if order_data is None:
+        # FIFO impossible: carry over the last known realized P&L from the
+        # local cache instead of resetting it to 0.0 on a failed fetch.
+        local_state = (_read_with_retry(Path(STATE_FILE)) or {}).get("tickers", {}).get(t212_ticker, {})
+        realized_pl = float(local_state.get("total_realized_pl", 0.0) or 0.0)
+        state["total_realized_pl"] = realized_pl
+        logger.warning(
+            f"T212 order history indisponible pour {t212_ticker} : realized P&L conservé "
+            f"depuis l'état local ({realized_pl:+.2f} EUR)."
+        )
+    else:
+        realized_pl, _open_cost = _fifo_pnl(order_data.get("items", []))
+        state["total_realized_pl"] = realized_pl
 
     if current_pos:
         entry_price = float(current_pos.get("averagePricePaid", 0) or current_pos.get("averagePrice", 0))
@@ -750,6 +779,13 @@ def _confirm_fill(t212_ticker: str, headers: dict, side: str, expected_qty: floa
                         order, fill = item.get("order", {}), item.get("fill", {})
                         if order.get("status") != "FILLED" or not fill:
                             continue
+                        # Only SELL-side fills can confirm a SELL. On the demo
+                        # (2026-08-20) the freshly-POSTed SELL was not yet in
+                        # history and the BUY fill (same |quantity|) was
+                        # returned instead — recording the entry price as the
+                        # sale price and zeroing the realized P&L.
+                        if order.get("side") != "SELL":
+                            continue
                         qty = abs(float(fill.get("quantity", 0) or 0))
                         if expected_qty is not None and abs(qty - expected_qty) < 1e-4:
                             return fill
@@ -902,15 +938,25 @@ def _ratchet_stop_order(state: dict, current_pos: dict, t212_ticker: str, header
 
 
 def _get_portfolio_info(base_url: str, headers: dict) -> dict:
-    """Vérifie le cash et les positions réelles sur Trading 212."""
+    """Vérifie le cash et les positions réelles sur Trading 212.
+
+    `positions_ok`/`cash_ok` distinguent un fetch réussi (vide ou non) d'un
+    fetch ÉCHOUÉ (None du safe_request). Toute décision de trading prise sur
+    un état broker inconnu est interdite (fail-safe).
+    """
     summary = safe_request("GET", f"{base_url}/equity/account/summary", headers=headers)
     positions = safe_request("GET", f"{base_url}/equity/positions", headers=headers)
 
-    info = {"cash": 0.0, "positions": []}
+    info = {"cash": 0.0, "positions": [], "cash_ok": False, "positions_ok": False}
     if summary is not None and summary.status_code == 200:
         info["cash"] = summary.json().get("cash", {}).get("availableToTrade", 0.0)
+        info["cash_ok"] = True
     if positions is not None and positions.status_code == 200:
-        info["positions"] = positions.json()
+        payload = positions.json()
+        info["positions"] = payload if isinstance(payload, list) else []
+        info["positions_ok"] = True
+    if not info["positions_ok"]:
+        logger.warning("T212 portfolio check: positions INCONNUES (fetch échoué) — aucune décision ne sera prise dessus.")
     return info
 
 def _evaluate_trailing_stop(state: dict, current_pos: dict, t212_ticker: str) -> str:
@@ -919,6 +965,9 @@ def _evaluate_trailing_stop(state: dict, current_pos: dict, t212_ticker: str) ->
         return None
 
     current_value_eur = float(current_pos.get("walletImpact", {}).get("currentValue", 0))
+    # Total quantity first: a standing stop reserves the shares and zeroes
+    # quantityAvailableForTrading, but the reserved shares still count for
+    # value/guard math (see _execute_sell_order for the release logic).
     total_qty = float(current_pos.get("quantity") or current_pos.get("quantityAvailableForTrading") or 0)
     avg_price = _get_avg_price(current_pos)
     t212_buy_cost = avg_price * total_qty
@@ -1262,6 +1311,8 @@ def _execute_buy_order(state, current_pos, ticker, t212_ticker, portfolio, base_
 
 def _check_sell_loss_guard(current_value_eur: float, current_pos: dict, state: dict) -> float | None:
     avg_price = _get_avg_price(current_pos)
+    # Total quantity first: a standing stop reserves the shares and zeroes
+    # quantityAvailableForTrading (see _execute_sell_order).
     total_qty = float(current_pos.get("quantity") or current_pos.get("quantityAvailableForTrading") or 0)
     t212_buy_cost = avg_price * total_qty
     state_buy_cost = state["active_position"]["buy_budget"] if state.get("active_position") else 0.0
@@ -1332,7 +1383,41 @@ def _update_feedback_loop(entry_time_str, db_date, current_value_eur, buy_cost):
         logger.warning(f"Feedback loop failed: {fb_e}")
 
 
-def _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, headers, db_date, signal_source, force_stop_loss=False):
+def _reconcile_sell_fill_price(cash_before, fill_qty: float, fill_price: float) -> float:
+    """Cross-check the history fill price against the cash actually moved.
+
+    2026-08-20 PROD incident: the demo history/orders reported the SELL fill
+    at exactly the entry price (1443.20) while the cash moved at market
+    (~1451). Recording the wrong price zeroed the realized P&L and poisoned
+    the feedback loop (return_1d=+0.0000). Cash is the ground truth: when
+    the two disagree beyond tolerance, trust the cash delta.
+    """
+    if not cash_before or cash_before <= 0 or fill_qty <= 0 or fill_price <= 0:
+        return fill_price
+    summary = get_t212_account_summary()
+    if not summary:
+        return fill_price
+    try:
+        cash_after = float((summary.get("cash") or {}).get("availableToTrade", 0) or 0)
+    except (AttributeError, TypeError, ValueError):
+        return fill_price
+    if cash_after <= 0:
+        return fill_price
+    cash_delta = cash_after - cash_before
+    implied_price = cash_delta / fill_qty
+    history_proceeds = fill_qty * fill_price
+    if implied_price <= 0:
+        return fill_price
+    if abs(cash_delta - history_proceeds) <= max(0.005 * max(cash_delta, history_proceeds), 0.5):
+        return fill_price  # coherent — keep the broker-reported price
+    logger.warning(
+        f"⚠️ Fill SELL incohérent : history dit {fill_price:.4f} (produit {history_proceeds:.2f} €) "
+        f"mais le cash a bougé de {cash_delta:.2f} € → prix retenu {implied_price:.4f} (cash = vérité terrain)."
+    )
+    return implied_price
+
+
+def _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, headers, db_date, signal_source, force_stop_loss=False, cash_before=None):
     if not state.get("active_position") and not current_pos:
         logger.warning(f"⚠️ Pas de position active pour {t212_ticker}.")
         return
@@ -1343,11 +1428,50 @@ def _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, heade
         save_portfolio_state(state, t212_ticker)
         return
 
-    total_qty = float(current_pos.get("quantity") or current_pos.get("quantityAvailableForTrading") or 0)
-    current_value_eur = float(current_pos.get("walletImpact", {}).get("currentValue", 0))
+    total_qty = float(current_pos.get("quantityAvailableForTrading") or 0)
+    current_value_eur = current_pos["walletImpact"]["currentValue"]
 
+    # GO-gate 1/2 interplay (2026-08-20 PROD): a standing GTC stop RESERVES
+    # the shares, so quantityAvailableForTrading reads 0 while `quantity`
+    # still shows the full position. The sell was then POSTed with quantity 0
+    # -> 400 "Quantity is missing" and the position could never be exited by
+    # the app. Release the reserved shares by cancelling the stop FIRST, then
+    # fall back to the total quantity; if the sale ultimately fails, the stop
+    # is re-placed so the position is never left knowingly unprotected.
+    stop_released = False
+    prev_stop_price = None
+    pos_state = state.get("active_position") or {}
+    stop_id = pos_state.get("stop_order_id")
+    if stop_id:
+        prev_stop_price = pos_state.get("stop_price")
+    else:
+        # The state may not know a broker-side stop (manual placement, lost
+        # cache): look it up so its share reservation is released too.
+        standing = _get_active_stop_order(t212_ticker, headers)
+        if standing:
+            stop_id = standing.get("id")
+            prev_stop_price = float(standing.get("stopPrice") or 0.0) or None
     if total_qty <= 0:
-        logger.warning(f"⚠️ Quantité nulle pour {t212_ticker}, vente annulée.")
+        fallback_qty = float(current_pos.get("quantity") or 0)
+        if stop_id and fallback_qty > 0:
+            logger.info(
+                f"🔓 Annulation préalable du stop #{stop_id} avant exécution de la vente marché "
+                f"(actions réservées par le stop, qty disponible=0)."
+            )
+            if _cancel_order(stop_id, headers):
+                stop_released = True
+                pos_state["stop_order_id"] = None
+                save_portfolio_state(state, t212_ticker)
+                total_qty = fallback_qty
+                logger.info(f"🔓 Stop libéré — quantité vendable restaurée : {total_qty}.")
+                stop_id = None  # already cancelled; post-sale cleanup must not re-DELETE
+            else:
+                logger.warning(f"⚠️ Annulation du stop #{stop_id} refusée avant vente — tentative sur la quantité totale.")
+                total_qty = fallback_qty
+        else:
+            total_qty = fallback_qty
+    if total_qty <= 0:
+        logger.error(f"❌ Vente {t212_ticker} impossible : quantité nulle (available=0, quantity=0).")
         return
 
     # The sell-loss guard blocks any sale that would realize a loss > 0.2%.
@@ -1363,18 +1487,6 @@ def _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, heade
         )
     elif _check_sell_loss_guard(current_value_eur, current_pos, state) is None:
         return
-
-    # GO-gate 2: cancel any standing broker STOP order before placing market sell,
-    # because T212 locks the shares while a stop order is active.
-    stop_id = state.get("active_position", {}).get("stop_order_id") if state.get("active_position") else None
-    if not stop_id:
-        standing_stop = _get_active_stop_order(t212_ticker, headers)
-        if standing_stop:
-            stop_id = standing_stop.get("id")
-
-    if stop_id:
-        logger.info(f"🔓 Annulation préalable du stop #{stop_id} avant exécution de la vente marché.")
-        _cancel_order(stop_id, headers)
 
     logger.info(f"📉 Vente de TOUTE la position sur {t212_ticker} ({total_qty} actions)")
 
@@ -1393,8 +1505,15 @@ def _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, heade
             return
         fill_qty = abs(float(sell_fill.get("quantity", 0) or total_qty))
         fill_price = float(sell_fill.get("price", 0) or (current_value_eur / total_qty if total_qty > 0 else 0))
+        fill_price = _reconcile_sell_fill_price(cash_before, fill_qty, fill_price)
         proceeds = fill_qty * fill_price if fill_price > 0 else current_value_eur
         logger.info(f"✅ Vente exécutée et confirmée: {fill_qty} @ {fill_price:.4f} (produit {proceeds:.2f} €).")
+
+        # GO-gate 2: the standing stop order is now useless — cancel it.
+        # `stop_id` is the resolved standing stop (state or broker lookup);
+        # it is None when the pre-sale release already cancelled it.
+        if stop_id:
+            _cancel_order(stop_id, headers)
 
         if state.get("active_position"):
             buy_cost = state["active_position"]["buy_budget"]
@@ -1410,10 +1529,25 @@ def _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, heade
             logger.error("❌ Erreur lors de la vente : réseau (pas de réponse de l'API, réconciliation négative)")
         elif sell_resp is not None:
             logger.error(f"❌ Erreur lors de la vente : {sell_resp.text}")
-        # If market sell failed, restore protective stop
-        if stop_id:
-            logger.info(f"🛡️ Rétablissement du stop broker suite à l'échec de la vente...")
-            _ratchet_stop_order(state, current_pos, t212_ticker, headers)
+
+        # GO-gate 2: if the standing stop was released to unblock this sale
+        # and the sale failed, re-protect the position at the previous level
+        # immediately — never knowingly leave an open position unprotected.
+        if stop_released and prev_stop_price:
+            re_stop_id, re_stop_price = _place_stop_order(t212_ticker, total_qty, prev_stop_price, headers)
+            if re_stop_id is not None:
+                pos_state["stop_order_id"] = re_stop_id
+                pos_state["stop_price"] = re_stop_price or prev_stop_price
+                save_portfolio_state(state, t212_ticker)
+                logger.info(
+                    f"🔐 Stop de secours re-placé #{re_stop_id} @ {pos_state['stop_price']:.2f} "
+                    f"après échec de la vente {t212_ticker}."
+                )
+            else:
+                logger.critical(
+                    f"🚨 {t212_ticker} : vente échouée ET re-placement du stop impossible — position "
+                    f"SANS protection ; le self-heal du prochain cycle replacera un stop à entry×0.90."
+                )
 
 def execute_t212_trade(
     signal,
@@ -1445,6 +1579,16 @@ def execute_t212_trade(
     portfolio = _get_portfolio_info(base_url, headers)
     logger.info("📊 VÉRIFICATION PORTEFEUILLE RÉEL :")
     logger.info(f"   - Cash total disponible : {portfolio['cash']:.2f} €")
+
+    # Fail-safe (audit 2026-08-24) : si le fetch des positions a échoué
+    # (429/réseau), l'état broker est INCONNU. Aucune décision d'ordre ni
+    # reset d'état ne doit être pris dessus — auparavant current_pos=None
+    # sur un fetch avalé déclenchait des resets fantômes "INTROUVABLE".
+    if not portfolio.get("positions_ok"):
+        logger.error(
+            "❌ Positions broker INCONNUES (fetch échoué/rate-limité) — exécution T212 annulée par sécurité."
+        )
+        return
 
     # Trouver la position spécifique si elle existe
     current_pos = next(
@@ -1534,7 +1678,11 @@ def execute_t212_trade(
         if _evaluate_min_holding(state, force_stop_loss):
             logger.info(f"⏸ SELL supprimé par anti-churn pour {t212_ticker} (position trop récente).")
         else:
-            _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, headers, db_date, signal_source, force_stop_loss=force_stop_loss)
+            _execute_sell_order(
+                state, current_pos, ticker, t212_ticker, base_url, headers, db_date, signal_source,
+                force_stop_loss=force_stop_loss,
+                cash_before=(portfolio["cash"] if portfolio.get("cash_ok") else None),
+            )
 
 
 if __name__ == "__main__":

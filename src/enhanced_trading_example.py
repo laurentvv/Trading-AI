@@ -5,6 +5,7 @@ dans le système de trading AI existant.
 """
 
 import logging
+import re
 import numpy as np
 import pandas as pd
 import sqlite3
@@ -57,6 +58,19 @@ from performance_monitor import PerformanceMonitor
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+# Redacts API keys/tokens echoed by third-party stderr before they reach the
+# logs (2026-08-24: the Alpha Vantage rate-limit notice leaked a real key into
+# logs_prod/trading.log).
+_SECRET_RE = re.compile(
+    r"(?i)\b(key|token|apikey|api_key|secret|password)\b(\s+(?:as|is|:|=))?\s+([A-Za-z0-9_\-]{12,})"
+)
+
+
+def _redact_secrets(text: str) -> str:
+    if not text:
+        return text or ""
+    return _SECRET_RE.sub(lambda m: f"{m.group(1)}{m.group(2) or ''} ***REDACTED***", text)
 
 # Window (trading days) used for the daily volatility estimate feeding the
 # decision engine and the adaptive weight manager.
@@ -355,13 +369,16 @@ class EnhancedTradingSystem:
                     timeout=60,
                 )
                 if process.returncode != 0:
-                    logger.error(f"News fetcher failed (exit {process.returncode}): {process.stderr[:500]}")
+                    logger.error(f"News fetcher failed (exit {process.returncode}): {_redact_secrets(process.stderr[:500])}")
                 else:
                     news_data = json.loads(process.stdout)
                     headlines = news_data.get("headlines", [])
                     sentiment_score = news_data.get("sentiment", 0)
                     if not headlines:
-                        logger.warning(f"News fetcher returned 0 headlines. stderr: {process.stderr[:300]}")
+                        # Redact before logging: the Alpha Vantage stderr notice
+                        # echoes the API key back ("We have detected your API
+                        # key as QBU3..." — seen in logs_prod/trading.log).
+                        logger.warning(f"News fetcher returned 0 headlines. stderr: {_redact_secrets(process.stderr[:300])}")
                     logger.info(
                         f"Successfully fetched {len(headlines)} news headlines. Sentiment score: {sentiment_score:.2f}"
                     )

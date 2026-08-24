@@ -298,18 +298,36 @@ Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-
 - Horizon de décision GO/NO-GO PROD : J+30 ≈ 2026-09-18, critères dans docs/PLAN_RUN_DEMO_30J.md §5.
 - Consignes : plus aucun reset ni cycle manuel ; scheduler via start_scheduler.bat uniquement ; arrêt par Ctrl+C seulement.
 - Sonde check_t212_stops.py : devenue redondante — les mécanismes stop/TP/fill sont validés en production réelle par les cycles des 16:10 et 16:25.
-## [2026-08-20] fix | Audit système, vérification positions réelles T212 & déverrouillage stop broker avant vente
-- **Vérification globale** :
-  - Scheduler en cours d'exécution (PID 3344, verrou actif et maintenu par lock-keeper). Morning brief et FinAcumen générés avec succès.
-  - Position réelle T212 DEMO : `SXRVd_EQ` = 0.197 parts (valeur 285.93 €, P&L latent +1.62 €). Aucune position sur `OD7Fd_EQ`.
-  - Cash disponible T212 : 1 715.69 €.
-- **Analyse d'incident & Correctif** :
-  - Au cycle 09:37, une tentative de vente de SXRV.DE avait échoué avec erreur 400 `Quantity is missing` : l'ordre stop GTC verrouillait les actions (`quantityAvailableForTrading` = 0) et n'était pas annulé avant l'envoi de l'ordre market SELL.
-  - `get_t212_positions()` renvoyait `[]` en cas d'erreur réseau/429 au lieu de `None`, ce qui pouvait amener `sync_state_from_t212` à considérer à tort qu'il n'y avait plus de positions et annuler le stop.
-  - **Correctifs apportés dans `src/t212_executor.py`** :
-    1. `get_t212_positions()` renvoie désormais `None` en cas d'erreur API/429 et `sync_state_from_t212()` ignore la synchro sans écraser l'état local.
-    2. `_execute_sell_order` calcule `total_qty` sur la quantité totale détenue et annule préalablement tout ordre stop GTC actif pour libérer les parts au broker (avec rétablissement de secours si la vente échoue).
-    3. `_check_sell_loss_guard` et `_evaluate_trailing_stop` utilisent la quantité réelle totale pour le coût de référence.
-  - Stop broker de protection rétabli sur T212 (`id=53600390467`, STOP @ 1306.01 €).
-  - Validation : 50/50 tests unitaires passés avec succès.
 
+## [2026-08-20 09:49] fix | Déverrouillage stop broker avant vente + fin des syncs fantômes (commit 9210123, poussé depuis un autre clone — retrouvé le 2026-08-24 lors du rebase)
+- Incident 09:37 : vente SELL refusée 400 "Quantity is missing" — le stop GTC verrouillait les actions (quantityAvailableForTrading=0).
+- get_t212_positions → None sur erreur ; sync annulée sans écraser l'état local ; _execute_sell_order annule le stop AVANT la vente (rétablissement de secours si échec) ; gardes sur la quantité totale.
+- Stop broker rétabli manuellement : #53600390467 @ 1306.01 € (origine du second ID de stop observé dans les logs).
+- NB (2026-08-24) : ce hotfix n'avait jamais été pullé dans le clone principal — repris et étendu par le commit de remédiation J+5.
+
+## [2026-08-24] eval | Audit PROD J+5 du run démo 30j (logs_prod) — verdict actuel : PAS PRÊT pour la LIVE
+- Scheduler sain : ~56/57 cycles OK sur 4 séances, briefs 6/6 PASS, conseil 1/1, crash 20/08 09:31 (0xC000013A, Ctrl+C) récupéré en <5 min.
+- CRITIQUE C1 : vente impossible en l'état — `_execute_sell_order` (t212_executor.py:1338) lit `quantityAvailableForTrading`=0 quand le stop GTC réserve les actions → ordre qty 0 → 400 "Quantity is missing" (constaté 20/08 09:37:06). Toutes les sorties app (SELL/hard-stop/TP/trailing/time-stop) passent par cette fonction.
+- CRITIQUE C2 : le hotfix qui a fait réussir la vente de 09:52 (annulation du stop AVANT la vente, log « Annulation préalable ») n'existe ni dans le tree ni dans git (git log -S vide) — code non commité perdu.
+- CRITIQUE C3 : `get_t212_positions` avale les 429 → [] → « no position » à tort (09:37:05.954) ; 151×429 en 4 jours ; journal T212_Equity sous-évalué (1000.00 écrit au lieu de 1001.79).
+- Vente 20/09:52 confirmée au prix d'entrée exact (1443.20 vs marché 1451.9) → realized≈0, feedback loop apprend return_1d=0 au lieu de +0.6% (fill démo à vérifier dans l'UI T212).
+- Conseil d'aveugle : SQL sur tables inexistantes (model_predictions/daily_metrics vs model_performance_history/daily_performance) ; daily_performance=0 rows.
+- Bruit : EIA crude_imports refusé ~226× (données 110-115j, retry infini), oil_bench mort (4 observations ×40), HF_TOKEN absent (61×), VG=N/A au journal.
+- 1 seul aller-retour en 5 jours (SXRV ±0€) ; CRUDP jamais tradé (SELL permanent + HIGH).
+
+## [2026-08-24] eval | Complément audit via Cockpit MAXIX (http://192.168.1.10:8000) — 2 découvertes majeures
+- CASH RÉEL 2001,58 € (cycle 17:35 du 24/08) ≠ 2000,00 € attendus d'un aller-retour à prix de coût → la vente du 20/08 a réellement été exécutée ~1451 au broker ; le fill SELL rapporté (1443,20 = prix d'entrée) est FAUX (champ/history) → realized sous-évalué de ~1,6 €, feedback loop empoisonnée (return_1d=0.0000). BUG _confirm_fill/DB-history confirmé par le cash.
+- NOUVEAU CRITIQUE : gestionnaire de poids adaptatifs a zeroté llm_text/llm_visual/sentiment/timesfm/grebenkov dès le 20/08 09:02 (win_rates 0-1 % sur ~1 trade, plancher 25 %, pas de garde min d'échantillon) — 581 « Réduction forte » depuis. Poids restants : classic 0.21 (SELL permanent) + oil_bench 0.243 + VG 0.178 + council 0.184 + hmm 0.104 + grebenkov 0.081 → consensus dégénéré SELL/HOLD permanent → zéro trade depuis le 20/08. Le run 30j ne produira aucune donnée tant que ça n'est pas corrigé.
+- Divers : clé API Alpha Vantage (QBU3W4...) fuitée dans trading.log via message stderr ; score santé cockpit 90,5 % surestimé (lignes INFO/WARNING classées ERROR, ex. DuckDuckGo « failed ») ; OIL SPECIAL RISK MODE abaisse le seuil BUY à 0.12/0.21 sans effet (consensus jamais BUY).
+
+## [2026-08-24] fix | Remédiation complète audit J+5 — 7 correctifs, 269/269 tests, run relancé sur base saine
+- C1 `_execute_sell_order` : annulation du stop AVANT la vente marché quand `quantityAvailableForTrading`=0 (actions réservées par le stop GTC — incident 20/08 09:37 "Quantity is missing"), fallback `quantity`, re-placement du stop au niveau précédent si la vente échoue. Ré-implémentation commitée du hotfix perdu du 20/08 09:52.
+- C2 `_confirm_fill(SELL)` : filtre `order.side=="SELL"` (le fill BUY a la même |quantité| et servait de confirmation — vente enregistrée au prix d'entrée) + `_reconcile_sell_fill_price` : le cash bougé prime sur le prix d'history incohérent (>0,5 % ou 0,5 €) — cash réel 2001,58 € vs 2000,00 le 24/08.
+- C3 `get_t212_positions`/`get_t212_order_history` → `None` sur échec ; `sync_state_from_t212` retourne None (état local conservé, realized P&L porté), `execute_t212_trade` avorte sur état broker inconnu. Fini les "no position" fantômes sur 429 (151 hits/4 j).
+- C4 `adaptive_weight_manager` : `WIN_RATE_MIN_SAMPLES=20`, champ `n_observations` sur ModelPerformance — plus de zerout de 6 modèles sur un micro-échantillon (581 "Réduction forte" du 20 au 24/08).
+- C5 `weekend_council` : requêtes sur les vraies tables (`model_performance_history`/`daily_performance`/`performance_alerts`) + correction directionnelle signal↔outcome entier (le conseil tournait à l'aveugle — "no such table").
+- C6 `_redact_secrets` dans `enhanced_trading_example` (clé Alpha Vantage QBU3W4… fuitée dans trading.log).
+- C7 `eia_client` : circuit breaker 12 h sur payload crude_imports périmé (226 refus/5 j), arme seulement sur contenu périmé (le dégénéré transitoire réessaie au cycle suivant comme avant).
+- Run : `logs_prod/model_performance.db` (ère pré-reset, source des win_rates 0-1 %) sauvegardé en `.bak-2026-08-24` et réinitialisé — le prochain cycle recrée une base vierge, les poids repartent des base_weights.
+- Tests : +17 (`tests/test_prod_fixes_2026_08_24.py`), rampe win-rate portée à 25 obs, **269/269 PASS**.
+- AGENTS.md §2.2 : 4 nouveaux invariants (stop/vente, fetch None≠vide, fill SELL side+cash, min-samples). Scheduler vivant (PID 12808) : les cycles de demain 08:30 chargeront le code corrigé (sous-processus frais par cycle).

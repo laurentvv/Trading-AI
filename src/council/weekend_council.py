@@ -88,8 +88,27 @@ MONITOR_DB_PATH = Path("performance_monitor.db")
 JOURNAL_PATH = Path("trading_journal.csv")
 
 
+def _direction_correct(signal: str, outcome) -> bool:
+    """Directional correctness of a prediction against the integer outcome.
+
+    actual_outcome is stored as a signed int in model_performance_history
+    (1 = up, -1 = down, 0 = flat); signal_predicted is a string.
+    """
+    if signal in ("BUY", "STRONG_BUY"):
+        return outcome > 0
+    if signal in ("SELL", "STRONG_SELL"):
+        return outcome < 0
+    return outcome == 0
+
+
 def fetch_model_performance(days: int = 7) -> str:
-    """Reads model prediction accuracy from model_performance.db."""
+    """Reads model prediction accuracy from model_performance.db.
+
+    Schema fix (2026-08-24): the former query targeted a `model_predictions`
+    table with a `timestamp` column that never existed — the council ran
+    blind on this context (seen in logs_prod/weekend_council.log). The real
+    table is `model_performance_history` keyed by `date`.
+    """
     if not PERF_DB_PATH.exists():
         logger.info("model_performance.db absent — skipping model accuracy context.")
         return ""
@@ -97,8 +116,8 @@ def fetch_model_performance(days: int = 7) -> str:
         conn = sqlite3.connect(PERF_DB_PATH)
         cutoff_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
         query = (
-            "SELECT model_name, signal_predicted, actual_outcome, return_5d "
-            "FROM model_predictions WHERE timestamp >= ?"
+            "SELECT model_name, signal_predicted, actual_outcome, return_1d, return_5d "
+            "FROM model_performance_history WHERE date >= ?"
         )
         df = pd.read_sql_query(query, conn, params=(cutoff_date,))
         conn.close()
@@ -110,16 +129,17 @@ def fetch_model_performance(days: int = 7) -> str:
         if with_outcome.empty:
             return f"{total} prédictions enregistrées (aucun résultat consolidé pour l'instant)."
 
-        correct = (with_outcome["signal_predicted"] == with_outcome["actual_outcome"]).sum()
-        accuracy = (correct / len(with_outcome)) * 100
+        with_outcome = with_outcome.copy()
+        with_outcome["correct"] = [
+            _direction_correct(sig, int(out)) for sig, out in zip(with_outcome["signal_predicted"], with_outcome["actual_outcome"])
+        ]
+        accuracy = with_outcome["correct"].mean() * 100
 
-        summary = f"Précision globale des modèles : {accuracy:.1f}% ({correct}/{len(with_outcome)} signaux vérifiés, {total} au total)\n"
+        summary = f"Précision globale des modèles : {accuracy:.1f}% ({int(with_outcome['correct'].sum())}/{len(with_outcome)} signaux vérifiés, {total} au total)\n"
         per_model = (
-            with_outcome.groupby("model_name")
-            .apply(
-                lambda g: f"{g['model_name'].iloc[0]}: {(g['signal_predicted'] == g['actual_outcome']).mean()*100:.0f}% ({len(g)})",
-                include_groups=False,
-            )
+            with_outcome.groupby("model_name")["correct"]
+            .agg(["mean", "size"])
+            .apply(lambda r: f"{r.name}: {r['mean']*100:.0f}% ({int(r['size'])})", axis=1)
             .tolist()
         )
         summary += "Détail par modèle : " + ", ".join(per_model)
@@ -130,7 +150,12 @@ def fetch_model_performance(days: int = 7) -> str:
 
 
 def fetch_portfolio_monitoring() -> str:
-    """Reads portfolio health and alerts from performance_monitor.db."""
+    """Reads portfolio health and alerts from performance_monitor.db.
+
+    Schema fix (2026-08-24): the former query targeted `daily_metrics` and
+    `system_alerts`, which never existed — the real tables are
+    `daily_performance` and `performance_alerts`.
+    """
     if not MONITOR_DB_PATH.exists():
         logger.info("performance_monitor.db absent — skipping portfolio monitoring context.")
         return ""
@@ -138,22 +163,33 @@ def fetch_portfolio_monitoring() -> str:
         conn = sqlite3.connect(MONITOR_DB_PATH)
         cutoff_date = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
 
-        metrics_query = "SELECT * FROM daily_metrics WHERE date >= ? ORDER BY date DESC LIMIT 5"
+        metrics_query = (
+            "SELECT date, ticker, ending_value, daily_return, trades_count, wins, losses, "
+            "max_intraday_drawdown, volatility FROM daily_performance "
+            "WHERE date >= ? ORDER BY date DESC LIMIT 5"
+        )
         df_metrics = pd.read_sql_query(metrics_query, conn, params=(cutoff_date,))
 
-        alerts_query = "SELECT * FROM system_alerts WHERE timestamp >= ? ORDER BY timestamp DESC LIMIT 10"
+        alerts_query = (
+            "SELECT timestamp, ticker, alert_type, severity, message FROM performance_alerts "
+            "WHERE timestamp >= ? ORDER BY timestamp DESC LIMIT 10"
+        )
         df_alerts = pd.read_sql_query(alerts_query, conn, params=(cutoff_date,))
         conn.close()
 
         parts = []
         if not df_metrics.empty:
             latest = df_metrics.iloc[0]
+            wins, losses = float(latest.get("wins", 0) or 0), float(latest.get("losses", 0) or 0)
+            closed = wins + losses
+            win_rate = (wins / closed * 100) if closed > 0 else 0.0
             parts.append(
-                f"État portefeuille au {latest.get('date', '?')}: "
-                f"Valeur={latest.get('portfolio_value', 0):.2f}€, "
-                f"Drawdown max={latest.get('max_drawdown', 0)*100:.1f}%, "
-                f"Sharpe 30j={latest.get('sharpe_ratio_30d', 0):.2f}, "
-                f"Win rate={latest.get('win_rate', 0)*100:.0f}%"
+                f"État portefeuille au {latest.get('date', '?')} ({latest.get('ticker', '?')}): "
+                f"Valeur finale={float(latest.get('ending_value', 0) or 0):.2f}€, "
+                f"Rendement journalier={float(latest.get('daily_return', 0) or 0)*100:+.2f}%, "
+                f"Drawdown intraday max={float(latest.get('max_intraday_drawdown', 0) or 0)*100:.1f}%, "
+                f"Trades={int(latest.get('trades_count', 0) or 0)}, "
+                f"Win rate={win_rate:.0f}%"
             )
         if not df_alerts.empty:
             alerts_summary = [

@@ -27,7 +27,19 @@
 - [x] Suite pytest complète : **252/252 PASS** (+56 nouveaux tests, 0 échec).
 - [x] Docs : `docs/PLAN_RUN_DEMO_30J.md`, `TRADING212_API_GUIDE.md`, `AGENTS.md` §2.2/§3, `CHANGELOG.md`.
 - [ ] Sonde démo `tests/check_t212_stops.py` (feu vert utilisateur requis).
-- [ ] Smoke cycle démo + reset propre + lancement run 30 jours (`docs/PLAN_RUN_DEMO_30J.md`).
+- [x] Smoke cycle démo + reset propre + lancement run 30 jours (`docs/PLAN_RUN_DEMO_30J.md`) — démarré 2026-08-19 16:22.
+
+### Remédiation audit J+5 (2026-08-24, en cours de validation par le run)
+- [x] C1 vente débloquée : stop annulé AVANT la vente (actions réservées), fallback `quantity`, re-protection d'urgence si échec (`t212_executor._execute_sell_order`).
+- [x] C2 fill SELL : filtre `side=="SELL"` dans `_confirm_fill` + réconciliation prix/cash (`_reconcile_sell_fill_price`, le cash est la vérité terrain).
+- [x] C3 fetchs avales : `get_t212_positions`/`get_t212_order_history` → `None` sur échec ; sync annulée, exécution T212 avortée si état broker inconnu.
+- [x] C4 poids adaptatifs : `WIN_RATE_MIN_SAMPLES=20` (`n_observations` sur `ModelPerformance`) — plus de zerout sur micro-échantillons.
+- [x] C5 council : SQL sur les vraies tables (`model_performance_history`, `daily_performance`, `performance_alerts`) + correction directionnelle des issues.
+- [x] C6 masquage des secrets dans les stderr loggés (`_redact_secrets`).
+- [x] C7 circuit breaker EIA crude_imports (12 h sur contenu périmé).
+- [x] `logs_prod/model_performance.db` pollué (ère pré-reset, win_rates 0-1 %) → sauvegardé en `.bak-2026-08-24` et réinitialisé.
+- [x] Tests : **269/269 PASS** (+17 dans `tests/test_prod_fixes_2026_08_24.py`, rampe win-rate portée à 25 obs).
+- [ ] Validation en conditions réelles : premier cycle post-fix (attendu 2026-08-25 08:30) — guetter `🔓 Annulation préalable`, poids restaurés, plus de "Réduction forte" en rafale.
 
 ### Historique (sprints précédents — acquis)
 - [x] Migration NexusAI-Client complète (2026-08-18), cycle ~93 s, 193→196 tests verts.

@@ -154,9 +154,18 @@ def test_soft_winrate_ramp_preserves_diversity(tmp_path):
         lookback_days=365,
     )
 
-    dates = [f"2026-06-{d:02d}" for d in range(1, 11)]  # 10 days each
-    # Mixed market: 5 up days (ret > dead-zone), 5 down days (ret < -dead-zone)
-    market = [0.02, -0.02, 0.015, -0.01, 0.012, -0.03, 0.025, -0.018, 0.02, -0.02]
+    # 25 observations per model: the soft penalty only applies from
+    # WIN_RATE_MIN_SAMPLES (2026-08-24) — below that, a win rate is noise and
+    # must not silence anyone. The 10-sample fixtures of old would now skip
+    # the penalty entirely (garbage would NOT be silenced), so this test
+    # deliberately sits above the threshold.
+    dates = [f"2026-06-{d:02d}" for d in range(1, 26)]  # 25 days each
+    # Mixed market: alternating up days (ret > dead-zone) / down days
+    market = [
+        0.02, -0.02, 0.015, -0.01, 0.012, -0.03, 0.025, -0.018, 0.02, -0.02,
+        0.016, -0.012, 0.022, -0.025, 0.018, -0.015, 0.011, -0.02, 0.024, -0.014,
+        0.013, -0.016, 0.019, -0.011, 0.021,
+    ]
 
     def _rows(name, correct_idx):
         """Emit one prediction per day; `correct_idx` is the set of day indices
@@ -173,12 +182,12 @@ def test_soft_winrate_ramp_preserves_diversity(tmp_path):
             rows.append((dates[i], name, sig, ret, 1 if up else 0))
         return rows
 
-    # strong: 9/10 correct -> win_rate 0.90 (>= CEIL -> factor 1.0)
-    strong = _rows("strong", {0, 1, 2, 3, 4, 5, 6, 7, 8})
-    # weak: 3/10 correct -> win_rate 0.30 (in FLOOR..CEIL -> reduced but > 0)
-    weak = _rows("weak", {0, 1, 2})
-    # garbage: 1/10 correct -> win_rate 0.10 (< FLOOR -> factor 0.0)
-    garbage = _rows("garbage", {0})
+    # strong: 22/25 correct -> win_rate 0.88 (>= CEIL -> factor 1.0)
+    strong = _rows("strong", set(range(22)))
+    # weak: 8/25 correct -> win_rate 0.32 (in FLOOR..CEIL -> reduced but > 0)
+    weak = _rows("weak", set(range(8)))
+    # garbage: 2/25 correct -> win_rate 0.08 (< FLOOR -> factor 0.0)
+    garbage = _rows("garbage", {0, 1})
 
     _insert_predictions(mgr, strong + weak + garbage)
 
@@ -186,9 +195,9 @@ def test_soft_winrate_ramp_preserves_diversity(tmp_path):
     wp = mgr.calculate_model_performance("weak")
     gp = mgr.calculate_model_performance("garbage")
     assert sp is not None and wp is not None and gp is not None
-    assert sp.win_rate == pytest.approx(0.90, abs=1e-6)
-    assert wp.win_rate == pytest.approx(0.30, abs=1e-6)
-    assert gp.win_rate == pytest.approx(0.10, abs=1e-6)
+    assert sp.win_rate == pytest.approx(0.88, abs=1e-6)
+    assert wp.win_rate == pytest.approx(0.32, abs=1e-6)
+    assert gp.win_rate == pytest.approx(0.08, abs=1e-6)
 
     adj = mgr.calculate_adaptive_weights(force_update=True)
     w = adj.model_weights
