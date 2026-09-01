@@ -29,6 +29,16 @@
 - [ ] Sonde démo `tests/check_t212_stops.py` (feu vert utilisateur requis).
 - [x] Smoke cycle démo + reset propre + lancement run 30 jours (`docs/PLAN_RUN_DEMO_30J.md`) — démarré 2026-08-19 16:22.
 
+### Remédiation audit J+13 (2026-09-01, validé live — en attente de redémarrage scheduler)
+- [x] F1 CRITIQUE realized P&L : `_fifo_pnl` trie désormais les fills par date (l'API renvoie du + récent au + ancien ; le SELL 20/08 était matché contre le BUY postérieur du 28/08 → realized -1.50 € au lieu de +1.58 €). Validé live : +1.5760 € = chiffre broker. Le state se self-corrige au 1er cycle.
+- [x] A5 429 : positions/order-history routés via `safe_request` (retry 429 backoff) — fini la sync annulée au premier 429.
+- [x] A3 hygiène données : labels Target* masqués sur lignes gelées du feed (CRUDP.PA trading-ticker 82 % gelé 2022-2025) ; lignes conservées pour les fenêtres MA_200 ; no-op sur ^NDX/CL=F/SXRV.
+- [x] A2 classic SELL permanent sur CRUDP.PA : diagnostic complet — opinion du modèle WTI (données saines), pas un bug ; défaut structurel = pas de colonne ticker dans l'évaluation des perfs → recommandation post-run (schéma + évaluation par (ticker, modèle)).
+- [x] A4 vincent_ganne N/A : désactivation volontaire confirmée (audit juillet 2026).
+- [x] Tests : **271/271 PASS** ; AGENTS.md §2.2 enrichi (FIFO chronologique, labels gelés).
+- [ ] **Redémarrer le scheduler** (`start_scheduler.bat` depuis `logs_prod/`) — arrêté ~14:42 le 01/09 pour l'audit.
+- [ ] Committer les correctifs J+13.
+
 ### Remédiation audit J+5 (2026-08-24, en cours de validation par le run)
 - [x] C1 vente débloquée : stop annulé AVANT la vente (actions réservées), fallback `quantity`, re-protection d'urgence si échec (`t212_executor._execute_sell_order`).
 - [x] C2 fill SELL : filtre `side=="SELL"` dans `_confirm_fill` + réconciliation prix/cash (`_reconcile_sell_fill_price`, le cash est la vérité terrain).

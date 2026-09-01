@@ -175,8 +175,25 @@ def create_features(data: pd.DataFrame, macro_context: dict = None) -> pd.DataFr
     df["Target_5d"] = np.where(df["Close"].shift(-5) > df["Close"], 1, 0)
     df.loc[df["Close"].shift(-5).isna(), "Target_5d"] = np.nan
 
+    # Feed-frozen placeholder rows (Volume=0, Close copied from the previous
+    # row) must not produce training labels. CRUDP.PA 2022-2025 was 100%
+    # frozen on Yahoo: their forced 0-returns made the classic model's target
+    # 90/10 imbalanced (vs ~50/50 on a clean ticker) and locked it into a
+    # calibrated permanent SELL — 170/170 PROD cycles on a +14% rally
+    # (audit 2026-09-01). A row is unlabelable if it IS frozen or if its NEXT
+    # row is frozen (the label would compare against a placeholder close,
+    # including the artificial unfreeze jump). The rows themselves stay in the
+    # frame so long indicator windows (MA_200 etc.) keep their history.
+    if "Volume" in df.columns and "Close" in df.columns:
+        frozen_rows = (df["Volume"] == 0) & (df["Close"] == df["Close"].shift(1))
+        unlabelable = frozen_rows | frozen_rows.shift(-1, fill_value=False)
+        real_returns = df.loc[~frozen_rows, "Returns"]
+    else:
+        unlabelable = None
+        real_returns = df["Returns"]
+
     # Main target based on a return threshold (reduced for better responsiveness)
-    returns_std = df["Returns"].std()
+    returns_std = real_returns.std()
     if pd.isna(returns_std) or returns_std == 0:
         threshold = 0.0005  # 0.05% threshold
     else:
@@ -185,6 +202,8 @@ def create_features(data: pd.DataFrame, macro_context: dict = None) -> pd.DataFr
 
     df["Target"] = np.where(df["Returns"].shift(-1) > threshold, 1, 0)
     df.loc[df["Returns"].shift(-1).isna(), "Target"] = np.nan
+    if unlabelable is not None:
+        df.loc[unlabelable, ["Target_1d", "Target_3d", "Target_5d", "Target"]] = np.nan
 
     # The target for the very last row will be NaN due to shift(-1).
     # This is expected as we don't know the future return for the last data point.

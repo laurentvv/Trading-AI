@@ -25,6 +25,13 @@ def _filled(side, qty, price):
     }
 
 
+def _filled_at(side, qty, price, iso):
+    item = _filled(side, qty, price)
+    item["fill"]["filledAt"] = iso
+    item["order"]["createdAt"] = iso
+    return item
+
+
 class TestFifoPnl(unittest.TestCase):
     """FIFO matching over broker fills: realized P&L + open cost basis."""
 
@@ -77,6 +84,22 @@ class TestFifoPnl(unittest.TestCase):
         realized, open_cost = _fifo_pnl([])
         self.assertEqual((realized, open_cost), (0.0, 0.0))
         self.assertEqual(_fifo_pnl(None), (0.0, 0.0))
+
+    def test_history_newest_first_is_sorted_chronologically(self):
+        """Regression 2026-09-01 PROD: /history/orders returns items newest-first.
+
+        The 08-20 SELL (0.197 @ 1451.20) was FIFO-matched against the LATER
+        08-28 BUY lot (0.1982 @ 1458.80) instead of the 08-19 BUY lot
+        (0.197 @ 1443.20), flipping the realized P&L from +1.58 to -1.50.
+        """
+        items = [  # newest-first, exactly as the API returns them
+            _filled_at("BUY", 0.1982, 1458.80, "2026-08-28T07:04:59.000Z"),
+            _filled_at("SELL", 0.197, 1451.20, "2026-08-20T07:52:50.000Z"),
+            _filled_at("BUY", 0.197, 1443.20, "2026-08-19T14:25:43.000Z"),
+        ]
+        realized, open_cost = _fifo_pnl(items)
+        self.assertAlmostEqual(realized, 0.197 * (1451.20 - 1443.20), places=6)
+        self.assertAlmostEqual(open_cost, 0.1982 * 1458.80, places=6)
 
 
 class TestSyncEquity(unittest.TestCase):

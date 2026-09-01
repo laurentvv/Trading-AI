@@ -1,6 +1,6 @@
 import unittest
 import pandas as pd
-from src.features import select_features, create_technical_indicators
+from src.features import select_features, create_technical_indicators, create_features
 import numpy as np
 
 
@@ -157,6 +157,65 @@ class TestFeatures(unittest.TestCase):
         # Since dropna() is called and MA_200 requires 200 rows,
         # the result should be an empty DataFrame
         self.assertTrue(result_df.empty)
+
+
+class TestFrozenRowTargetMasking(unittest.TestCase):
+    """Audit 2026-09-01: CRUDP.PA 2022-2025 was 100% feed-frozen placeholders
+    (Volume=0, Close copied day after day). Their forced 0-return labels made
+    the classic model's target 90/10 imbalanced and locked it into a permanent
+    SELL (170/170 PROD cycles). Frozen rows (and the row before a frozen run,
+    whose label would compare against a placeholder close) must get NaN
+    targets, while staying in the frame for long indicator windows.
+
+    Fixtures need >200 rows: create_technical_indicators computes MA_200 then
+    dropna()s the whole frame."""
+
+    def _ohlcv(self, closes, volumes):
+        idx = pd.date_range("2026-01-01", periods=len(closes), freq="D")
+        return pd.DataFrame(
+            {
+                "Open": closes,
+                "High": [c * 1.005 for c in closes],
+                "Low": [c * 0.995 for c in closes],
+                "Close": closes,
+                "Volume": volumes,
+            },
+            index=idx,
+        )
+
+    def _mixed_frame(self):
+        # 210 real days, 60 frozen days, 40 real days. The frozen block sits
+        # AFTER row 200 so it survives the MA_200 dropna of
+        # create_technical_indicators.
+        zigzag = lambda base, n: [base * (1 + 0.01 * (1 if i % 2 == 0 else -1)) for i in range(n)]
+        real_block = zigzag(10.0, 210)
+        closes = real_block + [real_block[-1]] * 60 + zigzag(11.0, 40)
+        volumes = [100] * 210 + [0] * 60 + [100] * 40
+        return self._ohlcv(closes, volumes)
+
+    def test_frozen_and_pre_frozen_rows_get_nan_targets(self):
+        out = create_features(create_technical_indicators(self._mixed_frame()))
+        frozen = (out["Volume"] == 0) & (out["Close"] == out["Close"].shift(1))
+        # some frozen rows survive the RSI dropna (start of the block)
+        self.assertGreater(int(frozen.sum()), 0)
+        # every surviving frozen row is masked
+        self.assertTrue(out.loc[frozen, "Target"].isna().all())
+        # the last real row BEFORE the freeze is masked too (its label would
+        # compare against a placeholder close)
+        first_frozen = out.index[frozen][0]
+        pre_frozen = out.index[out.index.get_loc(first_frozen) - 1]
+        self.assertTrue(np.isnan(out.loc[pre_frozen, "Target"]))
+        # a real row after the frozen block keeps its label
+        last_frozen = out.index[frozen][-1]
+        after = out.index[out.index.get_loc(last_frozen) + 1]
+        self.assertFalse(np.isnan(out.loc[after, "Target"]))
+        # frozen + pre-frozen + trailing rows are excluded from the labels
+        valid = out["Target"].dropna()
+        self.assertLess(len(valid), len(out) - int(frozen.sum()))
+        # the alternating pattern gives ~50/50 classes, not a 0-flood
+        ratio = valid.mean()
+        self.assertGreater(ratio, 0.3)
+        self.assertLess(ratio, 0.7)
 
 
 if __name__ == "__main__":

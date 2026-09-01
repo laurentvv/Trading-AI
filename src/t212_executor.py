@@ -294,7 +294,12 @@ def get_t212_positions():
     """
     try:
         headers = get_auth_header()
-        resp = _t212_session.get(f"{_get_t212_base_url()}/equity/positions", headers=headers, timeout=10)
+        # safe_request: read-only GET, retries 429s with backoff (a direct
+        # session.get gave up on the first 429 and cancelled the whole sync
+        # ~20x/day on the demo, 2026-09-01 audit).
+        resp = safe_request("GET", f"{_get_t212_base_url()}/equity/positions", timeout=10, headers=headers)
+        if resp is None:
+            return None
         if resp.status_code == 200:
             payload = resp.json()
             return payload if isinstance(payload, list) else []
@@ -328,13 +333,33 @@ def get_t212_order_history(ticker=None, limit=50):
         params = f"?limit={limit}"
         if ticker:
             params += f"&ticker={ticker}"
-        resp = _t212_session.get(f"{_get_t212_base_url()}/equity/history/orders{params}", headers=headers, timeout=10)
+        # safe_request: read-only GET with 429 backoff (see get_t212_positions).
+        resp = safe_request("GET", f"{_get_t212_base_url()}/equity/history/orders{params}", timeout=10, headers=headers)
+        if resp is None:
+            return None
         if resp.status_code == 200:
             return resp.json()
         logger.warning(f"T212 order history fetch returned status {resp.status_code}: {resp.text[:200]}")
     except Exception as e:
         logger.warning(f"T212 order history fetch failed: {e}")
     return None
+
+
+def _fill_sort_key(item: dict):
+    """Chronological sort key for FIFO matching.
+
+    The history endpoint returns items NEWEST-FIRST (2026-09-01 PROD: the
+    08-20 SELL was matched against the LATER 08-28 BUY lot, flipping the
+    realized P&L from +1.58 to -1.50). Sort by fill time, order creation
+    time as fallback; undateable items sort last.
+    """
+    order = item.get("order", {}) or {}
+    fill = item.get("fill", {}) or {}
+    ts = fill.get("filledAt") or order.get("createdAt") or ""
+    try:
+        return (0, datetime.datetime.fromisoformat(str(ts).replace("Z", "+00:00")))
+    except ValueError:
+        return (1, str(ts))
 
 
 def _fifo_pnl(order_items) -> tuple[float, float]:
@@ -347,9 +372,9 @@ def _fifo_pnl(order_items) -> tuple[float, float]:
     """
     realized = 0.0
     lots: list[list[float]] = []  # FIFO queue of [qty, price]
-    for item in order_items or []:
-        if not isinstance(item, dict):
-            continue
+    items = [item for item in order_items or [] if isinstance(item, dict)]
+    items.sort(key=_fill_sort_key)
+    for item in items:
         order = item.get("order", {})
         fill = item.get("fill", {})
         if order.get("status") != "FILLED" or not fill:
