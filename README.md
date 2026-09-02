@@ -68,7 +68,7 @@ The system uses an innovative approach to maximize model accuracy:
 ### 🧠 Hybrid AI Engine
 The system merges thirteen distinct signals (plus a meta-model):
 1.  **Classic Quantitative Model**: RandomForest/GradientBoosting/LogisticRegression ensemble trained on technical and macroeconomic indicators.
-2.  **TimesFM 2.5 (Google Research)**: State-of-the-art foundation model for time-series forecasting.
+2.  **TimesFM 3.0 (Google Research)**: State-of-the-art foundation model for time-series forecasting (median forecast + 9 quantiles, CPU inference).
 3.  **TensorTrade / PPO (Reinforcement Learning)**: RL agent (stable-baselines3) training a PPO policy in a custom Gymnasium trading environment with persistence across cycles.
 4.  **Oil-Bench Model**: Energy-specialized model merging **EIA** fundamental data (Stocks, Imports, Refinery utilization) and sentiment for WTI trading.
 5.  **Textual LLM (NexusAI Cloud Multi-Provider)**: Contextual analysis of raw data, real-time news via the **AlphaEar** skill, and integration of dynamic **macro-economic web research**. Powered by `NexusAI-Client` with automatic failover across multiple free and paid frontier cloud providers.
@@ -179,14 +179,17 @@ Trading-AI/
 ### ⚙️ Installation
 
 1. **Install `uv`**: [astral.sh/uv](https://astral.sh/uv)
-2. **Setup TimesFM 2.5 & Dependencies**:
+2. **Install Dependencies (incl. TimesFM 3.0 from PyPI)**:
    ```bash
-   python setup_timesfm.py
    uv sync
    uv run python -m playwright install chromium
    ```
 3. **Configure Environment**:
    Copy `.env.example` to `.env` and fill in your API keys.
+4. **Pre-download the TimesFM 3.0 checkpoint (~1.3 GB, once per machine)**:
+   ```bash
+   uv run python tests/smoke_timesfm3.py
+   ```
 
 ---
 

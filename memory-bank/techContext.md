@@ -5,7 +5,7 @@
 - **Dependency Management**: **uv** (Astral) - Replaces pip and requirements.txt.
 - **AI / Machine Learning**:
     - **Scikit-learn**: Quantitative models (RandomForest, etc.) with `TimeSeriesSplit`.
-    - **TimesFM**: Foundation model for time-series forecasting (Google Research).
+    - **TimesFM 3.0** (depuis 2026-09-02, ex-2.5): Foundation model for time-series forecasting (Google Research). PyPI `timesfm>=3.0.1` (package `timesfm3`), checkpoint `google/timesfm-3.0-pytorch` (~1,3 Go, cache HF, survit aux resets — pré-chauffage par machine via `tests/smoke_timesfm3.py`). Poids sous licence non-commerciale.
     - **stable-baselines3 (PPO)**: Reinforcement Learning agent via custom Gymnasium environment (TensorTrade integration).
     - **Ollama**: Local serving of **Gemma 4 12B (Unsloth)** for text and visual chart analysis.
     - *Note:* The model's **thinking mode is enabled** (`<|think|>` token present in all four production system prompts since 2026-06-06). Output safety is provided by a **dual-layer JSON defence**:

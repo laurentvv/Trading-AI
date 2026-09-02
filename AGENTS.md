@@ -2,7 +2,7 @@
 
 This file gives future AI agents (Kilo, Codex, Copilot, etc.) the minimum context needed to work safely in this repo. Read it once before editing production code.
 
-**Project in one paragraph** — Python 3.12 trading-decision pipeline. Multi-model ensemble (Scikit-Learn, TimesFM 2.5, TensorTrade PPO, NexusAI-Client unified cloud LLMs for text + vision + oil fundamentals + web research, sentiment, Vincent Ganne model) orchestrated by `main.py`. Outputs to `trading_journal.csv`, with optional Trading 212 demo/live execution via `--t212`. Virtualenv managed by `uv`. See `README.md` for the full feature list.
+**Project in one paragraph** — Python 3.12 trading-decision pipeline. Multi-model ensemble (Scikit-Learn, TimesFM 3.0, TensorTrade PPO, NexusAI-Client unified cloud LLMs for text + vision + oil fundamentals + web research, sentiment, Vincent Ganne model) orchestrated by `main.py`. Outputs to `trading_journal.csv`, with optional Trading 212 demo/live execution via `--t212`. Virtualenv managed by `uv`. See `README.md` for the full feature list.
 
 ---
 
@@ -50,6 +50,8 @@ All local LLMs (Ollama, local GGUF models) have been completely removed and repl
 
 ### 2.2 Other invariants (non-exhaustive)
 
+- **TimesFM 3.0 (2026-09-02)**: PyPI `timesfm>=3.0.1` (package `timesfm3`), checkpoint `google/timesfm-3.0-pytorch` (~1.3 GB, HF cache — survives resets). The `vendor/timesfm` clone + `setup_timesfm.py` patch are DELETED; `check_setup()` only checks `find_spec("timesfm3")`. Wrapper `src/timesfm_model.py`: median forecast drives the signal (thresholds unchanged), the 9 quantiles go to metadata only, context = `TIMESFM_CONTEXT` (2048), and `predict()` retries `_try_init()` on failure (first 1.3 GB download can fail; old behavior was HOLD 0.0 forever). Pre-warm each machine with `tests/smoke_timesfm3.py` BEFORE the first scheduler cycle (TimesFM task timeout = 180 s). 3.0 weights are under `timesfm-non-commercial-license-v1.0`.
+
 - **T212 demo vs live** is governed by `T212_ENV` in `.env.t212` (demo is rate-limit-tolerant; live is not). Never commit credentials.
 - **Sell path vs stop reservation (2026-08-24)**: a standing GTC stop RESERVES the shares, so `quantityAvailableForTrading` reads 0 while `quantity` shows the full position. `_execute_sell_order` cancels the stop FIRST (releasing the shares), falls back to `quantity`, and RE-PLACES the stop at the previous level if the sale then fails. Never POST a sell with a 0 quantity.
 - **Failed fetch ≠ empty (2026-08-24)**: `get_t212_positions`/`get_t212_order_history` return `None` on failure (never a fake empty). `sync_state_from_t212` returns `None` (state file untouched) and `execute_t212_trade` ABORTS the trade when the broker state is unknown. A phantom "no position" once reset equity mid-position.
@@ -85,6 +87,7 @@ PowerShell note: `uv run pytest ...` may fail with "Failed to canonicalize scrip
 | Live broker-stop probe (DEMO only, consent required) | `uv run python tests/check_t212_stops.py` |
 | Live weekend council (NexusAI Cloud multi-provider) | `uv run python -m src.council.weekend_council --days 7` |
 | Live LLM JSON harness (NexusAI Cloud) | `uv run python tests/check_llm_json.py` |
+| TimesFM 3.0 smoke (downloads ~1.3 GB once, then times CPU inference) | `uv run python tests/smoke_timesfm3.py` |
 | Full pipeline, simulation | `uv run main.py --simul` |
 | Full pipeline, T212 demo | `uv run main.py --t212` |
 | Supervised scheduler (lock + auto-restart) | `.\start_scheduler.bat` |

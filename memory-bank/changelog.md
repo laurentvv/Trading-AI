@@ -29,6 +29,14 @@
 ...
 
 ## 5. Corrections Récentes
+- **2026-09-02**: Migration TimesFM 2.5 → 3.0 + reset PROD étendu (branche `TimesFM`)
+  * **Modèle** : `google/timesfm-3.0-pytorch` (0.3B, ~1,3 Go cache HF) via PyPI `timesfm>=3.0.1` (package `timesfm3`). Wrapper `src/timesfm_model.py` : médiane = signal (seuils adaptatifs inchangés), 9 quantiles en métadonnées, contexte 2048 (CPU mesuré 0.38 s), **retry d'init** dans `predict()` (l'ancien comportement laissait HOLD 0.0 à vie si le 1er téléchargement échouait).
+  * **Fin du vendoring** : suppression de `setup_timesfm.py`, `.gitmodules` et `[tool.uv.sources]` (plus de clone + patch `__init__.py`). `check_setup()` teste `find_spec("timesfm3")`.
+  * **Reset étendu (incident 2026-08-24)** : `reset_for_fresh_test.py` détecte désormais les artefacts runtime dans `logs_prod/` (CWD du scheduler PROD — `model_performance.db` pré-reset avait survécu au reset du 19/08 et pollué les poids adaptatifs 5 jours). Choix explicite `--include-logs-prod` / `--keep-logs-prod` ; `--yes` sans choix refuse (exit 2). Les `.md` (audits) sont préservés.
+  * **Fix bonus** : `scripts/backtest_ensemble_10y.py` appelait `predict(window_qqq, horizon=5, ...)` avec une signature invalide (TypeError avalée → TimesFM jamais compté dans le backtest).
+  * **Validation** : 282 passed / 3 skipped ; smoke réel PASS (download 118 s, non gated, CPU 0.38 s @2048). Runbook migration PROD + reset run 2 : `docs/PLAN_MIGRATION_TIMESFM3_PROD.md`.
+  * **Licence** : poids 3.0 sous `timesfm-non-commercial-license-v1.0` (≠ Apache-2.0 ≤ 2.5) — usage perso/démo.
+
 - **2026-07-09**: Suite de correction phantom-trades + T212 precision + win_rate + EIA (4 bugs, PR #78/#79)
   * **Bug #1 CRITIQUE — Trades fantômes** : `_execute_hypothetical_trade` inscrivait des trades SIMULÉS dans `trading_history.db` AVANT l'exécution T212 réelle. Quand l'ordre échouait (precision mismatch) ou était skipé (HOLD), le trade fantôme restait → désync DB/broker persistante (0 position broker, 2 BUYs fantômes DB). Survivait au reset car le système recréait les fantômes à chaque cycle. **Fix** : `write_db=not is_t212` — la simulation n'écrit plus en DB en mode T212 ; seul `t212_executor` écrit après confirmation broker. Edge cases `_initialize_portfolio` (skip insert) et `update_performance_monitoring` (guard `None`) couverts dans la PR #79.
   * **Bug #2 — T212 quantity-precision-mismatch** : l'heuristique `if "CRUD" in ticker` cassait quand CRUDP.PA fut remappé vers `OD7Fd_EQ` (ne contient plus "CRUD") → precision=4 au lieu de 2 → ordre rejeté. **Fix** : table explicite `TICKER_QUANTITY_PRECISION` (fallback=2, sûr).

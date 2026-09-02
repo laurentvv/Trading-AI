@@ -73,7 +73,7 @@
 Движок объединяет разнородные модели в **взвешенный консенсус**:
 
 1. **Модели Scikit-Learn** (RandomForest, GradientBoosting, LogisticRegression) — валидированы через `TimeSeriesSplit` для предотвращения утечки данных. Агрессивный количественный сигнал (25 % когнитивного веса).
-2. **TimesFM 2.5** (Google Research) — базовая модель для прогнозирования временных рядов.
+2. **TimesFM 3.0** (Google Research) — базовая модель для прогнозирования временных рядов.
 3. **TensorTrade / PPO** (stable-baselines3) — RL-агент в кастомной среде Gymnasium.
 4. **Gemma 4 12B** (Ollama) — **текстовый** (макро/новости) и **визуальный** (технические графики) анализ; **двухслойная JSON-защита** гарантирует чистый JSON при активном режиме размышления `<|think|>`.
 5. **Гибридный анализ настроений** (Alpha Vantage + AlphaEar + Hyperliquid).
@@ -179,7 +179,7 @@ Trading-AI/
 │   ├── sentiment_analysis.py        # Интеграция настроений Alpha Vantage и AlphaEar
 │   ├── t212_executor.py             # Реальное исполнение API Trading 212 и портфель
 │   ├── tensortrade_model.py         # Сигнал Reinforcement Learning (PPO)
-│   ├── timesfm_model.py             # Интеграция прогноза временных рядов TimesFM 2.5
+│   ├── timesfm_model.py             # Интеграция прогноза временных рядов TimesFM 3.0
 │   └── web_researcher.py            # Макроэкономический веб-скрапинг с Crawl4AI
 ├── data_cache/                       # Все кэши (gitignored)
 │   ├── *.parquet                     # OHLCV-данные по тикерам (yfinance)
@@ -200,7 +200,6 @@ Trading-AI/
 ├── pyproject.toml                   # Зависимости и конфигурация проекта (uv)
 ├── refresh_cache.py                 # CLI-утилита для принудительного обновления кэша Parquet
 ├── schedule.py                      # Живой scheduler для автоматизированного исполнения
-├── setup_timesfm.py                 # Скрипт установки vendor TimesFM 2.5
 ├── .env.example                     # Пример переменных окружения
 └── README.md                        # Эта документация
 ```
@@ -236,9 +235,9 @@ Trading-AI/
     ```
 
 4.  **Установить базовые модели:**
-    Запустите скрипты установки, чтобы клонировать модели в `vendor/` и применить патчи:
+    Предварительно скачайте контрольную точку TimesFM 3.0 (~1,3 ГБ, один раз на машину):
     ```bash
-    python setup_timesfm.py
+    uv run python tests/smoke_timesfm3.py
     ```
 
 5.  **Инициализировать и синхронизировать окружение:**

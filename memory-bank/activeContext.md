@@ -1,16 +1,28 @@
 # Active Context
 
 ## Current Status
-**PROD restart from scratch (2026-05-29)**. Kronos fully removed, TensorTrade PPO persistence deployed (enriched 10-feature env, DB integration). PROD DBs wiped clean — fresh start with a **1-month validation period until end of June 2026** to confirm all models perform correctly with real T212 trades.
+**Migration TimesFM 3.0 validée sur DEV (2026-09-02), run démo 1 clos, run 2 en attente d'exécution PROD.**
+Le run 1 de 30 j (départ 2026-08-19 16:22) s'est arrêté le 01/09 14:42 pour l'audit J+13 : 3 ordres en
+13 jours (critère ≥ 20 round-trips inatteignable), incidents corrigés en cours de route. Décision :
+reset complet + **run 2 de 30 jours avec TimesFM 3.0** (toujours démo). Tout est prêt côté DEV
+(282 tests verts, smoke réel PASS) — reste à exécuter le runbook `docs/PLAN_MIGRATION_TIMESFM3_PROD.md`
+sur la machine PROD, puis merger `TimesFM` → `main` et pousser.
 
-### Validation Period: 2026-05-29 → 2026-06-30
-- **Premier lancement validé (2026-05-29 13:48)**: Cycle complet OK pour SXRV.DE + CRUDP.PA en 488 sec. TensorTrade PPO persistance confirmée (2000→2500 timesteps). Tous modèles actifs sans erreur. Zéro référence Kronos.
-- Monitoring TensorTrade PPO persistence: first cycle trains (2000 steps), subsequent cycles load + fine-tune (500 steps).
-- Monitoring all model signals via `trading_journal.csv` and `model_performance.db`.
-- Adaptive feedback loop active — weights will adjust based on real outcomes.
-- End-of-June review: evaluate Sharpe, win rate, per-model accuracy, and decide on weight adjustments.
+### Run démo 1 (2026-08-19 → 2026-09-01, clos)
+- 3 ordres : aller-retour SXRV 19-20/08 ~flat (broker +1,58 €), achat 28/08 @1458.78 (clôturé par le
+  reset du compte démo). CRUDP.PA jamais tradé (classic SELL 170/170 — opinion honnête, défaut
+  structurel documenté : évaluation des perfs sans colonne ticker).
+- Incidents corrigés en cours de route : vente bloquée par stop réservé (20/08), poids adaptatifs
+  zerotés puis DB polluée par l'ère pré-reset (24/08 — racine : `logs_prod/` préservé par le script
+  de reset), FIFO antéchronologique (01/09), 429 sans retry (01/09).
 
 ### Key Recent Changes
+- **Migration TimesFM 2.5 → 3.0 (2026-09-02, branche `TimesFM`)** : PyPI `timesfm>=3.0.1` (package
+  `timesfm3`), checkpoint `google/timesfm-3.0-pytorch` (~1,3 Go cache HF). Fin du vendoring
+  (`setup_timesfm.py`, `.gitmodules`, `[tool.uv.sources]` supprimés). Wrapper : médiane = signal
+  (seuils inchangés), 9 quantiles en métadonnées, contexte 2048, retry d'init. Pré-chauffage par
+  machine : `tests/smoke_timesfm3.py` (CPU 0.38 s @2048 mesuré). Poids 3.0 sous licence
+  non-commerciale. `reset_for_fresh_test.py` étendu (`--include-logs-prod`) suite à l'incident 24/08.
 - **Mémoire déterministe 4-fichiers (2026-06-30)** : Mise en place d'un état déterministe reconstituable à chaque redémarrage, indépendant de la fenêtre de contexte (voir `AGENTS.md §1`). Quatre fichiers vivent désormais dans `memory-bank/` :
   - `feature_list.json` — cartographie de toutes les fonctionnalités (F-01…F-22) avec statut.
   - `contract.md` — contrat de validation technique (19 critères testables + protocole d'évaluation).
@@ -54,9 +66,10 @@
 - [x] PROD fresh start — all DBs wiped, clean slate.
 - [ ] **[Validation Period]** Monitor PROD performance until end of June 2026.
 - [ ] **[End June]** Review model accuracy, Sharpe, win rate — adjust weights if needed.
-- [ ] Synchronize i18n translations (9 languages) with README.md updates.
+- [ ] Synchronize i18n translations (9 languages) with README.md updates. *(fait mécaniquement pour TimesFM 3.0 le 2026-09-02 — reste la synchro générale)*
 - [ ] Optimize model weights via backtest_prod.py grid search.
-- [ ] Set HF_TOKEN on PROD server for TimesFM model download.
+- [ ] Set HF_TOKEN on PROD server for TimesFM model download. *(étape 4 du runbook `docs/PLAN_MIGRATION_TIMESFM3_PROD.md` — le download anonyme fonctionne, le token reste recommandé)*
+- [ ] **[Prioritaire]** Exécuter `docs/PLAN_MIGRATION_TIMESFM3_PROD.md` sur PROD → run 2 de 30 jours avec TimesFM 3.0.
 - [ ] Explore alternative live price source for ETFs without open T212 positions (SXRV.DE).
 - [x] **[DONE 2026-06-23]** Repair FinAcumen convergence (was `status: timeout` every prod run).
 - [ ] **[Follow-up]** Wire FinAcumen as an 11th per-cycle consensus vote in `enhanced_decision_engine.py` / `model_performance.db` (currently only feeds the morning brief via `schedule.py`).

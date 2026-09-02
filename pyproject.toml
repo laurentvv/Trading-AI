@@ -35,7 +35,7 @@ dependencies = [
     "shap>=0.49.1",
     "stable-baselines3>=2.8.0",
     "tensortrade>=1.0.4",
-    "timesfm>=2.0.0",
+    "timesfm>=3.0.1,<4",
     "torch>=2.10.0",
     "tqdm>=4.67.3",
     "yfinance>=1.4.1",
@@ -49,6 +49,3 @@ pythonpath = ["src"]
 [tool.ruff]
 line-length = 120
 target-version = "py312"
-
-[tool.uv.sources]
-timesfm = { path = "vendor/timesfm" }

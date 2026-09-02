@@ -10,24 +10,26 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# Tentative d'importation de l'API 2.5
-# (Elle doit être installée via setup_timesfm.py qui patche __init__.py)
+# Contexte passé à TimesFM 3.0 (jours de cotations). L'API 3.0 accepte jusqu'à
+# 15360 et gère elle-même l'alignement par patch (padding) ; 2048 ~ 8 ans de daily.
+TIMESFM_CONTEXT = 2048
+
+# Tentative d'importation de l'API TimesFM 3.0
+# (package PyPI `timesfm>=3.0.1` — plus de clone vendor ni de patch __init__.py)
 try:
-    # import timesfm
-    from timesfm.timesfm_2p5.timesfm_2p5_torch import TimesFM_2p5_200M_torch
-    from timesfm.configs import ForecastConfig
+    from timesfm3 import TimesFM3Forecaster
     import torch
     torch.set_float32_matmul_precision('high')
 
-    TIMESFM_2P5_AVAILABLE = True
-    logger.info("API TimesFM 2.5 (Torch) chargée avec succès.")
+    TIMESFM3_AVAILABLE = True
+    logger.info("API TimesFM 3.0 (Torch) chargée avec succès.")
 except ImportError:
-    TIMESFM_2P5_AVAILABLE = False
-    logger.error("API TimesFM 2.5 non trouvée. Veuillez lancer 'python setup_timesfm.py' pour l'installer.")
+    TIMESFM3_AVAILABLE = False
+    logger.error("API TimesFM 3.0 non trouvée. Veuillez lancer 'uv sync' pour installer timesfm>=3.0.1.")
 
 
 class TimesFMModel(BaseModel):
-    """Wrapper pour le modèle TimesFM 2.5 de Google Research"""
+    """Wrapper pour le modèle TimesFM 3.0 de Google Research (google/timesfm-3.0-pytorch)"""
 
     _instance = None
 
@@ -43,7 +45,17 @@ class TimesFMModel(BaseModel):
         self.vol_multiplier = vol_multiplier
         self._positions: Dict[str, str] = {}
 
-        if not TIMESFM_2P5_AVAILABLE:
+        self._try_init()
+
+    def _try_init(self):
+        """Charge le modèle TimesFM 3.0 (idempotent, sans lever d'exception).
+
+        Ré-appelable : predict() retente l'init si elle avait échoué (le 1er
+        téléchargement du checkpoint fait ~1,3 Go et peut échouer en réseau —
+        l'ancien comportement « HOLD 0.0 pour toujours » laissait le modèle
+        mort jusqu'au redémarrage du process).
+        """
+        if not TIMESFM3_AVAILABLE:
             return
 
         try:
@@ -59,28 +71,19 @@ class TimesFMModel(BaseModel):
             else:
                 logger.info("HF_TOKEN non defini — telechargements sans authentification.")
 
-            logger.info("Initialisation de TimesFM 2.5 (google/timesfm-2.5-200m-pytorch)...")
+            logger.info("Initialisation de TimesFM 3.0 (google/timesfm-3.0-pytorch)...")
 
-            # Initialisation selon l'API 2.5 (sans torch_compile pour Windows)
-            self.model = TimesFM_2p5_200M_torch(torch_compile=False).from_pretrained("google/timesfm-2.5-200m-pytorch")
+            # from_pretrained télécharge config.json + model.safetensors (~1,3 Go)
+            # dans le cache HF au premier appel. Device auto : cuda si dispo, sinon cpu.
+            self.model = TimesFM3Forecaster.from_pretrained("google/timesfm-3.0-pytorch")
 
-            self.model.compile(
-                ForecastConfig(
-                    max_context=1024,
-                    max_horizon=256,
-                    normalize_inputs=True,
-                    use_continuous_quantile_head=True,
-                    force_flip_invariance=True,
-                    infer_is_positive=True,
-                    fix_quantile_crossing=True,
-                )
-            )
-            logger.info("TimesFM 2.5 initialisé et compilé avec succès.")
             self.initialized = True
+            logger.info("TimesFM 3.0 initialisé avec succès (device=%s).", getattr(self.model, "device", "auto"))
 
         except Exception as e:
-            logger.warning(f"Erreur lors de l'initialisation de TimesFM 2.5: {e}")
+            logger.warning(f"Erreur lors de l'initialisation de TimesFM 3.0: {e}")
             self.initialized = False
+            self.model = None
 
     def update_position(self, position: str, ticker: str = "default"):
         """Manually set the current position for *ticker* to LONG or FLAT."""
@@ -105,11 +108,14 @@ class TimesFMModel(BaseModel):
         return max(0.005, realised_vol * self.vol_multiplier)
 
     def predict(self, data: Dict[str, Any]) -> ModelResult:
-        """Generate a trading signal from TimesFM 2.5 price forecast.
+        """Generate a trading signal from TimesFM 3.0 price forecast (médiane).
 
         Uses an ATR-adaptive threshold and position-aware filtering to avoid
         redundant BUY (when already LONG) or SELL (when FLAT) signals.
         """
+        if (not self.initialized or self.model is None) and TIMESFM3_AVAILABLE:
+            # Retry opportuniste (init initiale échouée, ex. download interrompu).
+            self._try_init()
         if not self.initialized or self.model is None:
             return ModelResult("HOLD", 0.0, "Model not initialized.")
 
@@ -121,11 +127,19 @@ class TimesFMModel(BaseModel):
             if df is None or df.empty:
                 return ModelResult("HOLD", 0.0, "No data provided.")
             prices = df["Close"].values
-            if len(prices) > 1024:
-                prices = prices[-1024:]
+            if len(prices) > TIMESFM_CONTEXT:
+                prices = prices[-TIMESFM_CONTEXT:]
 
-            point_forecast, _ = self.model.forecast(horizon=horizon, inputs=[prices])
-            predictions = point_forecast[0]
+            # API 3.0 : predict(context, horizon, ...) -> ForecastOutput(forecast, quantiles).
+            # .forecast est la trajectoire médiane (quantile 0.5), .quantiles (horizon, 9).
+            out = self.model.predict(
+                prices,
+                horizon=horizon,
+                return_quantiles=True,
+                make_positive=True,
+            )
+            predictions = np.asarray(out.forecast)
+            quantiles = np.asarray(out.quantiles) if out.quantiles is not None else None
 
             current_price = prices[-1]
             last_pred = predictions[-1]
@@ -159,22 +173,26 @@ class TimesFMModel(BaseModel):
                 self._positions[ticker] = "FLAT"
 
             analysis = (
-                f"TimesFM 2.5 forecasts price move: {current_price:.2f} -> {last_pred:.2f} "
+                f"TimesFM 3.0 forecasts price move: {current_price:.2f} -> {last_pred:.2f} "
                 f"({expected_return * 100:+.2f}%) over {horizon} days. "
                 f"Adaptive threshold={threshold * 100:.2f}%, position={self._get_position(ticker)}"
             )
 
-            logger.info(f"TimesFM 2.5 prediction: {signal} ({confidence:.2f})")
+            logger.info(f"TimesFM 3.0 prediction: {signal} ({confidence:.2f})")
+
+            metadata = {"predictions": predictions.tolist()}
+            if quantiles is not None:
+                metadata["quantiles"] = quantiles.tolist()
 
             return ModelResult(
                 signal=signal,
                 confidence=round(float(confidence), 2),
                 reasoning=analysis,
-                metadata={"predictions": predictions.tolist()},
+                metadata=metadata,
             )
 
         except Exception as e:
-            logger.error(f"Erreur prédiction TimesFM 2.5: {e}")
+            logger.error(f"Erreur prédiction TimesFM 3.0: {e}")
             return ModelResult("HOLD", 0.0, f"Error: {e}")
 
 

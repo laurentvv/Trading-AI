@@ -6,7 +6,7 @@ Ce projet est un système expert d'aide à la décision pour le trading d'ETFs N
 - **Analyse sur Indices** : Le système télécharge et analyse les indices de référence (`^NDX`, `CL=F`) pour obtenir des signaux d'IA plus propres et robustes.
 - **Trading sur ETFs** : Les décisions sont appliquées aux ETFs correspondants sur Trading 212 (`SXRV.DE`, `CRUDP.PA`).
 
-Le moteur fusionne un modèle quantitatif classique, un LLM textuel, un LLM visuel (analyse de graphiques), le modèle de fondation **TimesFM 2.5** (Google Research), et le **Modèle Vincent Ganne** (Géopolitique & Cross-Asset).
+Le moteur fusionne un modèle quantitatif classique, un LLM textuel, un LLM visuel (analyse de graphiques), le modèle de fondation **TimesFM 3.0** (Google Research), et le **Modèle Vincent Ganne** (Géopolitique & Cross-Asset).
 
 ### Nouveautés majeures :
 - **Architecture LLM Unifiée via NexusAI-Client :** Remplacement complet d'Ollama et de toutes les IA locales par **[`NexusAI-Client`](https://github.com/laurentvv/NexusAI-Client)** avec fallback automatique multi-fournisseurs (Gemini Free/Pro, Groq, Cerebras, Mistral, Cohere, Nvidia NIM, OpenRouter, OrcaRouter, DeepSeek).
@@ -33,13 +33,13 @@ Le moteur fusionne un modèle quantitatif classique, un LLM textuel, un LLM visu
 ### Installation
 
 1.  **Installer `uv`** : [astral.sh/uv](https://astral.sh/uv)
-2.  **Initialiser l'environnement et TimesFM 2.5** :
+2.  **Initialiser l'environnement (TimesFM 3.0 vient de PyPI via `uv sync`)** :
     ```bash
-    # Exécuter le setup TimesFM
-    python setup_timesfm.py
-
     # Synchroniser l'environnement complet
     uv sync
+
+    # Pré-télécharger le checkpoint TimesFM 3.0 (~1.3 Go, une fois par machine)
+    uv run python tests/smoke_timesfm3.py
 
     # Installer les navigateurs pour la recherche Web
     uv run python -m playwright install chromium

@@ -5,7 +5,7 @@
 **Trading-AI** is a hybrid AI-powered trading decision support system for trading ETFs on NASDAQ. It combines six distinct AI models (tri-modal approach) to produce robust, nuanced trading signals:
 
 1. **Classic Quantitative Model** — Ensemble of RandomForest/GradientBoosting/LogisticRegression trained on technical indicators and macroeconomic data
-2. **TimesFM 2.5 (Google Research)** — Foundation model for time series forecasting
+2. **TimesFM 3.0 (Google Research)** — Foundation model for time series forecasting (median forecast + 9 quantiles)
 3. **Textual LLM (Gemma 4 12B (Unsloth) via Ollama)** — Contextual analysis of raw data and real-time news via AlphaEar skill
 4. **Visual LLM (Gemma 4 12B (Unsloth))** — Direct analysis of technical chart patterns
 5. **Sentiment Analysis** — Hybrid analysis combining Alpha Vantage and AlphaEar social trends
@@ -24,7 +24,7 @@
 | Language | Python 3.12+ |
 | Package Manager | **uv** (Astral) |
 | ML/Data | pandas, numpy, scikit-learn, yfinance, shap |
-| Deep Learning | PyTorch, TimesFM 2.5, JAX |
+| Deep Learning | PyTorch, TimesFM 3.0 (PyPI `timesfm>=3.0.1`), JAX |
 | LLM | Ollama (Gemma 4 12B (Unsloth)) |
 | Visualization | matplotlib, seaborn, mplfinance |
 | API Integration | Trading 212 API, Alpha Vantage, AlphaEar (skill), **Hyperliquid SDK** |
@@ -36,7 +36,6 @@
 Trading-AI/
 ├── main.py                          # Unified entry point (--simul, --t212, --ticker)
 ├── schedule.py                      # Automated scheduler (Mon-Fri 8:30-18:00, every 30min)
-├── setup_timesfm.py                 # TimesFM 2.5 installation and patching script
 ├── pyproject.toml                   # Project dependencies (uv)
 ├── backtest_engine.py               # Backtesting engine
 ├── run_short_backtest.py            # Quick backtest script
@@ -60,7 +59,6 @@ Trading-AI/
 │   ├── news_fetcher.py              # News data retrieval
 │   └── performance_monitor.py       # Performance tracking
 │
-├── vendor/timesfm/                  # TimesFM 2.5 (installed via setup_timesfm.py)
 ├── data_cache/                      # Cached market data
 ├── memory-bank/                     # Documentation for AI agents
 └── .agents/                         # Agent configuration
@@ -77,12 +75,11 @@ Trading-AI/
 
 ### Setup
 ```bash
-# 1. Install and patch TimesFM 2.5 (CRITICAL STEP)
-# This must be done BEFORE uv sync because uv needs the vendor/timesfm path to exist
-python setup_timesfm.py
-
-# 2. Install dependencies
+# 1. Install dependencies (TimesFM 3.0 comes from PyPI — no more vendor patching)
 uv sync
+
+# 2. Pre-download the TimesFM 3.0 checkpoint (~1.3 GB, once per machine)
+uv run python tests/smoke_timesfm3.py
 
 # 3. Configure API keys
 # Create .env with ALPHA_VANTAGE_API_KEY
@@ -149,7 +146,7 @@ uv run python run_short_backtest.py
 
 ## Important Notes
 
-- TimesFM 2.5 is vendored as a git submodule in `vendor/timesfm/` and requires patching during setup
+- TimesFM 3.0 comes from PyPI (`timesfm>=3.0.1`, package `timesfm3`); the ~1.3 GB checkpoint downloads to the HF cache — pre-warm each machine with `uv run python tests/smoke_timesfm3.py`
 - The `.gitignore` excludes all generated artifacts (`.db`, `.csv`, `.json`, `.log`, `.png`, `vendor/`, `data_cache/`)
 - Environment files (`.env`, `.env.t212`) are git-ignored; examples are provided (`.env.t212.example`)
 - T212 executor uses instrument IDs like `SXRVd_EQ` and `CRUDl_EQ` (not ticker symbols directly)

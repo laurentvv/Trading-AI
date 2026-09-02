@@ -1,10 +1,18 @@
 import unittest
+from dataclasses import dataclass
 from unittest.mock import patch, MagicMock
 import numpy as np
 import pandas as pd
 
-from src.timesfm_model import get_timesfm_prediction, TimesFMModel
+from src.timesfm_model import get_timesfm_prediction, TimesFMModel, TIMESFM_CONTEXT
 from src.enhanced_decision_engine import ModelResult
+
+
+@dataclass
+class FakeForecastOutput:
+    """Imite timesfm3.ForecastOutput (API 3.0 : attributs .forecast/.quantiles)."""
+    forecast: np.ndarray
+    quantiles: np.ndarray = None
 
 
 class TestTimesFMModelWrapper(unittest.TestCase):
@@ -43,22 +51,26 @@ class TestTimesFMModelWrapper(unittest.TestCase):
 
 
 class TestPositionTracking(unittest.TestCase):
-    def test_position_tracking_no_double_buy(self):
+    def _make_model(self, fake_model):
         model = TimesFMModel.__new__(TimesFMModel)
-        model.initialized = False
-        model.model = None
+        model.initialized = True
+        model.model = fake_model
         model.vol_multiplier = 0.5
         model._positions = {}
-        model._positions["TEST"] = "LONG"
         model._get_position = lambda t: model._positions.get(t, "FLAT")
         model._adaptive_threshold = lambda p: 0.005
-        model.initialized = True
+        return model
 
+    def test_position_tracking_no_double_buy(self):
         class FakeModel:
-            def forecast(self, horizon, inputs):
-                return [np.array([110, 115])], None
+            def predict(self, context, horizon, return_quantiles=False, make_positive=False):
+                return FakeForecastOutput(
+                    forecast=np.array([110, 115]),
+                    quantiles=np.full((horizon, 9), 112.0) if return_quantiles else None,
+                )
 
-        model.model = FakeModel()
+        model = self._make_model(FakeModel())
+        model._positions["TEST"] = "LONG"
         df = pd.DataFrame({"Close": np.linspace(100, 105, 30)})
         result = model.predict({"df": df, "ticker": "TEST"})
         self.assertEqual(result.signal, "HOLD")
@@ -69,23 +81,99 @@ class TestPositionTracking(unittest.TestCase):
         # 610 predictions). A SELL must now be emitted as a directional vote
         # even from the default FLAT state; the risk manager decides whether
         # to act on it.
+        class FakeModel:
+            def predict(self, context, horizon, return_quantiles=False, make_positive=False):
+                return FakeForecastOutput(
+                    forecast=np.array([95, 90]),
+                    quantiles=np.full((horizon, 9), 92.0) if return_quantiles else None,
+                )
+
+        model = self._make_model(FakeModel())
+        df = pd.DataFrame({"Close": np.linspace(105, 100, 30)})
+        result = model.predict({"df": df, "ticker": "TEST"})
+        self.assertEqual(result.signal, "SELL")
+
+    def test_quantiles_exposed_in_metadata(self):
+        # Choix validé : médiane seule pour le signal, quantiles en métadonnées.
+        class FakeModel:
+            def predict(self, context, horizon, return_quantiles=False, make_positive=False):
+                assert return_quantiles is True and make_positive is True
+                return FakeForecastOutput(
+                    forecast=np.array([110, 115]),
+                    quantiles=np.linspace(100, 120, horizon * 9).reshape(horizon, 9),
+                )
+
+        model = self._make_model(FakeModel())
+        df = pd.DataFrame({"Close": np.linspace(100, 105, 30)})
+        result = model.predict({"df": df, "ticker": "TEST", "horizon": 5})
+        self.assertIn("predictions", result.metadata)
+        self.assertIn("quantiles", result.metadata)
+        self.assertEqual(len(result.metadata["quantiles"]), 5)  # horizon
+        self.assertEqual(len(result.metadata["quantiles"][0]), 9)  # P10..P90
+
+
+class TestContextTruncation(unittest.TestCase):
+    def test_context_truncated_to_timesfm_context(self):
+        captured = {}
+
+        class FakeModel:
+            def predict(self, context, horizon, return_quantiles=False, make_positive=False):
+                captured["len"] = len(context)
+                return FakeForecastOutput(forecast=np.linspace(100, 110, horizon))
+
+        model = TimesFMModel.__new__(TimesFMModel)
+        model.initialized = True
+        model.model = FakeModel()
+        model.vol_multiplier = 0.5
+        model._positions = {}
+        model._get_position = lambda t: model._positions.get(t, "FLAT")
+        model._adaptive_threshold = lambda p: 0.005
+
+        df = pd.DataFrame({"Close": np.linspace(100, 200, TIMESFM_CONTEXT + 500)})
+        model.predict({"df": df, "ticker": "TEST"})
+        self.assertEqual(captured["len"], TIMESFM_CONTEXT)
+
+
+class TestInitRetry(unittest.TestCase):
+    def test_predict_retries_init_when_not_initialized(self):
+        # L'ancien comportement : init échouée → HOLD 0.0 pour toujours.
+        # Nouveau : predict() retente _try_init() (le 1er téléchargement du
+        # checkpoint ~1,3 Go peut échouer en réseau).
+        class FakeModel:
+            def predict(self, context, horizon, return_quantiles=False, make_positive=False):
+                return FakeForecastOutput(forecast=np.array([110, 115]))
+
         model = TimesFMModel.__new__(TimesFMModel)
         model.initialized = False
         model.model = None
         model.vol_multiplier = 0.5
         model._positions = {}
-        model._get_position = lambda t: model._positions.get(t, "FLAT")
-        model._adaptive_threshold = lambda p: 0.005
-        model.initialized = True
 
-        class FakeModel:
-            def forecast(self, horizon, inputs):
-                return [np.array([95, 90])], None
+        def fake_try_init():
+            model.initialized = True
+            model.model = FakeModel()
 
-        model.model = FakeModel()
-        df = pd.DataFrame({"Close": np.linspace(105, 100, 30)})
-        result = model.predict({"df": df, "ticker": "TEST"})
-        self.assertEqual(result.signal, "SELL")
+        model._try_init = fake_try_init
+
+        with patch("src.timesfm_model.TIMESFM3_AVAILABLE", True):
+            df = pd.DataFrame({"Close": np.linspace(100, 105, 30)})
+            result = model.predict({"df": df, "ticker": "TEST"})
+        # Retry réussi : le modèle a prédit (115 > 105 ⇒ BUY) au lieu de HOLD 0.0.
+        self.assertEqual(result.signal, "BUY")
+        self.assertTrue(model.initialized)
+
+    def test_predict_holds_when_api_unavailable(self):
+        model = TimesFMModel.__new__(TimesFMModel)
+        model.initialized = False
+        model.model = None
+        model.vol_multiplier = 0.5
+        model._positions = {}
+
+        with patch("src.timesfm_model.TIMESFM3_AVAILABLE", False):
+            df = pd.DataFrame({"Close": np.linspace(100, 105, 30)})
+            result = model.predict({"df": df, "ticker": "TEST"})
+        self.assertEqual(result.signal, "HOLD")
+        self.assertEqual(result.confidence, 0.0)
 
 
 class TestAdaptiveThreshold(unittest.TestCase):

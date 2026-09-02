@@ -1,7 +1,7 @@
 {
   "$comment": "Cartographie complète et structurée des fonctionnalités du projet. Source unique de vérité sur l'état des fonctionnalités. Généré le 2026-06-30 lors de la mise en place du système de mémoire déterministe (voir AGENTS.md §1). Mis à jour dès qu'une fonctionnalité change de statut.",
   "schema_version": "1.0",
-  "last_updated": "2026-08-19",
+  "last_updated": "2026-09-02",
   "features": [
     {
       "id": "F-01",
@@ -21,11 +21,12 @@
     },
     {
       "id": "F-03",
-      "name": "TimesFM 2.5 (Google Research)",
-      "description": "Modèle de fondation pour le forecast de séries temporelles. Installation patchée via setup_timesfm.py avant uv sync.",
+      "name": "TimesFM 3.0 (Google Research)",
+      "description": "Modèle de fondation pour le forecast de séries temporelles (google/timesfm-3.0-pytorch, PyPI timesfm>=3.0.1). Supersède F-03 v2.5 (installation vendor patchée, supprimée le 2026-09-02). Wrapper : médiane = signal, 9 quantiles en métadonnées, contexte 2048, retry d'init. Pré-chauffage par machine : tests/smoke_timesfm3.py.",
       "status": "completed",
       "dependencies": [
-        "F-01"
+        "F-01",
+        "F-37"
       ]
     },
     {
@@ -244,6 +245,13 @@
       "dependencies": [
         "F-32"
       ]
+    },
+    {
+      "id": "F-37",
+      "name": "Migration TimesFM 3.0 + reset PROD étendu (run 2)",
+      "description": "Migration 2.5→3.0 (fin du vendoring : setup_timesfm.py/.gitmodules/[tool.uv.sources] supprimés, PyPI timesfm>=3.0.1) + extension reset_for_fresh_test.py : détection des artefacts runtime dans logs_prod/ (CWD du scheduler PROD, incident 2026-08-24) avec --include-logs-prod/--keep-logs-prod. Runbook : docs/PLAN_MIGRATION_TIMESFM3_PROD.md. Validation DEV : 282/285 tests, smoke PASS (CPU 0.38 s @2048).",
+      "status": "completed",
+      "dependencies": []
     }
   ]
 }

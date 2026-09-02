@@ -73,7 +73,7 @@
 引擎将异构模型组合成一个**加权共识**：
 
 1. **Scikit-Learn 模型**（RandomForest、GradientBoosting、LogisticRegression）——通过 `TimeSeriesSplit` 验证以防止数据泄漏。激进的量化信号（占认知权重的 25%）。
-2. **TimesFM 2.5**（Google Research）——用于时间序列预测的基础模型。
+2. **TimesFM 3.0**（Google Research）——用于时间序列预测的基础模型。
 3. **TensorTrade / PPO**（stable-baselines3）——在自定义 Gymnasium 环境中的强化学习智能体。
 4. **Gemma 4 12B**（Ollama）——**文本**（宏观/新闻）与**视觉**（技术图表）分析；**双层 JSON 防御**在 `<|think|>` 思考模式激活时仍保证纯净的 JSON。
 5. **混合情感分析**（Alpha Vantage + AlphaEar + Hyperliquid）。
@@ -179,7 +179,7 @@ Trading-AI/
 │   ├── sentiment_analysis.py        # Alpha Vantage 与 AlphaEar 情绪集成
 │   ├── t212_executor.py             # Trading 212 API 真实执行与投资组合
 │   ├── tensortrade_model.py         # 强化学习（PPO）信号
-│   ├── timesfm_model.py             # TimesFM 2.5 时间序列预测集成
+│   ├── timesfm_model.py             # TimesFM 3.0 时间序列预测集成
 │   └── web_researcher.py            # 使用 Crawl4AI 进行宏观经济网页抓取
 ├── data_cache/                       # 所有缓存（已 gitignore）
 │   ├── *.parquet                     # 每个标的的 OHLCV 数据（yfinance）
@@ -200,7 +200,6 @@ Trading-AI/
 ├── pyproject.toml                   # 项目依赖与配置（uv）
 ├── refresh_cache.py                 # 强制刷新 Parquet 缓存的 CLI 工具
 ├── schedule.py                      # 用于自动执行的实时调度器
-├── setup_timesfm.py                 # TimesFM 2.5 vendor 安装脚本
 ├── .env.example                     # 环境变量示例
 └── README.md                        # 本文档
 ```
@@ -236,9 +235,9 @@ Trading-AI/
     ```
 
 4.  **安装基础模型：**
-    运行安装脚本将模型克隆到 `vendor/` 并应用补丁：
+    预下载 TimesFM 3.0 检查点（约 1.3 GB，每台机器一次）：
     ```bash
-    python setup_timesfm.py
+    uv run python tests/smoke_timesfm3.py
     ```
 
 5.  **初始化并同步环境：**

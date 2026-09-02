@@ -73,7 +73,7 @@
 يجمع المحرك نماذج غير متجانسة في **إجماع مرجّح**:
 
 1. **نماذج Scikit-Learn** (RandomForest، GradientBoosting، LogisticRegression) — مُتحقَّق منها عبر `TimeSeriesSplit` لمنع تسرّب البيانات. إشارة كمية عدوانية (25% من الوزن المعرفي).
-2. **TimesFM 2.5** (Google Research) — نموذج أساسي للتنبؤ بالسلاسل الزمنية.
+2. **TimesFM 3.0** (Google Research) — نموذج أساسي للتنبؤ بالسلاسل الزمنية.
 3. **TensorTrade / PPO** (stable-baselines3) — وكيل تعلم معزّز في بيئة Gymnasium مخصصة.
 4. **Gemma 4 12B** (Ollama) — تحليل **نصي** (ماكرو/أخبار) و**بصري** (مخططات تقنية)؛ **دفاع JSON ثنائي الطبقة** يضمن JSON نظيفاً رغم تفعيل وضع التفكير `<|think|>`.
 5. **تحليل المشاعر الهجين** (Alpha Vantage + AlphaEar + Hyperliquid).
@@ -179,7 +179,7 @@ Trading-AI/
 │   ├── sentiment_analysis.py        # تكامل مشاعر Alpha Vantage وAlphaEar
 │   ├── t212_executor.py             # تنفيذ فعلي لواجهة Trading 212 والمحفظة
 │   ├── tensortrade_model.py         # إشارة تعلم معزّز (PPO)
-│   ├── timesfm_model.py             # تكامل تنبؤ السلاسل الزمنية TimesFM 2.5
+│   ├── timesfm_model.py             # تكامل تنبؤ السلاسل الزمنية TimesFM 3.0
 │   └── web_researcher.py            # كشط ويب اقتصادي كلي بـCrawl4AI
 ├── data_cache/                       # كل الذاكرات (مستثناة من git)
 │   ├── *.parquet                     # بيانات OHLCV لكل تيكير (yfinance)
@@ -200,7 +200,6 @@ Trading-AI/
 ├── pyproject.toml                   # تبعيات المشروع وإعداده (uv)
 ├── refresh_cache.py                 # أداة CLI لفرض تحديث ذاكرة Parquet
 ├── schedule.py                      # مجدول حي للتنفيذ الآلي
-├── setup_timesfm.py                 # سكربت تثبيت TimesFM 2.5 vendor
 ├── .env.example                     # مثال لمتغيرات البيئة
 └── README.md                        # هذه الوثائق
 ```
@@ -236,9 +235,9 @@ Trading-AI/
     ```
 
 4.  **تثبيت النماذج الأساسية:**
-    شغّل سكربتات التثبيت لاستنساخ النماذج في `vendor/` وتطبيق الرقع:
+    قم بتنزيل نقطة تفتيش TimesFM 3.0 مسبقًا (~1.3 جيجابايت، مرة واحدة لكل جهاز):
     ```bash
-    python setup_timesfm.py
+    uv run python tests/smoke_timesfm3.py
     ```
 
 5.  **تهيئة ومزامنة البيئة:**

@@ -72,7 +72,7 @@ O sistema utiliza uma abordagem inovadora para maximizar a precisão do modelo:
 ### 🧠 Motor de IA Híbrida
 O sistema funde treze sinais distintos (mais um meta-modelo):
 1.  **Modelo Quantitativo Clássico**: Conjunto de RandomForest/GradientBoosting/LogisticRegression treinado em indicadores técnicos e macroeconômicos.
-2.  **TimesFM 2.5 (Google Research)**: Modelo de base de última geração para previsão de séries temporais.
+2.  **TimesFM 3.0 (Google Research)**: Modelo de base de última geração para previsão de séries temporais.
 3.  **TensorTrade / PPO (Aprendizado por Reforço)**: Agente de RL (stable-baselines3) treinando uma política PPO num ambiente de trading Gymnasium personalizado, com persistência entre ciclos.
 4.  **Modelo Oil-Bench (Gemma 4 12B (Unsloth))**: Modelo especializado em energia que funde dados fundamentais da **EIA** (Estoques, Importações, Utilização de refinarias) e sentimento para o trading de WTI.
 5.  **LLM Textual (Nuvem/Local Híbrido)**: Análise contextual de dados brutos, notícias em tempo real através da skill **AlphaEar**, e integração de **pesquisa web macroeconômica** dinâmica. Alimentado principalmente por "Modelos de Fronteira" via `free-llm-api-keys`, com um fallback instantâneo para um **Gemma 4 12B** local via Ollama em caso de falha da API. Ele consome explicitamente o relatório noturno **Morning Brief** para adquirir uma profunda consciência fundamental.
@@ -193,7 +193,7 @@ Trading-AI/
 │   ├── sentiment_analysis.py        # Integração de sentimento Alpha Vantage e AlphaEar
 │   ├── t212_executor.py             # Execução real e carteira via API Trading 212
 │   ├── tensortrade_model.py         # Sinal de Aprendizado por Reforço (PPO)
-│   ├── timesfm_model.py             # Integração de previsão de séries temporais TimesFM 2.5
+│   ├── timesfm_model.py             # Integração de previsão de séries temporais TimesFM 3.0
 │   └── web_researcher.py            # Web scraping macroeconômico com Crawl4AI
 ├── data_cache/                       # Todos os caches (gitignored)
 │   ├── *.parquet                     # Dados OHLCV por ticker (yfinance)
@@ -214,7 +214,6 @@ Trading-AI/
 ├── pyproject.toml                   # Dependências e configuração do projeto (uv)
 ├── refresh_cache.py                 # Utilitário CLI para forçar a atualização do cache Parquet
 ├── schedule.py                      # Agendador ao vivo para execução automatizada
-├── setup_timesfm.py                 # Script de instalação do vendor do TimesFM 2.5
 ├── .env.example                     # Variáveis de ambiente de exemplo
 └── README.md                        # Esta documentação
 ```
@@ -250,9 +249,9 @@ Siga estas etapas para configurar o seu ambiente de desenvolvimento local.
     ```
 
 4.  **Instalar Modelos de Base:**
-    Execute os scripts de instalação para clonar os modelos em `vendor/` e aplicar os patches:
+    Pré-baixe o checkpoint do TimesFM 3.0 (~1,3 GB, uma vez por máquina):
     ```bash
-    python setup_timesfm.py
+    uv run python tests/smoke_timesfm3.py
     ```
 
 5.  **Inicializar e sincronizar o ambiente:**

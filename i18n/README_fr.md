@@ -73,7 +73,7 @@ Le système **analyse un indice global** (ex. `^NDX` pour le Nasdaq-100, `CL=F` 
 Le moteur combine des modèles hétérogènes en un **consensus pondéré** :
 
 1. **Modèles Scikit-Learn** (RandomForest, GradientBoosting, LogisticRegression) — validés par `TimeSeriesSplit` pour éviter la fuite de données. Signal quantitatif agressif (25 % du poids cognitif).
-2. **TimesFM 2.5** (Google Research) — modèle de fondation pour le forecast de séries temporelles.
+2. **TimesFM 3.0** (Google Research) — modèle de fondation pour le forecast de séries temporelles.
 3. **TensorTrade / PPO** (stable-baselines3) — agent de Reinforcement Learning dans un environnement Gymnasium custom.
 4. **Gemma 4 12B** (Ollama) — analyse **textuelle** (macro/news) et **visuelle** (charts techniques) ; la **défense JSON bi-couche** garantit un JSON propre malgré le mode pensée `<|think|>` actif.
 5. **Analyse de Sentiment** hybride (Alpha Vantage + AlphaEar + Hyperliquid).
@@ -179,7 +179,7 @@ Trading-AI/
 │   ├── sentiment_analysis.py        # Intégration sentiment Alpha Vantage & AlphaEar
 │   ├── t212_executor.py             # Exécution réelle API Trading 212 et portefeuille
 │   ├── tensortrade_model.py         # Signal Reinforcement Learning (PPO)
-│   ├── timesfm_model.py             # Intégration forecast de séries temporelles TimesFM 2.5
+│   ├── timesfm_model.py             # Intégration forecast de séries temporelles TimesFM 3.0
 │   └── web_researcher.py            # Scraping macro-économique web avec Crawl4AI
 ├── data_cache/                       # Tous les caches (gitignoré)
 │   ├── *.parquet                     # Données OHLCV par ticker (yfinance)
@@ -200,7 +200,6 @@ Trading-AI/
 ├── pyproject.toml                   # Dépendances et configuration du projet (uv)
 ├── refresh_cache.py                 # Utilitaire CLI pour forcer le rafraîchissement du cache Parquet
 ├── schedule.py                      # Scheduler live pour l'exécution automatisée
-├── setup_timesfm.py                 # Script d'installation du vendor TimesFM 2.5
 ├── .env.example                     # Exemple de variables d'environnement
 └── README.md                        # Cette documentation
 ```
@@ -236,9 +235,9 @@ Suivez ces étapes pour configurer votre environnement de développement local.
     ```
 
 4.  **Installer les modèles de fondation :**
-    Lancez les scripts d'installation pour cloner les modèles dans `vendor/` et appliquer les patches :
+    Pré-téléchargez le checkpoint TimesFM 3.0 (~1,3 Go, une fois par machine) :
     ```bash
-    python setup_timesfm.py
+    uv run python tests/smoke_timesfm3.py
     ```
 
 5.  **Initialiser et synchroniser l'environnement :**

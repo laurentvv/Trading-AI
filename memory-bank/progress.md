@@ -29,7 +29,18 @@
 - [ ] Sonde démo `tests/check_t212_stops.py` (feu vert utilisateur requis).
 - [x] Smoke cycle démo + reset propre + lancement run 30 jours (`docs/PLAN_RUN_DEMO_30J.md`) — démarré 2026-08-19 16:22.
 
-### Remédiation audit J+13 (2026-09-01, validé live — en attente de redémarrage scheduler)
+### Migration TimesFM 3.0 + reset run 2 (2026-09-02, branche `TimesFM` — DEV validé, PROD en attente)
+- [x] Wrapper `src/timesfm_model.py` : API `timesfm3.TimesFM3Forecaster` (`google/timesfm-3.0-pytorch`), médiane = signal (seuils inchangés), 9 quantiles en métadonnées, contexte 2048, retry d'init dans `predict()`.
+- [x] Fin du vendoring : `setup_timesfm.py` + `.gitmodules` + `[tool.uv.sources]` supprimés ; `pyproject.toml` → `timesfm>=3.0.1,<4` (PyPI) ; `check_setup()` → `find_spec("timesfm3")`.
+- [x] Fix bonus : `scripts/backtest_ensemble_10y.py` (appel `predict()` invalide → TimesFM jamais compté).
+- [x] `reset_for_fresh_test.py` étendu : détection artefacts runtime `logs_prod/` + `--include-logs-prod`/`--keep-logs-prod` (trou de l'incident 2026-08-24) ; `tests/test_reset_fresh_test.py` (11 tests).
+- [x] Smoke script `tests/smoke_timesfm3.py` (pré-chauffage ~1,3 Go par machine, garde-fou timing 2048).
+- [x] Validation DEV : **282 passed / 3 skipped** ; smoke réel PASS (download 118 s, non gated, CPU 0.38 s @2048) ; cycle `--simul` avec TimesFM 3.0 opérationnel (init cpu + prédiction).
+- [x] Docs : `docs/PLAN_MIGRATION_TIMESFM3_PROD.md` (runbook), README/AGENTS/QWEN/GEMINI/SYSTEM_SUMMARY/i18n (2.5→3.0), AGENTS.md §2.2 invariant TimesFM 3.0.
+- [ ] **Exécuter le runbook sur PROD** (`docs/PLAN_MIGRATION_TIMESFM3_PROD.md` §1→§10) : reset compte démo T212 → git pull + `uv sync` + suppression `vendor/` → HF_TOKEN → smoke PROD → `reset_for_fresh_test.py --yes --include-logs-prod` → relance scheduler → **run 2 de 30 jours** (GO/NO-GO = lancement + 30 j).
+- [x] Merge `TimesFM` → `main` + push (accord utilisateur 2026-09-02), prêt pour `git pull` sur PROD.
+
+### Remédiation audit J+13 (2026-09-01, validé live — commité ecb5368)
 - [x] F1 CRITIQUE realized P&L : `_fifo_pnl` trie désormais les fills par date (l'API renvoie du + récent au + ancien ; le SELL 20/08 était matché contre le BUY postérieur du 28/08 → realized -1.50 € au lieu de +1.58 €). Validé live : +1.5760 € = chiffre broker. Le state se self-corrige au 1er cycle.
 - [x] A5 429 : positions/order-history routés via `safe_request` (retry 429 backoff) — fini la sync annulée au premier 429.
 - [x] A3 hygiène données : labels Target* masqués sur lignes gelées du feed (CRUDP.PA trading-ticker 82 % gelé 2022-2025) ; lignes conservées pour les fenêtres MA_200 ; no-op sur ^NDX/CL=F/SXRV.
@@ -65,12 +76,12 @@
 - [ ] Optimisation des poids par grid search (`backtest_prod.py`).
 
 ## Prochaine Action Immédiate
-- **Rien — le run de 30 jours tourne** (départ 2026-08-19 16:22, décision GO/NO-GO ≈ 2026-09-18).
-- Supervision quotidienne/hebdo selon `docs/PLAN_RUN_DEMO_30J.md` §4 (checklist).
-- À guetter dans les logs : `🔐 Ratchet: stop broker ... remonté` (premier plus-haut),
-  l'equity qui dévie de 1000 € selon le P&L, et l'absence de CRITICAL non expliqué.
-- Post-run : évaluer les critères §5 de PLAN_RUN_DEMO_30J, puis seulement discuter
-  du passage en compte réel T212.
+- **Exécuter le runbook migration PROD** (`docs/PLAN_MIGRATION_TIMESFM3_PROD.md`) : le run 1 est
+  clos (3 ordres/13 j, critère ≥20 round-trips inatteignable, scheduler arrêté depuis le 01/09).
+  Après reset (compte démo T212 + local `--include-logs-prod`), **run 2 de 30 jours avec TimesFM 3.0**.
+- Supervision post-lancement selon `docs/PLAN_RUN_DEMO_30J.md` §4 ; GO/NO-GO = lancement + 30 j.
+- À guetter au 1er cycle : `TimesFM 3.0 prediction: ...` dans trading.log, journal régénéré,
+  T212_Equity repartant à 1000 €/ticker (pas d'héritage FIFO de la run 1).
 
 ## Statut des Invariants Critiques (contrôle rapide)
 - [x] Architecture NexusAI Cloud active (auto_fallback & auto_fallback_vision) avec validation JSON stricte.

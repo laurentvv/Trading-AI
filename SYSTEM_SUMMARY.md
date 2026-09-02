@@ -51,7 +51,7 @@ graph TD
     *   **Visuel :** Analyse directement l'image du graphique technique (`enhanced_trading_chart.png`) pour identifier des patterns chartistes complexes.
 
 3.  **TimesFM (Google Research) :**
-    *   Modèle de fondation **TimesFM 2.5** spécialisé dans la prévision de séries temporelles.
+    *   Modèle de fondation **TimesFM 3.0** (`google/timesfm-3.0-pytorch`, PyPI `timesfm>=3.0.1`) spécialisé dans la prévision de séries temporelles — médiane pour le signal, 9 quantiles en métadonnées.
 
 4.  **TensorTrade / PPO (Reinforcement Learning) :**
     *   Agent **PPO** (stable-baselines3) entraîné à chaque cycle dans un environnement **Gymnasium** custom (`SimpleTradingEnv`).

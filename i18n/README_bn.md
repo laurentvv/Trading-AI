@@ -73,7 +73,7 @@ NASDAQ এবং তেল (WTI) ETF ট্রেডিংয়ের জন্
 ইঞ্জিন বিজাতীয় মডেলগুলিকে একটি **ওজনযুক্ত ঐকমত্যে** একত্রিত করে:
 
 1. **Scikit-Learn মডেল** (RandomForest, GradientBoosting, LogisticRegression) — ডেটা লিক এড়াতে `TimeSeriesSplit` দ্বারা যাচাইকৃত। আগ্রাসী পরিমাণগত সিগন্যাল (জ্ঞানীয় ওজনের ২৫%)।
-2. **TimesFM 2.5** (Google Research) — সময়-সিরিজ পূর্বাভাসের জন্য ফাউন্ডেশন মডেল।
+2. **TimesFM 3.0** (Google Research) — সময়-সিরিজ পূর্বাভাসের জন্য ফাউন্ডেশন মডেল।
 3. **TensorTrade / PPO** (stable-baselines3) — একটি কাস্টম Gymnasium পরিবেশে Reinforcement Learning এজেন্ট।
 4. **Gemma 4 12B** (Ollama) — **পাঠ্য** (ম্যাক্রো/সংবাদ) এবং **দৃশ্য** (প্রযুক্তিগত চার্ট) বিশ্লেষণ; **দ্বি-স্তর JSON প্রতিরক্ষা** সক্রিয় `<|think|>` চিন্তা মোড সত্ত্বেও পরিষ্কার JSON গ্যারান্টি দেয়।
 5. **হাইব্রিড সেন্টিমেন্ট বিশ্লেষণ** (Alpha Vantage + AlphaEar + Hyperliquid)।
@@ -179,7 +179,7 @@ Trading-AI/
 │   ├── sentiment_analysis.py        # Alpha Vantage ও AlphaEar সেন্টিমেন্ট একীকরণ
 │   ├── t212_executor.py             # Trading 212 API প্রকৃত সম্পাদন ও পোর্টফোলিও
 │   ├── tensortrade_model.py         # Reinforcement Learning (PPO) সিগন্যাল
-│   ├── timesfm_model.py             # TimesFM 2.5 সময়-সিরিজ পূর্বাভাস একীকরণ
+│   ├── timesfm_model.py             # TimesFM 3.0 সময়-সিরিজ পূর্বাভাস একীকরণ
 │   └── web_researcher.py            # Crawl4AI সহ ম্যাক্রো-ইকোনোমিক ওয়েব স্ক্র্যাপিং
 ├── data_cache/                       # সব ক্যাশ (gitignored)
 │   ├── *.parquet                     # প্রতি টিকারে OHLCV ডেটা (yfinance)
@@ -200,7 +200,6 @@ Trading-AI/
 ├── pyproject.toml                   # প্রকল্প নির্ভরতা ও কনফিগারেশন (uv)
 ├── refresh_cache.py                 # Parquet ক্যাশে বলপূর্বক-রিফ্রেশ করার CLI ইউটিলিটি
 ├── schedule.py                      # স্বয়ংক্রিয় সম্পাদনের জন্য লাইভ শিডিউলার
-├── setup_timesfm.py                 # TimesFM 2.5 vendor ইনস্টলেশন স্ক্রিপ্ট
 ├── .env.example                     # পরিবেশ ভেরিয়েবলের উদাহরণ
 └── README.md                        # এই ডকুমেন্টেশন
 ```
@@ -236,9 +235,9 @@ Trading-AI/
     ```
 
 4.  **ফাউন্ডেশন মডেল ইনস্টল করুন:**
-    মডেলগুলিকে `vendor/`-এ ক্লোন করতে ও প্যাচ প্রয়োগ করতে ইনস্টলেশন স্ক্রিপ্ট চালান:
+    TimesFM 3.0 চেকপয়েন্ট প্রি-ডাউনলোড করুন (~১.৩ GB, প্রতি মেশিনে একবার):
     ```bash
-    python setup_timesfm.py
+    uv run python tests/smoke_timesfm3.py
     ```
 
 5.  **পরিবেশ শুরু ও সিঙ্ক করুন:**

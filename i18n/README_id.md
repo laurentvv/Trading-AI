@@ -73,7 +73,7 @@ Sistem **menganalisis indeks global** (mis. `^NDX` untuk Nasdaq-100, `CL=F` untu
 Mesin menggabungkan model-model heterogen menjadi sebuah **konsensus berbobot**:
 
 1. **Model Scikit-Learn** (RandomForest, GradientBoosting, LogisticRegression) — divalidasi dengan `TimeSeriesSplit` untuk mencegah kebocoran data. Sinyal kuantitatif agresif (25% dari bobot kognitif).
-2. **TimesFM 2.5** (Google Research) — model fondasi untuk peramalan deret waktu.
+2. **TimesFM 3.0** (Google Research) — model fondasi untuk peramalan deret waktu.
 3. **TensorTrade / PPO** (stable-baselines3) — agen Reinforcement Learning di lingkungan Gymnasium kustom.
 4. **Gemma 4 12B** (Ollama) — analisis **tekstual** (makro/berita) dan **visual** (chart teknikal); **pertahanan JSON dua lapis** menjamin JSON yang bersih meski mode berpikir `<|think|>` aktif.
 5. **Analisis Sentimen Hibrid** (Alpha Vantage + AlphaEar + Hyperliquid).
@@ -179,7 +179,7 @@ Trading-AI/
 │   ├── sentiment_analysis.py        # Integrasi sentimen Alpha Vantage & AlphaEar
 │   ├── t212_executor.py             # Eksekusi nyata API Trading 212 dan portofolio
 │   ├── tensortrade_model.py         # Sinyal Reinforcement Learning (PPO)
-│   ├── timesfm_model.py             # Integrasi peramalan deret waktu TimesFM 2.5
+│   ├── timesfm_model.py             # Integrasi peramalan deret waktu TimesFM 3.0
 │   └── web_researcher.py            # Scraping web makroekonomi dengan Crawl4AI
 ├── data_cache/                       # Semua cache (di-gitignore)
 │   ├── *.parquet                     # Data OHLCV per ticker (yfinance)
@@ -200,7 +200,6 @@ Trading-AI/
 ├── pyproject.toml                   # Dependensi dan konfigurasi proyek (uv)
 ├── refresh_cache.py                 # Utilitas CLI untuk memaksa penyegaran cache Parquet
 ├── schedule.py                      # Penjadwal live untuk eksekusi otomatis
-├── setup_timesfm.py                 # Skrip instalasi TimesFM 2.5 vendor
 ├── .env.example                     # Contoh variabel lingkungan
 └── README.md                        # Dokumentasi ini
 ```
@@ -236,9 +235,9 @@ Ikuti langkah-langkah berikut untuk menyiapkan lingkungan pengembangan lokal And
     ```
 
 4.  **Pasang Model Fondasi:**
-    Jalankan skrip instalasi untuk mengkloning model ke `vendor/` dan menerapkan tambalan:
+    Unduh terlebih dahulu checkpoint TimesFM 3.0 (~1,3 GB, sekali per mesin):
     ```bash
-    python setup_timesfm.py
+    uv run python tests/smoke_timesfm3.py
     ```
 
 5.  **Inisialisasi dan sinkronisasi lingkungan:**

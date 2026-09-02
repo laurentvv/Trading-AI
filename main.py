@@ -70,15 +70,24 @@ def _get_cancel_event(ticker: str) -> threading.Event:
 
 
 def check_setup() -> bool:
-    """Vérifie si TimesFM 2.5 est correctement installé et patché"""
-    vendor_path = Path(__file__).parent / "vendor" / "timesfm"
-    if not vendor_path.exists():
+    """Vérifie si TimesFM 3.0 (package timesfm3) est installé.
+
+    Utilise find_spec (sans importer torch) : le chargement réel du modèle
+    reste dans src/timesfm_model.py avec ses fallbacks.
+    """
+    try:
+        import importlib.util
+
+        spec = importlib.util.find_spec("timesfm3")
+    except (ImportError, ValueError):
+        spec = None
+    if spec is None:
         console = Console()
         console.print(
             Panel(
-                "[bold red]ERREUR : TimesFM 2.5 n'est pas installé.[/bold red]\n\n"
+                "[bold red]ERREUR : TimesFM 3.0 (package timesfm3) n'est pas installé.[/bold red]\n\n"
                 "[*] Veuillez lancer la commande suivante pour tout configurer automatiquement :\n"
-                "    [bold cyan]uv run setup[/bold cyan]",
+                "    [bold cyan]uv sync[/bold cyan]",
                 title="Setup Manquant",
                 border_style="red",
             )

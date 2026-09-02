@@ -50,8 +50,9 @@ def run_ensemble_backtest():
     # TimesFM (peut être long à charger)
     try:
         timesfm_model = TimesFMModel.get_instance()
-        timesfm_available = True
-        print("TimesFM 2.5 initialisé avec succès.")
+        timesfm_available = timesfm_model.initialized
+        print("TimesFM 3.0 initialisé avec succès." if timesfm_available
+              else "Attention : TimesFM 3.0 non initialisé — il sera ignoré.")
     except Exception as e:
         print(f"Attention : TimesFM impossible à charger ({e}). Il sera ignoré.")
         timesfm_available = False
@@ -131,10 +132,10 @@ def run_ensemble_backtest():
         # 4. TimesFM
         if timesfm_available:
             try:
-                res_tfm = timesfm_model.predict(window_qqq, horizon=5, ticker="QQQ")
+                res_tfm = timesfm_model.predict({"df": window_qqq, "horizon": 5, "ticker": "QQQ"})
                 decisions.append(ModelDecision(
-                    signal=res_tfm["signal"], confidence=res_tfm["confidence"],
-                    strength=engine._normalize_signal(res_tfm["signal"]),
+                    signal=res_tfm.signal, confidence=res_tfm.confidence,
+                    strength=engine._normalize_signal(res_tfm.signal),
                     timestamp=datetime.now(), model_name="timesfm"
                 ))
             except Exception:

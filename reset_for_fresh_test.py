@@ -17,6 +17,9 @@ Run it once on PROD/DEMO after pulling, before launching the fresh test:
     uv run python reset_for_fresh_test.py --dry-run  # preview only
     uv run python reset_for_fresh_test.py --yes      # no prompt (automation)
 
+    # PROD reset complet (logs_prod/ = CWD du scheduler, doit etre inclus) :
+    uv run python reset_for_fresh_test.py --yes --include-logs-prod
+
 WIPE STRATEGY — pattern-based (robust, maintenance-free)
 --------------------------------------------------------
 Instead of an explicit file list (which drifts out of sync with the code —
@@ -46,6 +49,22 @@ WHAT IT PRESERVES (whitelist — never touched)
   - src/ tests/ docs/ scripts/  source code + docs
   - *.py *.md *.toml *.yaml *.bat *.lock   source/config files at root
 
+LOGS_PROD/ RUNTIME ARTIFACTS (scheduler PROD CWD — IMPORTANT)
+-------------------------------------------------------------
+On PROD the scheduler is launched FROM logs_prod/, so the live runtime
+artifacts (DBs, t212_portfolio_state.json, trading_journal.csv, data_cache/,
+scheduler.lock, logs) live INSIDE logs_prod/ — which the whitelist above
+would otherwise preserve. The 2026-08-19 reset missed exactly that:
+logs_prod/model_performance.db survived with pre-reset data and polluted the
+adaptive weights for 5 days (incident fixed manually on 2026-08-24).
+
+This script now DETECTS runtime artifacts inside logs_prod/ and requires an
+explicit choice:
+  --include-logs-prod   wipe them too (backup + remove) — PROD migration path
+  --keep-logs-prod      preserve them (DEV: logs_prod/ is an audit snapshot)
+Interactive mode asks; `--yes` without either flag REFUSES to run (exit 2).
+`.md` files (audit reports) inside logs_prod/ are never touched.
+
 GEMINI QUOTA LEDGER (note for PAID PROD)
 ----------------------------------------
 By DEFAULT, data_cache/gemini_quota.db is WIPED (demo mode — start fresh).
@@ -72,10 +91,14 @@ import datetime as dt
 import shutil
 from pathlib import Path
 
-from reset_lib import dry_run_or_confirm
+from reset_lib import confirm, dry_run_or_confirm
 
 REPO_ROOT = Path(__file__).resolve().parent
-BACKUP_ROOT = REPO_ROOT / "reset_backup"
+
+
+def _backup_root() -> Path:
+    """Backup root, resolved at CALL time (REPO_ROOT is monkeypatchable in tests)."""
+    return REPO_ROOT / "reset_backup"
 
 # ---------------------------------------------------------------------------
 # KEEP WHITELIST — these directories are NEVER touched. The wipe only ever
@@ -133,6 +156,62 @@ WIPE_DIRS = [
 
 # File preserved inside data_cache/ ONLY when --keep-quota-ledger is passed.
 KEEP_QUOTA_LEDGER_NAME = "gemini_quota.db"
+
+# ---------------------------------------------------------------------------
+# logs_prod/ — scheduler CWD on PROD. The live runtime artifacts live THERE
+# (DBs, state, journal, data_cache/, lock), not at the repo root. The whitelist
+# above would preserve them, so they are detected explicitly (see incident
+# 2026-08-24: model_performance.db survived the 2026-08-19 reset).
+# ---------------------------------------------------------------------------
+LOGS_PROD_DIR = "logs_prod"
+LOGS_PROD_LOCK_NAME = "scheduler.lock"
+
+
+def _is_runtime_file_name(name: str) -> bool:
+    """Heuristique partagée : ce fichier est-il un artefact runtime ?
+
+    Utilisée pour la racine du repo ET pour logs_prod/ : extensions gitignorées
+    (*.csv/*.json/*.db/... + composés .db-shm/.db-wal), sauvegardes de DB
+    (.db.bak-<date>), et le verrou du scheduler. Les .md/.lock génériques
+    (uv.lock, rapports d'audit) ne correspondent PAS.
+    """
+    lowered = name.lower()
+    suffix = Path(name).suffix.lower()
+    compound = ""
+    if "." in name:
+        stem_and_ext = name.rsplit(".", 2)
+        if len(stem_and_ext) >= 3:
+            compound = ("." + stem_and_ext[-2] + "." + stem_and_ext[-1]).lower()
+    return (
+        suffix in WIPE_ROOT_EXTENSIONS
+        or compound in WIPE_ROOT_EXTENSIONS
+        or ".db.bak-" in lowered
+        or name == LOGS_PROD_LOCK_NAME
+    )
+
+
+def _collect_logs_prod_runtime_artifacts() -> list[Path]:
+    """Artefacts runtime présents dans logs_prod/ (CWD du scheduler PROD).
+
+    Retourne les chemins absolus : fichiers runtime à la racine de logs_prod/
+    + les sous-répertoires régénérables (data_cache/, morning_brief/output/,
+    docs/council_reports/...). Les .md (rapports d'audit) et tout le reste
+    sont ignorés. Vide si logs_prod/ n'existe pas ou est propre.
+    """
+    base = REPO_ROOT / LOGS_PROD_DIR
+    if not base.is_dir():
+        return []
+    targets: list[Path] = []
+    for item in sorted(base.iterdir()):
+        if item.is_file() and _is_runtime_file_name(item.name):
+            targets.append(item)
+    # data_cache/ est géré à part pour la racine (WIPE_DATACACHE_DIR) — ici on
+    # le regroupe avec les autres dirs régénérables présents dans logs_prod/.
+    for d in [WIPE_DATACACHE_DIR] + WIPE_DIRS:
+        sub = base / d
+        if sub.exists():
+            targets.append(sub)
+    return targets
 
 
 def _backup_timestamp() -> str:
@@ -213,24 +292,14 @@ def _safe_to_wipe(target: Path) -> bool:
 # Root-level pattern wipe
 # ---------------------------------------------------------------------------
 def _collect_root_runtime_files() -> list[Path]:
-    """Return every file at the repo ROOT whose extension is in
-    WIPE_ROOT_EXTENSIONS. Does NOT recurse into subdirectories (those are
-    handled by WIPE_DIRS / KEEP_PATHS)."""
+    """Return every file at the repo ROOT whose name matches the runtime
+    heuristics (see _is_runtime_file_name). Does NOT recurse into
+    subdirectories (those are handled by WIPE_DIRS / KEEP_PATHS)."""
     found = []
     for item in REPO_ROOT.iterdir():
         if not item.is_file():
             continue
-        # Suffix matching: ".db-shm" / ".db-wal" have a dot inside the suffix,
-        # so compare on the last dotted suffix AND the two-part suffix.
-        name = item.name
-        suffix = item.suffix.lower()
-        # Also handle compound suffixes like "foo.db-shm", "foo.db-wal".
-        compound = ""
-        if "." in name:
-            stem_and_ext = name.rsplit(".", 2)
-            if len(stem_and_ext) >= 3:
-                compound = ("." + stem_and_ext[-2] + "." + stem_and_ext[-1]).lower()
-        if suffix in WIPE_ROOT_EXTENSIONS or compound in WIPE_ROOT_EXTENSIONS:
+        if _is_runtime_file_name(item.name):
             found.append(item)
     return sorted(found)
 
@@ -343,7 +412,26 @@ def main() -> int:
              "full budget and potentially overspending. By default (DEMO mode) "
              "the ledger is wiped for a true ground-zero restart.",
     )
+    parser.add_argument(
+        "--include-logs-prod", action="store_true",
+        help="WIPE the runtime artifacts inside logs_prod/ (scheduler CWD on PROD: "
+             "DBs, t212_portfolio_state.json, journal, data_cache/, lock...). "
+             "Required for a true PROD reset — without it the 2026-08-19 reset "
+             "left logs_prod/model_performance.db alive (incident 2026-08-24). "
+             "Everything is backed up to reset_backup/ first.",
+    )
+    parser.add_argument(
+        "--keep-logs-prod", action="store_true",
+        help="PRESERVE logs_prod/ runtime artifacts (DEV case: logs_prod/ is an "
+             "audit snapshot, not a live scheduler CWD).",
+    )
     args = parser.parse_args()
+
+    if args.include_logs_prod and args.keep_logs_prod:
+        parser.error("--include-logs-prod et --keep-logs-prod sont mutuellement exclusifs.")
+
+    logs_prod_targets = _collect_logs_prod_runtime_artifacts()
+    include_logs_prod = args.include_logs_prod
 
     print("=" * 72)
     print("  MAX RESET — vidage complet pour redemarrage vierge")
@@ -370,7 +458,7 @@ def main() -> int:
     n_targets = 0
     if cache.exists():
         _, kept_preview, cache_files = _wipe_data_cache(
-            BACKUP_ROOT / "_preview", dry=True, keep_quota=args.keep_quota_ledger,
+            _backup_root() / "_preview", dry=True, keep_quota=args.keep_quota_ledger,
         )
         keep_note = f"; conserve: {', '.join(kept_preview)}" if kept_preview else ""
         print(f"  [dir]  data_cache/  ({cache_files} fichiers{keep_note})")
@@ -399,6 +487,21 @@ def main() -> int:
             print(f"           *{ext}: {preview}{extra}")
         n_targets += 1
 
+    # logs_prod/ runtime artifacts (scheduler CWD on PROD)
+    if logs_prod_targets:
+        mode = (
+            "VIDE (--include-logs-prod)" if include_logs_prod
+            else "PRESERVE (--keep-logs-prod)" if args.keep_logs_prod
+            else "NON DECIDE (interactif / --yes: choix explicite requis)"
+        )
+        print(f"\n-- logs_prod/ — {len(logs_prod_targets)} artefact(s) runtime detecte(s) "
+              f"[{mode}] :")
+        for t in logs_prod_targets[:8]:
+            print(f"           {t.relative_to(REPO_ROOT)}")
+        if len(logs_prod_targets) > 8:
+            print(f"           +{len(logs_prod_targets) - 8} autres")
+        n_targets += 1
+
     if n_targets == 0:
         print("  (rien a effacer — deja vierge)")
 
@@ -408,6 +511,27 @@ def main() -> int:
         is_dir = (REPO_ROOT / k).is_dir()
         print(f"  [keep] {k}{'/' if is_dir else ''}")
     print("  [keep] *.py *.md *.toml *.yaml *.bat *.lock (fichiers source/config)")
+
+    # ---- logs_prod/ explicit choice (before the global confirm gate) -------
+    if logs_prod_targets and not include_logs_prod and not args.keep_logs_prod:
+        if args.yes:
+            # Automation safety: NEVER silently wipe NOR silently keep the live
+            # PROD state (the 2026-08-19 reset silently kept it -> polluted
+            # adaptive weights until 2026-08-24).
+            print()
+            print("[ERREUR] Artefacts runtime detectes dans logs_prod/ et aucun choix")
+            print("         explicite fourni. Avec --yes, passez soit :")
+            print("           --include-logs-prod  (reset PROD complet)")
+            print("           --keep-logs-prod      (logs_prod/ = snapshot d'audit DEV)")
+            return 2
+        if not args.dry_run:
+            print()
+            print("logs_prod/ contient des artefacts runtime (CWD du scheduler PROD).")
+            if confirm("Les inclure dans le vidage (backup puis suppression) ?", False):
+                include_logs_prod = True
+                print("-> logs_prod/ sera inclus dans le vidage.")
+            else:
+                print("-> logs_prod/ sera PRESERVE.")
 
     gate = dry_run_or_confirm(
         args.dry_run,
@@ -419,7 +543,7 @@ def main() -> int:
 
     # ---- Real execution --------------------------------------------------
     stamp = _backup_timestamp()
-    backup_dir = BACKUP_ROOT / stamp
+    backup_dir = _backup_root() / stamp
     backup_dir.mkdir(parents=True, exist_ok=True)
     print(f"\nBackup -> {backup_dir.relative_to(REPO_ROOT)}")
 
@@ -445,6 +569,19 @@ def main() -> int:
         print(f"  wipe   {n_root} fichier(s) runtime racine (*.csv/*.json/*.db/*.log/*.png...)")
         actions += 1
 
+    # 4. Wipe logs_prod/ runtime artifacts (PROD scheduler CWD) when included.
+    if logs_prod_targets and include_logs_prod:
+        n_lp = 0
+        for t in logs_prod_targets:
+            # Paranoia guard: never touch anything outside logs_prod/ here.
+            if t.resolve().relative_to(REPO_ROOT).parts[0] != LOGS_PROD_DIR:
+                continue
+            if _move_to_backup(t, backup_dir):
+                n_lp += 1
+        if n_lp:
+            print(f"  wipe   logs_prod/ ({n_lp} artefact(s) runtime)")
+            actions += 1
+
     print()
     print("=" * 72)
     print(f"  VIDAGE COMPLET TERMINE — {actions} element(s) efface(s).")
@@ -454,8 +591,10 @@ def main() -> int:
     print("  1. Le 1er cycle va RE-TELECHARGER les donnees de marche (~5 ans),")
     print("     reentrainer classic (calibration isotonic), le PPO depuis zero,")
     print("     et re-fetcher les donnees EIA -> il sera LONG (plusieurs min).")
-    print("  2. T212: clôturez manuellement toute position DEMO residuelle avant")
-    print("     de relancer, sinon le state se re-synchronise dessus.")
+    print("  2. T212 (DEMO) : reset du compte demo dans l'app T212 (annule positions,")
+    print("     stops GTC et historique -> l'equity FIFO repart a 1000 EUR/ticker),")
+    print("     ou clôturez manuellement toute position residuelle avant de")
+    print("     relancer, sinon le state se re-synchronise dessus.")
     print("  3. Lancez en DEMO pour valider les mecanismes de sortie")
     print("     (stop-loss -5/-10%, take-profit +8%, trailing -3%, time-stop 15j).")
     print(f"  4. Backup disponible dans {backup_dir.relative_to(REPO_ROOT)}/")
