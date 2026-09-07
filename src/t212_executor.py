@@ -1236,7 +1236,14 @@ def _execute_buy_order(state, current_pos, ticker, t212_ticker, portfolio, base_
             f"⚠️ Pas assez de cash réel ({portfolio['cash']:.2f}€) pour le budget cible ({available_cash:.2f}€)."
         )
 
-    target_budget = min(available_cash, portfolio["cash"]) * 0.95 * sizing_ratio
+    # Choix utilisateur en dur : 100% MAX DISPONIBLE (aucune prise de décision partielle)
+    # L'achat mobilise 100% du budget alloué (ou le max du cash réel disponible chez le broker).
+    # Une réserve de 1% est appliquée uniquement si le cash broker réel est le facteur limitant
+    # pour éviter tout rejet "Insufficient funds" dû au spread ou micro-glissement au marché.
+    if portfolio["cash"] >= available_cash:
+        target_budget = available_cash * sizing_ratio
+    else:
+        target_budget = portfolio["cash"] * 0.99 * sizing_ratio
     # Déterminer la précision selon l'instrument T212 (table explicite).
     # L'ancienne heuristique "CRUD" in ticker cassait quand CRUDP.PA a été
     # remappé vers OD7Fd_EQ (ne contient plus "CRUD") -> precision=4 envoyée
@@ -1387,7 +1394,7 @@ def _record_sell_transaction(state, current_value_eur, total_qty, ticker, db_dat
     return entry_time_str
 
 
-def _update_feedback_loop(entry_time_str, db_date, current_value_eur, buy_cost):
+def _update_feedback_loop(entry_time_str, db_date, current_value_eur, buy_cost, ticker=None):
     if AdaptiveWeightManager is None:
         return
     try:
@@ -1399,10 +1406,11 @@ def _update_feedback_loop(entry_time_str, db_date, current_value_eur, buy_cost):
             date=entry_date,
             actual_outcome=actual_outcome,
             return_1d=return_1d,
+            ticker=ticker,
         )
         if updated > 0:
             logger.info(
-                f"📊 Feedback loop: updated {updated} model predictions for {entry_date} (return_1d={return_1d:+.4f})"
+                f"📊 Feedback loop: updated {updated} model predictions for {entry_date} (return_1d={return_1d:+.4f}, ticker={ticker})"
             )
     except Exception as fb_e:
         logger.warning(f"Feedback loop failed: {fb_e}")
@@ -1442,40 +1450,24 @@ def _reconcile_sell_fill_price(cash_before, fill_qty: float, fill_price: float) 
     return implied_price
 
 
-def _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, headers, db_date, signal_source, force_stop_loss=False, cash_before=None):
-    if not state.get("active_position") and not current_pos:
-        logger.warning(f"⚠️ Pas de position active pour {t212_ticker}.")
-        return
-
-    if not current_pos:
-        logger.warning("⚠️ Position présente dans le suivi mais INTROUVABLE sur T212. Reset du suivi.")
-        state["active_position"] = None
-        save_portfolio_state(state, t212_ticker)
-        return
-
+def _release_standing_stop_if_reserved(
+    state: dict, current_pos: dict, t212_ticker: str, headers: dict
+) -> tuple[float, int | None, bool, float | None]:
+    """GO-gate 1/2 interplay: release reserved shares by cancelling standing stop if quantityAvailableForTrading is 0."""
     total_qty = float(current_pos.get("quantityAvailableForTrading") or 0)
-    current_value_eur = current_pos["walletImpact"]["currentValue"]
-
-    # GO-gate 1/2 interplay (2026-08-20 PROD): a standing GTC stop RESERVES
-    # the shares, so quantityAvailableForTrading reads 0 while `quantity`
-    # still shows the full position. The sell was then POSTed with quantity 0
-    # -> 400 "Quantity is missing" and the position could never be exited by
-    # the app. Release the reserved shares by cancelling the stop FIRST, then
-    # fall back to the total quantity; if the sale ultimately fails, the stop
-    # is re-placed so the position is never left knowingly unprotected.
     stop_released = False
     prev_stop_price = None
     pos_state = state.get("active_position") or {}
     stop_id = pos_state.get("stop_order_id")
+
     if stop_id:
         prev_stop_price = pos_state.get("stop_price")
     else:
-        # The state may not know a broker-side stop (manual placement, lost
-        # cache): look it up so its share reservation is released too.
         standing = _get_active_stop_order(t212_ticker, headers)
         if standing:
             stop_id = standing.get("id")
             prev_stop_price = float(standing.get("stopPrice") or 0.0) or None
+
     if total_qty <= 0:
         fallback_qty = float(current_pos.get("quantity") or 0)
         if stop_id and fallback_qty > 0:
@@ -1489,22 +1481,117 @@ def _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, heade
                 save_portfolio_state(state, t212_ticker)
                 total_qty = fallback_qty
                 logger.info(f"🔓 Stop libéré — quantité vendable restaurée : {total_qty}.")
-                stop_id = None  # already cancelled; post-sale cleanup must not re-DELETE
+                stop_id = None
             else:
                 logger.warning(f"⚠️ Annulation du stop #{stop_id} refusée avant vente — tentative sur la quantité totale.")
                 total_qty = fallback_qty
         else:
             total_qty = fallback_qty
+
+    return total_qty, stop_id, stop_released, prev_stop_price
+
+
+def _process_confirmed_sell(
+    state: dict,
+    current_pos: dict,
+    ticker: str,
+    t212_ticker: str,
+    sell_fill: dict,
+    total_qty: float,
+    current_value_eur: float,
+    cash_before: float | None,
+    db_date: str,
+    signal_source: str,
+    stop_id: int | None,
+    headers: dict,
+) -> None:
+    """Handle post-sell bookkeeping, stop cancellation, FIFO update, and feedback loop."""
+    fill_qty = abs(float(sell_fill.get("quantity", 0) or total_qty))
+    fill_price = float(sell_fill.get("price", 0) or (current_value_eur / total_qty if total_qty > 0 else 0))
+    fill_price = _reconcile_sell_fill_price(cash_before, fill_qty, fill_price)
+    proceeds = fill_qty * fill_price if fill_price > 0 else current_value_eur
+    logger.info(f"✅ Vente exécutée et confirmée: {fill_qty} @ {fill_price:.4f} (produit {proceeds:.2f} €).")
+
+    # GO-gate 2: the standing stop order is now useless — cancel it.
+    if stop_id:
+        _cancel_order(stop_id, headers)
+
+    if state.get("active_position"):
+        buy_cost = state["active_position"]["buy_budget"]
+    else:
+        avg_price = _get_avg_price(current_pos)
+        t212_buy_cost = avg_price * total_qty
+        buy_cost = t212_buy_cost if t212_buy_cost > 0 else current_value_eur
+
+    entry_time_str = _record_sell_transaction(state, proceeds, fill_qty, ticker, db_date, signal_source, buy_cost)
+    save_portfolio_state(state, t212_ticker)
+    _update_feedback_loop(entry_time_str, db_date, proceeds, buy_cost, ticker=ticker)
+
+
+def _handle_failed_sell(
+    sell_resp,
+    reconciled: bool,
+    t212_ticker: str,
+    total_qty: float,
+    stop_released: bool,
+    prev_stop_price: float | None,
+    headers: dict,
+    state: dict,
+) -> None:
+    """Handle error logging and re-protection if a sell order fails."""
+    if sell_resp is None and not reconciled:
+        logger.error("❌ Erreur lors de la vente : réseau (pas de réponse de l'API, réconciliation négative)")
+    elif sell_resp is not None:
+        logger.error(f"❌ Erreur lors de la vente : {sell_resp.text}")
+
+    # GO-gate 2: if the standing stop was released to unblock this sale
+    # and the sale failed, re-protect the position at the previous level
+    # immediately — never knowingly leave an open position unprotected.
+    if stop_released and prev_stop_price:
+        re_stop_id, re_stop_price = _place_stop_order(t212_ticker, total_qty, prev_stop_price, headers)
+        pos_state = state.get("active_position") or {}
+        if re_stop_id is not None:
+            pos_state["stop_order_id"] = re_stop_id
+            pos_state["stop_price"] = re_stop_price or prev_stop_price
+            save_portfolio_state(state, t212_ticker)
+            logger.info(
+                f"🔐 Stop de secours re-placé #{re_stop_id} @ {pos_state['stop_price']:.2f} "
+                f"après échec de la vente {t212_ticker}."
+            )
+        else:
+            logger.critical(
+                f"🚨 {t212_ticker} : vente échouée ET re-placement du stop impossible — position "
+                f"SANS protection ; le self-heal du prochain cycle replacera un stop à entry×0.90."
+            )
+
+
+def _execute_sell_order(
+    state, current_pos, ticker, t212_ticker, base_url, headers, db_date, signal_source, force_stop_loss=False, cash_before=None
+):
+    if not state.get("active_position") and not current_pos:
+        logger.warning(f"⚠️ Pas de position active pour {t212_ticker}.")
+        return
+
+    if not current_pos:
+        logger.warning("⚠️ Position présente dans le suivi mais INTROUVABLE sur T212. Reset du suivi.")
+        state["active_position"] = None
+        save_portfolio_state(state, t212_ticker)
+        return
+
+    current_value_eur = current_pos["walletImpact"]["currentValue"]
+    total_qty, stop_id, stop_released, prev_stop_price = _release_standing_stop_if_reserved(
+        state, current_pos, t212_ticker, headers
+    )
+
     if total_qty <= 0:
         logger.error(f"❌ Vente {t212_ticker} impossible : quantité nulle (available=0, quantity=0).")
         return
 
+    # Choix utilisateur en dur : 100% MAX DISPONIBLE (zéro vente partielle)
+    # Toute vente liquide l'intégralité des actions en portefeuille (total_qty).
+    logger.info(f"📤 Vente intégrale en dur : {total_qty} actions (100% de la position).")
+
     # The sell-loss guard blocks any sale that would realize a loss > 0.2%.
-    # That guard must be BYPASSED for emergency exits (stop-loss / time-stop)
-    # — otherwise a position in deep drawdown could never be cut, which is
-    # exactly what let CRUDP.PA drift to -17% (the stop fired but the guard
-    # re-blocked the sale). The bypass is intentionally scoped to
-    # force_stop_loss only; normal SELL signals still respect the guard.
     if force_stop_loss:
         logger.warning(
             f"🚨 FORCE STOP-LOSS: bypassing _check_sell_loss_guard for {t212_ticker} "
@@ -1514,13 +1601,10 @@ def _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, heade
         return
 
     logger.info(f"📉 Vente de TOUTE la position sur {t212_ticker} ({total_qty} actions)")
-
     order_data = {"ticker": t212_ticker, "quantity": -total_qty}
     sell_resp, reconciled = post_order_market(order_data, headers, t212_ticker)
 
     if (sell_resp is not None and sell_resp.status_code in [200, 201, 202]) or reconciled:
-        # GO-gate 3: confirm the actual fill from the broker order history —
-        # the pre-sale snapshot (current_value_eur) is only a fallback.
         sell_fill = _confirm_fill(t212_ticker, headers, side="SELL", expected_qty=total_qty)
         if sell_fill is None:
             logger.error(
@@ -1528,51 +1612,14 @@ def _execute_sell_order(state, current_pos, ticker, t212_ticker, base_url, heade
                 f"la sync du cycle suivant réconcilera."
             )
             return
-        fill_qty = abs(float(sell_fill.get("quantity", 0) or total_qty))
-        fill_price = float(sell_fill.get("price", 0) or (current_value_eur / total_qty if total_qty > 0 else 0))
-        fill_price = _reconcile_sell_fill_price(cash_before, fill_qty, fill_price)
-        proceeds = fill_qty * fill_price if fill_price > 0 else current_value_eur
-        logger.info(f"✅ Vente exécutée et confirmée: {fill_qty} @ {fill_price:.4f} (produit {proceeds:.2f} €).")
-
-        # GO-gate 2: the standing stop order is now useless — cancel it.
-        # `stop_id` is the resolved standing stop (state or broker lookup);
-        # it is None when the pre-sale release already cancelled it.
-        if stop_id:
-            _cancel_order(stop_id, headers)
-
-        if state.get("active_position"):
-            buy_cost = state["active_position"]["buy_budget"]
-        else:
-            avg_price = _get_avg_price(current_pos)
-            t212_buy_cost = avg_price * total_qty
-            buy_cost = t212_buy_cost if t212_buy_cost > 0 else current_value_eur
-        entry_time_str = _record_sell_transaction(state, proceeds, fill_qty, ticker, db_date, signal_source, buy_cost)
-        save_portfolio_state(state, t212_ticker)
-        _update_feedback_loop(entry_time_str, db_date, proceeds, buy_cost)
+        _process_confirmed_sell(
+            state, current_pos, ticker, t212_ticker, sell_fill, total_qty, current_value_eur,
+            cash_before, db_date, signal_source, stop_id, headers
+        )
     else:
-        if sell_resp is None and not reconciled:
-            logger.error("❌ Erreur lors de la vente : réseau (pas de réponse de l'API, réconciliation négative)")
-        elif sell_resp is not None:
-            logger.error(f"❌ Erreur lors de la vente : {sell_resp.text}")
-
-        # GO-gate 2: if the standing stop was released to unblock this sale
-        # and the sale failed, re-protect the position at the previous level
-        # immediately — never knowingly leave an open position unprotected.
-        if stop_released and prev_stop_price:
-            re_stop_id, re_stop_price = _place_stop_order(t212_ticker, total_qty, prev_stop_price, headers)
-            if re_stop_id is not None:
-                pos_state["stop_order_id"] = re_stop_id
-                pos_state["stop_price"] = re_stop_price or prev_stop_price
-                save_portfolio_state(state, t212_ticker)
-                logger.info(
-                    f"🔐 Stop de secours re-placé #{re_stop_id} @ {pos_state['stop_price']:.2f} "
-                    f"après échec de la vente {t212_ticker}."
-                )
-            else:
-                logger.critical(
-                    f"🚨 {t212_ticker} : vente échouée ET re-placement du stop impossible — position "
-                    f"SANS protection ; le self-heal du prochain cycle replacera un stop à entry×0.90."
-                )
+        _handle_failed_sell(
+            sell_resp, reconciled, t212_ticker, total_qty, stop_released, prev_stop_price, headers, state
+        )
 
 def execute_t212_trade(
     signal,

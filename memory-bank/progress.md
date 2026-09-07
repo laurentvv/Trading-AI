@@ -37,8 +37,13 @@
 - [x] Smoke script `tests/smoke_timesfm3.py` (pré-chauffage ~1,3 Go par machine, garde-fou timing 2048).
 - [x] Validation DEV : **282 passed / 3 skipped** ; smoke réel PASS (download 118 s, non gated, CPU 0.38 s @2048) ; cycle `--simul` avec TimesFM 3.0 opérationnel (init cpu + prédiction).
 - [x] Docs : `docs/PLAN_MIGRATION_TIMESFM3_PROD.md` (runbook), README/AGENTS/QWEN/GEMINI/SYSTEM_SUMMARY/i18n (2.5→3.0), AGENTS.md §2.2 invariant TimesFM 3.0.
-- [ ] **Exécuter le runbook sur PROD** (`docs/PLAN_MIGRATION_TIMESFM3_PROD.md` §1→§10) : reset compte démo T212 → git pull + `uv sync` + suppression `vendor/` → HF_TOKEN → smoke PROD → `reset_for_fresh_test.py --yes --include-logs-prod` → relance scheduler → **run 2 de 30 jours** (GO/NO-GO = lancement + 30 j).
+- [x] Déploiement & exécution en cours : scheduler en production sous TimesFM 3.0 depuis le 2026-09-03 23:03 (PID 9688, 114 cycles OK).
+- [x] Audit fonctionnement en cours (2026-09-07) : TimesFM 3.0 100% stable en inférence (~0.38s CPU) ; diagnostic des 5 failles du Weight Manager (doublons intraday, absence de partition ticker, évaluation 1j vs horizon 5j).
+- [x] Remédiation Weight Manager & TimesFM 3.0 (2026-09-07) : partition `ticker`, dédoublonnage intraday, support `return_5d` pour TimesFM, réinitialisation de la DB polluée (`model_performance.db.bak-2026-09-07` préservé), tests unitaires dédiés.
+- [x] Choix utilisateur en dur : 100% Max Disponible (zéro décision partielle) : `sizing_ratio = 1.0` en dur dans `main.py`, 100% du budget alloué à l'achat, liquidation intégrale à la vente (`_execute_sell_order`). Suite complète : **285 passed, 3 skipped, 0 échec**.
 - [x] Merge `TimesFM` → `main` + push (accord utilisateur 2026-09-02), prêt pour `git pull` sur PROD.
+- [x] Skill `python-health-audit` & Audit qualité (2026-09-07) : installation du skill dans `.agents/skills/python-health-audit/`, audit v2 initial (Grade F lié à 1 hotspot F `resolve_previous_predictions: 41` et 2 E), remédiation complète de tous les hotspots E et F (ramenés en Rang C/B), suppression de l'import orphelin `numpy as np` (Ruff = 0), passage de la note globale à **`D`**, suite de tests à **285/285 PASS** (0 régression).
+
 
 ### Remédiation audit J+13 (2026-09-01, validé live — commité ecb5368)
 - [x] F1 CRITIQUE realized P&L : `_fifo_pnl` trie désormais les fills par date (l'API renvoie du + récent au + ancien ; le SELL 20/08 était matché contre le BUY postérieur du 28/08 → realized -1.50 € au lieu de +1.58 €). Validé live : +1.5760 € = chiffre broker. Le state se self-corrige au 1er cycle.

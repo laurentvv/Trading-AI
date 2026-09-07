@@ -393,6 +393,147 @@ def _resolve_existing(rel: str) -> Path | None:
     return p if p.exists() else None
 
 
+def _print_reset_preview(args, logs_prod_targets: list[Path], include_logs_prod: bool) -> None:
+    """Print preview of directories, files, and targets that would be wiped."""
+    if args.dry_run:
+        print("[DRY-RUN] Apercu (rien ne sera modifie):\n")
+
+    cache = REPO_ROOT / WIPE_DATACACHE_DIR
+    print("-- A EFFACER -> backup puis suppression --")
+    n_targets = 0
+    if cache.exists():
+        _, kept_preview, cache_files = _wipe_data_cache(
+            _backup_root() / "_preview", dry=True, keep_quota=args.keep_quota_ledger,
+        )
+        keep_note = f"; conserve: {', '.join(kept_preview)}" if kept_preview else ""
+        print(f"  [dir]  data_cache/  ({cache_files} fichiers{keep_note})")
+        n_targets += 1
+
+    for d in WIPE_DIRS:
+        p = _resolve_existing(d)
+        if p:
+            n = _count_files_in_dir(d)
+            print(f"  [dir]  {d}/  ({n} fichiers)")
+            n_targets += 1
+
+    root_files = _collect_root_runtime_files()
+    if root_files:
+        print(f"  [root] {len(root_files)} fichier(s) runtime a la racine :")
+        by_ext: dict[str, list[str]] = {}
+        for f in root_files:
+            by_ext.setdefault(f.suffix.lower() or "(no-ext)", []).append(f.name)
+        for ext in sorted(by_ext):
+            names = by_ext[ext]
+            preview = ", ".join(sorted(names)[:4])
+            extra = f" +{len(names)-4} autres" if len(names) > 4 else ""
+            print(f"           *{ext}: {preview}{extra}")
+        n_targets += 1
+
+    if logs_prod_targets:
+        mode = (
+            "VIDE (--include-logs-prod)" if include_logs_prod
+            else "PRESERVE (--keep-logs-prod)" if args.keep_logs_prod
+            else "NON DECIDE (interactif / --yes: choix explicite requis)"
+        )
+        print(f"\n-- logs_prod/ — {len(logs_prod_targets)} artefact(s) runtime detecte(s) [{mode}] :")
+        for t in logs_prod_targets[:8]:
+            print(f"           {t.relative_to(REPO_ROOT)}")
+        if len(logs_prod_targets) > 8:
+            print(f"           +{len(logs_prod_targets) - 8} autres")
+        n_targets += 1
+
+    if n_targets == 0:
+        print("  (rien a effacer — deja vierge)")
+
+    print("\n-- CONSERVE (jamais touche) --")
+    for k in sorted(KEEP_PATHS):
+        is_dir = (REPO_ROOT / k).is_dir()
+        print(f"  [keep] {k}{'/' if is_dir else ''}")
+    print("  [keep] *.py *.md *.toml *.yaml *.bat *.lock (fichiers source/config)")
+
+
+def _resolve_logs_prod_decision(args, logs_prod_targets: list[Path], include_logs_prod: bool) -> tuple[bool, int | None]:
+    """Handle interactive confirmation or error when logs_prod target choice is required."""
+    if not (logs_prod_targets and not include_logs_prod and not args.keep_logs_prod):
+        return include_logs_prod, None
+
+    if args.yes:
+        print()
+        print("[ERREUR] Artefacts runtime detectes dans logs_prod/ et aucun choix")
+        print("         explicite fourni. Avec --yes, passez soit :")
+        print("           --include-logs-prod  (reset PROD complet)")
+        print("           --keep-logs-prod      (logs_prod/ = snapshot d'audit DEV)")
+        return include_logs_prod, 2
+
+    if not args.dry_run:
+        print()
+        print("logs_prod/ contient des artefacts runtime (CWD du scheduler PROD).")
+        if confirm("Les inclure dans le vidage (backup puis suppression) ?", False):
+            print("-> logs_prod/ sera inclus dans le vidage.")
+            return True, None
+        else:
+            print("-> logs_prod/ sera PRESERVE.")
+            return False, None
+
+    return include_logs_prod, None
+
+
+def _execute_full_reset(args, include_logs_prod: bool, logs_prod_targets: list[Path]) -> int:
+    """Execute backup and removal of runtime caches, dirs, files, and artifacts."""
+    stamp = _backup_timestamp()
+    backup_dir = _backup_root() / stamp
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    print(f"\nBackup -> {backup_dir.relative_to(REPO_ROOT)}")
+
+    actions = 0
+    cache_moved, kept_names, _ = _wipe_data_cache(backup_dir, dry=False, keep_quota=args.keep_quota_ledger)
+    if cache_moved:
+        keep_note = f" (conserve: {', '.join(kept_names)})" if kept_names else ""
+        print(f"  wipe   data_cache/{keep_note}")
+        actions += 1
+
+    for d in WIPE_DIRS:
+        if _wipe_generic_dir(d, backup_dir, dry=False):
+            print(f"  wipe   {d}/")
+            actions += 1
+
+    root_files = _collect_root_runtime_files()
+    n_root = _wipe_root_files(root_files, backup_dir, dry=False)
+    if n_root:
+        print(f"  wipe   {n_root} fichier(s) runtime racine (*.csv/*.json/*.db/*.log/*.png...)")
+        actions += 1
+
+    if logs_prod_targets and include_logs_prod:
+        n_lp = 0
+        for t in logs_prod_targets:
+            if t.resolve().relative_to(REPO_ROOT).parts[0] != LOGS_PROD_DIR:
+                continue
+            if _move_to_backup(t, backup_dir):
+                n_lp += 1
+        if n_lp:
+            print(f"  wipe   logs_prod/ ({n_lp} artefact(s) runtime)")
+            actions += 1
+
+    print()
+    print("=" * 72)
+    print(f"  VIDAGE COMPLET TERMINE — {actions} element(s) efface(s).")
+    print("=" * 72)
+    print()
+    print("PROCHAINES ETAPES:")
+    print("  1. Le 1er cycle va RE-TELECHARGER les donnees de marche (~5 ans),")
+    print("     reentrainer classic (calibration isotonic), le PPO depuis zero,")
+    print("     et re-fetcher les donnees EIA -> il sera LONG (plusieurs min).")
+    print("  2. T212 (DEMO) : reset du compte demo dans l'app T212 (annule positions,")
+    print("     stops GTC et historique -> l'equity FIFO repart a 1000 EUR/ticker),")
+    print("     ou clôturez manuellement toute position residuelle avant de")
+    print("     relancer, sinon le state se re-synchronise dessus.")
+    print("  3. Lancez en DEMO pour valider les mecanismes de sortie")
+    print("     (stop-loss -5/-10%, take-profit +8%, trailing -3%, time-stop 15j).")
+    print(f"  4. Backup disponible dans {backup_dir.relative_to(REPO_ROOT)}/")
+    print("     (a supprimer manuellement une fois le test valide).")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="MAX reset: wipe all learned state, caches and history for a virgin restart."
@@ -445,93 +586,13 @@ def main() -> int:
     print()
     print("PRESERVE: .env* (cles), .venv, .git, logs_prod (archive), code source.")
     quota_label = "CONSERVE (--keep-quota-ledger)" if args.keep_quota_ledger else "EFFACE (mode demo)"
-    print(f"Ledger quota Gemini: {quota_label}.")
-    print()
+    print(f"Ledger quota Gemini: {quota_label}.\n")
 
-    # ---- Preview (always shown) -----------------------------------------
-    if args.dry_run:
-        print("[DRY-RUN] Apercu (rien ne sera modifie):\n")
+    _print_reset_preview(args, logs_prod_targets, include_logs_prod)
 
-    # data_cache preview
-    cache = REPO_ROOT / WIPE_DATACACHE_DIR
-    print("-- A EFFACER -> backup puis suppression --")
-    n_targets = 0
-    if cache.exists():
-        _, kept_preview, cache_files = _wipe_data_cache(
-            _backup_root() / "_preview", dry=True, keep_quota=args.keep_quota_ledger,
-        )
-        keep_note = f"; conserve: {', '.join(kept_preview)}" if kept_preview else ""
-        print(f"  [dir]  data_cache/  ({cache_files} fichiers{keep_note})")
-        n_targets += 1
-
-    # other wipe dirs
-    for d in WIPE_DIRS:
-        p = _resolve_existing(d)
-        if p:
-            n = _count_files_in_dir(d)
-            print(f"  [dir]  {d}/  ({n} fichiers)")
-            n_targets += 1
-
-    # root-level pattern files
-    root_files = _collect_root_runtime_files()
-    if root_files:
-        print(f"  [root] {len(root_files)} fichier(s) runtime a la racine :")
-        # Group by extension for compactness.
-        by_ext: dict[str, list[str]] = {}
-        for f in root_files:
-            by_ext.setdefault(f.suffix.lower() or "(no-ext)", []).append(f.name)
-        for ext in sorted(by_ext):
-            names = by_ext[ext]
-            preview = ", ".join(sorted(names)[:4])
-            extra = f" +{len(names)-4} autres" if len(names) > 4 else ""
-            print(f"           *{ext}: {preview}{extra}")
-        n_targets += 1
-
-    # logs_prod/ runtime artifacts (scheduler CWD on PROD)
-    if logs_prod_targets:
-        mode = (
-            "VIDE (--include-logs-prod)" if include_logs_prod
-            else "PRESERVE (--keep-logs-prod)" if args.keep_logs_prod
-            else "NON DECIDE (interactif / --yes: choix explicite requis)"
-        )
-        print(f"\n-- logs_prod/ — {len(logs_prod_targets)} artefact(s) runtime detecte(s) "
-              f"[{mode}] :")
-        for t in logs_prod_targets[:8]:
-            print(f"           {t.relative_to(REPO_ROOT)}")
-        if len(logs_prod_targets) > 8:
-            print(f"           +{len(logs_prod_targets) - 8} autres")
-        n_targets += 1
-
-    if n_targets == 0:
-        print("  (rien a effacer — deja vierge)")
-
-    print("\n-- CONSERVE (jamais touche) --")
-    for k in sorted(KEEP_PATHS):
-        # Directories get a trailing slash, files (like .env) don't.
-        is_dir = (REPO_ROOT / k).is_dir()
-        print(f"  [keep] {k}{'/' if is_dir else ''}")
-    print("  [keep] *.py *.md *.toml *.yaml *.bat *.lock (fichiers source/config)")
-
-    # ---- logs_prod/ explicit choice (before the global confirm gate) -------
-    if logs_prod_targets and not include_logs_prod and not args.keep_logs_prod:
-        if args.yes:
-            # Automation safety: NEVER silently wipe NOR silently keep the live
-            # PROD state (the 2026-08-19 reset silently kept it -> polluted
-            # adaptive weights until 2026-08-24).
-            print()
-            print("[ERREUR] Artefacts runtime detectes dans logs_prod/ et aucun choix")
-            print("         explicite fourni. Avec --yes, passez soit :")
-            print("           --include-logs-prod  (reset PROD complet)")
-            print("           --keep-logs-prod      (logs_prod/ = snapshot d'audit DEV)")
-            return 2
-        if not args.dry_run:
-            print()
-            print("logs_prod/ contient des artefacts runtime (CWD du scheduler PROD).")
-            if confirm("Les inclure dans le vidage (backup puis suppression) ?", False):
-                include_logs_prod = True
-                print("-> logs_prod/ sera inclus dans le vidage.")
-            else:
-                print("-> logs_prod/ sera PRESERVE.")
+    include_logs_prod, exit_code = _resolve_logs_prod_decision(args, logs_prod_targets, include_logs_prod)
+    if exit_code is not None:
+        return exit_code
 
     gate = dry_run_or_confirm(
         args.dry_run,
@@ -541,65 +602,7 @@ def main() -> int:
     if gate is not None:
         return gate
 
-    # ---- Real execution --------------------------------------------------
-    stamp = _backup_timestamp()
-    backup_dir = _backup_root() / stamp
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    print(f"\nBackup -> {backup_dir.relative_to(REPO_ROOT)}")
-
-    actions = 0
-
-    # 1. Full wipe of data_cache/ (preserving quota ledger if requested).
-    cache_moved, kept_names, _ = _wipe_data_cache(backup_dir, dry=False, keep_quota=args.keep_quota_ledger)
-    if cache_moved:
-        keep_note = f" (conserve: {', '.join(kept_names)})" if kept_names else ""
-        print(f"  wipe   data_cache/{keep_note}")
-        actions += 1
-
-    # 2. Wipe each generic runtime directory.
-    for d in WIPE_DIRS:
-        if _wipe_generic_dir(d, backup_dir, dry=False):
-            print(f"  wipe   {d}/")
-            actions += 1
-
-    # 3. Wipe root-level runtime files by pattern (state, DBs, logs, dashboards).
-    root_files = _collect_root_runtime_files()
-    n_root = _wipe_root_files(root_files, backup_dir, dry=False)
-    if n_root:
-        print(f"  wipe   {n_root} fichier(s) runtime racine (*.csv/*.json/*.db/*.log/*.png...)")
-        actions += 1
-
-    # 4. Wipe logs_prod/ runtime artifacts (PROD scheduler CWD) when included.
-    if logs_prod_targets and include_logs_prod:
-        n_lp = 0
-        for t in logs_prod_targets:
-            # Paranoia guard: never touch anything outside logs_prod/ here.
-            if t.resolve().relative_to(REPO_ROOT).parts[0] != LOGS_PROD_DIR:
-                continue
-            if _move_to_backup(t, backup_dir):
-                n_lp += 1
-        if n_lp:
-            print(f"  wipe   logs_prod/ ({n_lp} artefact(s) runtime)")
-            actions += 1
-
-    print()
-    print("=" * 72)
-    print(f"  VIDAGE COMPLET TERMINE — {actions} element(s) efface(s).")
-    print("=" * 72)
-    print()
-    print("PROCHAINES ETAPES:")
-    print("  1. Le 1er cycle va RE-TELECHARGER les donnees de marche (~5 ans),")
-    print("     reentrainer classic (calibration isotonic), le PPO depuis zero,")
-    print("     et re-fetcher les donnees EIA -> il sera LONG (plusieurs min).")
-    print("  2. T212 (DEMO) : reset du compte demo dans l'app T212 (annule positions,")
-    print("     stops GTC et historique -> l'equity FIFO repart a 1000 EUR/ticker),")
-    print("     ou clôturez manuellement toute position residuelle avant de")
-    print("     relancer, sinon le state se re-synchronise dessus.")
-    print("  3. Lancez en DEMO pour valider les mecanismes de sortie")
-    print("     (stop-loss -5/-10%, take-profit +8%, trailing -3%, time-stop 15j).")
-    print(f"  4. Backup disponible dans {backup_dir.relative_to(REPO_ROOT)}/")
-    print("     (a supprimer manuellement une fois le test valide).")
-    return 0
+    return _execute_full_reset(args, include_logs_prod, logs_prod_targets)
 
 
 if __name__ == "__main__":

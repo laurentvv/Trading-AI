@@ -356,3 +356,50 @@ Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-
 - Validation DEV : 23/23 ciblés, **282 passed / 3 skipped** (suite complète), smoke réel PASS (téléchargement 118 s anonyme — non gated ; init CPU ; inférence 0.38 s @2048 / 0.22 s @1024 → 2048 confirmé), cycle `uv run main.py --simul` exit 0 en 100 s avec TimesFM 3.0 opérationnel dans l'ensemble (poids 0.143, table des modèles + journal).
 - Reste à faire (utilisateur, machine PROD) : exécuter `docs/PLAN_MIGRATION_TIMESFM3_PROD.md` (reset compte démo T212 → git pull + uv sync + suppression vendor/ → HF_TOKEN → smoke PROD → reset `--yes --include-logs-prod` → relance scheduler) = démarrage run 2 (GO/NO-GO +30 j). Non commité/pushé (règle AGENTS.md §5).
 - **Test T212 démo complet (2026-09-02 20:50, machine DEV)** : `uv run main.py --t212` (T212_ENV=demo vérifié) — exit 0, 119 s pour les 2 tickers. Validés : bannière EXÉCUTION (DEMO) ; sync broker OK (OD7Fd_EQ flat equity 1000,00 € ; SXRVd_EQ position run-1 ré-adoptée qty 0,1982 @1458,779, **equity 998,65 € = 1000 + 1,58 FIFO réalisé − 2,93 latent** — le tri FIFO chronologique J+13 donne bien le chiffre broker) ; TimesFM 3.0 prédict dans le consensus (CRUDP SELL 1,00 → final SELL 14,94 % non exécuté car seuil ; SXRV HOLD 0,07) ; aucune fuite d'ordre sur HOLD ; journal avec T212_Equity cohérent. Pipeline 3.0 + T212 prêt pour PROD.
+
+## [2026-09-07] eval | Audit du fonctionnement en cours (upgrade TimesFM 3.0, scheduler & T212)
+- **Stabilité scheduler & GO-gates** : Superviseur (PID 9688) 100% stable en exécution continue depuis le 2026-09-03 23:03 (~4 jours consécutifs, 114 cycles de 30 min réalisés). 0 crash, 0 freeze. Verrou `scheduler.lock` rafraîchi nominalement toutes les 30s. Morning Briefs + FinAcumen exécutés chaque nuit à 01:00 sans accroc. Rapport Weekend Council 2026-09-05 généré avec consensus HOLD unanime.
+- **État Trading 212 & Portefeuille** : Intégrité totale constatée. SXRVd_EQ maintient sa position réelle (0.1982 @ 1458.78 €) protégée par un stop broker GTC valide (#54250294524 @ 1314.63 €). OD7Fd_EQ reste flat (1000.00 €). Equity globale = 1001.70 € (positif : +1.58 € réalisé FIFO + 0.12 € latent). 0 transaction fantôme en DB.
+- **Diagnostic opérationnel TimesFM 3.0** :
+  - Intégration technique irréprochable : package `timesfm3` chargé sur CPU via safetensors HuggingFace, prédictions exécutées en ~0.38s sans aucune erreur.
+  - Signaux émis : sur SXRV.DE, prédictions de repli modéré (-0.86% à 5j) amenant à HOLD(0.03-0.15) puis SELL(0.43) ; sur CRUDP.PA, après le rallye vertical du pétrole (+11% de 82$ à 91.5$), TimesFM anticipe une correction de mean-reversion (-2.89% à 5j, 91.48 -> 88.83) générant 57 votes consécutifs de SELL(1.00).
+- **Pondération adaptative (Poids TimesFM = 0.000)** :
+  - Win_rate mesuré à 20.00% dans `model_performance.db` (19/95 obs correctes) sous le plancher `WIN_RATE_SOFT_FLOOR=0.25`, amenant le Weight Manager à amortir son poids à 0.000.
+  - Cause racine : les prédictions sont résolues sans colonne `ticker` contre les rendements 1-jour du NASDAQ consolidant en zone morte (|return| < 0.5%), favorisant artificiellement les modèles votant HOLD (Sentiment 85.3%, LLM Text 61.1%) et pénalisant les modèles directionnels.
+  - L'amortissement joue son rôle de protection anti-bruit : le consensus global reste stable (SXRV en HOLD 18.96%, CRUDP en SELL modéré non-exécuté).
+
+## [2026-09-07] fix | Remédiation adaptive_weight_manager & évaluation TimesFM 3.0
+- **Objectif** : Corriger les failles identifiées dans le suivi de performance des modèles et appliquer le choix en dur de l'utilisateur (100% Max Disponible, zéro décision partielle).
+- **Failles résolues dans le Weight Manager (`src/adaptive_weight_manager.py` & `src/enhanced_trading_example.py`)** :
+  1. Ajout de la colonne `ticker` dans `model_performance_history` (migration PRAGMA automatique) et isolation complète des résolutions par actif (`CL=F` pour CRUDP.PA vs `^NDX` pour SXRV.DE).
+  2. Dédoublonnage intraday dans `record_model_prediction` : en boucle scheduler 30 min, les prédictions multiples d'un même jour ouvré mettent à jour l'enregistrement non résolu existant au lieu d'insérer des doublons (fin de l'inflation de 38 lignes par jour).
+  3. Support multi-horizon (`MODEL_HORIZONS = {"timesfm": 5}`) : calcul et stockage de `return_5d` en plus de `return_1d`.
+  4. Résolution différée pour les prédictions 5 jours : `timesfm` n'est plus pénalisé le lendemain à J+1 sur le bruit 1 jour, mais résolu uniquement lorsque `return_5d` est disponible.
+  5. Nettoyage de la base polluée : sauvegarde `model_performance.db.bak-2026-09-07` et réinitialisation de `model_performance_history` / `model_performance_summary` pour repartir sur des statistiques saines et dédoublonnées (TimesFM rétabli à son poids de base de ~15.6%).
+- **Choix utilisateur en dur : 100% MAX DISPONIBLE (zéro décision partielle)** :
+  1. `main.py` : `sizing_ratio = 1.0` en dur. Suppression du calcul fractionnaire (`rec_eur / budget_ticker` entre 0.3 et 0.75). Chaque signal BUY mobilise 100% du budget alloué au ticker.
+  2. `src/t212_executor.py` : `target_budget` alloue 100% du budget alloué (`available_cash * sizing_ratio`). Une marge de sécurité de 1% est réservée uniquement si le cash broker total est le facteur limitant pour parer à tout rejet au marché pour glissement/spread.
+  3. Vente intégrale : `_execute_sell_order` liquide toujours 100% des actions détenues (`total_qty`).
+  4. Documentation mise à jour : `GEMINI.md` et `memory-bank/` intègrent la règle "Exposition Maximale en Dur (100% Max Disponible)".
+- **Validation** :
+  - Suite ciblée (`tests/test_adaptive_weight_manager.py`, `tests/test_prod_fixes_2026_08_24.py`) : **25/25 PASS**.
+  - Suite complète projet : **285 passed, 3 skipped, 0 échec** en 64s. 100% vert.
+
+## [2026-09-07] fix | Installation skill python-health-audit & Remédiation qualité de code (F → D)
+- **Objectif** : Installer le skill `python-health-audit` au niveau projet (`.agents/skills/python-health-audit/`), auditer le codebase Trading-AI et exécuter le plan d'action correctif immédiat.
+- **Audit initial** :
+  - Grade : **F** (imposé par la présence d'au moins 1 hotspot de Rang F dans le référentiel v2).
+  - Métriques initiales : 1 finding Ruff (`F401` `numpy as np` dans `src/enhanced_trading_example.py:9`), 1 hotspot Rang F (`AdaptiveWeightManager.resolve_previous_predictions: 41`), 2 hotspots Rang E (`reset_for_fresh_test.py:main: 40`, `_execute_sell_order: 36`), 11 blocs dupliqués, MI moyen 55.67.
+- **Remédiations appliquées** :
+  1. **Élimination Ruff F401** : suppression de l'import orphelin `numpy as np` dans `src/enhanced_trading_example.py:9`. Score Ruff ramené à **0 finding** sur le code applicatif.
+  2. **Refactorisation Rang F `resolve_previous_predictions`** (`src/adaptive_weight_manager.py`) : décomposition en sous-méthodes modulaires `_extract_returns_and_outcomes`, `_resolve_1d_records`, et `_resolve_multi_day_records`. Complexité cyclomatique réduite de **41 (Rang F) à 12 (Rang C)**.
+  3. **Refactorisation Rang E `_execute_sell_order`** (`src/t212_executor.py`) : décomposition en fonctions spécialisées `_release_standing_stop_if_reserved`, `_process_confirmed_sell`, et `_handle_failed_sell`. Complexité réduite de **36 (Rang E) à 11 (Rang C)**. Préservation intégrale des invariants GO-gate (annulation préalable du stop, réconciliation delta cash).
+  4. **Refactorisation Rang E `main`** (`reset_for_fresh_test.py`) : modularisation avec `_print_reset_preview`, `_resolve_logs_prod_decision`, et `_execute_full_reset`. Complexité réduite de **40 (Rang E) à 6 (Rang B)**.
+- **Résultats post-remédiation** :
+  - Hotspots Rang E / F : **0** (tous éliminés).
+  - Erreurs Ruff : **0** (`ruff_density: 0.0`).
+  - Indice de maintenabilité moyen : **55.63** ($\ge 30$).
+  - Duplication : 11 ($\le 15$).
+  - Note globale v2 : **`D`** (critères d'éligibilité Rang D validés à 100%).
+  - **Validation suite de tests** : **285/285 tests PASS** (3 skipped, 0 échec) en 78s. Aucune régression.
+

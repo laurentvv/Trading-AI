@@ -221,7 +221,77 @@ def test_soft_winrate_ramp_preserves_diversity(tmp_path):
     assert WIN_RATE_SOFT_FLOOR < wp.win_rate < WIN_RATE_SOFT_CEIL
 
 
+def test_record_prediction_intraday_deduplication(tmp_path):
+    """Multiple 30-min scheduler cycles on the same date must update the unresolved
+    row rather than inserting duplicate records that skew win_rate statistics."""
+    mgr = AdaptiveWeightManager(
+        db_path=str(tmp_path / "perf_dedup.db"),
+        min_observations=1,
+    )
+    import sqlite3
+
+    # Simulate 3 cycles on 2026-09-07 for SXRV.DE
+    mgr.record_model_prediction("2026-09-07", "timesfm", "BUY", 0.60, ticker="SXRV.DE")
+    mgr.record_model_prediction("2026-09-07", "timesfm", "BUY", 0.75, ticker="SXRV.DE")
+    mgr.record_model_prediction("2026-09-07", "timesfm", "SELL", 0.80, ticker="SXRV.DE")
+
+    conn = sqlite3.connect(mgr.db_path)
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*), signal_predicted, confidence FROM model_performance_history WHERE date = '2026-09-07' AND model_name = 'timesfm' AND ticker = 'SXRV.DE'")
+    row = cur.fetchone()
+    conn.close()
+
+    assert row[0] == 1, f"Expected exactly 1 deduplicated row, got {row[0]}"
+    assert row[1] == "SELL", f"Expected updated signal SELL, got {row[1]}"
+    assert row[2] == 0.80, f"Expected updated confidence 0.80, got {row[2]}"
+
+
+def test_ticker_isolation_and_multi_day_horizon(tmp_path):
+    """Ensure predictions for SXRV.DE and CRUDP.PA are isolated, and TimesFM evaluates on return_5d."""
+    mgr = AdaptiveWeightManager(
+        db_path=str(tmp_path / "perf_ticker.db"),
+        min_observations=2,
+    )
+
+    # Record 2 predictions for SXRV.DE and 2 for CRUDP.PA
+    dates = ["2026-09-01", "2026-09-02"]
+    for d in dates:
+        mgr.record_model_prediction(d, "timesfm", "BUY", 0.8, ticker="SXRV.DE")
+        mgr.record_model_prediction(d, "classic", "BUY", 0.8, ticker="SXRV.DE")
+        mgr.record_model_prediction(d, "timesfm", "SELL", 0.8, ticker="CRUDP.PA")
+
+    # Resolve SXRV.DE with return_1d negative (-2%) but return_5d positive (+5%)
+    # classic (1d horizon) should lose (BUY on -2%), timesfm (5d horizon) should win (BUY on +5%)
+    dates_prices_sxrv = {
+        "2026-09-01": {"today": 100.0, "next_1d": 98.0, "next_5d": 105.0},
+        "2026-09-02": {"today": 98.0, "next_1d": 96.0, "next_5d": 104.0},
+    }
+    resolved = mgr.resolve_previous_predictions(dates_prices_sxrv, ticker="SXRV.DE")
+    assert resolved == 4  # 2 models x 2 dates = 4 rows
+
+    # CRUDP.PA should NOT have been resolved by SXRV.DE prices
+    import sqlite3
+    conn = sqlite3.connect(mgr.db_path)
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM model_performance_history WHERE ticker = 'CRUDP.PA' AND actual_outcome IS NOT NULL")
+    crud_resolved = cur.fetchone()[0]
+    conn.close()
+    assert crud_resolved == 0, "CRUDP.PA predictions should remain unresolved"
+
+    # Evaluate SXRV.DE performances
+    perf_timesfm = mgr.calculate_model_performance("timesfm", ticker="SXRV.DE")
+    perf_classic = mgr.calculate_model_performance("classic", ticker="SXRV.DE")
+
+    assert perf_timesfm is not None
+    assert perf_classic is not None
+    # TimesFM judged on return_5d (+5%, +8%) -> 100% win rate
+    assert perf_timesfm.win_rate == 1.0
+    # Classic judged on return_1d (-2%, -2%) -> 0% win rate
+    assert perf_classic.win_rate == 0.0
+
+
 if __name__ == "__main__":
     import unittest
 
     unittest.main()
+

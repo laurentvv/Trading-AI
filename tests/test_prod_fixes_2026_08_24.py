@@ -430,5 +430,32 @@ class TestEiaCircuitBreaker(unittest.TestCase):
             self.assertEqual(len(second), 3)
 
 
+class TestMaxAvailableSizing(unittest.TestCase):
+    """User choice en dur: 100% max available on BUY and SELL (no partial sizing)."""
+
+    @patch("src.t212_executor.post_order_market")
+    @patch("src.t212_executor.get_real_price_eur")
+    def test_buy_allocates_100_percent_of_available_budget(self, mock_price, mock_post):
+        from src.t212_executor import _execute_buy_order
+
+        mock_price.return_value = 100.0
+        mock_post.return_value = (_resp(201, {"id": 1}), False)
+
+        state = {"current_capital": 1000.0}
+        portfolio = {"cash": 5000.0, "cash_ok": True}
+
+        with patch("src.t212_executor._confirm_fill", return_value={"quantity": 10.0, "averagePricePaid": 100.0}), \
+             patch("src.t212_executor.save_portfolio_state"), \
+             patch("src.t212_executor._place_stop_order", return_value=(None, None)):
+            _execute_buy_order(
+                state, None, "SXRV.DE", "SXRVd_EQ", portfolio, "https://x", {}, "2026-09-07 10:00:00", "IA_HYBRID", sizing_ratio=1.0
+            )
+
+        # target_budget should be 1000.0 (100% of available_cash), quantity = 1000 / 100 = 10.0
+        self.assertEqual(mock_post.call_count, 1)
+        posted_order = mock_post.call_args[0][0]
+        self.assertEqual(posted_order["quantity"], 10.0)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -6,7 +6,6 @@ dans le système de trading AI existant.
 
 import logging
 import re
-import numpy as np
 import pandas as pd
 import sqlite3
 from typing import Dict
@@ -410,7 +409,7 @@ class EnhancedTradingSystem:
         # Tâches A4/A5/A6 : CPU models indépendants (1 future chacun)
         def _timesfm_task():
             try:
-                return get_timesfm_prediction(data_with_features)
+                return get_timesfm_prediction(data_with_features, ticker=self.ticker)
             except Exception as e:
                 logger.error(f"TimesFM failed: {e}")
                 return {"signal": "HOLD", "confidence": 0.0, "analysis": f"TimesFM error: {e}"}
@@ -668,8 +667,13 @@ class EnhancedTradingSystem:
         for i in range(max(0, len(hist_close) - 30), len(hist_close) - 1):
             date_str = hist_close.index[i]
             next_price = hist_close.iloc[i + 1]
-            dates_prices[date_str] = (hist_close.iloc[i], next_price)
-        self.weight_manager.resolve_previous_predictions(dates_prices)
+            next_5d_price = hist_close.iloc[i + 5] if (i + 5 < len(hist_close)) else None
+            dates_prices[date_str] = {
+                "today": hist_close.iloc[i],
+                "next_1d": next_price,
+                "next_5d": next_5d_price,
+            }
+        self.weight_manager.resolve_previous_predictions(dates_prices, ticker=self.ticker)
 
         # 3. Calcul des poids adaptatifs
         returns = hist_data["Close"].pct_change().dropna()
@@ -682,7 +686,7 @@ class EnhancedTradingSystem:
         current_volatility = compute_daily_volatility(returns)
 
         weight_adjustment = self.weight_manager.calculate_adaptive_weights(
-            market_data=hist_data["Close"], volatility=current_volatility
+            market_data=hist_data["Close"], volatility=current_volatility, ticker=self.ticker
         )
 
         logger.info("Poids adaptatifs calculés:")
@@ -795,6 +799,7 @@ class EnhancedTradingSystem:
                 signal=dec.signal,
                 confidence=dec.confidence,
                 market_regime=risk_metrics.risk_level.name,
+                ticker=self.ticker,
             )
 
         return {

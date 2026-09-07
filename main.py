@@ -162,18 +162,14 @@ def _execute_t212_orders(
         console.print(
             f"[bold yellow]🚀 Execution of the signal on Trading 212 for {ticker}... (original: {signal})[/bold yellow]"
         )
+        # Choix utilisateur en dur : 100% MAX DISPONIBLE (zéro décision partielle)
+        # L'utilisateur refuse les allocations partielles (fractionnement / sizing progressif).
+        # Chaque achat mobilise 100% du budget alloué au ticker.
+        sizing_ratio = 1.0
         budget_ticker = INITIAL_BUDGETS.get(t212_key, DEFAULT_INITIAL_BUDGET)
-        rec_eur = None
-        try:
-            rec_eur = results["position_sizing"].recommended_size
-            sizing_ratio = max(0.3, min(rec_eur / budget_ticker, 1.0)) if budget_ticker > 0 else 0.75
-        except (KeyError, AttributeError, TypeError):
-            sizing_ratio = 0.75
-
-        rec_str = f"{rec_eur:.0f}€" if rec_eur is not None else "?"
         logger.info(
-            f"📏 Sizing: risk-manager recommended {rec_str} "
-            f"-> sizing_ratio={sizing_ratio:.2f} (budget {budget_ticker}€)"
+            f"📏 Sizing : 100% MAX DISPONIBLE en dur -> sizing_ratio={sizing_ratio:.2f} "
+            f"(budget {budget_ticker}€, aucune décision partielle)"
         )
 
         execute_t212_trade(

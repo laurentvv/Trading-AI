@@ -18,7 +18,7 @@ Le moteur fusionne un modèle quantitatif classique, un LLM textuel, un LLM visu
 - **Modèle Vincent Ganne :** Détection de points bas boursiers via l'analyse du Pétrole (WTI/Brent), du Gaz Naturel (TTF), de l'Urée, du Dollar (DXY) et des moyennes mobiles à 200 jours.
 - **Intégration Hyperliquid :** Capture du sentiment spéculatif sur le Pétrole via les données blockchain (*Funding Rate*, *Open Interest*).
 - **Gestion des Risques "Trend-Aware" :** Le système adapte ses seuils de confiance selon la tendance du marché (plus agressif en Bull Market).
-- **Sizing Progressif :** Exposition dynamique du portefeuille (75% à 100%) basée sur le score de consensus de l'IA.
+- **Exposition Maximale en Dur (100% Max Disponible) :** Décision intégrale en dur sans fractionnement ni sizing partiel. Chaque achat alloue 100% du budget disponible du ticker, et chaque vente liquide 100% de la position active.
 - **Weekend Council (11ème Voix) :** Délibération rétrospective asynchrone le week-end réunissant 6 personas sur des providers cloud distincts (Groq, Cerebras, Mistral, Cohere, OpenRouter/Nvidia, Gemini Flash & Pro).
 - **FinAcumen (Mémoire d'Expérience) :** Exécution asynchrone d'un agent cognitif profond, injectant son analyse structurelle dans le Morning Brief pour guider les décisions temps réel.
 

@@ -35,16 +35,23 @@ WIN_RATE_SOFT_CEIL = 0.50
 # to classic+oil_bench and stopped trading entirely.
 WIN_RATE_MIN_SAMPLES = 20
 
+# Horizon de prédiction par modèle (en jours de cotation). Par défaut 1 jour.
+# Les modèles multi-jours (ex: TimesFM 3.0 à 5 jours) ne doivent pas être
+# évalués sur le bruit 1-jour.
+MODEL_HORIZONS = {"timesfm": 5}
 
-def _signal_correct_mask(df: pd.DataFrame) -> pd.Series:
+
+def _signal_correct_mask(df: pd.DataFrame, return_col: str = "return_1d") -> pd.Series:
     """Return a boolean mask: was each prediction directionally correct?
 
     To avoid rewarding blind BUY models in a naturally drifting market,
     a BUY is only considered correct if the return exceeds the HOLD dead-zone.
     Otherwise, HOLD was the better risk-adjusted decision.
+    Supports evaluating multi-day horizon models via `return_col` (e.g. return_5d).
     """
     sig = df["signal_predicted"]
-    ret = df["return_1d"]
+    col = return_col if (return_col in df.columns and df[return_col].notnull().any()) else "return_1d"
+    ret = df[col]
     return (
         (sig.isin(["BUY", "STRONG_BUY"]) & (ret > HOLD_NEUTRAL_RETURN_THRESHOLD))
         | (sig.isin(["SELL", "STRONG_SELL"]) & (ret < -HOLD_NEUTRAL_RETURN_THRESHOLD))
@@ -193,7 +200,7 @@ class AdaptiveWeightManager:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                # Create performance tracking table
+                # Create performance tracking table with ticker
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS model_performance_history (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -205,29 +212,35 @@ class AdaptiveWeightManager:
                         return_5d REAL,
                         confidence REAL,
                         market_regime TEXT,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        ticker TEXT DEFAULT 'default'
                     )
                 """)
 
-            # Create aggregated performance table
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS model_performance_summary (
-                    model_name TEXT PRIMARY KEY,
-                    accuracy REAL,
-                    precision_score REAL,
-                    recall_score REAL,
-                    f1_score REAL,
-                    sharpe_ratio REAL,
-                    win_rate REAL,
-                    avg_return REAL,
-                    volatility REAL,
-                    max_drawdown REAL,
-                    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
+                # Migration: Ensure ticker column exists if table was created previously
+                cursor.execute("PRAGMA table_info(model_performance_history)")
+                columns = [row[1] for row in cursor.fetchall()]
+                if "ticker" not in columns:
+                    cursor.execute("ALTER TABLE model_performance_history ADD COLUMN ticker TEXT DEFAULT 'default'")
 
-            conn.commit()
-            conn.close()
+                # Create aggregated performance table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS model_performance_summary (
+                        model_name TEXT PRIMARY KEY,
+                        accuracy REAL,
+                        precision_score REAL,
+                        recall_score REAL,
+                        f1_score REAL,
+                        sharpe_ratio REAL,
+                        win_rate REAL,
+                        avg_return REAL,
+                        volatility REAL,
+                        max_drawdown REAL,
+                        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+
+                conn.commit()
             logger.info("Performance database initialized successfully")
 
         except Exception as e:
@@ -240,23 +253,48 @@ class AdaptiveWeightManager:
         signal: str,
         confidence: float,
         market_regime: str = "unknown",
+        ticker: str = "default",
     ):
-        """Record a model's prediction for later performance evaluation"""
+        """Record a model's prediction for later performance evaluation.
+
+        Deduplication: In a 30-min scheduler loop, multiple cycles run each day.
+        If an unresolved prediction already exists for (date, ticker, model_name),
+        update its signal/confidence instead of inserting duplicate rows that distort
+        n_observations and statistical validity.
+        """
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
 
-            cursor.execute(
-                """
-                INSERT INTO model_performance_history
-                (date, model_name, signal_predicted, confidence, market_regime)
-                VALUES (?, ?, ?, ?, ?)
-            """,
-                (date, model_name, signal, confidence, market_regime),
-            )
+                cursor.execute(
+                    """
+                    SELECT id FROM model_performance_history
+                    WHERE date = ? AND model_name = ? AND ticker = ? AND actual_outcome IS NULL
+                    ORDER BY id DESC LIMIT 1
+                    """,
+                    (date, model_name, ticker),
+                )
+                existing = cursor.fetchone()
+                if existing:
+                    cursor.execute(
+                        """
+                        UPDATE model_performance_history
+                        SET signal_predicted = ?, confidence = ?, market_regime = ?, created_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                        """,
+                        (signal, confidence, market_regime, existing[0]),
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        INSERT INTO model_performance_history
+                        (date, model_name, signal_predicted, confidence, market_regime, ticker)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                        (date, model_name, signal, confidence, market_regime, ticker),
+                    )
 
-            conn.commit()
-            conn.close()
+                conn.commit()
 
         except Exception as e:
             logger.error(f"Failed to record prediction: {e}")
@@ -295,35 +333,48 @@ class AdaptiveWeightManager:
         actual_outcome: int,
         return_1d: float,
         return_5d: float = None,
+        ticker: str = None,
     ) -> int:
         """Update outcomes for ALL models that have a recorded prediction on this date.
         Uses a single connection. Returns the number of rows updated."""
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                UPDATE model_performance_history
-                SET actual_outcome = ?, return_1d = ?, return_5d = ?
-                WHERE date = ? AND actual_outcome IS NULL
-            """,
-                (actual_outcome, return_1d, return_5d, date),
-            )
-            updated = cursor.rowcount
-            conn.commit()
-            conn.close()
-            return updated
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                if ticker:
+                    cursor.execute(
+                        """
+                        UPDATE model_performance_history
+                        SET actual_outcome = ?, return_1d = ?, return_5d = ?
+                        WHERE date = ? AND (ticker = ? OR ticker = 'default') AND actual_outcome IS NULL
+                    """,
+                        (actual_outcome, return_1d, return_5d, date, ticker),
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        UPDATE model_performance_history
+                        SET actual_outcome = ?, return_1d = ?, return_5d = ?
+                        WHERE date = ? AND actual_outcome IS NULL
+                    """,
+                        (actual_outcome, return_1d, return_5d, date),
+                    )
+                updated = cursor.rowcount
+                conn.commit()
+                return updated
         except Exception as e:
             logger.error(f"Failed to batch-update outcomes for {date}: {e}")
             return 0
 
-    def calculate_model_performance(self, model_name: str, days_back: int = None) -> Optional[ModelPerformance]:
+    def calculate_model_performance(
+        self, model_name: str, days_back: int = None, ticker: str = None
+    ) -> Optional[ModelPerformance]:
         """
         Calculate comprehensive performance metrics for a model.
 
         Args:
             model_name: Name of the model
             days_back: Days to look back (default: self.lookback_days)
+            ticker: Optional ticker symbol to filter by (e.g. SXRV.DE, CRUDP.PA)
 
         Returns:
             ModelPerformance object or None if insufficient data
@@ -339,25 +390,32 @@ class AdaptiveWeightManager:
                 SELECT signal_predicted, actual_outcome, return_1d, return_5d, confidence
                 FROM model_performance_history
                 WHERE model_name = ? AND date >= ? AND actual_outcome IS NOT NULL
-                ORDER BY date DESC
             """
+            params = [model_name, cutoff_date]
+            if ticker:
+                query += " AND (ticker = ? OR ticker = 'default')"
+                params.append(ticker)
+            query += " ORDER BY date DESC"
 
-            df = pd.read_sql_query(query, conn, params=(model_name, cutoff_date))
+            df = pd.read_sql_query(query, conn, params=params)
             conn.close()
 
-            if len(df) < self.min_observations:
-                logger.warning(f"Insufficient data for {model_name}: {len(df)} observations")
+            ret_col = "return_5d" if (model_name in MODEL_HORIZONS and MODEL_HORIZONS[model_name] == 5) else "return_1d"
+            valid_df = df.dropna(subset=[ret_col])
+
+            if len(valid_df) < self.min_observations:
+                logger.warning(f"Insufficient data for {model_name}: {len(valid_df)} observations")
                 return None
 
             # Calculate performance metrics
             # Dynamically compute actual outcome using the threshold to avoid legacy DB 0/1 bias
-            actual = pd.Series(0, index=df.index)
-            actual[df["return_1d"] > HOLD_NEUTRAL_RETURN_THRESHOLD] = 1
-            actual[df["return_1d"] < -HOLD_NEUTRAL_RETURN_THRESHOLD] = -1
+            actual = pd.Series(0, index=valid_df.index)
+            actual[valid_df[ret_col] > HOLD_NEUTRAL_RETURN_THRESHOLD] = 1
+            actual[valid_df[ret_col] < -HOLD_NEUTRAL_RETURN_THRESHOLD] = -1
 
             # Convert signals to -1, 0, 1
             signal_map = {"STRONG_SELL": -1, "SELL": -1, "HOLD": 0, "NEUTRAL": 0, "BUY": 1, "STRONG_BUY": 1}
-            predicted = df["signal_predicted"].map(signal_map).fillna(0).astype(int)
+            predicted = valid_df["signal_predicted"].map(signal_map).fillna(0).astype(int)
 
             # Classification metrics
             accuracy = (predicted == actual).mean()
@@ -372,17 +430,13 @@ class AdaptiveWeightManager:
             f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
 
             # Return-based metrics
-            returns = df["return_1d"].dropna()
+            returns = valid_df[ret_col].dropna()
             if len(returns) > 0:
                 avg_return = returns.mean()
                 volatility = returns.std()
                 sharpe_ratio = avg_return / volatility if volatility > 0 else 0.0
 
-                # Per-signal win rate: does the predicted direction match the
-                # realized move? (Previously this was ``(returns > 0).mean()``,
-                # which measured the market up-day fraction and was identical
-                # for every model — see ADR-002.)
-                win_rate = float(_signal_correct_mask(df).mean())
+                win_rate = float(_signal_correct_mask(valid_df, return_col=ret_col).mean())
 
                 # Maximum drawdown
                 cumulative = (1 + returns).cumprod()
@@ -408,7 +462,7 @@ class AdaptiveWeightManager:
                 volatility=volatility,
                 max_drawdown=max_drawdown,
                 last_updated=datetime.now(),
-                n_observations=int(len(df)),
+                n_observations=int(len(valid_df)),
             )
 
         except Exception as e:
@@ -416,7 +470,7 @@ class AdaptiveWeightManager:
             return None
 
     def calculate_all_models_performance(
-        self, models: list[str], days_back: int = None
+        self, models: list[str], days_back: int = None, ticker: str = None
     ) -> dict[str, Optional[ModelPerformance]]:
         """
         Calculate comprehensive performance metrics for multiple models in a single query.
@@ -424,6 +478,7 @@ class AdaptiveWeightManager:
         Args:
             models: List of model names
             days_back: Days to look back (default: self.lookback_days)
+            ticker: Optional ticker symbol to filter by (e.g. SXRV.DE, CRUDP.PA)
 
         Returns:
             Dictionary mapping model names to ModelPerformance objects (or None if insufficient data)
@@ -442,8 +497,11 @@ class AdaptiveWeightManager:
                 FROM model_performance_history
                 WHERE model_name IN ({placeholders}) AND date >= ? AND actual_outcome IS NOT NULL
             """
-
             params = list(models) + [cutoff_date]
+            if ticker:
+                query += " AND (ticker = ? OR ticker = 'default')"
+                params.append(ticker)
+
             df = pd.read_sql_query(query, conn, params=params)
             conn.close()
 
@@ -451,19 +509,21 @@ class AdaptiveWeightManager:
                 return results
 
             for model_name, group in df.groupby("model_name"):
-                if len(group) < self.min_observations:
-                    logger.warning(f"Insufficient data for {model_name}: {len(group)} observations")
+                ret_col = "return_5d" if (model_name in MODEL_HORIZONS and MODEL_HORIZONS[model_name] == 5) else "return_1d"
+                valid_group = group.dropna(subset=[ret_col])
+                if len(valid_group) < self.min_observations:
+                    logger.warning(f"Insufficient data for {model_name}: {len(valid_group)} observations")
                     continue
 
                 # Calculate performance metrics
                 # Dynamically compute actual outcome using the threshold to avoid legacy DB 0/1 bias
-                actual = pd.Series(0, index=group.index)
-                actual[group["return_1d"] > HOLD_NEUTRAL_RETURN_THRESHOLD] = 1
-                actual[group["return_1d"] < -HOLD_NEUTRAL_RETURN_THRESHOLD] = -1
+                actual = pd.Series(0, index=valid_group.index)
+                actual[valid_group[ret_col] > HOLD_NEUTRAL_RETURN_THRESHOLD] = 1
+                actual[valid_group[ret_col] < -HOLD_NEUTRAL_RETURN_THRESHOLD] = -1
 
                 # Convert signals to -1, 0, 1
                 signal_map = {"STRONG_SELL": -1, "SELL": -1, "HOLD": 0, "NEUTRAL": 0, "BUY": 1, "STRONG_BUY": 1}
-                predicted = group["signal_predicted"].map(signal_map).fillna(0).astype(int)
+                predicted = valid_group["signal_predicted"].map(signal_map).fillna(0).astype(int)
 
                 # Classification metrics
                 accuracy = (predicted == actual).mean()
@@ -477,7 +537,7 @@ class AdaptiveWeightManager:
                 f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
 
                 # Return-based metrics
-                returns = group["return_1d"].dropna()
+                returns = valid_group[ret_col].dropna()
                 if len(returns) > 0:
                     avg_return = returns.mean()
                     volatility = returns.std()
@@ -485,7 +545,7 @@ class AdaptiveWeightManager:
 
                     # Per-signal win rate: direction-correctness of the signal
                     # (see _signal_correct_mask / ADR-002).
-                    win_rate = float(_signal_correct_mask(group).mean())
+                    win_rate = float(_signal_correct_mask(valid_group, return_col=ret_col).mean())
 
                     # Maximum drawdown
                     cumulative = (1 + returns).cumprod()
@@ -511,11 +571,11 @@ class AdaptiveWeightManager:
                     volatility=volatility,
                     max_drawdown=max_drawdown,
                     last_updated=datetime.now(),
-                    n_observations=int(len(group)),
+                    n_observations=int(len(valid_group)),
                 )
 
         except Exception as e:
-            logger.error(f"Failed to calculate performance for models {models}: {e}")
+            logger.error(f"Failed to calculate all models performance: {e}")
 
         return results
 
@@ -598,6 +658,7 @@ class AdaptiveWeightManager:
         market_data: pd.Series = None,
         volatility: float = None,
         force_update: bool = False,
+        ticker: str = None,
     ) -> WeightAdjustment:
         """
         Calculate adaptive weights based on recent model performance.
@@ -606,6 +667,7 @@ class AdaptiveWeightManager:
             market_data: Recent market price data
             volatility: Current market volatility
             force_update: Force weight recalculation even with limited data
+            ticker: Optional ticker to filter model performance by (e.g. SXRV.DE, CRUDP.PA)
 
         Returns:
             WeightAdjustment object with new weights and reasoning
@@ -621,7 +683,7 @@ class AdaptiveWeightManager:
 
         # Fetch all performances in a single query to fix N+1 issue
         models = list(self.base_weights.keys())
-        all_performances = self.calculate_all_models_performance(models)
+        all_performances = self.calculate_all_models_performance(models, ticker=ticker)
 
         for model_name in models:
             performance = all_performances.get(model_name)
@@ -781,68 +843,197 @@ class AdaptiveWeightManager:
 
         return "; ".join(reasoning_parts)
 
-    def resolve_previous_predictions(self, dates_prices: dict):
+    @staticmethod
+    def _extract_returns_and_outcomes(price_info):
+        """Extract prices and compute 1d/5d returns and outcomes."""
+        if isinstance(price_info, dict):
+            price_today = price_info.get("today")
+            price_next_1d = price_info.get("next_1d")
+            price_next_5d = price_info.get("next_5d")
+        elif isinstance(price_info, (tuple, list)):
+            price_today = price_info[0]
+            price_next_1d = price_info[1] if len(price_info) > 1 else None
+            price_next_5d = price_info[2] if len(price_info) > 2 else None
+        else:
+            return None, None, None, None
+
+        if price_today is None or price_today == 0:
+            return None, None, None, None
+
+        return_1d = (
+            ((price_next_1d - price_today) / price_today)
+            if (price_next_1d is not None and price_next_1d > 0)
+            else None
+        )
+        return_5d = (
+            ((price_next_5d - price_today) / price_today)
+            if (price_next_5d is not None and price_next_5d > 0)
+            else None
+        )
+
+        if return_1d is not None and return_1d == 0.0 and price_next_1d == price_today:
+            return None, None, None, None
+
+        actual_outcome_1d = None
+        if return_1d is not None:
+            actual_outcome_1d = (
+                1 if return_1d > HOLD_NEUTRAL_RETURN_THRESHOLD
+                else (-1 if return_1d < -HOLD_NEUTRAL_RETURN_THRESHOLD else 0)
+            )
+
+        actual_outcome_5d = None
+        if return_5d is not None:
+            actual_outcome_5d = (
+                1 if return_5d > HOLD_NEUTRAL_RETURN_THRESHOLD
+                else (-1 if return_5d < -HOLD_NEUTRAL_RETURN_THRESHOLD else 0)
+            )
+
+        return return_1d, return_5d, actual_outcome_1d, actual_outcome_5d
+
+    def _resolve_1d_records(
+        self,
+        cursor,
+        date_key: str,
+        outcome_1d: int,
+        ret_1d: float,
+        ret_5d: float,
+        ticker: str = None,
+    ) -> int:
+        """Update predictions for models with 1-day horizon."""
+        if outcome_1d is None:
+            return 0
+        h1_models = [m for m, h in MODEL_HORIZONS.items() if h != 1]
+        h1_placeholders = ",".join("?" for _ in h1_models)
+        not_in = f"AND model_name NOT IN ({h1_placeholders})" if h1_models else ""
+
+        if ticker:
+            sql = f"""
+                UPDATE model_performance_history
+                SET actual_outcome = ?, return_1d = ?, return_5d = ?
+                WHERE date = ? AND (ticker = ? OR ticker = 'default') AND actual_outcome IS NULL {not_in}
+            """
+            params = [outcome_1d, ret_1d, ret_5d, date_key, ticker] + h1_models
+        else:
+            sql = f"""
+                UPDATE model_performance_history
+                SET actual_outcome = ?, return_1d = ?, return_5d = ?
+                WHERE date = ? AND actual_outcome IS NULL {not_in}
+            """
+            params = [outcome_1d, ret_1d, ret_5d, date_key] + h1_models
+
+        cursor.execute(sql, params)
+        return cursor.rowcount
+
+    def _resolve_multi_day_records(
+        self,
+        cursor,
+        date_key: str,
+        outcome_5d: int,
+        ret_1d: float,
+        ret_5d: float,
+        ticker: str = None,
+    ) -> int:
+        """Update predictions for multi-day models (e.g. timesfm 5-day horizon)."""
+        count = 0
+        for m_name, h_days in MODEL_HORIZONS.items():
+            if h_days != 5:
+                continue
+            if outcome_5d is not None:
+                if ticker:
+                    sql = """
+                        UPDATE model_performance_history
+                        SET actual_outcome = ?, return_1d = ?, return_5d = ?
+                        WHERE date = ? AND model_name = ? AND (ticker = ? OR ticker = 'default') AND actual_outcome IS NULL
+                    """
+                    params = [outcome_5d, ret_1d, ret_5d, date_key, m_name, ticker]
+                else:
+                    sql = """
+                        UPDATE model_performance_history
+                        SET actual_outcome = ?, return_1d = ?, return_5d = ?
+                        WHERE date = ? AND model_name = ? AND actual_outcome IS NULL
+                    """
+                    params = [outcome_5d, ret_1d, ret_5d, date_key, m_name]
+                cursor.execute(sql, params)
+                count += cursor.rowcount
+            elif ret_1d is not None:
+                if ticker:
+                    sql = """
+                        UPDATE model_performance_history
+                        SET return_1d = ?
+                        WHERE date = ? AND model_name = ? AND (ticker = ? OR ticker = 'default') AND actual_outcome IS NULL
+                    """
+                    params = [ret_1d, date_key, m_name, ticker]
+                else:
+                    sql = """
+                        UPDATE model_performance_history
+                        SET return_1d = ?
+                        WHERE date = ? AND model_name = ? AND actual_outcome IS NULL
+                    """
+                    params = [ret_1d, date_key, m_name]
+                cursor.execute(sql, params)
+        return count
+
+    def resolve_previous_predictions(self, dates_prices: dict, ticker: str = None):
         """
         Resolve unresolved predictions (actual_outcome IS NULL) by computing
-        the actual 1-day return from historical prices.
+        the actual returns (1-day and 5-day) from historical prices.
 
         Args:
-            dates_prices: dict of {date_str: (price_at_date, price_next_day)}
+            dates_prices: dict of {date_str: (price_today, price_next)} or
+                          {date_str: {"today": p0, "next_1d": p1, "next_5d": p5}}
+            ticker: Ticker symbol to resolve (e.g. SXRV.DE, CRUDP.PA). If None, resolves all.
         """
         if not dates_prices:
-            return
+            return 0
 
         try:
-            conn = sqlite3.connect(self.db_path)
-            try:
+            with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
 
-                cursor.execute("SELECT DISTINCT date FROM model_performance_history WHERE actual_outcome IS NULL")
+                if ticker:
+                    cursor.execute(
+                        "SELECT DISTINCT date FROM model_performance_history WHERE (ticker = ? OR ticker = 'default') AND actual_outcome IS NULL",
+                        (ticker,),
+                    )
+                else:
+                    cursor.execute("SELECT DISTINCT date FROM model_performance_history WHERE actual_outcome IS NULL")
                 unresolved_dates = {row[0] for row in cursor.fetchall()}
 
                 resolved_count = 0
-                for date_str, (price_today, price_next) in dates_prices.items():
+                for date_str, price_info in dates_prices.items():
                     date_key = date_str.strftime("%Y-%m-%d") if hasattr(date_str, "strftime") else str(date_str)[:10]
                     if date_key not in unresolved_dates:
                         continue
 
-                    if price_next is None or price_today is None or price_today == 0:
+                    r_1d, r_5d, out_1d, out_5d = self._extract_returns_and_outcomes(price_info)
+                    if r_1d is None and r_5d is None:
                         continue
 
-                    return_1d = (price_next - price_today) / price_today
-
-                    actual_outcome = 1 if return_1d > HOLD_NEUTRAL_RETURN_THRESHOLD else (-1 if return_1d < -HOLD_NEUTRAL_RETURN_THRESHOLD else 0)
-
-                    cursor.execute(
-                        """
-                        UPDATE model_performance_history
-                        SET actual_outcome = ?, return_1d = ?
-                        WHERE date = ? AND actual_outcome IS NULL
-                        """,
-                        (actual_outcome, return_1d, date_key),
-                    )
-                    resolved_count += cursor.rowcount
+                    resolved_count += self._resolve_1d_records(cursor, date_key, out_1d, r_1d, r_5d, ticker)
+                    resolved_count += self._resolve_multi_day_records(cursor, date_key, out_5d, r_1d, r_5d, ticker)
 
                 conn.commit()
-
                 if resolved_count > 0:
-                    logger.info(f"Resolved {resolved_count} unresolved predictions from {len(dates_prices)} dates")
-            finally:
-                conn.close()
+                    logger.info(f"Resolved {resolved_count} predictions for ticker={ticker or 'ALL'}")
+                return resolved_count
 
         except Exception as e:
             logger.error(f"Failed to resolve previous predictions: {e}")
+            return 0
 
-    def get_current_weights(self, market_data: pd.Series = None, volatility: float = None) -> Dict[str, float]:
+    def get_current_weights(
+        self, market_data: pd.Series = None, volatility: float = None, ticker: str = None
+    ) -> Dict[str, float]:
         """
         Get current recommended weights (convenience method).
 
         Args:
             market_data: Recent market data
             volatility: Current volatility
+            ticker: Optional ticker to filter model performance by
 
         Returns:
             Dictionary of model weights
         """
-        weight_adjustment = self.calculate_adaptive_weights(market_data, volatility)
+        weight_adjustment = self.calculate_adaptive_weights(market_data, volatility, ticker=ticker)
         return weight_adjustment.model_weights
