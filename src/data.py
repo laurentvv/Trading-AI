@@ -307,6 +307,30 @@ def get_etf_data(ticker: str, period: str = "5y", force_refresh: bool = False) -
                     # If everything fails, raise the original error
                     raise e
 
+    # GO-gate 5 extension (audit 2026-09-10): the 3-day refusal previously
+    # applied only to the cache-FALLBACK path. A SUCCESSFUL download can be
+    # stale AT SOURCE: on 2026-09-08/09 Yahoo kept serving CRUDP.PA bars
+    # ending 2026-09-04 (4.4 days old) — the "successful" refresh was cached
+    # with a fresh mtime and every cycle then traded on Friday's close while
+    # the instrument rallied. Unconditional: whatever the source path (cache
+    # hit, download, fallback), data whose last bar is older than
+    # MAX_STALE_PRICE_CACHE_DAYS must not reach the decision engine — and must
+    # not be recorded as a fresh prediction date by the weight manager.
+    last_bar = pd.Timestamp(hist_data.index[-1])
+    if last_bar.tzinfo is not None:
+        last_bar = last_bar.tz_localize(None)
+    content_age_days = (pd.Timestamp.now() - last_bar).total_seconds() / 86400.0
+    if content_age_days > MAX_STALE_PRICE_CACHE_DAYS:
+        logger.critical(
+            f"❌ Stale-at-source data for {ticker}: last bar {last_bar.date()} "
+            f"({content_age_days:.1f} days old) despite a successful download — "
+            f"REFUSING to analyze/trade on it (GO-gate 5, audit 2026-09-10)."
+        )
+        raise ValueError(
+            f"Stale-at-source data for {ticker}: last bar {last_bar.date()} "
+            f"({content_age_days:.1f} days old) — no trading on stale data."
+        )
+
     # Final check for old cache format without VIX
     if hist_data is not None and "VIX" not in hist_data.columns:
         logger.warning("VIX column not found in loaded data. Adding default VIX values.")
@@ -767,16 +791,23 @@ def get_vincent_ganne_indicators() -> dict:
     hl_data = get_hyperliquid_oil_data()
     indicators.update(hl_data)
 
-    # 1b. Fetch EIA Fundamental Data (Brent Spread)
+    # 1b. Fetch EIA Dated Brent spot (feeds the Dated-vs-Futures spread).
+    # Audit 2026-09-10: this used to call get_fundamental_context() — the FULL
+    # EIA context (inventories + imports + refinery + 6 STEO series, ~7 API
+    # calls) — only to read back brent_spot. Switched to the direct series
+    # call (1 request, stale-content-gated inside EIAClient.get_brent_spot_price)
+    # so cycles that don't run OilBench stop burning the EIA quota for
+    # fundamentals they never consume.
     try:
         from eia_client import EIAClient
 
         eia = EIAClient()
-        eia_context = eia.get_fundamental_context()
-        brent_spot = eia_context.get("brent_spot", {}).get("current")
-        if brent_spot:
-            indicators["Brent_spot"] = brent_spot
-            logger.info(f"Brent Spot added to indicators: ${brent_spot:.2f}")
+        spot_df = eia.get_brent_spot_price(days=30)
+        if not spot_df.empty and "value" in spot_df.columns:
+            val = pd.to_numeric(spot_df.iloc[-1]["value"], errors="coerce")
+            if pd.notna(val) and float(val) > 0:
+                indicators["Brent_spot"] = round(float(val), 2)
+                logger.info(f"Brent Spot added to indicators: ${val:.2f}")
     except Exception as e:
         logger.warning(f"[WARN] Failed to fetch Brent Spot from EIA: {e}")
 

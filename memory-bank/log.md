@@ -403,3 +403,8 @@ Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-
   - Note globale v2 : **`D`** (critères d'éligibilité Rang D validés à 100%).
   - **Validation suite de tests** : **285/285 tests PASS** (3 skipped, 0 échec) en 78s. Aucune régression.
 
+
+## [2026-09-10] fix | Remediation audit logs PROD J+8 : garde fraicheur brent_spot EIA, garde feed Yahoo sans progression, reconciliation stop broker, re-sync immediate sur 400 selling-equity-not-owned, skip fetch Vincent Ganne desactive, investigation resolver timesfm
+  - Fixes implémentés et validés : 299/299 tests PASS (11 nouveaux dans tests/test_prod_fixes_2026_09_10.py).
+  - Fichiers modifiés : src/eia_client.py (garde fraîcheur brent_spot + breaker 12h), src/data.py (refus stale-at-source dans get_etf_data + fetch Ganne n appelle plus le contexte EIA complet), src/t212_executor.py (ratchet adopte le stop existant, re-sync immédiate sur 400 selling-equity-not-owned), src/adaptive_weight_manager.py (documentation sémantique horodatage/horizon), AGENTS.md (5 nouveaux invariants), tests/test_eia_client.py (dates dynamiques).
+  - Environnement : restauration working tree (src/, tests/, morning_brief/, schedule.py, reset_lib.py) + schéma trading_history.db local.

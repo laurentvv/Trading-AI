@@ -915,17 +915,37 @@ def _ratchet_stop_order(state: dict, current_pos: dict, t212_ticker: str, header
 
     # Self-heal: a position without a known stop gets one at entry*(1-10%).
     if not pos.get("stop_order_id"):
-        entry = _get_avg_price(current_pos) or pos.get("entry_price_etf") or 0.0
-        floor_stop = round(entry * (1 - BROKER_STOP_LOSS_PCT), PRICE_DECIMALS) if entry > 0 else 0.0
-        target = max(desired, floor_stop)
-        if target <= 0:
-            return
-        order_id, placed_price = _place_stop_order(t212_ticker, qty, target, headers)
-        if order_id is not None:
-            pos["stop_order_id"] = order_id
-            pos["stop_price"] = placed_price or target
+        # Reconcile with the broker's open orders FIRST (audit 2026-09-10):
+        # after a state reset the standing GTC stop is merely unknown locally,
+        # and a blind duplicate POST is refused "selling-equity-not-owned"
+        # because the existing stop already RESERVES the shares (6 identical
+        # ERRORs on 2026-09-03 PROD, stop @ 1312.90 while #54250294524 stood).
+        # Adopt the standing stop instead of re-placing one.
+        standing = _get_active_stop_order(t212_ticker, headers)
+        if standing is not None and standing.get("id") is not None:
+            pos["stop_order_id"] = standing["id"]
+            standing_price = float(standing.get("stopPrice") or 0.0)
+            if standing_price > 0:
+                pos["stop_price"] = standing_price
+                current_stop = standing_price
             save_portfolio_state(state, t212_ticker)
-        return
+            logger.info(
+                f"🔐 Ratchet self-heal: stop broker existant #{standing['id']} adopté "
+                f"@ {float(pos.get('stop_price') or 0.0):.2f} — aucun doublon placé."
+            )
+            # Fall through: the monotonic ratchet below may still raise it.
+        else:
+            entry = _get_avg_price(current_pos) or pos.get("entry_price_etf") or 0.0
+            floor_stop = round(entry * (1 - BROKER_STOP_LOSS_PCT), PRICE_DECIMALS) if entry > 0 else 0.0
+            target = max(desired, floor_stop)
+            if target <= 0:
+                return
+            order_id, placed_price = _place_stop_order(t212_ticker, qty, target, headers)
+            if order_id is not None:
+                pos["stop_order_id"] = order_id
+                pos["stop_price"] = placed_price or target
+                save_portfolio_state(state, t212_ticker)
+            return
 
     if desired <= current_stop + 0.01:
         return
@@ -1543,6 +1563,32 @@ def _handle_failed_sell(
         logger.error("❌ Erreur lors de la vente : réseau (pas de réponse de l'API, réconciliation négative)")
     elif sell_resp is not None:
         logger.error(f"❌ Erreur lors de la vente : {sell_resp.text}")
+
+    # (Audit 2026-09-10) A 400 selling-equity-not-owned on a SELL means the
+    # ORDER endpoint sees no owned shares while the READ endpoints may have
+    # served a STALE snapshot: on 2026-09-08 09:01, 30 min after a confirmed
+    # sale, T212 demo still returned the pre-sale position AND pre-sale cash,
+    # so this executor re-attempted a sale of shares already sold. The order
+    # endpoint is authoritative — re-check the live position NOW; if it is
+    # gone, reconcile the local state immediately instead of waiting for the
+    # next cycle's sync (and skip the stop re-placement: nothing to protect).
+    if (
+        sell_resp is not None
+        and getattr(sell_resp, "status_code", None) == 400
+        and "selling-equity-not-owned" in (getattr(sell_resp, "text", "") or "")
+    ):
+        exists_now = _position_exists(t212_ticker, headers)
+        if exists_now is False:
+            logger.warning(
+                f"🔄 Vente {t212_ticker} refusée (selling-equity-not-owned) et position "
+                f"ABSENTE chez le broker (lecture périmée détectée) — réconciliation "
+                f"immédiate du suivi local."
+            )
+            state["active_position"] = None
+            save_portfolio_state(state, t212_ticker)
+            return
+        # True (shares exist, e.g. reserved by a stop) or None (network):
+        # fall through to the standard re-protection logic below.
 
     # GO-gate 2: if the standing stop was released to unblock this sale
     # and the sale failed, re-protect the position at the previous level

@@ -30,6 +30,22 @@ MAX_CRUDE_IMPORTS_AGE_DAYS = 70  # ~2 months (monthly publication lag + margin)
 # API every cycle (2026-08-24: 226 identical refusals in 5 PROD days).
 CRUDE_REFUSAL_BREAKER_HOURS = 12
 
+# Max acceptable age of the latest `period` in the RBRTE (Dated Brent) daily
+# spot series. EIA publishes it daily, so a fresh payload's latest period only
+# lags by a few days (weekends/holidays). The 2026-09-10 PROD audit caught the
+# series stale AT SOURCE (latest period 2026-06-01, ~100d old, $96.02):
+# re-cached every 6h with a fresh mtime, the stale spot silently poisoned the
+# "Dated Brent vs Futures" spread computed from it — as live futures rallied
+# 96 -> 102 the fake spread deepened to -$5.71 (read as heavy contango =
+# bearish) and fed a persistent SELL bias to OilBench during a +5% oil rally.
+# Same bug class as crude_imports (2026-08-24), same fix: CONTENT freshness.
+MAX_BRENT_SPOT_AGE_DAYS = 21  # daily series; >3 weeks = stale at source
+
+# Circuit breaker for a persistently stale RBRTE source (mirrors
+# CRUDE_REFUSAL_BREAKER_HOURS): skip the HTTP call for this many hours after a
+# content refusal instead of re-fetching the same stale payload every cycle.
+BRENT_REFUSAL_BREAKER_HOURS = 12
+
 
 @dataclass
 class EIACacheEntry:
@@ -271,30 +287,78 @@ class EIAClient:
         return self._load_disk_cache_fallback(cache_key)
 
     def get_brent_spot_price(self, days: int = 30) -> pd.DataFrame:
-        """Fetches Europe Brent Spot Price FOB (Dated Brent) from EIA v2."""
-        cache_key = "brent_spot"
-        cached = self._get_from_cache(cache_key, 6)  # 6h TTL
-        if cached is not None:
-            return cached
+        """Fetches Europe Brent Spot Price FOB (Dated Brent) from EIA v2.
 
-        params = {
-            "facets[series][]": "RBRTE",
-            "frequency": "daily",
-            "sort[0][column]": "period",
-            "sort[0][direction]": "desc",
-            "length": str(days),
-            "data[]": "value",
-        }
-        data = self._make_request("/petroleum/pri/spt/data", params)
-        if data:
-            df = pd.DataFrame(data)
-            if "value" in df.columns:
-                df["value"] = pd.to_numeric(df["value"], errors="coerce")
-            df["period"] = pd.to_datetime(df["period"])
-            df = df.sort_values("period").reset_index(drop=True)
+        Content-freshness gate (audit 2026-09-10): a payload whose latest
+        period is older than MAX_BRENT_SPOT_AGE_DAYS is refused on EVERY path
+        (fresh download, memory/disk cache, expired-cache fallback) and is NOT
+        cached — a fresh mtime must never disguise a source frozen months back
+        (see MAX_BRENT_SPOT_AGE_DAYS). Returns an empty DataFrame when
+        refused; callers then treat Brent spot as unavailable, so the
+        Dated-vs-Futures spread is simply not computed instead of being
+        computed from a stale leg.
+        """
+        cache_key = "brent_spot"
+
+        # Circuit breaker: while the EIA source itself serves a stale series,
+        # skip the HTTP call entirely for BRENT_REFUSAL_BREAKER_HOURS.
+        last_refusal = getattr(self, "_brent_refused_at", None)
+        breaker_active = (
+            last_refusal is not None
+            and (datetime.now() - last_refusal).total_seconds() / 3600.0 < BRENT_REFUSAL_BREAKER_HOURS
+        )
+
+        df = None
+        from_http = False
+        if not breaker_active:
+            cached = self._get_from_cache(cache_key, 6)  # 6h TTL
+            if cached is not None:
+                df = cached
+            else:
+                params = {
+                    "facets[series][]": "RBRTE",
+                    "frequency": "daily",
+                    "sort[0][column]": "period",
+                    "sort[0][direction]": "desc",
+                    "length": str(days),
+                    "data[]": "value",
+                }
+                data = self._make_request("/petroleum/pri/spt/data", params)
+                if data:
+                    df = pd.DataFrame(data)
+                    if "value" in df.columns:
+                        df["value"] = pd.to_numeric(df["value"], errors="coerce")
+                    df["period"] = pd.to_datetime(df["period"])
+                    df = df.sort_values("period").reset_index(drop=True)
+                    from_http = True
+                else:
+                    df = self._load_disk_cache_fallback(cache_key)
+        else:
+            logger.debug("EIA brent_spot: circuit breaker actif — fallback disque.")
+            df = self._load_disk_cache_fallback(cache_key)
+
+        if df is None or df.empty:
+            return pd.DataFrame()
+
+        # Content-freshness gate — applies to cache hits AND fresh downloads.
+        latest_period = pd.to_datetime(df["period"]).max()
+        if getattr(latest_period, "tzinfo", None) is not None:
+            latest_period = latest_period.tz_localize(None)
+        age_days = (pd.Timestamp(datetime.now()) - latest_period).days
+        if age_days > MAX_BRENT_SPOT_AGE_DAYS:
+            self._brent_refused_at = datetime.now()
+            logger.warning(
+                f"EIA brent_spot payload refused: latest period {latest_period.date()} "
+                f"({age_days}d old, stale content). Brent_spot/Brent_spread neutralisés "
+                f"(faux spread Dated/Futurs évité); prochain essai dans "
+                f"{BRENT_REFUSAL_BREAKER_HOURS}h (circuit breaker)."
+            )
+            return pd.DataFrame()
+
+        self._brent_refused_at = None
+        if from_http:
             self._save_to_cache(cache_key, df, 6)
-            return df
-        return self._load_disk_cache_fallback(cache_key)
+        return df
 
     def _get_steo_series(self, series_id: str, periods: int = 3) -> pd.DataFrame:
         cache_key = f"steo_{series_id}"

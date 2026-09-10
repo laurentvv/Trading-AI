@@ -38,6 +38,18 @@ WIN_RATE_MIN_SAMPLES = 20
 # Horizon de prédiction par modèle (en jours de cotation). Par défaut 1 jour.
 # Les modèles multi-jours (ex: TimesFM 3.0 à 5 jours) ne doivent pas être
 # évalués sur le bruit 1-jour.
+#
+# Sémantique d'horodatage (audit 2026-09-10) : les prédictions sont datées par
+# la DERNIÈRE BARRE DE DONNÉES utilisée pour les calculer (hist_data.index[-1]),
+# pas par l'horloge murale — c'est cohérent avec leur résolution contre le
+# rendement de la barre SUIVANTE. Deux conséquences à connaître :
+#   1. Un horizon 5 j (timesfm) ne devient résoluble que 5 séances plus tard :
+#      ~8 jours après un reset de base, 0 résolu pour timesfm est NORMAL
+#      (immaturité d'horizon), pas un bug du resolver.
+#   2. Un flux en retard fait mal-dater les prédictions ET la dédup
+#      (date, modèle, ticker) écrase plusieurs jours de cycles en une ligne.
+#      La garde "stale-at-source" de data.get_etf_data (audit 2026-09-10)
+#      avorte ces cycles AVANT l'enregistrement — ne pas la contourner.
 MODEL_HORIZONS = {"timesfm": 5}
 
 

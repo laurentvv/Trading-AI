@@ -73,13 +73,19 @@ class TestEIAClientRequests(unittest.TestCase):
 
     @patch("requests.Session.get")
     def test_get_brent_spot_price(self, mock_get):
+        import pandas as pd
+
         mock_response = MagicMock()
         mock_response.status_code = 200
+        # Dates relatives à aujourd'hui : depuis la garde de fraîcheur du
+        # contenu (audit 2026-09-10), un payload RBRTE périmé à la source est
+        # REFUSÉ — un fixture à date fixe deviendrait obsolète (et doit l'être).
+        today = pd.Timestamp.now().normalize()
         mock_response.json.return_value = {
             "response": {
                 "data": [
-                    {"period": "2026-04-15", "value": "117.0"},
-                    {"period": "2026-04-14", "value": "118.5"},
+                    {"period": (today - pd.Timedelta(days=1)).strftime("%Y-%m-%d"), "value": "117.0"},
+                    {"period": (today - pd.Timedelta(days=2)).strftime("%Y-%m-%d"), "value": "118.5"},
                 ]
             }
         }
