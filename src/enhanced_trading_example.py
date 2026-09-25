@@ -700,6 +700,7 @@ class EnhancedTradingSystem:
             "rsi": latest_data.get("RSI", 50),
             "macd": latest_data.get("MACD", 0),
             "bb_position": latest_data.get("BB_Position", 0.5),
+            "price_series": hist_data["Close"],
         }
 
         # 5. Décision hybride améliorée
@@ -770,17 +771,19 @@ class EnhancedTradingSystem:
         )
 
         # 7. Vérification des overrides de risque
+        # Starts from enhanced_decision.risk_adjusted_signal (which already applied
+        # engine-level confidence/volatility guards) to prevent bypassing engine risk rules.
         risk_adjusted_signal, adjustment_reason = self.risk_manager.get_risk_adjusted_signal(
-            enhanced_decision.final_signal,
+            enhanced_decision.risk_adjusted_signal,
             enhanced_decision.final_confidence,
             risk_metrics,
             price_data=hist_data["Close"],
             ticker=self.ticker,
         )
 
-        if risk_adjusted_signal != enhanced_decision.final_signal:
+        if risk_adjusted_signal != enhanced_decision.risk_adjusted_signal:
             logger.warning(
-                f"Signal ajuste par la gestion des risques: {enhanced_decision.final_signal} -> {risk_adjusted_signal}"
+                f"Signal ajuste par la gestion des risques: {enhanced_decision.risk_adjusted_signal} -> {risk_adjusted_signal}"
             )
             logger.warning(f"Raison: {adjustment_reason}")
 

@@ -55,6 +55,28 @@
 - [ ] **Redémarrer le scheduler** (`start_scheduler.bat` depuis `logs_prod/`) — arrêté ~14:42 le 01/09 pour l'audit.
 - [ ] Committer les correctifs J+13.
 
+### Remédiation P0 PLAN.md §2.1 — Chemin d'Exécution & Gestion du Risque (2026-09-25)
+- [x] **P0-1 Exits sur cycle HOLD** (`main.py`, `src/t212_executor.py`) : `manage_open_position` exécuté inconditionnellement sur toute position ouverte même sur signal HOLD (TP +8%, trailing stop, time-stop, hard-stop -10%, ratchet).
+- [x] **P0-2 Exposition `price_series` & validation amont** (`src/enhanced_trading_example.py`, `src/advanced_risk_manager.py`) : `market_data["price_series"]` alimenté avec les clôtures réelles ; `ValueError` levée si `price_data is None` alors qu'une position est ouverte.
+- [x] **P0-3 Pipeline de risque unifié** (`src/enhanced_trading_example.py`, `main.py`) : suppression de la double évaluation divergente ; respect du signal filtré par les règles de risque du moteur (`risk_adjusted_signal`) et interdiction de conversion HOLD en SELL aveugle.
+- [x] **P0-4 Fusion d'état non-destructive** (`src/t212_executor.py`) : préservation intégrale de `highest_value = max(...)`, `entry_time`, et `entry_price_index` lors de `sync_state_from_t212`.
+- [x] **P0-5 Application de `TIME_STOP_SOFT_LOSS`** (`src/t212_executor.py`) : sortie time-stop limitée aux drawdowns $\le 5\%$, confiant les drawdowns plus profonds au hard-stop prioritaire.
+- [x] **P0-6 Distinction 3-états pour les stops broker** (`src/t212_executor.py`) : `FOUND` / `NOT_FOUND` / `ERROR` empêchant tout self-heal aveugle sur erreur réseau, en parfait accord avec l'invariant « Failed fetch ≠ empty ».
+- [x] **P0-7 Pagination de l'historique d'ordres T212** (`src/t212_executor.py`) : parcours de `nextPagePath` jusqu'à 20 pages pour fiabiliser le calcul FIFO P&L et l'equity sur les comptes actifs (>50 ordres).
+- [x] **Validation outillée complète** :
+  - Suite unitaire dédiée : `tests/test_p0_fixes_2026_09_25.py` (**13/13 PASS**).
+  - Suite de régression ordres & sûreté : **62/62 PASS**.
+  - Suite complète du dépôt : **309 passed, 3 skipped, 0 échec** en 64s.
+  - Cycle réel simulé : **Succès SXRV.DE et CRUDP.PA** (EIA, NexusAI, TimesFM, TensorTrade, modèles statistiques).
+  - Cycle réel T212 Démo : **Succès SXRV.DE** (synchronisation broker, vérification position/cash, 0 trade intempestif).
+
+### Remédiation PLAN.md §2.2 — Stabilité & Résilience (2026-09-25)
+- [x] **Timeouts subprocess dans `schedule.py`** : `timeout=2700` sur `run_trading_cycle` et `timeout=1800` sur `run_morning_brief` avec capture `TimeoutExpired` évitant le blocage permanent du scheduler.
+- [x] **Nettoyage des threads orphelins dans `main.py`** : terminaison propre `os._exit(0)` sur timeout pour ne pas attendre les threads non-démons de `ThreadPoolExecutor`.
+- [x] **Timeout réseau `src/data.py`** : `timeout=20` ajouté sur `get_alpha_vantage_data`.
+- [x] **Fraîcheur des données business-day aware** : `_is_price_stale` via `np.busday_count` (clôture du vendredi acceptée le lundi matin, refusée le mardi).
+- [x] **Validation** : `tests/test_stability_fixes_2026_09_25.py` (**7/7 PASS**), suite complète **316/316 PASS** (100% vert).
+
 ### Remédiation audit J+5 (2026-08-24, en cours de validation par le run)
 - [x] C1 vente débloquée : stop annulé AVANT la vente (actions réservées), fallback `quantity`, re-protection d'urgence si échec (`t212_executor._execute_sell_order`).
 - [x] C2 fill SELL : filtre `side=="SELL"` dans `_confirm_fill` + réconciliation prix/cash (`_reconcile_sell_fill_price`, le cash est la vérité terrain).

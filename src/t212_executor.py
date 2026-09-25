@@ -321,8 +321,8 @@ def get_t212_account_summary():
     return None
 
 
-def get_t212_order_history(ticker=None, limit=50):
-    """Fetch historical filled orders from T212.
+def get_t212_order_history(ticker=None, limit=50, max_pages=20):
+    """Fetch historical filled orders from T212, following pagination (nextPagePath).
 
     Returns None when the fetch failed (callers must treat it as "unknown",
     not as an empty history — FIFO realized P&L computed on a phantom empty
@@ -333,13 +333,39 @@ def get_t212_order_history(ticker=None, limit=50):
         params = f"?limit={limit}"
         if ticker:
             params += f"&ticker={ticker}"
-        # safe_request: read-only GET with 429 backoff (see get_t212_positions).
-        resp = safe_request("GET", f"{_get_t212_base_url()}/equity/history/orders{params}", timeout=10, headers=headers)
-        if resp is None:
-            return None
-        if resp.status_code == 200:
-            return resp.json()
-        logger.warning(f"T212 order history fetch returned status {resp.status_code}: {resp.text[:200]}")
+        base_url = _get_t212_base_url()
+        url = f"{base_url}/equity/history/orders{params}"
+        all_items = []
+        pages = 0
+
+        while url and pages < max_pages:
+            resp = safe_request("GET", url, timeout=10, headers=headers)
+            if resp is None:
+                logger.warning("T212 order history fetch failed during pagination.")
+                return None
+            if resp.status_code != 200:
+                logger.warning(f"T212 order history fetch returned status {resp.status_code}: {resp.text[:200]}")
+                return None
+            data = resp.json()
+            if isinstance(data, list):
+                all_items.extend(data)
+                break
+            elif isinstance(data, dict):
+                items = data.get("items", [])
+                all_items.extend(items)
+                next_page = data.get("nextPagePath")
+                if next_page:
+                    if next_page.startswith("http"):
+                        url = next_page
+                    else:
+                        url = f"{base_url}{next_page}" if next_page.startswith("/") else f"{base_url}/{next_page}"
+                    pages += 1
+                else:
+                    break
+            else:
+                break
+
+        return {"items": all_items}
     except Exception as e:
         logger.warning(f"T212 order history fetch failed: {e}")
     return None
@@ -433,11 +459,13 @@ def sync_state_from_t212(t212_ticker):
 
     # GO-gate 7: realized P&L via FIFO over the full broker order history
     # (shared by both branches so open/flat stay consistent).
+    local_state = (_read_with_retry(Path(STATE_FILE)) or {}).get("tickers", {}).get(t212_ticker, {}) or {}
+    local_pos = local_state.get("active_position") or {}
+
     order_data = get_t212_order_history(ticker=t212_ticker, limit=50)
     if order_data is None:
         # FIFO impossible: carry over the last known realized P&L from the
         # local cache instead of resetting it to 0.0 on a failed fetch.
-        local_state = (_read_with_retry(Path(STATE_FILE)) or {}).get("tickers", {}).get(t212_ticker, {})
         realized_pl = float(local_state.get("total_realized_pl", 0.0) or 0.0)
         state["total_realized_pl"] = realized_pl
         logger.warning(
@@ -455,14 +483,35 @@ def sync_state_from_t212(t212_ticker):
         current_price = float(current_pos.get("currentPrice", 0))
         buy_cost = entry_price * qty
 
+        # Merge with local state to preserve peak highest_value, original entry_time, and entry_price_index
+        local_highest = float(local_pos.get("highest_value", 0.0) or 0.0)
+        highest_value = max(local_highest, current_value, buy_cost)
+
+        entry_time = (
+            local_pos.get("entry_time")
+            or current_pos.get("createdAt")
+            or datetime.datetime.now().isoformat()
+        )
+
+        entry_price_index = (
+            local_pos.get("entry_price_index")
+            or current_pos.get("entry_price_index")
+            or entry_price
+        )
+
+        stop_order_id = local_pos.get("stop_order_id")
+        stop_price = local_pos.get("stop_price")
+
         state["active_position"] = {
             "ticker": t212_ticker,
             "quantity": qty,
             "buy_budget": buy_cost,
             "entry_price_etf": entry_price,
-            "entry_price_index": entry_price,
-            "entry_time": current_pos.get("createdAt", datetime.datetime.now().isoformat()),
-            "highest_value": max(current_value, buy_cost),
+            "entry_price_index": entry_price_index,
+            "entry_time": entry_time,
+            "highest_value": highest_value,
+            "stop_order_id": stop_order_id,
+            "stop_price": stop_price,
         }
 
         # Capital: if position is open, capital = value of position (sizing
@@ -486,10 +535,15 @@ def sync_state_from_t212(t212_ticker):
         except ValueError:
             _headers = None
         if _headers:
-            standing_stop = _get_active_stop_order(t212_ticker, _headers)
-            if standing_stop is not None:
+            status, standing_stop = _get_active_stop_order(t212_ticker, _headers)
+            if status == "FOUND" and standing_stop is not None:
                 state["active_position"]["stop_order_id"] = standing_stop.get("id")
                 state["active_position"]["stop_price"] = float(standing_stop.get("stopPrice") or 0.0)
+            elif status == "NOT_FOUND":
+                state["active_position"]["stop_order_id"] = None
+                state["active_position"]["stop_price"] = None
+            elif status == "ERROR":
+                logger.warning(f"Stop fetch error for {t212_ticker} — local stop state preserved.")
     else:
         # No position: capital = budget + realized, equity identical.
         state["current_capital"] = budget + realized_pl
@@ -506,10 +560,12 @@ def sync_state_from_t212(t212_ticker):
         except ValueError:
             _headers = None
         if _headers:
-            leftover = _get_active_stop_order(t212_ticker, _headers)
-            if leftover is not None and leftover.get("id"):
+            status, leftover = _get_active_stop_order(t212_ticker, _headers)
+            if status == "FOUND" and leftover is not None and leftover.get("id"):
                 logger.info(f"🧹 Sync: position fermée mais stop #{leftover.get('id')} toujours actif — annulation.")
                 _cancel_order(leftover.get("id"), _headers)
+            elif status == "ERROR":
+                logger.warning(f"Sync: impossible de vérifier les stops résiduels pour {t212_ticker} (erreur réseau).")
 
     return state
 
@@ -867,8 +923,14 @@ def _cancel_order(order_id, headers: dict) -> bool:
     return False
 
 
-def _get_active_stop_order(t212_ticker: str, headers: dict) -> dict | None:
-    """Find the standing SELL STOP order for an instrument, if any."""
+def _get_active_stop_order(t212_ticker: str, headers: dict) -> tuple[str, dict | None]:
+    """Find the standing SELL STOP order for an instrument, if any.
+
+    Returns:
+        ("FOUND", order_dict) if a matching open stop order is found.
+        ("NOT_FOUND", None) if broker confirmed 200 OK and no matching stop order exists.
+        ("ERROR", None) if the request failed (network, rate limit, HTTP error).
+    """
     try:
         resp = _t212_session.get(f"{_get_t212_base_url()}/equity/orders", headers=headers, timeout=DEFAULT_REQUEST_TIMEOUT)
         if resp.status_code == 200:
@@ -881,10 +943,12 @@ def _get_active_stop_order(t212_ticker: str, headers: dict) -> dict | None:
                     and o.get("side") == "SELL"
                     and o.get("status") in ("WORKING", "LOCAL", "UNCONFIRMED", "CONFIRMED", "NEW")
                 ):
-                    return o
-    except (requests.exceptions.RequestException, ValueError) as e:
+                    return "FOUND", o
+            return "NOT_FOUND", None
+        logger.warning(f"Active stop orders fetch returned status {resp.status_code}")
+    except Exception as e:
         logger.debug(f"Active stop orders fetch failed: {e}")
-    return None
+    return "ERROR", None
 
 
 def _ratchet_stop_order(state: dict, current_pos: dict, t212_ticker: str, headers: dict) -> None:
@@ -921,8 +985,8 @@ def _ratchet_stop_order(state: dict, current_pos: dict, t212_ticker: str, header
         # because the existing stop already RESERVES the shares (6 identical
         # ERRORs on 2026-09-03 PROD, stop @ 1312.90 while #54250294524 stood).
         # Adopt the standing stop instead of re-placing one.
-        standing = _get_active_stop_order(t212_ticker, headers)
-        if standing is not None and standing.get("id") is not None:
+        status, standing = _get_active_stop_order(t212_ticker, headers)
+        if status == "FOUND" and standing is not None and standing.get("id") is not None:
             pos["stop_order_id"] = standing["id"]
             standing_price = float(standing.get("stopPrice") or 0.0)
             if standing_price > 0:
@@ -934,7 +998,13 @@ def _ratchet_stop_order(state: dict, current_pos: dict, t212_ticker: str, header
                 f"@ {float(pos.get('stop_price') or 0.0):.2f} — aucun doublon placé."
             )
             # Fall through: the monotonic ratchet below may still raise it.
-        else:
+        elif status == "ERROR":
+            logger.warning(
+                f"⚠️ Ratchet: impossible de vérifier les ordres stop broker pour {t212_ticker} (erreur réseau) "
+                f"— aucun stop de self-heal ne sera placé à l'aveugle (invariant Failed fetch ≠ empty)."
+            )
+            return
+        elif status == "NOT_FOUND":
             entry = _get_avg_price(current_pos) or pos.get("entry_price_etf") or 0.0
             floor_stop = round(entry * (1 - BROKER_STOP_LOSS_PCT), PRICE_DECIMALS) if entry > 0 else 0.0
             target = max(desired, floor_stop)
@@ -1107,7 +1177,7 @@ def _evaluate_hard_stop(state: dict, current_pos: dict, t212_ticker: str) -> tup
         )
     return None, False
 
-def _evaluate_time_stop(state: dict, t212_ticker: str) -> tuple[str | None, bool]:
+def _evaluate_time_stop(state: dict, t212_ticker: str, current_pos: dict = None) -> tuple[str | None, bool]:
     """
     Time-stop: if a position has been held longer than MAX_HOLDING_DAYS (15
     calendar days), force an exit evaluation. `entry_time` was stored in the
@@ -1140,14 +1210,23 @@ def _evaluate_time_stop(state: dict, t212_ticker: str) -> tuple[str | None, bool
     if age_days < MAX_HOLDING_DAYS:
         return None, False
 
+    if current_pos:
+        reference_cost = _position_reference_cost(current_pos, state)
+        if reference_cost > 0:
+            current_value_eur = float(current_pos.get("walletImpact", {}).get("currentValue", 0))
+            drawdown = (reference_cost - current_value_eur) / reference_cost  # positive = loss
+            if drawdown > TIME_STOP_SOFT_LOSS:
+                logger.info(
+                    f"⏱ TIME-STOP: position {t212_ticker} ouverte depuis {age_days} jours "
+                    f"(> {MAX_HOLDING_DAYS}) mais perte de {drawdown:.2%} > soft loss threshold "
+                    f"{TIME_STOP_SOFT_LOSS:.0%}. Sortie non forcée par time-stop (laissée au hard-stop)."
+                )
+                return None, False
+
     logger.warning(
         f"⏱ TIME-STOP: position {t212_ticker} ouverte depuis {age_days} jours "
-        f"(> {MAX_HOLDING_DAYS}). Évaluation de sortie forcée."
+        f"(> {MAX_HOLDING_DAYS}). Évaluation de sortie forcée (drawdown <= {TIME_STOP_SOFT_LOSS:.0%})."
     )
-    # The deep-loss case is already handled by the hard stop-loss upstream,
-    # which forces a SELL before we reach here. For a stale position that is
-    # not deeply underwater, cut it: bypass the sell-loss guard so a small
-    # latent loss does not keep the dead position alive forever.
     return "SELL", True
 
 def _evaluate_min_holding(state: dict, force_stop_loss: bool) -> bool:
@@ -1483,8 +1562,8 @@ def _release_standing_stop_if_reserved(
     if stop_id:
         prev_stop_price = pos_state.get("stop_price")
     else:
-        standing = _get_active_stop_order(t212_ticker, headers)
-        if standing:
+        status, standing = _get_active_stop_order(t212_ticker, headers)
+        if status == "FOUND" and standing:
             stop_id = standing.get("id")
             prev_stop_price = float(standing.get("stopPrice") or 0.0) or None
 
@@ -1612,7 +1691,7 @@ def _handle_failed_sell(
 
 
 def _execute_sell_order(
-    state, current_pos, ticker, t212_ticker, base_url, headers, db_date, signal_source, force_stop_loss=False, cash_before=None
+    state, current_pos, ticker, t212_ticker, base_url, headers, db_date, signal_source, force_stop_loss=False, cash_before=None, exit_reason=None
 ):
     if not state.get("active_position") and not current_pos:
         logger.warning(f"⚠️ Pas de position active pour {t212_ticker}.")
@@ -1646,7 +1725,8 @@ def _execute_sell_order(
     elif _check_sell_loss_guard(current_value_eur, current_pos, state) is None:
         return
 
-    logger.info(f"📉 Vente de TOUTE la position sur {t212_ticker} ({total_qty} actions)")
+    reason_str = f" [{exit_reason}]" if exit_reason else ""
+    logger.info(f"📉 Vente de TOUTE la position sur {t212_ticker} ({total_qty} actions){reason_str}")
     order_data = {"ticker": t212_ticker, "quantity": -total_qty}
     sell_resp, reconciled = post_order_market(order_data, headers, t212_ticker)
 
@@ -1666,6 +1746,78 @@ def _execute_sell_order(
         _handle_failed_sell(
             sell_resp, reconciled, t212_ticker, total_qty, stop_released, prev_stop_price, headers, state
         )
+
+
+def manage_open_position(
+    state: dict,
+    current_pos: dict,
+    ticker: str,
+    t212_ticker: str,
+    portfolio: dict,
+    base_url: str,
+    headers: dict,
+    db_date: str,
+    signal_source: str = "IA_HYBRID_T212",
+) -> tuple[bool, str | None]:
+    """
+    Evaluates exit mechanisms (hard-stop, take-profit, trailing-stop, time-stop)
+    and the broker stop ratchet for an open position, regardless of the consensus signal.
+
+    Returns:
+        (exit_executed: bool, exit_reason: str | None)
+    """
+    if not current_pos:
+        return False, None
+
+    force_stop_loss = False
+    exit_reason = None
+    exit_signal = None
+
+    # 0. Hard stop-loss (-10%) — highest priority, capital protection.
+    hs_signal, hs_force = _evaluate_hard_stop(state, current_pos, t212_ticker)
+    if hs_signal:
+        exit_signal, force_stop_loss, exit_reason = hs_signal, hs_force, "hard-stop-loss"
+
+    # 1. Take-profit (+8%) — lock gains directly.
+    if not exit_signal:
+        tp_signal, _ = _evaluate_take_profit(state, current_pos, t212_ticker)
+        if tp_signal:
+            exit_signal, exit_reason = tp_signal, "take-profit"
+
+    # 2. Trailing stop (-3% from peak) — secure gains on pullback.
+    if not exit_signal:
+        trailing_signal = _evaluate_trailing_stop(state, current_pos, t212_ticker)
+        if trailing_signal:
+            exit_signal, exit_reason = trailing_signal, "trailing-stop"
+
+    # 3. Time-stop (15 days) — cut stale positions; bypasses the guard.
+    if not exit_signal:
+        ts_signal, ts_force = _evaluate_time_stop(state, t212_ticker, current_pos=current_pos)
+        if ts_signal:
+            exit_signal, force_stop_loss, exit_reason = ts_signal, ts_force, "time-stop"
+
+    if exit_reason and exit_signal == "SELL":
+        logger.info(f"🎯 Sortie forcée par {exit_reason} (priorité exit-strategy).")
+        _execute_sell_order(
+            state,
+            current_pos,
+            ticker,
+            t212_ticker,
+            base_url,
+            headers,
+            db_date,
+            signal_source,
+            force_stop_loss=force_stop_loss,
+            cash_before=(portfolio["cash"] if portfolio.get("cash_ok") else None),
+            exit_reason=exit_reason,
+        )
+        return True, exit_reason
+
+    # GO-gate 2: ratchet the broker stop UP while the position stays open
+    # (runs after _evaluate_trailing_stop so highest_value is current).
+    _ratchet_stop_order(state, current_pos, t212_ticker, headers)
+    return False, None
+
 
 def execute_t212_trade(
     signal,
@@ -1688,20 +1840,10 @@ def execute_t212_trade(
     base_url = f"https://{env}.trading212.com/api/v0"
     headers = get_auth_header()
 
-    if signal not in ["BUY", "SELL"]:
-        return
-
-    logger.info(f"\n--- 🤖 EXÉCUTION IA TRADING 212 ({env.upper()}) POUR {t212_ticker} ---")
-
-    # Vérification systématique avant action
-    portfolio = _get_portfolio_info(base_url, headers)
-    logger.info("📊 VÉRIFICATION PORTEFEUILLE RÉEL :")
-    logger.info(f"   - Cash total disponible : {portfolio['cash']:.2f} €")
-
     # Fail-safe (audit 2026-08-24) : si le fetch des positions a échoué
     # (429/réseau), l'état broker est INCONNU. Aucune décision d'ordre ni
-    # reset d'état ne doit être pris dessus — auparavant current_pos=None
-    # sur un fetch avalé déclenchait des resets fantômes "INTROUVABLE".
+    # reset d'état ne doit être pris dessus.
+    portfolio = _get_portfolio_info(base_url, headers)
     if not portfolio.get("positions_ok"):
         logger.error(
             "❌ Positions broker INCONNUES (fetch échoué/rate-limité) — exécution T212 annulée par sécurité."
@@ -1714,92 +1856,41 @@ def execute_t212_trade(
         None,
     )
 
-    # Defend against corrupted entry prices (see _validate_and_recalibrate_entry_price):
-    # reconcile the stored cost basis against the BROKER's real averagePricePaid
-    # (authoritative) before any exit-strategy math runs, so a stale/ghost price
-    # cannot block a SELL. Done AFTER current_pos is fetched so the broker price
-    # is the primary source of truth (the local DB can record a wrong signal-time
-    # price — see the July incident: DB=10.876 vs real T212 fill=12.4469).
     state = _validate_and_recalibrate_entry_price(state, ticker, current_pos)
 
-    # force_stop_loss / exit_reason are initialised OUTSIDE the current_pos
-    # branch: a SELL signal can arrive when no position is open (e.g. the risk
-    # manager flips to SELL right after a manual close, or the first SELL on a
-    # fresh ticker). In that case the exit-strategy block below is skipped and
-    # these would otherwise be unbound at the _execute_sell_order call,
-    # raising UnboundLocalError (seen 2026-07-15 PROD once SELL became
-    # reachable after the consensus renormalisation fix). Initialise to safe
-    # defaults so the SELL-with-no-position path degrades to a no-op instead
-    # of crashing.
-    force_stop_loss = False
-    exit_reason = None
-
+    # 1. Gestion inconditionnelle de la position ouverte (évaluée sur HOLD, BUY, SELL)
     if current_pos:
         logger.info(f"   - Position détectée : {current_pos['quantity']} actions de {t212_ticker}")
-
-        # --- UNIFIED EXIT STRATEGY (June 2026) ---
-        # Evaluate the exit mechanisms in priority order BEFORE the normal
-        # BUY/SELL logic. They are UNCONDITIONAL — they trigger on position
-        # state alone, regardless of the incoming consensus signal. This fixes
-        # the root cause of CRUDP.PA drifting to -17%: previously the stops
-        # were gated behind a SELL signal the biased consensus never emitted.
-        # The first mechanism to fire wins; force_stop_loss tells the executor
-        # to bypass _check_sell_loss_guard for emergency cuts.
-        #
-        # The hard stop-loss is evaluated BOTH upstream
-        # (advanced_risk_manager.get_risk_adjusted_signal) AND here from the
-        # live broker position. Belt-and-braces: the upstream layer sets the
-        # signal, this executor-side layer guarantees a deep drawdown always
-        # forces a sale even if the caller skipped the risk layer or did not
-        # pass is_holding/entry_price_index/price_data.
-
-        # 0. Hard stop-loss (-10%) — highest priority, capital protection.
-        hs_signal, hs_force = _evaluate_hard_stop(state, current_pos, t212_ticker)
-        if hs_signal:
-            signal, force_stop_loss, exit_reason = hs_signal, hs_force, "hard-stop-loss"
-
-        # 1. Take-profit (+8%) — lock gains directly.
-        if signal not in ["SELL"]:
-            tp_signal, _ = _evaluate_take_profit(state, current_pos, t212_ticker)
-            if tp_signal:
-                signal, exit_reason = tp_signal, "take-profit"
-
-        # 2. Trailing stop (-3% from peak) — secure gains on pullback.
-        if signal not in ["SELL"]:
-            trailing_signal = _evaluate_trailing_stop(state, current_pos, t212_ticker)
-            if trailing_signal:
-                signal, exit_reason = trailing_signal, "trailing-stop"
-
-        # 3. Time-stop (15 days) — cut stale positions; bypasses the guard.
-        if signal not in ["SELL"]:
-            ts_signal, ts_force = _evaluate_time_stop(state, t212_ticker)
-            if ts_signal:
-                signal, force_stop_loss, exit_reason = ts_signal, ts_force, "time-stop"
-
-        if exit_reason:
-            logger.info(f"🎯 Sortie forcée par {exit_reason} (priorité exit-strategy).")
+        exit_executed, exit_reason = manage_open_position(
+            state, current_pos, ticker, t212_ticker, portfolio, base_url, headers, db_date, signal_source
+        )
+        if exit_executed:
+            return  # Position vendue via exit strategy
     else:
         logger.info(f"   - Aucune position ouverte sur {t212_ticker}")
 
-    # GO-gate 2: ratchet the broker stop UP while the position stays open
-    # (runs after _evaluate_trailing_stop so highest_value is current). Skipped
-    # when the position is about to be fully sold.
-    if current_pos and signal != "SELL":
-        _ratchet_stop_order(state, current_pos, t212_ticker, headers)
+    # 2. Si aucune sortie n'a eu lieu, traiter les signaux directionnels (BUY / SELL)
+    if signal not in ["BUY", "SELL"]:
+        return
+
+    logger.info(f"\n--- 🤖 EXÉCUTION IA TRADING 212 ({env.upper()}) POUR {t212_ticker} ---")
+    logger.info("📊 VÉRIFICATION PORTEFEUILLE RÉEL :")
+    logger.info(f"   - Cash total disponible : {portfolio['cash']:.2f} €")
 
     if signal == "BUY":
         _execute_buy_order(state, current_pos, ticker, t212_ticker, portfolio, base_url, headers, db_date, signal_source, sizing_ratio)
     elif signal == "SELL":
-        # Anti-churn: suppress a consensus SELL on a position opened less than
-        # MIN_HOLDING_HOURS ago. Emergency exits (force_stop_loss=True) bypass
-        # this — capital protection is never throttled. BUY->SELL only.
-        if _evaluate_min_holding(state, force_stop_loss):
+        if not current_pos:
+            logger.info(f"   - Aucune position ouverte sur {t212_ticker} pour le signal SELL (no-op).")
+            return
+        if _evaluate_min_holding(state, force_stop_loss=False):
             logger.info(f"⏸ SELL supprimé par anti-churn pour {t212_ticker} (position trop récente).")
         else:
             _execute_sell_order(
                 state, current_pos, ticker, t212_ticker, base_url, headers, db_date, signal_source,
-                force_stop_loss=force_stop_loss,
+                force_stop_loss=False,
                 cash_before=(portfolio["cash"] if portfolio.get("cash_ok") else None),
+                exit_reason="model-sell",
             )
 
 

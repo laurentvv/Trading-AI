@@ -155,14 +155,22 @@ def run_trading_cycle():
         # On lance uv run main.py avec les tickers et le flag t212
         cmd = ["uv", "run", "main.py", "--ticker", *TICKERS, "--t212"]
 
-        # On utilise subprocess pour garder le scheduler propre
-        result = subprocess.run(cmd, capture_output=False, text=True)
+        # On utilise subprocess pour garder le scheduler propre.
+        # Timeout 45 min (2700s) : le cycle individuel a un timeout interne de 40 min.
+        # Ce timeout garantit que le scheduler ne reste jamais bloqué indéfiniment
+        # tout en gardant le verrou scheduler.lock actif via le thread keeper (PLAN.md §2.2).
+        result = subprocess.run(cmd, capture_output=False, text=True, timeout=2700)
 
         if result.returncode == 0:
             logger.info("✅ Cycle terminé avec succès")
         else:
             logger.error(f"❌ Erreur lors de l'exécution : Code {result.returncode}")
 
+    except subprocess.TimeoutExpired:
+        logger.critical(
+            f"⏱ TIMEOUT DÉPASSÉ (2700s / 45 min) pour le cycle de trading {TICKERS}. "
+            "Le sous-processus a été interrompu pour éviter le blocage permanent du scheduler."
+        )
     except Exception as e:
         logger.error(f"💥 Erreur critique dans le scheduler : {e}")
 
@@ -179,20 +187,23 @@ def run_morning_brief():
         # Redirection des logs vers analyse_morning.log
         with open("analyse_morning.log", "a", encoding="utf-8") as f:
             f.write(f"\n--- Lancement {datetime.now().isoformat()} ---\n")
-            result = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, text=True)
-            
+            result = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, text=True, timeout=1800)
+
         if result.returncode == 0:
             logger.info("✅ Morning Brief généré avec succès")
         else:
             logger.error(f"❌ Erreur lors du Morning Brief : Code {result.returncode}")
 
+    except subprocess.TimeoutExpired:
+        logger.critical("⏱ TIMEOUT DÉPASSÉ (1800s / 30 min) pour la génération du Morning Brief.")
+
         # --- FinAcumen Daily Run ---
         logger.info("Lancement de l'analyse profonde FinAcumen (Daily)")
         import json
-        
+
         output_file = output_dir / "morning_market_brief.md"
         finacumen_section = "\n\n## 5. Analyse Qualitative Profonde (FinAcumen)\n"
-        
+
         for ticker in TICKERS:
             logger.info(f"Exécution FinAcumen pour {ticker}...")
             try:
@@ -205,15 +216,15 @@ def run_morning_brief():
                 logger.error(f"⏱ Timeout (3600s) dépassé pour FinAcumen sur {ticker}.")
             except Exception as e:
                 logger.error(f"💥 Erreur inattendue lors de l'exécution de FinAcumen pour {ticker}: {e}")
-            
+
             # Récupération du résultat
             state_file = Path("data_cache/finacumen") / f"finacumen_{ticker}.json"
-            
+
             if state_file.exists():
                 try:
                     with open(state_file, "r", encoding="utf-8") as f:
                         data = json.load(f)
-                    
+
                     signal = data.get("signal", "N/A")
                     conf = data.get("confidence", 0.0)
                     analysis = data.get("analysis", "Aucune analyse disponible.")

@@ -121,28 +121,34 @@ def _execute_t212_orders(
         else None
     )
 
+    base_signal = results.get(
+        "risk_adjusted_signal",
+        getattr(decision, "risk_adjusted_signal", decision.final_signal),
+    )
+    price_series = results.get("market_data", {}).get("price_series")
+
     signal, adjustment_reason = system.risk_manager.get_risk_adjusted_signal(
-        decision.final_signal,
+        base_signal,
         decision.final_confidence,
         risk,
-        price_data=results["market_data"].get("price_series"),
+        price_data=price_series,
         ticker=ticker,
         is_holding=is_holding,
         entry_price_index=entry_price_index,
     )
 
-    if signal != decision.final_signal:
+    if signal != base_signal:
         console.print(
-            f"[bold orange3]⚠️ Risk Management Override: {decision.final_signal} -> {signal}[/bold orange3]"
+            f"[bold orange3]⚠️ Risk Management Override: {base_signal} -> {signal}[/bold orange3]"
         )
         if "INERTIA" in adjustment_reason:
             console.print(f"[bold cyan]ℹ️ {adjustment_reason}[/bold cyan]")
 
-    if signal not in ["BUY", "STRONG_BUY", "SELL", "STRONG_SELL"]:
+    if signal not in ["BUY", "STRONG_BUY", "SELL", "STRONG_SELL"] and not is_holding:
         console.print(f"[bold blue]ℹ️ No trade executed (Signal is {signal})[/bold blue]")
         return signal
 
-    exec_signal = "BUY" if "BUY" in signal else "SELL"
+    exec_signal = "BUY" if "BUY" in signal else ("SELL" if "SELL" in signal else "HOLD")
     if cancel_event is not None and cancel_event.is_set():
         logger.warning(
             f"⏱ Cycle for {ticker} was cancelled — skipping T212 {exec_signal} "
@@ -159,9 +165,14 @@ def _execute_t212_orders(
             logger.warning(f"⏱ Cancel detected after lock — skipping T212 {exec_signal}")
             return signal
 
-        console.print(
-            f"[bold yellow]🚀 Execution of the signal on Trading 212 for {ticker}... (original: {signal})[/bold yellow]"
-        )
+        if exec_signal != "HOLD":
+            console.print(
+                f"[bold yellow]🚀 Execution of the signal on Trading 212 for {ticker}... (original: {signal})[/bold yellow]"
+            )
+        else:
+            console.print(
+                f"[bold blue]🔍 Managing open position on Trading 212 for {ticker}... (Signal is HOLD)[/bold blue]"
+            )
         # Choix utilisateur en dur : 100% MAX DISPONIBLE (zéro décision partielle)
         # L'utilisateur refuse les allocations partielles (fractionnement / sizing progressif).
         # Chaque achat mobilise 100% du budget alloué au ticker.
@@ -439,6 +450,7 @@ if __name__ == "__main__":
     import time
 
     start_time = time.time()
+    timeout_occurred = False
 
     for t in args.ticker:
         ticker_start = time.time()
@@ -461,6 +473,7 @@ if __name__ == "__main__":
             future.result(timeout=CYCLE_TIMEOUT_SECONDS)
             ex.shutdown(wait=True)
         except FuturesTimeoutError:
+            timeout_occurred = True
             elapsed = time.time() - ticker_start
             cancel_event.set()  # Signal the orphan worker to bail before T212 trade
             logger.error(
@@ -486,3 +499,12 @@ if __name__ == "__main__":
 
     duration = time.time() - start_time
     logging.info(f"Total execution time: {duration:.2f} seconds ({duration / 60:.2f} minutes)")
+
+    if timeout_occurred:
+        logger.warning(
+            "⏱ Un timeout de cycle est survenu : sortie immédiate via os._exit(0) "
+            "pour ne pas bloquer la fin de processus sur les threads ouvriers orphelins."
+        )
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(0)

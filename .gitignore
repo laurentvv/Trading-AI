@@ -63,4 +63,3 @@ reset_backup/
 scheduler.lock
 *.lnk
 morning_brief/output/*.md
-

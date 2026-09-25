@@ -109,10 +109,10 @@ def lookup_ohlc(
         df = df.sort_index()
 
         closest_idx = -1 if date == "latest" else df.index.get_indexer([target_date], method="nearest")[0]
-        
+
         if need_derived:
             df = _compute_indicators(df)
-            
+
         row = df.iloc[closest_idx]
 
         def _pick(name: str) -> Optional[float]:
@@ -188,7 +188,7 @@ class NumericalReasoningEngine:
 
         error = None
         try:
-            # SECURITY WARNING: exec modifie le namespace en place. 
+            # SECURITY WARNING: exec modifie le namespace en place.
             # Ce n'est pas un véritable environnement sandboxé (vulnérabilité à l'évasion).
             # L'exécution de code généré par LLM comporte des risques de sécurité inhérents.
             import logging

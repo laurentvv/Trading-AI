@@ -172,7 +172,7 @@ class TestRatchetSelfHealAdoptsStandingStop(unittest.TestCase):
         state = _ratchet_state()
         standing = {"id": 54250294524, "stopPrice": 1312.90, "type": "STOP", "side": "SELL", "status": "WORKING"}
         saved = []
-        with patch.object(t212, "_get_active_stop_order", return_value=standing), \
+        with patch.object(t212, "_get_active_stop_order", return_value=("FOUND", standing)), \
              patch.object(t212, "_place_stop_order") as place, \
              patch.object(t212, "_cancel_order") as cancel, \
              patch.object(t212, "save_portfolio_state", side_effect=lambda s, t: saved.append((s, t))):
@@ -187,7 +187,7 @@ class TestRatchetSelfHealAdoptsStandingStop(unittest.TestCase):
 
     def test_no_standing_stop_still_places_one(self):
         state = _ratchet_state()
-        with patch.object(t212, "_get_active_stop_order", return_value=None), \
+        with patch.object(t212, "_get_active_stop_order", return_value=("NOT_FOUND", None)), \
              patch.object(t212, "_place_stop_order", return_value=(111, 1312.90)) as place, \
              patch.object(t212, "save_portfolio_state") as save:
             t212._ratchet_stop_order(state, _ratchet_pos(), "SXRVd_EQ", headers={})

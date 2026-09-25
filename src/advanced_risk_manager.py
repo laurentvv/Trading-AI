@@ -534,6 +534,9 @@ class AdvancedRiskManager:
         # _evaluate_hard_stop in t212_executor.py reads the live broker position
         # and enforces the SAME -10% cut unconditionally, so a deep drawdown is
         # always caught by at least one layer. Do not rely on a single layer.
+        if is_holding and price_data is None:
+            raise ValueError("price_data cannot be None when is_holding=True")
+
         if is_holding and entry_price_index and price_data is not None:
             current_index_price = price_data.iloc[-1]
             index_perf = (current_index_price / entry_price_index) - 1

@@ -408,3 +408,29 @@ Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-
   - Fixes implémentés et validés : 299/299 tests PASS (11 nouveaux dans tests/test_prod_fixes_2026_09_10.py).
   - Fichiers modifiés : src/eia_client.py (garde fraîcheur brent_spot + breaker 12h), src/data.py (refus stale-at-source dans get_etf_data + fetch Ganne n appelle plus le contexte EIA complet), src/t212_executor.py (ratchet adopte le stop existant, re-sync immédiate sur 400 selling-equity-not-owned), src/adaptive_weight_manager.py (documentation sémantique horodatage/horizon), AGENTS.md (5 nouveaux invariants), tests/test_eia_client.py (dates dynamiques).
   - Environnement : restauration working tree (src/, tests/, morning_brief/, schedule.py, reset_lib.py) + schéma trading_history.db local.
+
+## [2026-09-25] fix | Clôture de la remédiation des 7 bloquants [P0] de PLAN.md §2.1 (chemin d'exécution & risque)
+- **Implémentation validée (approche TDD)** :
+  1. **P0-1 Exits sur cycle HOLD** (`src/t212_executor.py`, `main.py`) : extraction de `manage_open_position(state, current_pos, ...)` exécutée inconditionnellement à chaque cycle pour toute position ouverte (TP, trailing stop, time-stop, hard-stop, ratchet stop). `main.py` ne retourne plus prématurément sur signal HOLD lorsqu'une position est ouverte et achemine le signal vers l'exécuteur.
+  2. **P0-2 Exposition `price_series` & validation amont** (`src/enhanced_trading_example.py`, `src/advanced_risk_manager.py`) : `market_data["price_series"]` alimenté avec `hist_data["Close"]` ; `get_risk_adjusted_signal` lève désormais explicitement une `ValueError` si `price_data` est absent alors qu'une position est ouverte.
+  3. **P0-3 Pipeline de risque unifié** (`src/enhanced_trading_example.py`, `main.py`) : `perform_enhanced_analysis` part désormais de `enhanced_decision.risk_adjusted_signal` (préservant les seuils de confiance < 0.20 et de volatilité extrême) ; `main.py` s'appuie directement sur `results["risk_adjusted_signal"]` et ne convertit jamais HOLD en SELL aveugle.
+  4. **P0-4 Fusion d'état non destructive** (`src/t212_executor.py::sync_state_from_t212`) : `highest_value = max(local_highest, current_value, buy_cost)` préservé pour le trailing stop ; conservation stricte des métadonnées d'origine (`entry_time`, `entry_price_index`).
+  5. **P0-5 Application de `TIME_STOP_SOFT_LOSS`** (`src/t212_executor.py::_evaluate_time_stop`) : prise en compte du drawdown réel de la position ; la sortie time-stop n'est forcée que si la perte est modérée ($\le 5\%$), laissant les pertes plus profondes sous la surveillance stricte du hard-stop (-10%).
+  6. **P0-6 Distinction 3-états pour les stops broker** (`src/t212_executor.py::_get_active_stop_order`) : retour d'un tuple `(status, order)` parmi `FOUND`, `NOT_FOUND`, `ERROR`. Respect absolu de l'invariant « Failed fetch ≠ empty » : interdiction formelle de placer un stop en self-heal ou de libérer une réservation lors d'un échec réseau/broker.
+  7. **P0-7 Pagination de l'historique T212** (`src/t212_executor.py::get_t212_order_history`) : boucle de pagination suivant `nextPagePath` jusqu'à `max_pages=20` (>1000 ordres), assurant l'exactitude du calcul FIFO P&L et du suivi de l'equity sur le long terme.
+- **Résultats de validation complète** :
+  - Nouveaux tests dédiés (`tests/test_p0_fixes_2026_09_25.py`) : **13/13 PASS**.
+  - Suite de régression ciblée T212 & sûreté (`test_prod_fixes_2026_09_10.py`, `test_t212_orders.py`, `test_equity_tracking.py`, `test_data_safety.py`, `test_scheduler_lock.py`) : **62/62 PASS**.
+  - Suite complète du projet : **309 passed, 3 skipped, 0 échec** en 64s. 100% vert.
+  - Exécution temps réel en simulation (`main.py --simul --ticker SXRV.DE` et `CRUDP.PA`) : **Succès 100%**.
+  - Exécution temps réel en mode T212 Démo (`main.py --t212 --ticker SXRV.DE`) : **Succès 100%**, synchronisation broker parfaite, 0 trade intempestif.
+## [2026-09-25] fix | Remédiation Section 2.2 PLAN.md (Stabilité & Résilience du Scheduler et des Données)
+- **Implémentation validée** :
+  1. **Timeouts subprocess dans `schedule.py`** : ajout d'un `timeout=2700` (45 min) sur `run_trading_cycle` et `timeout=1800` (30 min) sur `run_morning_brief` avec capture de `subprocess.TimeoutExpired`. Empêche tout blocage infini du scheduler masqué par le thread lock-keeper.
+  2. **Nettoyage des threads orphelins dans `main.py`** : détection de `timeout_occurred` et terminaison propre immédiate via `os._exit(0)` pour éviter que l'interpréteur Python ne reste bloqué à l'extinction sur les threads non-démons de `ThreadPoolExecutor`.
+  3. **Timeout réseau Alpha Vantage dans `src/data.py`** : ajout de `timeout=20` sur l'appel `requests.get` de `get_alpha_vantage_data` (le seul appel réseau du dépôt sans timeout explicite).
+  4. **Garde de fraîcheur business-day aware dans `src/data.py`** : nouvelle fonction `_is_price_stale` utilisant `np.busday_count`. La clôture du vendredi est désormais reconnue comme fraîche le lundi matin (1 jour ouvré, ~3.3 jours calendaires), éliminant les faux rejets du lundi avant 09h00 tout en refusant strictement le mardi les données de vendredi (2 jours ouvrés / feed en retard à la source).
+- **Validation** :
+  - Nouveaux tests dédiés (`tests/test_stability_fixes_2026_09_25.py`) : **7/7 PASS**.
+  - Suite de régression data safety & prod fixes : **21/21 PASS**.
+  - Suite complète du dépôt : **316 passed, 3 skipped, 0 échec** en 69s.

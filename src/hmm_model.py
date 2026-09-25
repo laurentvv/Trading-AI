@@ -80,13 +80,13 @@ def baum_welch(
 
     # Initialisation aléatoire pour briser la symétrie
     np.random.seed(42) # Reproductibilité
-    
+
     A = np.random.rand(N_states, N_states)
     A = A / A.sum(axis=1, keepdims=True)
-    
+
     B = np.random.rand(N_states, V_vocab_size)
     B = B / B.sum(axis=1, keepdims=True)
-    
+
     pi = np.random.rand(N_states)
     pi = pi / pi.sum()
 

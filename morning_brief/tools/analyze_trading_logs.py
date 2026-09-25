@@ -153,4 +153,3 @@ class AnalyzeTradingLogsTool(Tool):
             f"Errors: {len(errors_sample)} | Warnings: {len(warnings_sample)} | "
             f"API disconnects: {api_disconnects} | Slippage: {len(slippage_sample)}"
         )
-

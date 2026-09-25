@@ -11,13 +11,13 @@
 <div x-data="{ tab: 'morning' }" class="w-full">
     <!-- Tabs -->
     <div class="flex space-x-1 border-b border-white/10 mb-6">
-        <button @click="tab = 'morning'" 
-                :class="{ 'text-accent border-accent': tab === 'morning', 'text-slate-400 border-transparent hover:text-slate-200 hover:border-slate-500': tab !== 'morning' }" 
+        <button @click="tab = 'morning'"
+                :class="{ 'text-accent border-accent': tab === 'morning', 'text-slate-400 border-transparent hover:text-slate-200 hover:border-slate-500': tab !== 'morning' }"
                 class="px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2">
             <i data-lucide="sunrise" class="w-4 h-4"></i> Morning Briefs
         </button>
-        <button @click="tab = 'council'" 
-                :class="{ 'text-accent border-accent': tab === 'council', 'text-slate-400 border-transparent hover:text-slate-200 hover:border-slate-500': tab !== 'council' }" 
+        <button @click="tab = 'council'"
+                :class="{ 'text-accent border-accent': tab === 'council', 'text-slate-400 border-transparent hover:text-slate-200 hover:border-slate-500': tab !== 'council' }"
                 class="px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2">
             <i data-lucide="users" class="w-4 h-4"></i> Weekend Council
         </button>
@@ -84,7 +84,7 @@
             const parsedHtml = marked.parse(rawMarkdown);
             element.innerHTML = DOMPurify.sanitize(parsedHtml);
         });
-        
+
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
         }

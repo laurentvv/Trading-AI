@@ -161,19 +161,56 @@ def _inject_t212_live_price(hist_data: pd.DataFrame, ticker: str) -> pd.DataFram
 MAX_STALE_PRICE_CACHE_DAYS = 3
 
 
-def _price_cache_is_fresh(cache_filepath: Path, max_days: float = MAX_STALE_PRICE_CACHE_DAYS) -> bool:
-    """True if the cached price series' LAST DATA DATE is within ``max_days``.
+def _is_price_stale(
+    last_date: pd.Timestamp,
+    now: pd.Timestamp = None,
+    max_days: float = MAX_STALE_PRICE_CACHE_DAYS,
+) -> bool:
+    """True if price data is stale.
 
-    Tz-aware indices are normalized to naive before comparison (European
-    tickers frequently come back tz-aware from yfinance).
+    Accounts for weekends (business days): On Monday morning, Friday's close is
+    1 business day old (~3.3 calendar days) and is considered fresh. On Tuesday,
+    Friday's close is 2 business days old and is refused.
+    Any data older than 4.5 calendar days is unconditionally considered stale.
     """
+    if now is None:
+        now = pd.Timestamp.now()
+    if last_date.tzinfo is not None:
+        last_date = last_date.tz_localize(None)
+    if now.tzinfo is not None:
+        now = now.tz_localize(None)
+
+    age_days = (now - last_date).total_seconds() / 86400.0
+    if age_days < 0:
+        return False  # Future timestamp / clock skew
+
+    try:
+        last_d = last_date.date()
+        now_d = now.date()
+        if now_d >= last_d:
+            bus_days = int(np.busday_count(last_d, now_d))
+        else:
+            bus_days = 0
+    except Exception:
+        bus_days = int(age_days // 1)
+
+    # If explicit non-default max_days was provided by caller (e.g. in tests)
+    if max_days != MAX_STALE_PRICE_CACHE_DAYS:
+        return age_days > max_days
+
+    # On Monday, Friday's close (bus_days == 1) has age_days ~ 3.35. Allow up to 4.0 calendar days if bus_days <= 1.
+    if bus_days <= 1 and age_days <= 4.0:
+        return False
+
+    return age_days > max_days or bus_days > 1
+
+
+def _price_cache_is_fresh(cache_filepath: Path, max_days: float = MAX_STALE_PRICE_CACHE_DAYS) -> bool:
+    """True if the cached price series' LAST DATA DATE is within ``max_days`` or 1 business day."""
     try:
         idx = pd.read_parquet(cache_filepath).index
         last_date = pd.Timestamp(idx[-1])
-        if last_date.tzinfo is not None:
-            last_date = last_date.tz_localize(None)
-        age_days = (pd.Timestamp.now() - last_date).total_seconds() / 86400.0
-        return age_days <= max_days
+        return not _is_price_stale(last_date, max_days=max_days)
     except Exception as e:
         logger.warning(f"Could not assess price cache freshness {cache_filepath}: {e}")
         return False
@@ -320,7 +357,7 @@ def get_etf_data(ticker: str, period: str = "5y", force_refresh: bool = False) -
     if last_bar.tzinfo is not None:
         last_bar = last_bar.tz_localize(None)
     content_age_days = (pd.Timestamp.now() - last_bar).total_seconds() / 86400.0
-    if content_age_days > MAX_STALE_PRICE_CACHE_DAYS:
+    if _is_price_stale(last_bar):
         logger.critical(
             f"❌ Stale-at-source data for {ticker}: last bar {last_bar.date()} "
             f"({content_age_days:.1f} days old) despite a successful download — "
@@ -481,7 +518,7 @@ def get_alpha_vantage_data(
         params["symbol"] = symbol
 
     try:
-        response = requests.get(url, params=params)
+        response = requests.get(url, params=params, timeout=20)
         response.raise_for_status()
         data = response.json()
 
