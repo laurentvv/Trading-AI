@@ -434,3 +434,11 @@ Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-
   - Nouveaux tests dédiés (`tests/test_stability_fixes_2026_09_25.py`) : **7/7 PASS**.
   - Suite de régression data safety & prod fixes : **21/21 PASS**.
   - Suite complète du dépôt : **316 passed, 3 skipped, 0 échec** en 69s.
+
+## [2026-09-25] fix | GitHub Actions CI & Suppression de l'effet de bord sys.exit(1) à l'import
+- **Cause racine** : `src/enhanced_trading_example.py` appelait `sys.exit(1)` au niveau du module dès que la variable d'environnement `ALPHA_VANTAGE_API_KEY` était absente. Sur un runner CI vierge (sans fichier `.env`), la collection de tests pytest déclenchait un `SystemExit: 1` prématuré.
+- **Fixes appliqués** :
+  1. `src/enhanced_trading_example.py` : remplacement de `sys.exit(1)` par `logger.warning`. Si la clé est absente, `_fetch_news_task()` est ignoré proprement au lieu d'interrompre l'ensemble du processus ou de faire échouer l'import du module.
+  2. `.github/workflows/ci.yml` : injection de variables d'environnement mockées (`ALPHA_VANTAGE_API_KEY`, `T212_API_KEY`, `T212_ACCOUNT_TYPE`) dans l'étape de test unitaire pour garantir l'indépendance de la CI vis-à-vis des secrets de production.
+- **Validation** : tests avec `$env:ALPHA_VANTAGE_API_KEY=""` : **20/20 PASS**. Suite unitaire locale intégrale : **316/316 PASS**.
+

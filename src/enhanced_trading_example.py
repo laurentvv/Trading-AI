@@ -95,12 +95,9 @@ def compute_daily_volatility(returns: "pd.Series") -> float:
     return float(returns.tail(VOLATILITY_WINDOW_DAYS).std())
 
 # --- Constants for the Alpha Vantage API ---
-# IMPORTANT: It is strongly recommended to use an environment variable for your API key.
 ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY")
 if not ALPHA_VANTAGE_API_KEY:
-    logger.critical("CRITICAL: The ALPHA_VANTAGE_API_KEY environment variable is not set.")
-    logger.critical("Please set it to your Alpha Vantage API key.")
-    sys.exit(1)
+    logger.warning("ALPHA_VANTAGE_API_KEY environment variable is not set. Some features might be disabled.")
 
 
 class EnhancedTradingSystem:
@@ -353,6 +350,9 @@ class EnhancedTradingSystem:
         def _fetch_news_task():
             headlines = []
             sentiment_score = 0
+            if not ALPHA_VANTAGE_API_KEY:
+                logger.warning("ALPHA_VANTAGE_API_KEY not configured, skipping news fetcher.")
+                return headlines, sentiment_score
             try:
                 script_path = Path(__file__).parent / "news_fetcher.py"
                 python_executable = sys.executable

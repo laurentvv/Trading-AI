@@ -30,6 +30,10 @@ jobs:
         run: uv sync
 
       - name: Run unit test suite
+        env:
+          ALPHA_VANTAGE_API_KEY: "mock_ci_key"
+          T212_API_KEY: "mock_ci_key"
+          T212_ACCOUNT_TYPE: "demo"
         run: |
           mkdir -p data_cache/test_tmp
           uv run pytest tests/ -q --basetemp=data_cache/test_tmp
