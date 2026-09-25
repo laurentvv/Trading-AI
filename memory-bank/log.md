@@ -442,3 +442,10 @@ Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-
   2. `.github/workflows/ci.yml` : injection de variables d'environnement mockées (`ALPHA_VANTAGE_API_KEY`, `T212_API_KEY`, `T212_ACCOUNT_TYPE`) dans l'étape de test unitaire pour garantir l'indépendance de la CI vis-à-vis des secrets de production.
 - **Validation** : tests avec `$env:ALPHA_VANTAGE_API_KEY=""` : **20/20 PASS**. Suite unitaire locale intégrale : **316/316 PASS**.
 
+## [2026-09-25] fix | Remédiation Ruff F821 dans main.py et intégration du linter dans CI
+- **Problème** : finding Ruff `F821 Undefined name 'os'` dans `main.py:510` consécutif à l'appel `os._exit(0)` sans import préalable de `os`.
+- **Fixes appliqués** :
+  1. `main.py` : ajout de l'import standard `os`.
+  2. `.github/workflows/ci.yml` : ajout d'une étape de linting `uvx ruff check . --select E4,E7,E9,F --exclude venv,.venv,.venv_uv,tests` avant la suite de tests pour interdire toute erreur de syntaxe ou nom indéfini en CI.
+- **Validation** : `uvx ruff check .` : **0 erreur**. Suite de tests unitaire locale : **316/316 PASS**.
+

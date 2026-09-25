@@ -29,6 +29,10 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      - name: Run Ruff linter
+        run: |
+          uvx ruff check . --select E4,E7,E9,F --exclude venv,.venv,.venv_uv,tests
+
       - name: Run unit test suite
         env:
           ALPHA_VANTAGE_API_KEY: "mock_ci_key"

@@ -5,6 +5,7 @@ Usage: python main.py --ticker QQQ
 """
 
 import logging
+import os
 import sys
 import argparse
 import csv
