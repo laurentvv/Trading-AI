@@ -176,10 +176,16 @@ def run_trading_cycle():
 
 
 def run_morning_brief():
-    """Lance l'exécution du Morning Brief la nuit/au petit matin"""
+    """Lance l'exécution du Morning Brief la nuit/au petit matin, puis l'analyse FinAcumen.
+
+    FinAcumen s'exécute TOUJOURS après le brief, même si celui-ci échoue ou expire : il ajoute sa
+    section au fichier du brief (en créant un stub si besoin). Régression corrigée (2026-09-29) : le
+    commit 752ecb8 avait fait glisser le bloc FinAcumen dans le ``except TimeoutExpired`` du brief, si
+    bien qu'il ne tournait plus qu'en cas de timeout (plus aucune analyse FinAcumen depuis le 25/09).
+    """
     logger.info("🌅 Lancement du Morning Brief")
+    output_dir = Path("morning_brief/output")
     try:
-        output_dir = Path("morning_brief/output")
         output_dir.mkdir(parents=True, exist_ok=True)
         (output_dir / "tools").mkdir(parents=True, exist_ok=True)
 
@@ -196,7 +202,15 @@ def run_morning_brief():
 
     except subprocess.TimeoutExpired:
         logger.critical("⏱ TIMEOUT DÉPASSÉ (1800s / 30 min) pour la génération du Morning Brief.")
+    except Exception as e:
+        logger.error(f"💥 Erreur critique lors du Morning Brief : {e}")
 
+    _run_finacumen_daily(output_dir)
+
+
+def _run_finacumen_daily(output_dir: Path) -> None:
+    """Analyse profonde FinAcumen (quotidienne) : ajoute une section au Morning Brief."""
+    try:
         # --- FinAcumen Daily Run ---
         logger.info("Lancement de l'analyse profonde FinAcumen (Daily)")
         import json
@@ -234,6 +248,7 @@ def run_morning_brief():
             else:
                 finacumen_section += f"\n### {ticker}\n- **Erreur:** Résultat non généré.\n"
 
+        output_dir.mkdir(parents=True, exist_ok=True)
         if not output_file.exists():
             today = datetime.now().strftime("%Y-%m-%d")
             output_file.write_text(f"# Morning Market Brief — {today}\n\n_Note: Morning Brief de base non généré._\n", encoding="utf-8")
@@ -243,7 +258,7 @@ def run_morning_brief():
         logger.info("✅ Résultats FinAcumen ajoutés au Morning Brief.")
 
     except Exception as e:
-        logger.error(f"💥 Erreur critique lors du Morning Brief : {e}")
+        logger.error(f"💥 Erreur critique lors de FinAcumen : {e}")
 
 
 def run_weekend_council():
