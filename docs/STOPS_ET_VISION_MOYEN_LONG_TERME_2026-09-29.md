@@ -191,3 +191,16 @@ Le stop fixe −20 % se déclenche une fois et coûte 2,6 points de CAGR : la po
 - [The truth about cost averaging (Vanguard)](https://www.nl.vanguard/professional/vanguard-365/cost-averaging)
 - [The challenges of oil investing: Contango and the financialization of oil](https://www.sciencedirect.com/science/article/abs/pii/S0140988321003315) ; [Commodities for the Long Run (NBER)](https://www.nber.org/system/files/working_papers/w22793/w22793.pdf)
 - [Trading 212 API : ordres](https://docs.trading212.com/api/orders/orders) ; [Trading 212 : ordres stop-limit](https://helpcentre.trading212.com/hc/en-us/articles/360007081297-Stop-Limit-Orders) ; [Trading 212 : types d'ordres](https://www.trading212.com/learn/investing-101/order-types-for-stocks)
+
+## Décisions de l'utilisateur (2026-09-29)
+
+| Question | Choix |
+|---|---|
+| Stop broker sur le cœur | **Aucun stop de prix.** Filet = alertes watchdog, liquidation manuelle, plafond de perte portefeuille fixé à l'avance. |
+| Surcouche active (régime / volatilité) | **Oui, sur une fraction du capital** (ordre de grandeur 20 à 30 %), adoptée seulement si elle bat le buy & hold et la MA200 hors échantillon, net de coûts et d'impôt. |
+| Entrée des 30 000 € | **En une fois.** |
+| Pétrole | **Satellite tactique**, jugé à part ; source de prix fiable à trouver d'abord. |
+| Cadence des décisions | **Hebdomadaire.** |
+| Drawdown supportable sur le cœur | **Jusqu'à environ −30 %.** |
+
+Conséquences : l'invariant GO-gate 2 (stop broker sur chaque position) doit être assoupli pour la stratégie cible, en le laissant en vigueur pour le démo actuel jusqu'à la refonte ; §2.3 du plan (#92) et la phase 2 sont à réécrire dans ce sens ; il reste à fixer la fraction exacte de la surcouche, à mesurer le spread réel et à choisir la source de prix du pétrole.
