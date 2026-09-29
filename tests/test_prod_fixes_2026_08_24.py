@@ -444,12 +444,20 @@ class TestMaxAvailableSizing(unittest.TestCase):
         state = {"current_capital": 1000.0}
         portfolio = {"cash": 5000.0, "cash_ok": True}
 
+        # insert_transaction MUST be mocked: unmocked, it wrote a fake "BUY 10 @ 100.00" row into the
+        # real trading_history.db on every run of the suite (2026-09-29 demo pollution).
         with patch("src.t212_executor._confirm_fill", return_value={"quantity": 10.0, "averagePricePaid": 100.0}), \
              patch("src.t212_executor.save_portfolio_state"), \
+             patch("src.t212_executor.insert_transaction") as mock_insert, \
              patch("src.t212_executor._place_stop_order", return_value=(None, None)):
             _execute_buy_order(
                 state, None, "SXRV.DE", "SXRVd_EQ", portfolio, "https://x", {}, "2026-09-07 10:00:00", "IA_HYBRID", sizing_ratio=1.0
             )
+
+        # The DB row is written once, at the broker-confirmed fill price.
+        mock_insert.assert_called_once()
+        self.assertEqual(mock_insert.call_args.kwargs["type"], "BUY")
+        self.assertEqual(mock_insert.call_args.kwargs["price"], 100.0)
 
         # target_budget should be 1000.0 (100% of available_cash), quantity = 1000 / 100 = 10.0
         self.assertEqual(mock_post.call_count, 1)
