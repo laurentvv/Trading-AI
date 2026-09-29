@@ -94,7 +94,7 @@ La barre à battre est connue. Sur 5 ans (09/2021 → 09/2026), le buy & hold fa
 
 - **Cœur (≈ 90 %)** : Nasdaq-100 acheté en une fois et conservé. **Aucun stop broker, aucune vente décidée par un modèle.** Le filtre MA200 et le momentum ne pilotent pas le cœur : ils servent de **comparateurs** que la poche active doit battre.
 - **Poche active (10 % du capital, soit 3 000 €)** : c'est ici que vivent les modèles. L'ensemble décide chaque semaine son niveau d'exposition (0 / 50 / 100 % de la poche). Elle n'est adoptée que si elle bat, hors échantillon et nette de frais et d'impôt, à la fois le buy & hold et la règle MA200. Sinon elle reste passive, et le cœur n'en souffre pas.
-- **Satellite pétrole** : tactique, jugé séparément, prélevé **dans** la poche (hypothèse à confirmer, voir §2.4). Bloqué tant qu'il n'y a pas de source de prix fiable.
+- **Satellite pétrole** : tactique, jugé séparément, prélevé **dans** la poche de 10 % (décision de l'utilisateur du 2026-09-30 : le pétrole compte dans les 10 %, pas de budget séparé). Bloqué tant qu'il n'y a pas de source de prix fiable.
 - **Cadence hebdomadaire** : une session de décision par semaine. Le reste du temps, seulement des contrôles de santé et de risque, sans LLM.
 - **Filet de sécurité** (remplace le stop broker du cœur) : alertes du watchdog, alerte de perte de portefeuille à **−35 %** depuis le pic (alerte puis décision humaine, pas de vente automatique), commande manuelle « tout liquider », plafond de taille de la poche.
 - **Validation** : tout changement de la poche passe d'abord par le banc de la phase 1 (walk-forward, net de frais et d'impôt, **contre le buy & hold, la MA200 et un timing aléatoire à rotation égale**). Le démo sert à vérifier que le live reproduit le backtest, pas à découvrir l'edge.
@@ -145,7 +145,7 @@ Le mode actuel (« legacy » : un stop GTC par position, cycles de 30 min) reste
 |---|---|---|---|---|
 | **Cœur** | ≈ 90 % (moins une réserve de cash) | Nasdaq-100, obligatoire (SXRV.DE rodé par le démo ; alternatives à comparer, §2.2) | Personne : acheté en une fois, conservé | Pas de stop broker. Alerte −35 % du portefeuille, liquidation manuelle |
 | **Poche active** | 10 % (3 000 €) | Nasdaq-100 en exposition 0 / 50 / 100 % de la poche | Ensemble de modèles, chaque semaine | Plafond de taille + coupe-poche (§2.5) |
-| **Satellite pétrole** | Part de la poche (hypothèse : au plus la moitié, soit 5 % du capital) | À trancher (§2.4) | Ensemble pétrole (oil_bench, TimesFM, LLM), chaque semaine | Plafond de taille ; stop très large à évaluer sur le banc |
+| **Satellite pétrole** | Dans les 10 % (décision du 2026-09-30) ; répartition avec l'exposition Nasdaq-100 de la poche à fixer par le banc | À trancher (§2.4) | Ensemble pétrole (oil_bench, TimesFM, LLM), chaque semaine | Plafond de taille ; stop très large à évaluer sur le banc |
 
 **2.1 Cadence hebdomadaire**
 - **Session hebdomadaire** : snapshot des données après la clôture américaine du vendredi ; pendant le week-end tournent TimesFM, le classique, les LLM (texte, vision, oil_bench) et le council, qui devient la **réunion de la semaine** (rétrospective de la semaine puis vote). Résultat : **un enregistrement de décision figé** (entrées, sorties brutes de chaque voix, fournisseur et modèle LLM réellement utilisés, version des modèles, empreinte du prompt). Exécution **le lundi vers 10 h** (après la première heure de cotation), avec contrôle de fraîcheur des données (GO-gate 5) et de spread.
@@ -181,7 +181,7 @@ Le mode actuel (« legacy » : un stop GTC par position, cycles de 30 min) reste
 **2.4 Satellite pétrole**
 - **Prérequis bloquant** : une source de prix fiable (CRUDP.PA : flux Yahoo gelé à 82 %). À instruire : autre ETC/ETF pétrole coté et disponible chez T212, ou contrat de référence (CL=F, BZ=F) pour le signal et un ETC pour l'exécution (risque de base et de roll à mesurer). Décision après mesure du roll et du contango sur l'instrument réel.
 - **Rôle** : tactique, exposition 0 / 50 / 100 % de sa part, décision hebdomadaire, voix = oil_bench, TimesFM sur la série pétrole, LLM vision et texte. Testé selon le §2.3.
-- **Plafond** : au plus la moitié de la poche par défaut (hypothèse à confirmer : la poche de 10 % inclut-elle le pétrole ?).
+- **Plafond** : le pétrole compte dans les 10 % (décision du 2026-09-30) : poche NDX + pétrole ≤ 10 % du capital, contrôlé par R3. La répartition interne est un paramètre du banc.
 - **Protection** : la décision « pas de stop » concerne le cœur. Pour le satellite, très volatil, un **stop très large** est une variante à mesurer avec `scripts/stop_study.py` ; décision à prendre sur le résultat.
 
 **2.5 Couche de risque du mode cœur + poche (remplace le GO-gate 2 pour ce mode)**
@@ -348,4 +348,4 @@ Moteur de backtest, métriques, bootstrap et rapport livrés dans la PR `feat/ba
 
 Décisions de l'utilisateur intégrées : aucun stop broker sur le cœur ; poche active de 10 % ; Nasdaq-100 obligatoire ; entrée en une fois ; satellite pétrole tactique ; cadence hebdomadaire ; tolérance de baisse du cœur ≈ −30 % ; alerte à −35 % ; compte-titres ; alertes Nextcloud Talk ; **LLM et TimesFM au cœur du projet**.
 
-À confirmer par l'utilisateur (propositions, pas décisions) : le satellite pétrole est-il **inclus** dans la poche de 10 % ; coupe-poche à −50 % de l'allocation ; alertes d'information à −20 % et −30 % ; revues à 13/26/52 semaines et règle « deux revues défavorables » ; jour et heure de la session hebdomadaire (vendredi soir → lundi 10 h) ; ordre test avant l'entrée en une fois ; stop très large sur le satellite pétrole.
+À confirmer par l'utilisateur (propositions, pas décisions) : coupe-poche à −50 % de l'allocation ; alertes d'information à −20 % et −30 % ; revues à 13/26/52 semaines et règle « deux revues défavorables » ; jour et heure de la session hebdomadaire (vendredi soir → lundi 10 h) ; ordre test avant l'entrée en une fois ; stop très large sur le satellite pétrole.
