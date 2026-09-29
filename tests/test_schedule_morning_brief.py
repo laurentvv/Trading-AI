@@ -6,8 +6,10 @@ analyse FinAcumen n'était ajoutée au brief (elle ne tournait qu'en cas de time
 """
 
 import json
+import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -79,9 +81,30 @@ def test_finacumen_section_is_appended_to_the_brief(monkeypatch, tmp_path):
     assert "Résultat non généré" in text
 
 
-def test_stub_brief_created_when_brief_never_generated(monkeypatch, tmp_path):
+def test_no_stub_brief_when_brief_never_generated(monkeypatch, tmp_path):
+    """Brief absent : pas de stub (il ferait croire au rattrapage que le brief du jour existe)."""
     _install_fake_run(monkeypatch, "timeout")
     schedule.run_morning_brief()
+    out = tmp_path / "morning_brief" / "output"
+    assert not (out / "morning_market_brief.md").exists()
+    assert not schedule._morning_brief_done_today()
+    fallback = out / "finacumen_daily.md"
+    assert fallback.exists()
+    assert "## 5. Analyse Qualitative Profonde (FinAcumen)" in fallback.read_text(encoding="utf-8")
+
+
+def test_yesterdays_brief_is_left_untouched(monkeypatch, tmp_path):
+    """Brief de la veille + brief du jour en échec : FinAcumen ne doit pas le rafraîchir (mtime)."""
+    _install_fake_run(monkeypatch, "fail")
     brief = tmp_path / "morning_brief" / "output" / "morning_market_brief.md"
-    assert brief.exists()
-    assert "Morning Brief de base non généré" in brief.read_text(encoding="utf-8")
+    brief.parent.mkdir(parents=True)
+    brief.write_text("# Brief d'hier\n", encoding="utf-8")
+    yesterday = time.time() - 30 * 3600
+    os.utime(brief, (yesterday, yesterday))
+
+    schedule.run_morning_brief()
+
+    assert brief.read_text(encoding="utf-8") == "# Brief d'hier\n"
+    assert int(brief.stat().st_mtime) == int(yesterday)
+    assert not schedule._morning_brief_done_today()
+    assert (brief.parent / "finacumen_daily.md").exists()

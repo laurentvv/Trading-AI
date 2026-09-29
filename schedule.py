@@ -249,13 +249,21 @@ def _run_finacumen_daily(output_dir: Path) -> None:
                 finacumen_section += f"\n### {ticker}\n- **Erreur:** Résultat non généré.\n"
 
         output_dir.mkdir(parents=True, exist_ok=True)
-        if not output_file.exists():
+        if _morning_brief_done_today(output_file):
+            target = output_file
+        else:
+            # Brief du jour absent (échec/timeout) : ne JAMAIS toucher au fichier du brief. Y ajouter
+            # la section (ou y créer un stub) remettrait son mtime à aujourd'hui, ce qui (1) fait croire
+            # à la garde de rattrapage que le brief du jour existe et (2) ferait servir le brief de la
+            # veille comme contexte « frais » aux LLM. La section va dans un fichier à part.
+            target = output_dir / "finacumen_daily.md"
+            logger.warning("Morning Brief du jour absent : résultats FinAcumen écrits dans %s", target)
             today = datetime.now().strftime("%Y-%m-%d")
-            output_file.write_text(f"# Morning Market Brief — {today}\n\n_Note: Morning Brief de base non généré._\n", encoding="utf-8")
+            finacumen_section = f"# FinAcumen — {today}{finacumen_section}"
 
-        with open(output_file, "a", encoding="utf-8") as f:
+        with open(target, "w" if target != output_file else "a", encoding="utf-8") as f:
             f.write(finacumen_section)
-        logger.info("✅ Résultats FinAcumen ajoutés au Morning Brief.")
+        logger.info("✅ Résultats FinAcumen écrits : %s", target)
 
     except Exception as e:
         logger.error(f"💥 Erreur critique lors de FinAcumen : {e}")
