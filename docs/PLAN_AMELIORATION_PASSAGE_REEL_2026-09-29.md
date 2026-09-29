@@ -18,6 +18,8 @@
 
 La barre à battre est connue. Sur 5 ans (09/2021 → 09/2026), le buy & hold fait **SXRV.DE +113 % (drawdown max −31 %)** et **CRUDP.PA +152 % (drawdown max −25 %)**. Pour justifier son existence, un système moyen/long terme doit **capter l'essentiel de cette hausse avec un drawdown plus faible**, net de frais et d'impôts. Sinon, le buy & hold l'emporte par défaut.
 
+> **Mise à jour du 2026-09-29 (soir) : le cap a changé.** Après l'étude des stops (`docs/STOPS_ET_VISION_MOYEN_LONG_TERME_2026-09-29.md`), l'utilisateur a tranché : **cœur Nasdaq-100 conservé sans stop broker, poche active de 10 % du capital pilotée par l'ensemble de modèles (LLM et TimesFM au centre du projet), satellite pétrole tactique, décisions hebdomadaires, entrée en une fois, alerte à −35 % depuis le pic.** Les §2, phase 2, phases 3 et 4, §4, §5 et §7 ci-dessous ont été réécrits en conséquence. Les §1, phase 0 et §6 restent l'historique factuel du run démo 2 ; le mode actuel du démo (« legacy », un stop GTC par position) reste régi par le GO-gate 2 tant que la phase 2 n'est pas livrée.
+
 ---
 
 ## 1. Constat chiffré du run démo 2
@@ -88,13 +90,18 @@ La barre à battre est connue. Sur 5 ans (09/2021 → 09/2026), le buy & hold fa
 
 ## 2. Principe directeur de la refonte
 
-**Passer d'un « trader intraday multi-modèles » à un « portefeuille moyen terme avec filtre de régime ».**
+**Passer d'un « trader intraday multi-modèles » à un « portefeuille en trois livres » : un cœur passif Nasdaq-100, une poche active de 10 % où l'ensemble de modèles (LLM et TimesFM compris) doit prouver sa valeur, et un satellite pétrole tactique.**
 
-- **Cœur** : exposition longue par défaut sur les actifs retenus, avec une taille calée sur la volatilité.
-- **Filtre de régime** : les modèles ne servent plus à entrer et sortir chaque jour. Ils disent si l'on est en régime « risk-on » (exposition pleine), « neutre » (exposition partielle) ou « risk-off » (exposition réduite ou cash).
-- **Sorties** : pilotées par la rupture de tendance ou de régime et par un stop catastrophe chez le broker, **quel que soit le P&L latent**. Plus de plafond de gain ni de sortie au calendrier.
-- **Cadence** : **une décision par jour** (après la clôture ou avant l'ouverture). Pendant la séance, on ne fait que des contrôles de risque légers (stops, cohérence broker).
-- **Validation** : tout changement passe d'abord par un **backtest walk-forward sur 5 ans**, net de frais et d'impôts, **contre le buy & hold et contre des règles simples** (par exemple un filtre MA200). Le démo sert à vérifier que le live reproduit le backtest, pas à découvrir l'edge.
+- **Cœur (≈ 90 %)** : Nasdaq-100 acheté en une fois et conservé. **Aucun stop broker, aucune vente décidée par un modèle.** Le filtre MA200 et le momentum ne pilotent pas le cœur : ils servent de **comparateurs** que la poche active doit battre.
+- **Poche active (10 % du capital, soit 3 000 €)** : c'est ici que vivent les modèles. L'ensemble décide chaque semaine son niveau d'exposition (0 / 50 / 100 % de la poche). Elle n'est adoptée que si elle bat, hors échantillon et nette de frais et d'impôt, à la fois le buy & hold et la règle MA200. Sinon elle reste passive, et le cœur n'en souffre pas.
+- **Satellite pétrole** : tactique, jugé séparément, prélevé **dans** la poche (hypothèse à confirmer, voir §2.4). Bloqué tant qu'il n'y a pas de source de prix fiable.
+- **Cadence hebdomadaire** : une session de décision par semaine. Le reste du temps, seulement des contrôles de santé et de risque, sans LLM.
+- **Filet de sécurité** (remplace le stop broker du cœur) : alertes du watchdog, alerte de perte de portefeuille à **−35 %** depuis le pic (alerte puis décision humaine, pas de vente automatique), commande manuelle « tout liquider », plafond de taille de la poche.
+- **Validation** : tout changement de la poche passe d'abord par le banc de la phase 1 (walk-forward, net de frais et d'impôt, **contre le buy & hold, la MA200 et un timing aléatoire à rotation égale**). Le démo sert à vérifier que le live reproduit le backtest, pas à découvrir l'edge.
+
+**Ce que la poche peut et ne peut pas faire (arithmétique, pas prévision).** 10 % de 30 000 € = 3 000 €. Si la poche gagne 20 % dans l'année, cela ajoute 600 €, soit +2 % du capital ; si elle perd tout, −10 %. Le rendement du portefeuille vient donc surtout du cœur. La poche est un **budget de risque borné pour tester les modèles en réel**, pas un moteur de performance par construction.
+
+**Risque du cœur à regarder en face.** Tolérance déclarée : environ −30 %. Le Nasdaq-100 a déjà connu des baisses plus profondes (ordres de grandeur, à confirmer : environ −83 % de 2000 à 2002, environ −35 % en 2022). L'alerte à −35 % est donc un événement plausible en marché baissier sévère, pas une rareté. La conduite à tenir quand elle se déclenche doit être **écrite à l'avance** (voir phase 4).
 
 ---
 
@@ -124,63 +131,114 @@ C'est **le livrable qui conditionne tout le reste.** Sans lui, chaque réglage e
 3. **Séries correctes** : P&L calculé sur **les séries EUR tradées** (SXRV.DE, CRUDP.PA), et tester l'entraînement des modèles directement sur ces séries plutôt que sur ^NDX et CL=F.
 4. **Références obligatoires** : buy & hold ; filtre de tendance simple (au-dessus ou en dessous de la MA200) ; 50 % investi fixe. Une stratégie qui ne bat pas la MA200 simple ne justifie pas sa complexité.
 5. **Métriques** : CAGR, Sharpe, Sortino, **drawdown max**, Calmar, temps investi, turnover, nombre de trades, gain moyen/perte moyenne. Robustesse : bootstrap des rendements et **Sharpe déflaté** (on a testé beaucoup de variantes).
-6. **Ablation par modèle** : chaque modèle seul, puis l'ensemble moins un modèle. **On ne garde que les modèles qui ajoutent de la valeur hors échantillon.** Les LLM (texte, vision, oil_bench, council) ne sont pas backtestables honnêtement : ils passent en **vote fantôme** (loggé, non décisionnel) jusqu'à preuve sur un échantillon live suffisant.
+6. **Ablation par modèle, test équitable** : chaque voix (TimesFM, classique, LLM texte, LLM vision, oil_bench, council, Grebenkov, HMM, momentum simple) est testée **seule**, puis l'ensemble moins une voix, selon **le même protocole pré-enregistré** (périodes, variantes autorisées et seuils d'adoption écrits avant de lancer). Les LLM posent un problème particulier de fuite d'information (leurs données d'entraînement contiennent le futur du backtest) : voir §3, phase 2.3 pour les parades. **Aucune voix n'est retirée ni déclarée utile sans preuve** ; une voix dont le mauvais résultat vient d'une entrée cassée (sentiment, council, oil_bench) est classée « à réparer », pas « inutile ».
 
 **Livrable :** `docs/BACKTEST_WALKFORWARD_<date>.md` avec le tableau par stratégie et par modèle, plus une décision écrite sur les modèles conservés.
 
-### Phase 2 : refonte de la stratégie moyen terme (2 à 3 semaines, chaque point validé par le banc de la phase 1)
+### Phase 2 : refonte « cœur Nasdaq-100 + poche active + satellite pétrole » (3 à 4 semaines ; chaque brique validée par le banc de la phase 1)
 
-**2.1 Cadence**
-- Une décision de stratégie **par jour** (par exemple 17:45 après la clôture, exécution à l'ouverture suivante ou le lendemain 09:15). Les cycles de 30 min ne servent plus qu'aux contrôles de risque (stops, sync broker, alertes), sans LLM. Appels LLM divisés par environ 17, beaucoup moins de 429 et de 503, et plus de bruit intraday.
+Le mode actuel (« legacy » : un stop GTC par position, cycles de 30 min) reste intact et sélectionnable. Le nouveau mode s'active par configuration (`STRATEGY_MODE=core_sleeve`), pour que le démo en cours ne bouge pas avant la bascule.
 
-**2.2 Cibles et modèles**
-- **classic** : horizon de 20 à 60 jours, cible à 3 classes (hausse / zone neutre / baisse) ou régression du rendement futur, avec des variables de tendance et de régime (pente de la MA200, momentum 3 à 12 mois, volatilité réalisée, drawdown en cours). Supprimer la cible à 1 jour.
-- **timesfm** : entrée = série tradée, horizon de 20 jours, décision fondée sur les **quantiles** (P(rendement > 0), rapport q90/q10) plutôt que sur la médiane contre 0,5 %. Mesurer d'abord son **biais moyen** (rendement prévu moins réalisé) sur 5 ans, et le corriger ou l'écarter.
-- **grebenkov et un momentum simple** : candidats naturels pour le **filtre de régime** (à confirmer par l'ablation).
-- **tensortrade** : poids à 0 tant qu'il n'y a pas un modèle par ticker entraîné sérieusement (au moins 10⁵ timesteps, walk-forward) et validé. Sinon, le retirer.
-- **hmm** : aujourd'hui il discrétise des rendements et renvoie BUY/SELL (`src/hmm_model.py`). À re-spécifier comme détecteur de régime de volatilité et valider par l'ablation ; sinon, poids 0.
-- **sentiment et vincent_ganne** : retirés (ou réparés puis revalidés).
-- **council** : **consultatif uniquement** (rapport humain), plus de vote tant qu'il est alimenté par des métriques de micro-échantillons.
-- **Poids adaptatifs** : gelés sur les poids issus du walk-forward. Pas de repondération en live en dessous de 60 observations par modèle et par ticker.
+**Architecture cible**
 
-**2.3 Règles de sortie cohérentes avec le moyen terme**
-- **Supprimer le take-profit fixe à +8 %.**
-- **Supprimer le time-stop de 15 jours**, ou le remplacer par une sortie « tendance cassée ET aucun progrès depuis N semaines ».
-- **Neutraliser la garde anti-perte pour les sorties de régime uniquement** : une sortie est décidée par une règle, pas par le P&L latent. **La conserver comme contrôle de cohérence du prix d'entrée** (elle protège contre une référence d'entrée fantôme ou corrompue, incident de juin 2026 avec dérive à −17 %, cf. `_validate_and_recalibrate_entry_price`).
-- **Trailing** : remplacer le −3 % par un stop fondé sur l'ATR (par exemple 3 × ATR(20)) ou par une sortie « clôture sous MA100/MA200 ». Paramètres choisis par le backtest, pas à la main.
-- **Stop catastrophe chez le broker** : conservé (cliquet), avec un niveau calé sur la volatilité de chaque actif (CRUDP est environ 3 fois plus volatil que SXRV).
-- **Hystérésis** : seuils d'entrée et de sortie distincts, et **détention minimale de 5 à 10 séances** hors stop catastrophe, pour supprimer le churn.
+| Livre | Part du capital | Instrument | Qui décide | Protection |
+|---|---|---|---|---|
+| **Cœur** | ≈ 90 % (moins une réserve de cash) | Nasdaq-100, obligatoire (SXRV.DE rodé par le démo ; alternatives à comparer, §2.2) | Personne : acheté en une fois, conservé | Pas de stop broker. Alerte −35 % du portefeuille, liquidation manuelle |
+| **Poche active** | 10 % (3 000 €) | Nasdaq-100 en exposition 0 / 50 / 100 % de la poche | Ensemble de modèles, chaque semaine | Plafond de taille + coupe-poche (§2.5) |
+| **Satellite pétrole** | Part de la poche (hypothèse : au plus la moitié, soit 5 % du capital) | À trancher (§2.4) | Ensemble pétrole (oil_bench, TimesFM, LLM), chaque semaine | Plafond de taille ; stop très large à évaluer sur le banc |
 
-**2.4 Taille des positions et allocation (dimensionnée pour 30 k€)**
-- Abandonner le tout-ou-rien (`sizing_ratio = 1.0` en dur) : exposition par paliers (0 / 25 / 50 / 75 / 100 %) selon le régime et le niveau de conviction.
-- **Ciblage de volatilité** par actif : CRUDP, bien plus volatil et soumis au roll, reçoit une part plus faible que SXRV à risque égal.
-- Plafond par actif, réserve de cash, et **coupe-circuit portefeuille** (drawdown global supérieur à X % : exposition réduite et alerte).
-- `INITIAL_BUDGETS` et la logique d'equity passent en **allocation de portefeuille** (poids cibles), et non plus en « 1 000 € par ticker ».
+**2.1 Cadence hebdomadaire**
+- **Session hebdomadaire** : snapshot des données après la clôture américaine du vendredi ; pendant le week-end tournent TimesFM, le classique, les LLM (texte, vision, oil_bench) et le council, qui devient la **réunion de la semaine** (rétrospective de la semaine puis vote). Résultat : **un enregistrement de décision figé** (entrées, sorties brutes de chaque voix, fournisseur et modèle LLM réellement utilisés, version des modèles, empreinte du prompt). Exécution **le lundi vers 10 h** (après la première heure de cotation), avec contrôle de fraîcheur des données (GO-gate 5) et de spread.
+- **Backtest aligné** : décision à la clôture du vendredi, exécution à l'ouverture du lundi, plus un coût de spread. Même calendrier partout.
+- **Jours ouvrés** : tâche légère, **sans LLM ni TimesFM** : santé du scheduler, fraîcheur des données, lecture broker, alerte de drawdown. Les appels LLM tombent de ~17 par jour et par ticker à ~1 par semaine, ce qui supprime le problème des 429 et des 503 en cadence normale.
+- Le Morning Brief et FinAcumen quotidiens restent (contexte lu par la session hebdomadaire), mais ne décident rien seuls.
 
-**2.5 Univers**
-- Réévaluer CRUDP.PA : matière première en contango et backwardation, pas de rendement de portage durable, divergence avec CL=F. Le garder seulement si le backtest net de roll montre un apport au portefeuille (décorrélation). Sinon, le remplacer par un actif mieux adapté au moyen terme, à évaluer dans le banc.
+**2.2 Cœur : achat en une fois, conservation, aucune vente logicielle**
+- **Instrument** : SXRV.DE est rodé par le démo. Avant le réel, comparer sur des faits vérifiés : frais courants, encours, écart de suivi, spread mesuré sur le compte, devise de cotation (EUR ou USD), disponibilité et fractions chez T212. Les ETF américains ne sont pas accessibles depuis un compte européen (à vérifier), et le compte-titres est le cadre retenu.
+- **Entrée** : contrôle des données et du spread, ordre au marché en séance continue (hors première et dernière demi-heure), fill confirmé (GO-gate 3), fill partiel complété le jour même. Un **ordre test de faible montant** sur le même instrument précède le solde, pour vérifier fill, frais, alertes et réconciliation. Le solde part ensuite en une fois (décision de l'utilisateur ; l'étude des stops rappelle qu'un investissement immédiat bat l'étalement dans la majorité des cas historiques).
+- **Invariant de code** : un ordre SELL sur un livre de rôle `core` est **refusé** par l'exécuteur, sauf via la commande manuelle `liquidate` (§2.5). C'est une garde de code testée, pas une règle de modèle.
+- **Rééquilibrage** : aucun par vente du cœur (chaque vente réalise une plus-value imposable, hypothèse 30 %). Les écarts de poids se corrigent avec de nouveaux versements éventuels.
+
+**2.3 Poche active : moteur, et test équitable des modèles (LLM et TimesFM au centre)**
+
+*Principe.* Chaque voix a sa chance selon les mêmes règles. Aucune n'est retirée sans preuve, aucune n'est créditée sans preuve.
+
+1. **Ré-spécifier chaque voix à l'horizon hebdomadaire** (les défauts constatés en §1.2 sont des défauts de spécification, pas de concept) :
+   - **TimesFM** : entrée = série tradée (pas ^NDX si l'ETF est tradé en EUR), horizon de 5 à 13 semaines, décision par les **quantiles** (P(rendement > 0), asymétrie q90/q10) plutôt que médiane contre 0,5 %. Mesurer d'abord son **biais** (prévu moins réalisé) sur cinq ans, puis le corriger.
+   - **Classique** : cible à trois classes avec zone neutre, sur 4 à 13 semaines ; variables de tendance et de régime (pente MA200, momentum 3 à 12 mois, volatilité réalisée, drawdown en cours). La cible à 1 jour disparaît.
+   - **LLM texte et vision** : prompt hebdomadaire, sortie = niveau d'exposition (0 / 50 / 100 %) + confiance, température fixée, **modèle et fournisseur épinglés** pour la session (voir point 3).
+   - **oil_bench** : alimenté uniquement par des données fraîches (garde EIA déjà en place) ; **council** : ses entrées sont réparées avant tout vote (plus de win rate sur 1 trade, plus d'alertes HIGH en boucle).
+   - **HMM** : re-spécifié comme détecteur de régime de volatilité (aujourd'hui il discrétise des rendements) ; **TensorTrade** : un modèle par ticker, entraîné sérieusement (≥ 10⁵ pas) ou retiré ; **sentiment** : réparé (cache quotidien sous le quota Alpha Vantage, score au niveau de l'article, proxy de ticker) puis revalidé, ou retiré.
+2. **Test équitable, identique pour toutes les voix** : walk-forward strict sans donnée future ; comparateurs = poche 100 % investie, MA200 avec hystérésis, **timing aléatoire à rotation égale** (1 000 tirages, pour savoir si le résultat dépasse la chance) ; métriques nettes de coûts et d'impôt ; nombre de variantes comptabilisé (Sharpe déflaté) ; **protocole pré-enregistré** dans le dépôt avant le premier rejeu.
+3. **LLM : trois parades à la fuite d'information.**
+   - Rejeux avec **prompts masqués** (ni date, ni nom d'indice, prix normalisés) pour réduire la reconnaissance de période.
+   - Évaluation privilégiée sur la **période postérieure à la date de coupure connue** du modèle épinglé.
+   - Surtout, un **journal à terme** dès maintenant : chaque session hebdomadaire fige la voix de chaque LLM (le journal d'audit #97 en enregistre déjà onze). C'est la seule preuve réellement hors échantillon. Limite honnête : environ 52 observations par an, donc un pouvoir statistique faible, d'où les revues à 13, 26 et 52 semaines (§2.7).
+   - **Épingler le modèle** : la passerelle multi-fournisseurs bascule sur un autre modèle quand le premier échoue, ce qui rend la mesure non reproductible. La session hebdomadaire épingle un fournisseur principal, journalise chaque bascule (`fallback=vrai`) et marque ces votes.
+4. **Fusion en exposition de poche** : score pondéré vers des paliers 0 / 50 / 100 %, **hystérésis** (deux sessions consécutives pour changer de palier), détention minimale de 4 semaines. Poids de départ égaux entre les voix retenues, ensuite figés par le walk-forward et revus au plus une fois par semestre (à cadence hebdomadaire, 60 observations par voix représentent plus d'un an : plus de repondération adaptative en live).
+5. **Adoption** : la poche n'est active que si elle passe la porte « Edge » de la phase 4. Sinon elle reste passive (Nasdaq-100 ou cash), **mais les voix continuent d'être journalisées et mesurées** : ne pas mesurer reviendrait à les retirer sans preuve.
+
+**2.4 Satellite pétrole**
+- **Prérequis bloquant** : une source de prix fiable (CRUDP.PA : flux Yahoo gelé à 82 %). À instruire : autre ETC/ETF pétrole coté et disponible chez T212, ou contrat de référence (CL=F, BZ=F) pour le signal et un ETC pour l'exécution (risque de base et de roll à mesurer). Décision après mesure du roll et du contango sur l'instrument réel.
+- **Rôle** : tactique, exposition 0 / 50 / 100 % de sa part, décision hebdomadaire, voix = oil_bench, TimesFM sur la série pétrole, LLM vision et texte. Testé selon le §2.3.
+- **Plafond** : au plus la moitié de la poche par défaut (hypothèse à confirmer : la poche de 10 % inclut-elle le pétrole ?).
+- **Protection** : la décision « pas de stop » concerne le cœur. Pour le satellite, très volatil, un **stop très large** est une variante à mesurer avec `scripts/stop_study.py` ; décision à prendre sur le résultat.
+
+**2.5 Couche de risque du mode cœur + poche (remplace le GO-gate 2 pour ce mode)**
+
+| # | Invariant | Vérification |
+|---|---|---|
+| R1 | **Alerte portefeuille à −35 % depuis le pic** (equity broker, cash compris), alerte Nextcloud, ré-armement à −30 % ; pas de vente automatique. Alertes d'information à −20 % et −30 % (proposition) | Test avec equity simulée ; alerte reçue |
+| R2 | **Commande `liquidate`** : vend toutes les positions au marché après confirmation explicite, journalise, arrête le scheduler | Exécutée sur le démo, positions à 0 |
+| R3 | **Plafond de poche** : poche + satellite ≤ 10 % de l'equity totale, contrôlé avant chaque ordre | Test unitaire : un ordre qui dépasse est refusé |
+| R4 | **Coupe-poche** : si l'equity de la poche tombe sous 50 % de son allocation, elle passe à plat et alerte (proposition, à confirmer) | Test avec equity simulée |
+| R5 | **Cœur non vendable par le logiciel** (§2.2) | Test : SELL `core` refusé |
+| R6 | **Réconciliation hebdomadaire** état local ↔ broker ; un écart (vente ou achat manuel) est signalé, jamais « corrigé » par un ordre automatique | Test avec broker simulé |
+| R7 | **Watchdog conscient du rôle** : « position sans stop » n'est critique que pour un livre déclaré protégé ; le cœur est attendu sans stop | Test du watchdog |
+| — | **Restent en vigueur** : GO-gates 1 (idempotence des ordres), 3 (fill confirmé), 4 (volatilité quotidienne), 5 (fraîcheur des données), 6 (verrou du scheduler), 7 (equity FIFO) | Suite existante |
+
+`AGENTS.md` (GO-gate 2) est mis à jour dans la PR qui livre cette couche, pas avant.
+
+**2.6 Découpage en PR (fichiers pressentis, à confirmer à la lecture du code)**
+
+| PR | Contenu | Critère d'acceptation |
+|---|---|---|
+| 2-a | Modèle « livres » : rôle (`core` / `sleeve` / `oil`), poids cibles à la place de `INITIAL_BUDGETS`, état par livre, `STRATEGY_MODE` | Mode legacy inchangé (suite verte) ; état par livre persisté |
+| 2-b | Session hebdomadaire (`--weekly`) + tâche légère quotidienne + enregistrement de décision figé | Un enregistrement complet par session ; 0 appel LLM en semaine |
+| 2-c | Exécuteur : garde SELL `core`, plafond de poche, coupe-poche, entrée en une fois | Tests R3 à R5 |
+| 2-d | Alerte −35 %, `liquidate`, réconciliation, watchdog conscient du rôle, mise à jour de `AGENTS.md` | Tests R1, R2, R6, R7 |
+| 2-e | Voix ré-spécifiées à l'horizon hebdomadaire (TimesFM quantiles, classique 3 classes, prompts LLM, council réparé, HMM) | Chacune évaluable par le banc, entrées fraîches |
+| 2-f | Épinglage du modèle LLM + journalisation des bascules | Bascule visible dans le journal |
+| 2-g | Fusion en exposition de poche avec hystérésis | Reproduit le backtest sur les mêmes semaines |
+
+**2.7 Revues et règles de décision de la poche (proposition à confirmer)**
+- Revues à **13, 26 et 52 semaines** de journal à terme, sur critères écrits à l'avance : écart à la poche passive, à la MA200 et au timing aléatoire, net de coûts.
+- Par voix, trois issues : **retenue**, **à réparer** (avec la cause identifiée), **retirée**. Une voix n'est retirée qu'après **deux revues défavorables** appuyées sur des chiffres, jamais sur un seul run court.
+- Une voix qui ne se prête pas à un test rétrospectif honnête (LLM) est jugée sur le journal à terme, avec les limites statistiques annoncées.
 
 ### Phase 3 : démo de conformité, run 3 (8 à 12 semaines, stratégie gelée)
 
-- **Contrat gelé** (`memory-bank/contract.md`) avant le démarrage. Aucun changement de stratégie pendant le run.
-- Budget démo à l'échelle réelle (allocation cible sur 30 k€ virtuels si le compte démo le permet), pour valider tailles, quantités et arrondis.
-- Chaque soir, **replay du backtest sur les mêmes jours**. Critère : **écart live/backtest inférieur à 0,5 % par trade** (implementation shortfall) et signaux identiques.
-- Ce run **ne prouve pas l'edge** : 12 semaines sont trop courtes. Il prouve que **le live reproduit fidèlement le backtest** qui, lui, a prouvé l'edge.
+- **Contrat gelé** (`memory-bank/contract.md`) avant le démarrage. Aucun changement de stratégie pendant le run. Mode `core_sleeve`, cadence hebdomadaire : 8 à 12 sessions seulement.
+- Budget démo à l'échelle réelle (30 k€ virtuels si le compte démo le permet), pour valider tailles, quantités et arrondis.
+- **Répétitions obligatoires** : entrée en une fois du cœur ; commande `liquidate` ; alerte −35 % déclenchée par une equity injectée ; session du lundi manquée (machine éteinte) puis rattrapage ; coupure du scheduler détectée et alertée sur Nextcloud ; bascule d'un fournisseur LLM journalisée.
+- Chaque semaine, **replay du backtest sur les mêmes semaines**. Critère : **écart live/backtest inférieur à 0,5 % par ordre** (implementation shortfall) et expositions identiques.
+- Ce run **ne prouve pas l'edge** (8 à 12 sessions, c'est trop peu, et le cœur est passif). Il prouve que **le live reproduit fidèlement le backtest** et que les garde-fous fonctionnent.
 
-### Phase 4 : passage en réel progressif
+### Phase 4 : passage en réel
 
 Pré-requis (tous obligatoires) :
 
 | Porte | Critère |
 |---|---|
-| Edge | Walk-forward 5 ans net de frais et d'impôts : **drawdown max nettement inférieur au buy & hold** avec un CAGR proche, OU Sharpe > B&H + 0,2 ; meilleur que la règle MA200 simple ; robuste au bootstrap |
-| Conformité | Phase 3 : écart live/backtest < 0,5 % par trade, 100 % des signaux reproduits |
-| Intégrité | 0 double ordre, 0 position sans stop broker, écart DB/broker < 0,5 %, 0 écriture de test en PROD |
-| Disponibilité | ≥ 98 % des décisions quotidiennes prises à l'heure, watchdog et alertes testés |
-| Broker live | Types d'ordres, limites de requêtes et instruments (`SXRVd_EQ`, `OD7Fd_EQ` ou remplaçant) **vérifiés sur le compte live** ; clé API live aux permissions minimales |
-| Coupe-circuit | Commande manuelle « tout liquider et stopper » testée ; perte journalière et drawdown max du portefeuille déclenchent un arrêt automatique |
+| Edge (poche active) | Walk-forward net de frais et d'impôt, protocole pré-enregistré : la poche bat **la poche passive et la règle MA200** hors échantillon et dépasse le **timing aléatoire à rotation égale** (Sharpe déflaté pris en compte). **Le cœur, passif par décision, n'a pas d'edge à prouver.** Si la poche échoue, elle reste passive et le passage en réel du cœur n'est pas bloqué |
+| Conformité | Phase 3 : écart live/backtest < 0,5 % par ordre, expositions identiques |
+| Intégrité | 0 double ordre, **0 vente du cœur non commandée**, invariants R1 à R7 testés, écart DB/broker < 0,5 %, 0 écriture de test en PROD |
+| Disponibilité | Watchdog et alertes Nextcloud testés ; 100 % des sessions hebdomadaires tenues en démo |
+| Broker live | Types d'ordres, limites de requêtes et instrument (`SXRVd_EQ` ou remplaçant) **vérifiés sur le compte live** par un ordre test de faible montant ; clé API live aux permissions minimales |
+| Filet de sécurité | Commande `liquidate` testée ; alerte −35 % testée ; **protocole écrit de décision quand l'alerte tombe** (par exemple : pas d'ordre dans les 48 h, revue avec des critères fixés à l'avance) |
+| Fiscalité | Taux du compte-titres confirmé (30 % = hypothèse), impact intégré au banc |
 
-Montée en charge : démarrer le réel sur **une fraction** du capital prévu, comparer au démo et au backtest pendant plusieurs semaines, puis augmenter par paliers si les écarts restent dans les tolérances. Le rythme et les montants sont une décision de l'utilisateur.
+Entrée en réel : ordre test de faible montant sur le même instrument, puis le solde des 30 k€ en une fois (décision de l'utilisateur). Le calendrier reste à la main de l'utilisateur.
 
 ---
 
@@ -188,20 +246,22 @@ Montée en charge : démarrer le réel sur **une fraction** du capital prévu, c
 
 - **Ajouter des modèles** avant d'avoir le banc de la phase 1 (leçon Kronos, juillet 2026 : implémenté, puis rejeté au backtest).
 - **Retoucher seuils et poids sur quelques semaines de live** (ADR-002 a calé les poids sur 4 semaines de marché baissier, puis le marché a monté).
-- Juger la stratégie sur le « win rate » d'une poignée de trades, ou laisser le council voter sur ces métriques.
-- Passer en réel en changeant simplement `T212_ENV=live` : la sonde live et les types d'ordres ne sont pas vérifiés.
+- Juger une voix sur le « win rate » d'une poignée de trades, ou laisser le council voter sur ces métriques.
+- **Retirer ou promouvoir un LLM ou TimesFM sur un seul backtest ou moins de 26 sessions hebdomadaires** ; changer de fournisseur LLM sans le journaliser.
+- **Poser un stop ou une règle de vente sur le cœur** (décision de l'utilisateur). Toute exception passe par lui.
+- Passer en réel en changeant simplement `T212_ENV=live` : les types d'ordres et les limites live ne sont pas vérifiés par un ordre réel.
 
 ---
 
 ## 5. Ordre d'exécution recommandé
 
-1. **Cette semaine** : phase 0 (0.1 → 0.10). Tout est non stratégique et sans risque pour le run en cours, sauf 0.3 (déplacer la PROD), à faire un soir hors séance.
-2. **Semaines 2-3** : phase 1 (banc walk-forward) et rapport de décision sur les modèles.
-3. **Semaines 4-6** : phase 2 (refonte), chaque changement validé sur le banc.
-4. **Semaines 7-18** : phase 3 (démo de conformité, stratégie gelée).
-5. **Ensuite** : phase 4, si toutes les portes sont vertes.
+1. **Fait** : phase 0 (hygiène et mesure) et phase 1, tranche A (références).
+2. **Ensuite** : phase 1, tranche B (rejeu équitable des voix en walk-forward, ablation, décision écrite). Prérequis : source de prix du pétrole, spread mesuré, comparaison des instruments Nasdaq-100.
+3. **Phase 2** : PR 2-a à 2-g (§2.6), chacune validée par le banc. Les PR 2-a à 2-d ne dépendent pas de la tranche B.
+4. **Phase 3** : démo de conformité (8 à 12 semaines, stratégie gelée).
+5. **Phase 4** : passage en réel si les portes sont vertes.
 
-Tant que la phase 2 n'est pas livrée, le run démo 2 peut continuer pour roder l'exploitation (phase 0), mais **ses résultats de P&L ne doivent pas servir à la décision GO/NO-GO**.
+Tant que la phase 2 n'est pas livrée, le run démo 2 peut continuer pour roder l'exploitation, mais **ses résultats de P&L ne doivent pas servir à la décision GO/NO-GO**.
 
 ---
 
@@ -249,38 +309,31 @@ puis revalidé. En attendant, il vote HOLD 0,50 sans effet sur le score (les HOL
 
 ---
 
-## 7. Les piliers du système de décision (hypothèse de travail, à valider en phase 1)
+## 7. Les piliers du système de décision (mis à jour le 2026-09-29 soir)
 
-Un pilier est ce qui doit rester même si tout le reste est retiré. Trois critères : **testable hors échantillon**,
-**explicable**, **utile au capital de 30 k€ même sans edge de prévision**. Cette liste est une hypothèse : le banc de la phase 1
-tranchera, et il n'est pas exclu qu'une règle simple (au-dessus ou en dessous de la MA200) batte tout l'ensemble.
+Un pilier est ce qui doit rester même si tout le reste est retiré. Critères : **mesurable hors échantillon** (à terme pour les LLM), **explicable**,
+**utile au capital de 30 k€**. Le banc de la phase 1 tranche pour la **poche active** ; il ne remet pas en cause le cœur, qui est passif par décision.
 
-| # | Pilier | Composants existants | Rôle | Pourquoi |
+| # | Pilier | Composants | Rôle | Pourquoi |
 |---|---|---|---|---|
-| 1 | **Filtre de tendance et de régime** | Grebenkov, HMM (candidat à re-spécifier : il discrétise aujourd'hui des rendements et renvoie BUY/SELL, il n'est pas un détecteur de volatilité ; à valider comme tel ou à écarter) + règles simples (MA200, momentum 3-12 mois, drawdown en cours) | Décide le **niveau d'exposition** (0 / 25 / 50 / 75 / 100 %), pas chaque achat ou vente | Seul composant qui avait raison sur la période (Grebenkov : achat 25 jours sur 27 sur un marché haussier). Déterministe, backtestable sur 5 ans, et référence naturelle que tout autre pilier doit battre. |
-| 2 | **Couche de risque et d'exécution** | GO-gates 1 à 7 : idempotence des ordres, fill confirmé, stop GTC à cliquet chez le broker, volatilité quotidienne, garde de fraîcheur des données, verrou du scheduler, equity FIFO ; puis watchdog et régulateur d'appels | Protège le capital **même quand les modèles se trompent** | C'est le vrai acquis du projet. Il a déjà résisté à des incidents réels (vente bloquée par un stop réservé, FIFO antéchronologique, état broker inconnu). Sur 30 k€, la survie passe avant la performance. |
-| 3 | **Prévision quantitative de moyen terme** (candidat) | TimesFM 3.0 (via ses quantiles) et le modèle classique (cible à 1 jour aujourd'hui, `src/features.py:203` ; à refaire à 20-60 jours en phase 2.2) | Confirmation et **dimensionnement** (probabilité de hausse, dispersion), pas un signe directionnel brut | Pas un pilier en l'état : TimesFM vend dans 84 à 93 % des cycles sur une autre série que celle tradée, le classique vise le lendemain. À garder seulement s'ils battent la règle simple hors échantillon. |
-| 4 | **Couche qualitative** (consultative) | LLM texte et vision, oil_bench, council, FinAcumen, morning brief | Contexte pour l'humain, et au plus un **droit de veto qui réduit l'exposition, jamais qui l'augmente** | Non backtestable honnêtement (fuite d'information), sorties instables, dépendance à des fournisseurs gratuits (94 échecs `gemini_free` sur le run). |
-| 5 | **Banc de mesure** | Backtest walk-forward, journal d'audit (PR #97), votes « fantômes » loggés sans peser | Rend chaque réglage vérifiable | C'est ce qui manquait : sans lui, les poids ont été calés sur 4 semaines de marché baissier (ADR-002). |
+| 1 | **Cœur Nasdaq-100 et comparateurs** | Cœur conservé sans stop ; MA200, momentum 3-12 mois et buy & hold comme références | Porte l'essentiel du rendement ; les comparateurs définissent ce que la poche doit battre | Sur SXRV.DE, aucune règle simple n'a battu le buy & hold sur le Sharpe (§8) ; la MA200 réduit le drawdown au prix de rendement. |
+| 2 | **Couche de risque et d'exécution** | GO-gates 1, 3 à 7 ; en mode cœur + poche, invariants R1 à R7 (alerte −35 %, `liquidate`, plafond de poche, cœur non vendable), watchdog, régulateur d'appels | Protège le capital **même quand les modèles se trompent** | Le vrai acquis du projet. Le stop broker du cœur est remplacé par un filet d'alertes et de commandes manuelles, selon la décision de l'utilisateur. |
+| 3 | **Ensemble de modèles de la poche active** | **TimesFM 3.0** (quantiles) et **modèle classique** (cibles hebdomadaires), plus Grebenkov et HMM re-spécifié | Décident l'exposition de la poche et du satellite | Cœur du projet. Les défauts constatés en §1.2 (série non tradée, cible à 1 jour) sont des défauts de spécification à corriger, puis à mesurer avec le protocole équitable de la phase 2.3. |
+| 4 | **Voix qualitatives, LLM** | LLM texte et vision, oil_bench, council, FinAcumen, morning brief | **Voix votantes à part entière** de la poche et du satellite pétrole, avec un modèle épinglé et un journal à terme | Cœur du projet. Non backtestables honnêtement (fuite d'information) : jugés sur un journal à terme, revues à 13, 26 et 52 semaines. Leur droit de vote n'est retiré qu'après deux revues défavorables chiffrées. |
+| 5 | **Banc de mesure** | Backtest walk-forward, timing aléatoire de contrôle, journal d'audit (#97), enregistrement figé de chaque session hebdomadaire | Rend chaque réglage vérifiable | Sans lui, les poids ont été calés sur 4 semaines de marché baissier (ADR-002). |
 
-**À retirer ou à geler en attendant** : sentiment (mort, voir §6), Vincent Ganne (désactivé), TensorTrade (2 000 pas d'entraînement, un seul modèle
-pour deux tickers), votes du council.
+**À réparer avant de les juger** : sentiment (quota et filtre de ticker, voir §6), council (entrées sur micro-échantillons), TensorTrade (2 000 pas, un seul modèle pour deux tickers), oil_bench (EIA périmé). **Désactivé** : Vincent Ganne. Ces défauts sont des bugs d'entrée ; ils ne disent rien de la valeur du concept.
 
-**Ordre de grandeur du problème actuel** : 0,54 des 0,95 de poids nominal (57 %) est porté par sentiment (0,16), TimesFM (0,15), classique (0,13) et
-council (0,10), c'est-à-dire par des composants morts ou biaisés à la baisse. Les deux composants alignés sur la tendance (Grebenkov 0,05, llm_visual sur le
-pétrole) pèsent presque rien.
+**Ordre de grandeur du problème constaté** : 0,54 des 0,95 de poids nominal (57 %) était porté par sentiment (0,16), TimesFM (0,15), classique (0,13) et council (0,10), dont deux morts (sentiment, council sur du bruit) et deux mal spécifiés (TimesFM sur une autre série, classique à 1 jour).
 
-**Conséquence sur l'univers** : pour CRUDP.PA (ETC pétrole : roll, contango, volatilité environ 3 fois celle de SXRV.DE), le pilier 1 doit d'abord prouver
-qu'il apporte quelque chose net du coût de roll ; sinon l'actif ne mérite pas sa place dans un portefeuille moyen terme.
+**Conséquence sur l'univers** : pour le pétrole, la source de prix et le coût de roll passent avant tout (§2.4).
 
 Ce document est une analyse d'ingénierie, pas un conseil en investissement personnalisé.
 
 ### Constat complémentaire : fenêtre sans stop lors d'une vente non exécutée
 
-Dans `_execute_sell_order`, le stop broker est annulé **avant** l'envoi de la vente (les actions réservées ne sont pas vendables). Si l'ordre au marché est accepté
-mais ne s'exécute pas (par exemple un cycle à 08:30 ou 18:00, hors de la séance 09:00-17:30 de Xetra et d'Euronext Paris, à vérifier), la confirmation échoue et le code
-sort **sans reposer le stop** : la position reste sans protection jusqu'au cycle suivant (~30 min). À traiter en phase 2 : ne pas émettre d'ordre hors séance, ou
-reposer le stop dès qu'une vente n'est pas confirmée.
+Ce constat concerne le **mode legacy** (un stop par position). Dans `_execute_sell_order`, le stop broker est annulé **avant** l'envoi de la vente. Si l'ordre au marché est accepté mais ne s'exécute pas, la position peut rester sans protection jusqu'au cycle suivant. La PR #96 (en revue) reformule l'alerte et reprotège quand la vente n'est pas confirmée. Il devient **sans objet pour le cœur** (pas de stop) ; il reste à traiter pour un éventuel stop du satellite.
+
 
 ## 8. Avancement de la phase 1, tranche A : les références (mis à jour le 2026-09-29)
 
@@ -290,3 +343,9 @@ Moteur de backtest, métriques, bootstrap et rapport livrés dans la PR `feat/ba
 - **SXRV.DE, 2022-07 → 2026-09** : aucune règle simple ne bat le buy & hold sur le Sharpe (1,12). La MA200 avec hystérésis 2 % offre un drawdown de −15 % contre −26,7 % pour 6 points de CAGR en moins.
 - **Les règles de sortie actuelles** (TP +8 %, trailing −3 %, time-stop 15 j), avec une entrée toujours haussière, tombent à 8,6 % de CAGR contre 21,8 % : à 0 pb de coût elles font 20,0 %, l'essentiel de la perte vient du **churn** (83 trades, rotation ×40 par an) et non de la seule troncature des gains.
 - **À faire ensuite (tranche B)** : rejeu des modèles de l'ensemble en walk-forward, ablation par modèle, décision écrite sur les modèles conservés. Prérequis : trancher la source de prix du pétrole et mesurer le spread réel (par côté ou aller-retour) sur le compte.
+
+## 9. Décisions et réécriture de la phase 2 (2026-09-29, soir)
+
+Décisions de l'utilisateur intégrées : aucun stop broker sur le cœur ; poche active de 10 % ; Nasdaq-100 obligatoire ; entrée en une fois ; satellite pétrole tactique ; cadence hebdomadaire ; tolérance de baisse du cœur ≈ −30 % ; alerte à −35 % ; compte-titres ; alertes Nextcloud Talk ; **LLM et TimesFM au cœur du projet**.
+
+À confirmer par l'utilisateur (propositions, pas décisions) : le satellite pétrole est-il **inclus** dans la poche de 10 % ; coupe-poche à −50 % de l'allocation ; alertes d'information à −20 % et −30 % ; revues à 13/26/52 semaines et règle « deux revues défavorables » ; jour et heure de la session hebdomadaire (vendredi soir → lundi 10 h) ; ordre test avant l'entrée en une fois ; stop très large sur le satellite pétrole.
