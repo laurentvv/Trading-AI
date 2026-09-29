@@ -73,6 +73,8 @@ except ImportError:
     insert_portfolio_state = None
     AdaptiveWeightManager = None
 
+from src.t212_rate_limit import GATE, GatedSession, bucket_for, retry_after_seconds  # noqa: E402
+
 load_dotenv(".env.t212")
 
 STATE_FILE = "t212_portfolio_state.json"
@@ -158,6 +160,10 @@ PRICE_DECIMALS = 2              # T212 price fields: 2 decimals (safe on EUR ins
 # "executed" — the broker position must be observed before any state/DB write.
 FILL_CONFIRM_ATTEMPTS = 6
 FILL_CONFIRM_DELAY = 2.0
+# SELL confirmation polls /equity/history/orders (limite officielle : 6 req / min, espacement 10,5 s
+# imposé par src/t212_rate_limit.py). 6 essais y coûteraient ~63 s ; 3 essais ≈ 21 s, et le stop broker a
+# déjà été libéré avant la vente : on garde cette fenêtre courte (revue Kilo PR #96).
+SELL_CONFIRM_ATTEMPTS = 3
 
 
 def _get_avg_price(current_pos: dict) -> float:
@@ -727,7 +733,13 @@ def get_real_price_eur(ticker_yahoo=None):
     raise ValueError(f"Could not retrieve price for {target} from any source")
 
 
-_t212_session = requests.Session()
+# Session gated par endpoint (limites officielles T212, voir src/t212_rate_limit.py).
+_t212_session = GatedSession()
+
+def _is_rate_limited(resp: requests.Response) -> bool:
+    """T212 signale la limite de débit par un 429 OU par un 400 « TooManyRequests »."""
+    return resp.status_code == 429 or (resp.status_code == 400 and "TooManyRequests" in resp.text)
+
 
 def safe_request(method: str, url: str, timeout: float = DEFAULT_REQUEST_TIMEOUT, **kwargs) -> requests.Response | None:
     """
@@ -739,9 +751,10 @@ def safe_request(method: str, url: str, timeout: float = DEFAULT_REQUEST_TIMEOUT
     for attempt in range(3):
         try:
             resp = _t212_session.request(method, url, timeout=timeout, **kwargs)
-            if resp.status_code == 429 or (resp.status_code == 400 and "TooManyRequests" in resp.text):
-                wait = (attempt + 1) * 2
-                logger.warning(f"⚠️ Rate limit atteint, attente de {wait}s...")
+            if _is_rate_limited(resp):
+                wait = retry_after_seconds(resp, (attempt + 1) * 2)
+                logger.warning(f"⚠️ Rate limit atteint, attente de {wait:g}s...")
+                GATE.penalize(bucket_for(method, str(url)), wait)
                 time.sleep(wait)
                 continue
             return resp
@@ -809,7 +822,7 @@ def post_order_market(order_data: dict, headers: dict, t212_ticker: str) -> tupl
                     )
                     return None, True
             continue
-        if resp.status_code == 429 or (resp.status_code == 400 and "TooManyRequests" in resp.text):
+        if _is_rate_limited(resp):
             wait = (attempt + 1) * 2
             logger.warning(f"⚠️ Rate limit sur POST d'ordre, attente de {wait}s (ordre non exécuté, retry sûr)...")
             time.sleep(wait)
@@ -842,7 +855,8 @@ def _confirm_fill(t212_ticker: str, headers: dict, side: str, expected_qty: floa
     """
     url_pos = f"{_get_t212_base_url()}/equity/positions"
     url_hist = f"{_get_t212_base_url()}/equity/history/orders?limit=10&ticker={t212_ticker}"
-    for attempt in range(FILL_CONFIRM_ATTEMPTS):
+    attempts = FILL_CONFIRM_ATTEMPTS if side == "BUY" else SELL_CONFIRM_ATTEMPTS
+    for attempt in range(attempts):
         try:
             if side == "BUY":
                 resp = _t212_session.get(url_pos, headers=headers, timeout=DEFAULT_REQUEST_TIMEOUT)
@@ -876,7 +890,8 @@ def _confirm_fill(t212_ticker: str, headers: dict, side: str, expected_qty: floa
                         return fallback
         except (requests.exceptions.RequestException, ValueError, TypeError) as e:
             logger.debug(f"Fill confirmation poll error: {e}")
-        if attempt < FILL_CONFIRM_ATTEMPTS - 1:
+        if attempt < attempts - 1 and side == "BUY":
+            # (SELL : l'espacement de 10,5 s entre lectures d'historique est déjà assuré par le régulateur.)
             time.sleep(FILL_CONFIRM_DELAY)
     return None
 
@@ -932,20 +947,28 @@ def _get_active_stop_order(t212_ticker: str, headers: dict) -> tuple[str, dict |
         ("ERROR", None) if the request failed (network, rate limit, HTTP error).
     """
     try:
-        resp = _t212_session.get(f"{_get_t212_base_url()}/equity/orders", headers=headers, timeout=DEFAULT_REQUEST_TIMEOUT)
-        if resp.status_code == 200:
-            payload = resp.json()
-            items = payload if isinstance(payload, list) else payload.get("items", [])
-            for o in items:
-                if (
-                    o.get("instrument", {}).get("ticker") == t212_ticker
-                    and o.get("type") == "STOP"
-                    and o.get("side") == "SELL"
-                    and o.get("status") in ("WORKING", "LOCAL", "UNCONFIRMED", "CONFIRMED", "NEW")
-                ):
-                    return "FOUND", o
-            return "NOT_FOUND", None
-        logger.warning(f"Active stop orders fetch returned status {resp.status_code}")
+        # GET /equity/orders : 1 req / 5 s (par compte). La session espace déjà les appels ; en cas de 429
+        # malgré tout (autre client sur le compte), UN nouvel essai après le délai imposé par le broker.
+        for attempt in range(2):
+            resp = _t212_session.get(f"{_get_t212_base_url()}/equity/orders", headers=headers, timeout=DEFAULT_REQUEST_TIMEOUT)
+            if resp.status_code == 200:
+                payload = resp.json()
+                items = payload if isinstance(payload, list) else payload.get("items", [])
+                for o in items:
+                    if (
+                        o.get("instrument", {}).get("ticker") == t212_ticker
+                        and o.get("type") == "STOP"
+                        and o.get("side") == "SELL"
+                        and o.get("status") in ("WORKING", "LOCAL", "UNCONFIRMED", "CONFIRMED", "NEW")
+                    ):
+                        return "FOUND", o
+                return "NOT_FOUND", None
+            if _is_rate_limited(resp) and attempt == 0:
+                GATE.penalize("GET /equity/orders", retry_after_seconds(resp, 5.5))
+                logger.info("Active stop orders fetch: 429 — nouvel essai après espacement.")
+                continue
+            logger.warning(f"Active stop orders fetch returned status {resp.status_code}")
+            break
     except Exception as e:
         logger.debug(f"Active stop orders fetch failed: {e}")
     return "ERROR", None
@@ -1619,6 +1642,35 @@ def _process_confirmed_sell(
     _update_feedback_loop(entry_time_str, db_date, proceeds, buy_cost, ticker=ticker)
 
 
+def _replace_released_stop(
+    t212_ticker: str, total_qty: float, prev_stop_price: float, headers: dict, state: dict, sale_failed: bool = True
+) -> None:
+    """Re-place the GTC stop released before a sale that did not (visibly) execute."""
+    re_stop_id, re_stop_price = _place_stop_order(t212_ticker, total_qty, prev_stop_price, headers)
+    pos_state = state.get("active_position") or {}
+    if re_stop_id is not None:
+        pos_state["stop_order_id"] = re_stop_id
+        pos_state["stop_price"] = re_stop_price or prev_stop_price
+        save_portfolio_state(state, t212_ticker)
+        logger.info(
+            f"🔐 Stop de secours re-placé #{re_stop_id} @ {pos_state['stop_price']:.2f} "
+            f"après {'échec' if sale_failed else 'absence de confirmation'} de la vente {t212_ticker}."
+        )
+    elif sale_failed:
+        logger.critical(
+            f"🚨 {t212_ticker} : vente échouée ET re-placement du stop impossible — position "
+            f"SANS protection ; le self-heal du prochain cycle replacera un stop à entry×0.90."
+        )
+    else:
+        # Fill non confirmé : la vente a probablement été exécutée (le courtier refuse alors un stop sur des
+        # actions qu'on ne possède plus) ; la synchro du cycle suivant tranchera. Pas d'alerte CRITICAL à tort.
+        logger.warning(
+            f"⚠️ {t212_ticker} : fill de vente non confirmé et stop non reposé (refus courtier si la vente est "
+            f"exécutée, MAIS aussi possible échec de requête : position peut-être SANS stop) — la synchro et le "
+            f"self-heal du prochain cycle trancheront."
+        )
+
+
 def _handle_failed_sell(
     sell_resp,
     reconciled: bool,
@@ -1665,21 +1717,7 @@ def _handle_failed_sell(
     # and the sale failed, re-protect the position at the previous level
     # immediately — never knowingly leave an open position unprotected.
     if stop_released and prev_stop_price:
-        re_stop_id, re_stop_price = _place_stop_order(t212_ticker, total_qty, prev_stop_price, headers)
-        pos_state = state.get("active_position") or {}
-        if re_stop_id is not None:
-            pos_state["stop_order_id"] = re_stop_id
-            pos_state["stop_price"] = re_stop_price or prev_stop_price
-            save_portfolio_state(state, t212_ticker)
-            logger.info(
-                f"🔐 Stop de secours re-placé #{re_stop_id} @ {pos_state['stop_price']:.2f} "
-                f"après échec de la vente {t212_ticker}."
-            )
-        else:
-            logger.critical(
-                f"🚨 {t212_ticker} : vente échouée ET re-placement du stop impossible — position "
-                f"SANS protection ; le self-heal du prochain cycle replacera un stop à entry×0.90."
-            )
+        _replace_released_stop(t212_ticker, total_qty, prev_stop_price, headers, state)
 
 
 def _execute_sell_order(
@@ -1729,6 +1767,12 @@ def _execute_sell_order(
                 f"❌ Vente {t212_ticker}: fill NON confirmé — aucun write d'état/DB ; "
                 f"la sync du cycle suivant réconcilera."
             )
+            # Le stop a été libéré avant l'ordre : si la position existe encore (ou si on ne sait pas),
+            # on le repose tout de suite plutôt que d'attendre le self-heal du cycle suivant.
+            # Pas de garde _position_exists : cette lecture peut servir un instantané périmé (~30 min sur le
+            # démo). Si la vente est passée, le courtier refuse simplement le stop.
+            if stop_released and prev_stop_price:
+                _replace_released_stop(t212_ticker, total_qty, prev_stop_price, headers, state, sale_failed=False)
             return
         _process_confirmed_sell(
             state, current_pos, ticker, t212_ticker, sell_fill, total_qty, current_value_eur,

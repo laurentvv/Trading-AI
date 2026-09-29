@@ -100,9 +100,42 @@ Le système synchronise désormais son état directement depuis T212 :
 
 ## 5. Limites et Sécurité
 
-1. **Rate Limiting :** L'API est sensible. Le système inclut des pauses pour éviter l'erreur `TooManyRequests`.
+1. **Rate Limiting :** limites **par compte** et par endpoint (tableau ci-dessous). Le système les respecte **en amont** : `src/t212_rate_limit.py` espace les appels d'un même endpoint avant de les émettre (au lieu de réessayer après un 429). Il ne fait jamais de retry sur un POST d'ordre.
 2. **Marché Fermé :** Les ordres passés hors session (avant 15h30 pour le Nasdaq) restent en "Pending" sur Trading 212.
 3. **Fichier de suivi :** `t212_portfolio_state.json` est le "journal de bord" de l'IA. Ne pas le supprimer manuellement si une position est active.
+
+### Limites de débit officielles (docs.trading212.com, relevées le 2026-09-29)
+
+| Endpoint | Limite | Espacement appliqué |
+|---|---|---|
+| `GET /equity/orders` | 1 req / 5 s | 5,5 s |
+| `GET /equity/orders/{id}` | 1 req / 1 s | 1,1 s |
+| `GET /equity/positions` | 1 req / 1 s | 1,1 s |
+| `GET /equity/account/summary` | 1 req / 5 s | 5,5 s |
+| `GET /equity/account/cash` | 1 req / 2 s | 2,2 s |
+| `GET /equity/history/orders` | 6 req / 1 min | 10,5 s |
+| `POST /equity/orders/stop` (et `limit`, `stop_limit`) | 1 req / 2 s | 2,2 s |
+| `POST /equity/orders/market` | 50 req / 1 min | 1,3 s |
+| `DELETE /equity/orders/{id}` | 50 req / 1 min | 1,3 s |
+
+Les limites autorisent des rafales (« 50 par minute » ne veut pas dire « une toutes les 1,2 s ») mais elles sont
+appliquées **par compte**, quelle que soit la clé API ou l'IP. En-têtes de réponse : `x-ratelimit-limit`,
+`-period`, `-remaining`, `-reset`, `-used`.
+
+**Cause d'un 429 récurrent observé en démo (29/09/2026)** : la lecture des stops (`GET /equity/orders`, 1 req / 5 s) était
+appelée plusieurs fois en quelques secondes par cycle (synchro, cliquet, vente) : 16 « Stop fetch error » et un cliquet
+travaillant à l'aveugle. Vérifié après correctif sur la démo : 4 lectures successives espacées de 5,4 à 5,5 s, toutes en 200.
+
+### Compte réel : types d'ordres (vérifié le 2026-09-29)
+
+- Depuis le **29/01/2026**, les ordres **limit, stop et stop-limit** sont disponibles par l'API sur les comptes en argent réel
+  (annonce du staff Trading 212 sur le fil « Trading 212 API Update » de la communauté ; l'article d'aide « Trading 212 API key »
+  le confirme : « You can place Limit, Stop and Stop Limit orders via the Trading 212 API for live accounts »). La phrase
+  « seuls les ordres au marché sont exécutables en réel » que l'on trouve encore dans d'anciennes versions de la doc est **périmée**.
+- L'API est toujours **en bêta** ; réservée aux comptes **Invest** et **Stocks ISA** (pas SIPP), ordres dans la devise principale du compte.
+- Limite : 50 ordres en attente par ticker et par compte. Les clés API démo et réelles sont distinctes.
+- **À confirmer par un premier stop réel** de très petite taille avant toute montée en charge : la doc officielle des pages
+  d'ordres ne distingue pas démo/réel et cette vérification n'a été faite que sur sources écrites, pas par un ordre réel.
 
 ---
 *Dernière mise à jour : 19 août 2026 (GO-gates 1-3 : idempotence par réconciliation, fills confirmés, stop mouvant broker).*
