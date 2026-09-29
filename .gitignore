@@ -63,3 +63,7 @@ reset_backup/
 scheduler.lock
 *.lnk
 morning_brief/output/*.md
+
+# Watchdog d'exploitation (état local)
+watchdog_state.json
+watchdog.pause
