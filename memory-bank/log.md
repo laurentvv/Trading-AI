@@ -449,3 +449,23 @@ Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-
   2. `.github/workflows/ci.yml` : ajout d'une étape de linting `uvx ruff check . --select E4,E7,E9,F --exclude venv,.venv,.venv_uv,tests` avant la suite de tests pour interdire toute erreur de syntaxe ou nom indéfini en CI.
 - **Validation** : `uvx ruff check .` : **0 erreur**. Suite de tests unitaire locale : **316/316 PASS**.
 
+
+## [2026-09-29] eval | Analyse du run démo T212 n°2 (03/09→29/09) + plan d'amélioration pour le passage en réel (30 k€, horizon moyen/long terme) — AUCUN code modifié
+- **Livrable** : `docs/PLAN_AMELIORATION_PASSAGE_REEL_2026-09-29.md` (verdict NO-GO réel, constat chiffré, plan en 5 phases).
+- **Résultat run 2** : equity 1 998 € / 2 000 € (−0,1 %) contre buy & hold sur la période SXRV +6,1 % / CRUDP +9,8 % ; 3 transactions en 26 jours ; CRUDP 1 BUY / 244 cycles.
+- **Modèles** : classic SELL 100 % sur CRUDP (CV F1 0,23-0,48, cible 1 j « > 0,1σ » avec classe 0 lue comme SELL) ; TimesFM SELL 84-93 % (prévoit ^NDX/CL=F, pas l'ETF tradé) ; sentiment mort (score 0,00 sur 158/158) ; PPO 2 000 timesteps partagé ; grebenkov (seul suiveur de tendance) BUY 25/27 mais poids 0,05 ; poids adaptatifs jamais actifs (12-15 obs < 20).
+- **Sorties** : TP +8 %, trailing −3 %, time-stop 15 j (force la vente même en gain), garde anti-perte (18 ventes bloquées) : on coupe les gagnants et on garde les perdants.
+- **Bugs trouvés** : (1) les tests écrivent dans `trading_history.db` du démo (8 lignes BUY 10 @100, `TestMaxAvailableSizing`), car le démo tourne dans le checkout de dev ; (2) régression `752ecb8` : FinAcumen piégé dans `except TimeoutExpired` de `schedule.py`, il ne tourne plus depuis le 25/09 ; (3) takeProfit attaché rejeté (400) à chaque achat ; (4) 429 sur `/equity/orders` à chaque cycle depuis le 29/09 14:34 ; (5) disponibilité 66 % (trou de 6,4 j du 15/09 au 22/09).
+
+## [2026-09-29] fix | Phase 0 du plan de passage en réel : 6 PR ouvertes (#93 à #98), démo arrêté à 21h25
+- **#93** isolation des tests (CWD temporaire par test) : les tests écrivaient dans `trading_history.db` du démo (8 fausses lignes, purgées en local avec sauvegarde `.bak-2026-09-29`) et supprimaient `morning_brief/output/`.
+- **#94** régression du commit 752ecb8 corrigée : FinAcumen était piégé dans le `except TimeoutExpired` de `run_morning_brief`.
+- **#95** `takeProfit` n'est plus attaché aux ordres market (400 à chaque achat, double POST).
+- **#96** régulateur d'appels T212 par endpoint (`src/t212_rate_limit.py`) : `GET /equity/orders` = 1 req / 5 s, cause des 429 ; vérifié sur la démo (5,4-5,5 s entre appels, tous 200). Doc : limites officielles + ordres limit/stop/stop-limit disponibles en réel depuis le 29/01/2026.
+- **#97** journal d'audit : 11 voix, consensus, désaccord, `T212_Action` (issue réelle) ; migration testée sur les 477 lignes réelles.
+- **#98** watchdog (`watchdog.py`, `src/notifier.py`, tâche Windows) : scheduler mort/bloqué, position sans stop, rafale d'erreurs ; relance, pause/reprise.
+- **#92** plan + `docs/RUNBOOK_EXPLOITATION.md` (séparation PROD/DEV, watchdog, arrêt/reprise) + statut de la phase 0.
+- **Sentiment (0.9)** : 0,00 à chaque cycle = quota Alpha Vantage gratuit (25/jour, ~76 requêtes émises) + filtre de ticker qui ne peut jamais correspondre ; volontairement non réparé (réactiver un votant à 0,16 sans backtest = changement de stratégie) ; traité en phase 1.
+- **Incident** : la sonde Alpha Vantage a affiché la clé API (réponse `Information` de l'API) dans la sortie de la session ; clé gratuite, régénération conseillée.
+- Restent à la main du propriétaire : canal d'alerte + installation de la tâche watchdog, exécution du runbook PROD/DEV, accord pour la sonde `check_t212_stops.py`, revue et fusion des PR.
+

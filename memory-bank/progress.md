@@ -103,6 +103,8 @@
 - [ ] Optimisation des poids par grid search (`backtest_prod.py`).
 
 ## Prochaine Action Immédiate
+- **[2026-09-29 soir] Phase 0 livrée en 6 PR (#93 à #98)** : voir `log.md` et `docs/PLAN_AMELIORATION_PASSAGE_REEL_2026-09-29.md` §6. Démo arrêté (position SXRV.DE protégée par son stop GTC). À faire par le propriétaire : revue/fusion des PR, canal d'alerte, tâche watchdog, runbook PROD/DEV, accord pour la sonde broker. Puis phase 1 (banc walk-forward).
+- **[2026-09-29] Plan de passage en réel** : `docs/PLAN_AMELIORATION_PASSAGE_REEL_2026-09-29.md` (verdict NO-GO réel en l'état). Ordre : Phase 0 hygiène/mesure → Phase 1 banc walk-forward 5 ans → Phase 2 refonte moyen terme → Phase 3 démo de conformité → Phase 4 réel progressif. En attente de validation utilisateur avant tout code.
 - **Exécuter le runbook migration PROD** (`docs/PLAN_MIGRATION_TIMESFM3_PROD.md`) : le run 1 est
   clos (3 ordres/13 j, critère ≥20 round-trips inatteignable, scheduler arrêté depuis le 01/09).
   Après reset (compte démo T212 + local `--include-logs-prod`), **run 2 de 30 jours avec TimesFM 3.0**.
