@@ -11,6 +11,7 @@ faire tomber le watchdog).
 
 from __future__ import annotations
 
+import base64
 import logging
 import os
 
@@ -33,6 +34,13 @@ def configured_channels() -> list[str]:
     return channels
 
 
+def _ntfy_title(title: str) -> str:
+    """En-tête HTTP `Title` : ASCII tel quel, sinon RFC 2047 (`=?UTF-8?B?...?=`, accepté par ntfy)."""
+    if title.isascii():
+        return title
+    return "=?UTF-8?B?" + base64.b64encode(title.encode("utf-8")).decode("ascii") + "?="
+
+
 def notify(title: str, message: str, level: str = "WARNING") -> list[str]:
     """Envoie l'alerte sur tous les canaux configurés ; renvoie la liste des canaux ayant accepté le message."""
     level = level.upper()
@@ -46,14 +54,14 @@ def notify(title: str, message: str, level: str = "WARNING") -> list[str]:
             resp = requests.post(
                 f"{server}/{topic}",
                 data=message.encode("utf-8"),
-                headers={"Title": title.encode("utf-8"), "Priority": _NTFY_PRIORITY.get(level, "default")},
+                headers={"Title": _ntfy_title(title), "Priority": _NTFY_PRIORITY.get(level, "default")},
                 timeout=SEND_TIMEOUT,
             )
             if resp.ok:
                 delivered.append("ntfy")
             else:
                 logger.warning(f"ntfy: HTTP {resp.status_code}")
-        except requests.RequestException as e:
+        except Exception as e:  # noqa: BLE001 - une alerte ratée ne doit jamais interrompre le watchdog
             logger.warning(f"ntfy: envoi impossible ({type(e).__name__})")
 
     token, chat_id = os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID")
@@ -68,7 +76,7 @@ def notify(title: str, message: str, level: str = "WARNING") -> list[str]:
                 delivered.append("telegram")
             else:
                 logger.warning(f"telegram: HTTP {resp.status_code}")
-        except requests.RequestException as e:
+        except Exception as e:  # noqa: BLE001 - une alerte ratée ne doit jamais interrompre le watchdog
             # Ne jamais logger l'exception brute : l'URL contient le jeton du bot.
             logger.warning(f"telegram: envoi impossible ({type(e).__name__})")
 

@@ -196,6 +196,18 @@ class TestRunOnce:
         assert res["alerts"] == []
         notifier_mock.assert_not_called()
 
+    def test_status_flag_is_read_only(self, base, monkeypatch, capsys):
+        """--status ne doit ni alerter, ni relancer, ni toucher watchdog_state.json (cooldown de 2 h)."""
+        sent, restart = MagicMock(), MagicMock()
+        monkeypatch.setattr(notifier, "notify", sent)
+        monkeypatch.setattr(wd, "maybe_restart", restart)
+        monkeypatch.setattr(wd.dt, "datetime", type("D", (dt.datetime,), {"now": classmethod(lambda cls, tz=None: NOW)}))
+        rc = wd.main(["--status", "--restart", "--base", str(base)])  # aucun verrou : scheduler « mort »
+        assert rc == 1 and "scheduler-dead" in capsys.readouterr().out
+        sent.assert_not_called()
+        restart.assert_not_called()
+        assert not (base / "watchdog_state.json").exists()
+
 
 class TestRestart:
     def test_restart_removes_orphan_lock_and_launches(self, base):
@@ -251,6 +263,28 @@ class TestNotifier:
         assert delivered == ["ntfy"]
         assert post.call_args.args[0] == "https://ntfy.sh/mon-topic"
         assert post.call_args.kwargs["headers"]["Priority"] == "urgent"
+
+    def test_ntfy_title_is_ascii_header_safe(self, monkeypatch):
+        """Titre non ASCII : RFC 2047 (jamais d'octets bruts dans l'en-tête HTTP)."""
+        import base64
+
+        monkeypatch.setenv("NTFY_TOPIC", "t")
+        monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+        with patch("src.notifier.requests.post", return_value=MagicMock(ok=True)) as post:
+            notifier.notify("Trading-AI : résolu ✅", "m", "INFO")
+        title = post.call_args.kwargs["headers"]["Title"]
+        assert isinstance(title, str) and title.isascii()
+        assert base64.b64decode(title[len("=?UTF-8?B?"):-len("?=")]).decode("utf-8") == "Trading-AI : résolu ✅"
+        with patch("src.notifier.requests.post", return_value=MagicMock(ok=True)) as post:
+            notifier.notify("ascii only", "m", "INFO")
+        assert post.call_args.kwargs["headers"]["Title"] == "ascii only"
+
+    def test_unexpected_send_error_never_escapes(self, monkeypatch):
+        monkeypatch.setenv("NTFY_TOPIC", "t")
+        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "1:X")
+        monkeypatch.setenv("TELEGRAM_CHAT_ID", "42")
+        with patch("src.notifier.requests.post", side_effect=UnicodeEncodeError("latin-1", "é", 0, 1, "boom")):
+            assert notifier.notify("t", "m") == []
 
     def test_telegram_failure_does_not_leak_the_token(self, monkeypatch, caplog):
         monkeypatch.delenv("NTFY_TOPIC", raising=False)

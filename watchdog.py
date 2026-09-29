@@ -112,6 +112,8 @@ def count_recent_errors(trading_log: Path, now: dt.datetime, window_min: int = E
 
 # --- Contrôles ----------------------------------------------------------------------------------
 def check_scheduler_alive(base: Path, now: dt.datetime, pid_alive: Callable[[int], bool] = _pid_alive) -> Alert | None:
+    # Volontairement PAS limité à la séance : le scheduler tourne 24 h/24 (brief de 01:00, council du samedi).
+    # Un arrêt voulu se déclare avec `--pause`, sinon l'alerte revient toutes les 2 h.
     lock = base / "scheduler.lock"
     if not lock.exists():
         return Alert("scheduler-dead", "CRITICAL", "scheduler.lock absent : le scheduler n'est pas lancé.")
@@ -325,7 +327,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.status:
         print(f"Pause : {'OUI' if pause_file.exists() else 'non'} | canaux d'alerte : {channels or 'AUCUN'}")
 
-    result = run_once(base, restart=args.restart, dry_run=args.dry_run)
+    # --status est en lecture seule : ni alerte, ni relance, ni écriture de watchdog_state.json (sinon il
+    # réinitialiserait le délai de rappel de 2 h et retarderait une vraie alerte).
+    result = run_once(base, restart=args.restart and not args.status, dry_run=args.dry_run or args.status)
     if result["paused"]:
         print("Surveillance en pause : rien à faire.")
         return 0
