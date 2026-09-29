@@ -1826,7 +1826,13 @@ def execute_t212_trade(
     analysis_date=None,
     signal_source="IA_HYBRID",
     sizing_ratio=1.0,
-):
+) -> str:
+    """Exécute la décision sur T212 et renvoie l'ISSUE réelle (pour le journal d'audit).
+
+    Valeurs : ``ABORT:broker-state-unknown``, ``EXIT:<raison>:filled|not-filled``, ``HOLD``,
+    ``BUY:filled|not-filled|skipped-already-long``, ``SELL:filled|not-executed|no-position|
+    blocked-min-holding``. Le journal ne doit plus laisser croire qu'un signal a été exécuté.
+    """
     # Mapping du ticker Yahoo vers le ticker T212 via helper
     t212_ticker = get_t212_ticker(ticker)
 
@@ -1848,7 +1854,7 @@ def execute_t212_trade(
         logger.error(
             "❌ Positions broker INCONNUES (fetch échoué/rate-limité) — exécution T212 annulée par sécurité."
         )
-        return
+        return "ABORT:broker-state-unknown"
 
     # Trouver la position spécifique si elle existe
     current_pos = next(
@@ -1865,13 +1871,15 @@ def execute_t212_trade(
             state, current_pos, ticker, t212_ticker, portfolio, base_url, headers, db_date, signal_source
         )
         if exit_executed:
-            return  # Position vendue via exit strategy
+            # Position vendue via exit strategy (l'état est vidé en place quand la vente est confirmée)
+            filled = state.get("active_position") is None
+            return f"EXIT:{exit_reason}:{'filled' if filled else 'not-filled'}"
     else:
         logger.info(f"   - Aucune position ouverte sur {t212_ticker}")
 
     # 2. Si aucune sortie n'a eu lieu, traiter les signaux directionnels (BUY / SELL)
     if signal not in ["BUY", "SELL"]:
-        return
+        return "HOLD"
 
     logger.info(f"\n--- 🤖 EXÉCUTION IA TRADING 212 ({env.upper()}) POUR {t212_ticker} ---")
     logger.info("📊 VÉRIFICATION PORTEFEUILLE RÉEL :")
@@ -1879,19 +1887,24 @@ def execute_t212_trade(
 
     if signal == "BUY":
         _execute_buy_order(state, current_pos, ticker, t212_ticker, portfolio, base_url, headers, db_date, signal_source, sizing_ratio)
+        if current_pos:
+            return "BUY:skipped-already-long"
+        return "BUY:filled" if state.get("active_position") else "BUY:not-filled"
     elif signal == "SELL":
         if not current_pos:
             logger.info(f"   - Aucune position ouverte sur {t212_ticker} pour le signal SELL (no-op).")
-            return
+            return "SELL:no-position"
         if _evaluate_min_holding(state, force_stop_loss=False):
             logger.info(f"⏸ SELL supprimé par anti-churn pour {t212_ticker} (position trop récente).")
-        else:
-            _execute_sell_order(
-                state, current_pos, ticker, t212_ticker, base_url, headers, db_date, signal_source,
-                force_stop_loss=False,
-                cash_before=(portfolio["cash"] if portfolio.get("cash_ok") else None),
-                exit_reason="model-sell",
-            )
+            return "SELL:blocked-min-holding"
+        _execute_sell_order(
+            state, current_pos, ticker, t212_ticker, base_url, headers, db_date, signal_source,
+            force_stop_loss=False,
+            cash_before=(portfolio["cash"] if portfolio.get("cash_ok") else None),
+            exit_reason="model-sell",
+        )
+        return "SELL:filled" if state.get("active_position") is None else "SELL:not-executed"
+    return "HOLD"
 
 
 if __name__ == "__main__":
