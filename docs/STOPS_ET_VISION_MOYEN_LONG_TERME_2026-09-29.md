@@ -52,7 +52,7 @@ Statut : **rien de ce qui suit n'est implémenté.** Les invariants actuels (sto
 
 ## 3. Ce que mesure notre propre banc
 
-Source : `docs/BACKTEST_BASELINES_2026-09-29.md` (PR #99) et `scripts/stop_study.py` (résultats en annexe A). SXRV.DE, 2022-07-12 → 2026-09-29, capital 30 000 €, exécution à l'ouverture suivante, avant impôt.
+Source : `docs/BACKTEST_BASELINES_2026-09-29.md` (PR #99) et `scripts/stop_study.py` (résultats en annexe A). SXRV.DE, 2022-07-12 → 2026-09-29, capital 30 000 €, exécution à l'ouverture suivante, **coûts 25 pb par côté**, avant impôt.
 
 | Stratégie | CAGR | Sharpe | Drawdown max | Trades |
 |---|---|---|---|---|
@@ -68,7 +68,7 @@ Ce qu'on peut affirmer, et ce qu'on ne peut pas :
 
 - **On peut affirmer** que la rotation des règles actuelles détruit de la valeur (ΔSharpe −0,58, IC 95 % [−0,89 ; −0,28]) et que, sur cette période, aucune règle simple ne bat le buy & hold sur le Sharpe.
 - **On ne peut pas affirmer** que tel niveau de stop est « bon ». Le trailing −15 % paraît excellent (Sharpe 1,36) mais ses voisins −10 %, −20 %, −25 % ne le sont pas : avec seulement 1 à 5 événements par variante, c'est de la chance de paramètre. **Choisir ce niveau reviendrait à sur-ajuster.**
-- **Sur le pétrole (proxy CL=F, non ajusté du roll)**, chaque variante de stop fait pire que le buy & hold ou à peu près pareil, et les stops suiveurs serrés multiplient les allers-retours (jusqu'à 22 trades) et aggravent le drawdown (jusqu'à −65 %). Le proxy est peu fiable, mais le signe est cohérent avec le risque de « fouet ».
+- **Sur le pétrole (proxy CL=F, non ajusté du roll)**, chaque variante de stop fait pire que le buy & hold ou à peu près pareil, et les stops suiveurs serrés multiplient les allers-retours (jusqu'à 22 trades) ; le pire drawdown (−65,5 %) vient du stop fixe −20 %, les stops suiveurs vont jusqu'à −64 %. Le proxy est peu fiable, mais le signe est cohérent avec le risque de « fouet ».
 - **Limite du banc** : les stops y sont évalués sur les clôtures quotidiennes et exécutés à l'ouverture suivante, alors qu'un stop broker se déclenche en séance. Les événements de gap ne sont donc pas modélisés finement. Période : 4 ans, un seul cycle (baisse 2022, puis marché très haussier).
 
 ---
@@ -162,7 +162,7 @@ Stop évalué sur clôture quotidienne, exécution à l'ouverture suivante, ré-
 | B&H + trailing −25 % depuis le sommet | 17,5 % | 0,97 | −25,7 % | 1 | 98 % |
 | MA200 hystérésis + stop fixe −20 % | 13,4 % | 0,92 | −15,0 % | 4 | 79 % |
 
-Le stop fixe −10 % se déclenche une fois et coûte 0,6 point de CAGR (21 séances hors marché avant la ré-entrée) ; au-delà, aucun déclenchement. L'état des stops démarre à l'ouverture de la fenêtre testée : les résultats ne dépendent pas de l'historique antérieur. Les stops fixes « inactifs » (0 trade) n'ont jamais été touchés : le drawdown de −26,7 % vient d'un sommet, pas du prix d'entrée du début de fenêtre.
+Le stop fixe −10 % se déclenche une fois et coûte 0,6 point de CAGR (21 séances hors marché avant la ré-entrée) ; au-delà, aucun déclenchement. L'état des stops (entrée, sommet) démarre à l'ouverture de la fenêtre testée ; seule la base MA200 utilise l'historique antérieur, pour être calculable dès le premier jour. Les stops fixes « inactifs » (0 trade) n'ont jamais été touchés : le drawdown de −26,7 % vient d'un sommet, pas du prix d'entrée du début de fenêtre.
 
 ### CL=F, proxy pétrole non ajusté du roll (2022-07-18 → 2026-09-29)
 
