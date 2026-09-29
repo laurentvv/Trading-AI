@@ -73,6 +73,8 @@ except ImportError:
     insert_portfolio_state = None
     AdaptiveWeightManager = None
 
+from src.t212_rate_limit import GATE, GatedSession, bucket_for, retry_after_seconds  # noqa: E402
+
 load_dotenv(".env.t212")
 
 STATE_FILE = "t212_portfolio_state.json"
@@ -727,7 +729,8 @@ def get_real_price_eur(ticker_yahoo=None):
     raise ValueError(f"Could not retrieve price for {target} from any source")
 
 
-_t212_session = requests.Session()
+# Session gated par endpoint (limites officielles T212, voir src/t212_rate_limit.py).
+_t212_session = GatedSession()
 
 def safe_request(method: str, url: str, timeout: float = DEFAULT_REQUEST_TIMEOUT, **kwargs) -> requests.Response | None:
     """
@@ -740,8 +743,9 @@ def safe_request(method: str, url: str, timeout: float = DEFAULT_REQUEST_TIMEOUT
         try:
             resp = _t212_session.request(method, url, timeout=timeout, **kwargs)
             if resp.status_code == 429 or (resp.status_code == 400 and "TooManyRequests" in resp.text):
-                wait = (attempt + 1) * 2
-                logger.warning(f"⚠️ Rate limit atteint, attente de {wait}s...")
+                wait = retry_after_seconds(resp, (attempt + 1) * 2)
+                logger.warning(f"⚠️ Rate limit atteint, attente de {wait:g}s...")
+                GATE.penalize(bucket_for(method, str(url)), wait)
                 time.sleep(wait)
                 continue
             return resp
@@ -932,20 +936,28 @@ def _get_active_stop_order(t212_ticker: str, headers: dict) -> tuple[str, dict |
         ("ERROR", None) if the request failed (network, rate limit, HTTP error).
     """
     try:
-        resp = _t212_session.get(f"{_get_t212_base_url()}/equity/orders", headers=headers, timeout=DEFAULT_REQUEST_TIMEOUT)
-        if resp.status_code == 200:
-            payload = resp.json()
-            items = payload if isinstance(payload, list) else payload.get("items", [])
-            for o in items:
-                if (
-                    o.get("instrument", {}).get("ticker") == t212_ticker
-                    and o.get("type") == "STOP"
-                    and o.get("side") == "SELL"
-                    and o.get("status") in ("WORKING", "LOCAL", "UNCONFIRMED", "CONFIRMED", "NEW")
-                ):
-                    return "FOUND", o
-            return "NOT_FOUND", None
-        logger.warning(f"Active stop orders fetch returned status {resp.status_code}")
+        # GET /equity/orders : 1 req / 5 s (par compte). La session espace déjà les appels ; en cas de 429
+        # malgré tout (autre client sur le compte), UN nouvel essai après le délai imposé par le broker.
+        for attempt in range(2):
+            resp = _t212_session.get(f"{_get_t212_base_url()}/equity/orders", headers=headers, timeout=DEFAULT_REQUEST_TIMEOUT)
+            if resp.status_code == 200:
+                payload = resp.json()
+                items = payload if isinstance(payload, list) else payload.get("items", [])
+                for o in items:
+                    if (
+                        o.get("instrument", {}).get("ticker") == t212_ticker
+                        and o.get("type") == "STOP"
+                        and o.get("side") == "SELL"
+                        and o.get("status") in ("WORKING", "LOCAL", "UNCONFIRMED", "CONFIRMED", "NEW")
+                    ):
+                        return "FOUND", o
+                return "NOT_FOUND", None
+            if resp.status_code == 429 and attempt == 0:
+                GATE.penalize("GET /equity/orders", retry_after_seconds(resp, 5.5))
+                logger.info("Active stop orders fetch: 429 — nouvel essai après espacement.")
+                continue
+            logger.warning(f"Active stop orders fetch returned status {resp.status_code}")
+            break
     except Exception as e:
         logger.debug(f"Active stop orders fetch failed: {e}")
     return "ERROR", None
