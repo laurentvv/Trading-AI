@@ -179,7 +179,8 @@ def run_morning_brief():
     """Lance l'exécution du Morning Brief la nuit/au petit matin, puis l'analyse FinAcumen.
 
     FinAcumen s'exécute TOUJOURS après le brief, même si celui-ci échoue ou expire : il ajoute sa
-    section au fichier du brief (en créant un stub si besoin). Régression corrigée (2026-09-29) : le
+    section au brief du jour, ou, si ce brief est absent, l'écrit dans ``finacumen_daily.md`` (lu en
+    secours par ``get_morning_brief_context``) sans jamais créer de stub. Régression corrigée (2026-09-29) : le
     commit 752ecb8 avait fait glisser le bloc FinAcumen dans le ``except TimeoutExpired`` du brief, si
     bien qu'il ne tournait plus qu'en cas de timeout (plus aucune analyse FinAcumen depuis le 25/09).
     """
@@ -256,7 +257,7 @@ def _run_finacumen_daily(output_dir: Path) -> None:
             # la section (ou y créer un stub) remettrait son mtime à aujourd'hui, ce qui (1) fait croire
             # à la garde de rattrapage que le brief du jour existe et (2) ferait servir le brief de la
             # veille comme contexte « frais » aux LLM. La section va dans un fichier à part.
-            target = output_dir / "finacumen_daily.md"
+            target = output_dir / "finacumen_daily.md"  # réécrit à chaque exécution : titre daté, un jeu complet par jour
             logger.warning("Morning Brief du jour absent : résultats FinAcumen écrits dans %s", target)
             today = datetime.now().strftime("%Y-%m-%d")
             finacumen_section = f"# FinAcumen — {today}{finacumen_section}"
