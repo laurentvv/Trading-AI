@@ -212,7 +212,7 @@ class TestConfirmFill(unittest.TestCase):
 
 @patch("time.sleep", MagicMock())
 class TestExecuteBuyOrder(unittest.TestCase):
-    """GO-gates 2+3 on the buy path: TP attached, fill-confirmed state, broker stop."""
+    """GO-gates 2+3 on the buy path: bare order, fill-confirmed state, broker stop."""
 
     def _run_buy(self, mock_request, router):
         from src.t212_executor import _execute_buy_order
@@ -228,7 +228,7 @@ class TestExecuteBuyOrder(unittest.TestCase):
         return state, mock_save, mock_tx
 
     @patch("src.t212_executor._t212_session.request")
-    def test_buy_payload_has_take_profit_and_state_uses_fill_price(self, mock_request):
+    def test_buy_payload_is_bare_and_state_uses_fill_price(self, mock_request):
         filled = _pos(qty=9.5, avg=101.0, value=959.5)
         router = _Router(
             positions=[
@@ -242,9 +242,10 @@ class TestExecuteBuyOrder(unittest.TestCase):
 
         state, mock_save, mock_tx = self._run_buy(mock_request, router)
 
-        # GO-gate 2: takeProfit attached to the market order (absolute price, 2 decimals)
-        post_kwargs = [kw for m, u, kw in router.calls if m == "POST" and u.endswith("/equity/orders/market")][0]
-        self.assertEqual(post_kwargs["json"]["takeProfit"], 108.0)
+        # The market order is BARE: an attached takeProfit is refused by the API (400 Invalid payload).
+        market_posts = [kw for m, u, kw in router.calls if m == "POST" and u.endswith("/equity/orders/market")]
+        self.assertEqual(len(market_posts), 1)
+        self.assertEqual(set(market_posts[0]["json"]), {"ticker", "quantity"})
 
         # GO-gate 2: dedicated GTC stop placed at -10% of the REAL fill (101 * 0.9)
         stop_kwargs = [kw for m, u, kw in router.calls if m == "POST" and u.endswith("/equity/orders/stop")][0]
@@ -283,28 +284,22 @@ class TestExecuteBuyOrder(unittest.TestCase):
         mock_tx.assert_not_called()
 
     @patch("src.t212_executor._t212_session.request")
-    def test_buy_attachment_rejected_falls_back_to_bare_order(self, mock_request):
-        filled = _pos(qty=9.5, avg=101.0)
+    def test_buy_400_is_not_retried_and_writes_nothing(self, mock_request):
+        """A plain 400 means the order was NOT created: no blind re-POST, no state/DB write, no stop."""
         router = _Router(
-            positions=[
-                _resp(200, []),  # first post_order_market existed_before
-                _resp(200, []),  # fallback post_order_market existed_before
-                _resp(200, [filled]),
-            ],
-            market=[
-                _resp(400, {"detail": "takeProfit not supported"}),  # attachment refused
-                _resp(201, {"id": 11}),                              # bare retry accepted
-            ],
-            stop=[_resp(201, {"id": 78})],
+            positions=[_resp(200, [])],  # post_order_market existed_before
+            market=[_resp(400, {"detail": "invalid request"})],
         )
         mock_request.side_effect = router
 
-        state, _, _ = self._run_buy(mock_request, router)
+        state, mock_save, mock_tx = self._run_buy(mock_request, router)
 
         market_posts = [kw for m, u, kw in router.calls if m == "POST" and u.endswith("/equity/orders/market")]
-        self.assertEqual(len(market_posts), 2)
-        self.assertNotIn("takeProfit", market_posts[1]["json"])
-        self.assertEqual(state["active_position"]["stop_order_id"], 78)
+        self.assertEqual(len(market_posts), 1)
+        self.assertFalse([1 for m, u, kw in router.calls if u.endswith("/equity/orders/stop")])
+        self.assertIsNone(state.get("active_position"))
+        mock_save.assert_not_called()
+        mock_tx.assert_not_called()
 
 
 @patch("time.sleep", MagicMock())
