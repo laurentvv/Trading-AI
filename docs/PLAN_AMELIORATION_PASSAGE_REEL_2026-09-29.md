@@ -202,3 +202,47 @@ Montée en charge : démarrer le réel sur **une fraction** du capital prévu, c
 5. **Ensuite** : phase 4, si toutes les portes sont vertes.
 
 Tant que la phase 2 n'est pas livrée, le run démo 2 peut continuer pour roder l'exploitation (phase 0), mais **ses résultats de P&L ne doivent pas servir à la décision GO/NO-GO**.
+
+---
+
+## 6. Avancement de la phase 0 (mis à jour le 2026-09-29)
+
+Le démo a été **arrêté le 29/09 à 21h25** pour permettre les corrections (position SXRV.DE ouverte, protégée par son stop GTC
+broker #55701244265 @ 1 386,81 ; ce stop n'est plus remonté tant que le scheduler est à l'arrêt). Chaque correction est une PR séparée.
+
+| Point | Statut | PR |
+|---|---|---|
+| 0.1 Isolation des tests (CWD temporaire par test) | fait | #93 |
+| 0.2 Purge des 8 fausses lignes de `trading_history.db` | fait en local (sauvegarde `.bak-2026-09-29`, base non versionnée) | n/a |
+| 0.3 Séparation PROD/DEV | runbook rédigé, **à exécuter par le propriétaire** (choix du tag et du dossier) | #92 (`RUNBOOK_EXPLOITATION.md`) |
+| 0.4 FinAcumen de nouveau exécuté après chaque brief | fait | #94 |
+| 0.5 Watchdog + alertes + relance | fait ; **canal d'alerte et installation de la tâche à faire par le propriétaire** | #98 |
+| 0.6 Budget d'appels T212 | fait : régulateur par endpoint selon les limites officielles ; 4 lectures espacées de 5,4 à 5,5 s, toutes 200 sur la démo | #96 |
+| 0.7 Retrait du `takeProfit` attaché | fait | #95 |
+| 0.8 Journal d'audit complet | fait : 11 voix, consensus, désaccord, issue réelle de l'exécution ; migration testée sur les 477 lignes réelles | #97 |
+| 0.9 Sources mortes | **diagnostiqué, volontairement non modifié** (voir ci-dessous) | n/a |
+| 0.10 Doc T212 en réel + sonde broker | doc vérifiée (voir ci-dessous) ; **sonde démo `check_t212_stops.py` non lancée (accord requis)** | #96 (`TRADING212_API_GUIDE.md`) |
+
+### 0.9 : pourquoi le modèle « sentiment » vaut 0,00 à chaque cycle (diagnostic)
+
+Deux causes cumulées, toutes deux confirmées :
+
+1. **Quota Alpha Vantage** : offre gratuite = 25 requêtes par jour. Le pipeline en émet environ 76 par jour (2 requêtes × 2 tickers × ~19 cycles).
+   Après les premiers cycles, l'API répond `Information` (limite atteinte, constaté en direct le 29/09) et le code retombe sur Google News RSS,
+   dont le score est codé en dur à `0.0`. Les « 10 headlines, score 0,00 » du log sont ce repli.
+2. **Filtre de ticker** (`news_fetcher.py`, « correctif Bug C » de juillet) : seules les lignes `ticker_sentiment` dont le ticker vaut `SXRV.DE`
+   ou `CRUDP.PA` sont retenues, or Alpha Vantage ne connaît pas ces tickers Yahoo. Même avec du quota, le compteur reste à 0 et le score à 0.
+
+**Décision : ne pas le réparer en phase 0.** Le réactiver remettrait en jeu un votant à **0,16** (le plus gros poids) dont le score Alpha Vantage
+est réputé biaisé à la hausse, sans backtest possible (pas d'historique de sentiment) : ce serait un changement de stratégie déguisé en correctif.
+Il est traité en phase 1 (ablation) : soit retiré, soit réparé (cache quotidien pour rester sous 25 requêtes, score au niveau article, proxy de ticker)
+puis revalidé. En attendant, il vote HOLD 0,50 sans effet sur le score (les HOLD ne comptent pas au numérateur).
+
+### 0.10 : ce que dit la documentation officielle Trading 212 (vérifié le 2026-09-29)
+
+- **Ordres limit, stop et stop-limit disponibles par l'API en réel depuis le 29/01/2026** (annonce du staff sur le fil « Trading 212 API Update » ;
+  l'article d'aide « Trading 212 API key » le confirme). La phrase « seuls les ordres au marché sont exécutables en réel », encore visible dans
+  d'anciennes versions de la doc, est périmée. Le risque M9 du §1.4 est donc **levé sur sources écrites** ; il reste à le confirmer par **un premier
+  stop réel de faible montant** avant toute montée en charge.
+- API toujours en bêta, comptes Invest et Stocks ISA uniquement, clés API démo et réelles distinctes.
+- Limites de débit par compte et par endpoint : voir `TRADING212_API_GUIDE.md` §5. `GET /equity/orders` : **1 requête / 5 s**, cause des 429 observés.
