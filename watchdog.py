@@ -315,7 +315,7 @@ def main(argv: list[str] | None = None) -> int:
         print("Surveillance reprise.")
         return 0
 
-    try:  # les canaux d'alerte (NTFY_TOPIC, TELEGRAM_*) se configurent dans .env, comme le reste du projet
+    try:  # les canaux d'alerte (NTFY_TOPIC, TELEGRAM_*, NEXTCLOUD_*) se configurent dans .env, comme le reste du projet
         from dotenv import load_dotenv
 
         load_dotenv(base / ".env")
@@ -334,7 +334,7 @@ def main(argv: list[str] | None = None) -> int:
         print("Surveillance en pause : rien à faire.")
         return 0
     if not channels:
-        print("ATTENTION : aucun canal d'alerte configuré (NTFY_TOPIC ou TELEGRAM_BOT_TOKEN+TELEGRAM_CHAT_ID) : "
+        print("ATTENTION : aucun canal d'alerte configuré (NTFY_TOPIC, TELEGRAM_* ou NEXTCLOUD_*) : "
               "les alertes ne sont que journalisées.")
     if not result["alerts"]:
         print("OK : scheduler vivant, cycles récents, positions protégées.")
