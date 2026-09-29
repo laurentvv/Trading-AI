@@ -45,6 +45,9 @@ dependencies = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+    "repo_cwd: le test a besoin du CWD du dépôt (par défaut chaque test tourne dans un CWD temporaire, voir tests/conftest.py)",
+]
 
 [tool.ruff]
 line-length = 120
