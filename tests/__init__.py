@@ -6,4 +6,4 @@ tests, aucune attente réelle n'est souhaitée (les requêtes HTTP sont mockées
 
 import os
 
-os.environ.setdefault("T212_RATE_GATE_DISABLED", "1")
+os.environ["T212_RATE_GATE_DISABLED"] = "1"  # forcé : une valeur héritée ≠ "1" rallongerait la suite de plusieurs minutes

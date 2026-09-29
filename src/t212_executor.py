@@ -736,6 +736,11 @@ def get_real_price_eur(ticker_yahoo=None):
 # Session gated par endpoint (limites officielles T212, voir src/t212_rate_limit.py).
 _t212_session = GatedSession()
 
+def _is_rate_limited(resp: requests.Response) -> bool:
+    """T212 signale la limite de débit par un 429 OU par un 400 « TooManyRequests »."""
+    return resp.status_code == 429 or (resp.status_code == 400 and "TooManyRequests" in resp.text)
+
+
 def safe_request(method: str, url: str, timeout: float = DEFAULT_REQUEST_TIMEOUT, **kwargs) -> requests.Response | None:
     """
     Execute an HTTP request with error handling and retry logic.
@@ -746,7 +751,7 @@ def safe_request(method: str, url: str, timeout: float = DEFAULT_REQUEST_TIMEOUT
     for attempt in range(3):
         try:
             resp = _t212_session.request(method, url, timeout=timeout, **kwargs)
-            if resp.status_code == 429 or (resp.status_code == 400 and "TooManyRequests" in resp.text):
+            if _is_rate_limited(resp):
                 wait = retry_after_seconds(resp, (attempt + 1) * 2)
                 logger.warning(f"⚠️ Rate limit atteint, attente de {wait:g}s...")
                 GATE.penalize(bucket_for(method, str(url)), wait)
@@ -817,7 +822,7 @@ def post_order_market(order_data: dict, headers: dict, t212_ticker: str) -> tupl
                     )
                     return None, True
             continue
-        if resp.status_code == 429 or (resp.status_code == 400 and "TooManyRequests" in resp.text):
+        if _is_rate_limited(resp):
             wait = (attempt + 1) * 2
             logger.warning(f"⚠️ Rate limit sur POST d'ordre, attente de {wait}s (ordre non exécuté, retry sûr)...")
             time.sleep(wait)
@@ -958,7 +963,7 @@ def _get_active_stop_order(t212_ticker: str, headers: dict) -> tuple[str, dict |
                     ):
                         return "FOUND", o
                 return "NOT_FOUND", None
-            if resp.status_code == 429 and attempt == 0:
+            if _is_rate_limited(resp) and attempt == 0:
                 GATE.penalize("GET /equity/orders", retry_after_seconds(resp, 5.5))
                 logger.info("Active stop orders fetch: 429 — nouvel essai après espacement.")
                 continue

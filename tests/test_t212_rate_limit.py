@@ -172,6 +172,30 @@ class TestStopFetchRetriesOnce429:
         assert (status, found["id"]) == ("FOUND", 1)
         assert session.get.call_count == 2
 
+    def test_400_too_many_requests_is_retried_like_a_429(self):
+        """Le broker signale aussi la limite par un 400 « TooManyRequests » (cf. safe_request)."""
+        import src.t212_executor as t212
+
+        order = {"instrument": {"ticker": "SXRVd_EQ"}, "type": "STOP", "side": "SELL", "status": "WORKING", "id": 7}
+        r400 = SimpleNamespace(status_code=400, headers={"Retry-After": "3"}, text='{"type":"TooManyRequests"}')
+        r200 = SimpleNamespace(status_code=200, headers={}, text="", json=lambda: [order])
+        with patch.object(t212, "_t212_session") as session, patch.object(t212.GATE, "penalize") as penalize:
+            session.get.side_effect = [r400, r200]
+            status, found = t212._get_active_stop_order("SXRVd_EQ", headers={})
+        assert (status, found["id"]) == ("FOUND", 7)
+        # le délai est appliqué explicitement via la porte (pas seulement par la session)
+        penalize.assert_called_once_with("GET /equity/orders", 3.0)
+
+    def test_other_400_is_not_retried(self):
+        import src.t212_executor as t212
+
+        r400 = SimpleNamespace(status_code=400, headers={}, text='{"type":"BadRequest"}')
+        with patch.object(t212, "_t212_session") as session, patch.object(t212.GATE, "penalize") as penalize:
+            session.get.side_effect = [r400]
+            assert t212._get_active_stop_order("SXRVd_EQ", headers={}) == ("ERROR", None)
+        assert session.get.call_count == 1
+        penalize.assert_not_called()
+
     def test_two_429_stay_an_error_never_an_empty_list(self):
         """Invariant « Failed fetch ≠ empty » : deux 429 = ERROR, jamais NOT_FOUND."""
         import src.t212_executor as t212
