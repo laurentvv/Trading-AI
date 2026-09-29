@@ -147,6 +147,7 @@ def _execute_t212_orders(
 
     if signal not in ["BUY", "STRONG_BUY", "SELL", "STRONG_SELL"] and not is_holding:
         console.print(f"[bold blue]ℹ️ No trade executed (Signal is {signal})[/bold blue]")
+        results["t212_action"] = "NONE:flat-no-trade-signal"
         return signal
 
     exec_signal = "BUY" if "BUY" in signal else ("SELL" if "SELL" in signal else "HOLD")
@@ -158,12 +159,14 @@ def _execute_t212_orders(
         console.print(
             f"[bold orange3]⏱ T212 {exec_signal} SKIPPED: cycle was cancelled by timeout[/bold orange3]"
         )
+        results["t212_action"] = "SKIPPED:cycle-cancelled"
         return signal
 
     ticker_lock = _get_ticker_lock(ticker)
     with ticker_lock:
         if cancel_event is not None and cancel_event.is_set():
             logger.warning(f"⏱ Cancel detected after lock — skipping T212 {exec_signal}")
+            results["t212_action"] = "SKIPPED:cycle-cancelled"
             return signal
 
         if exec_signal != "HOLD":
@@ -184,7 +187,7 @@ def _execute_t212_orders(
             f"(budget {budget_ticker}€, aucune décision partielle)"
         )
 
-        execute_t212_trade(
+        outcome = execute_t212_trade(
             exec_signal,
             decision.final_confidence,
             ticker=ticker,
@@ -192,8 +195,72 @@ def _execute_t212_orders(
             signal_source="IA_HYBRID_T212",
             sizing_ratio=sizing_ratio,
         )
+        # Issue RÉELLE (ordre exécuté ou non) pour le journal d'audit.
+        results["t212_action"] = outcome if isinstance(outcome, str) else ""
 
     return signal
+
+
+JOURNAL_MODELS = [
+    "classic",
+    "llm_text",
+    "llm_visual",
+    "sentiment",
+    "timesfm",
+    "tensortrade",
+    "vincent_ganne",
+    # Ajoutées le 2026-09-29 (audit : ces voix pesaient dans le consensus sans figurer au journal).
+    "grebenkov",
+    "hmm_model",
+    "oil_bench",
+    "council",
+]
+JOURNAL_HEADER = (
+    [
+        "Timestamp",
+        "Ticker",
+        "FINAL_SIGNAL",
+        "Confidence",
+        "Risk_Level",
+        "Risk_Adjusted",
+        "T212_Equity",
+    ]
+    + [f"Model_{m}" for m in JOURNAL_MODELS]
+    + ["Consensus_Score", "Disagreement", "T212_Action"]
+)
+_journal_file_lock = threading.Lock()
+
+
+def _fmt4(value: Any) -> str:
+    """Nombre à 4 décimales pour le journal ; vide si la valeur est absente ou non numérique."""
+    try:
+        return f"{float(value):.4f}"
+    except (TypeError, ValueError):
+        return ""
+
+
+def _ensure_journal_header(path: Path, header: list[str]) -> list[str]:
+    """Étend l'en-tête d'un journal existant avec les colonnes manquantes et renvoie l'en-tête effectif.
+
+    Les colonnes déjà présentes gardent leur place (aucune ligne existante n'est décalée) ; les lignes
+    anciennes sont complétées par des champs vides. Réécriture atomique (fichier temporaire + replace).
+    """
+    with open(path, newline="", encoding="utf-8") as f:
+        rows = list(csv.reader(f))
+    if not rows:
+        return header
+    old = rows[0]
+    merged = old + [c for c in header if c not in old]
+    if merged == old:
+        return old
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(merged)
+        for row in rows[1:]:
+            writer.writerow(row + [""] * (len(merged) - len(row)))
+    os.replace(tmp, path)
+    return merged
 
 
 def _write_trading_journal(
@@ -203,61 +270,52 @@ def _write_trading_journal(
     risk_level: str,
     signal: str,
     is_t212: bool,
+    results: dict | None = None,
 ) -> None:
-    """Write trading analysis row to trading_journal.csv."""
-    journal_file = "trading_journal.csv"
-    file_exists = Path(journal_file).exists()
+    """Write trading analysis row to trading_journal.csv.
 
-    with open(journal_file, mode="a", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        header = [
-            "Timestamp",
-            "Ticker",
-            "FINAL_SIGNAL",
-            "Confidence",
-            "Risk_Level",
-            "Risk_Adjusted",
-            "T212_Equity",
-        ]
-        model_names = [
-            "classic",
-            "llm_text",
-            "llm_visual",
-            "sentiment",
-            "timesfm",
-            "tensortrade",
-            "vincent_ganne",
-        ]
-        for m in model_names:
-            header.append(f"Model_{m}")
+    Audit (2026-09-29) : le journal ne montrait que 7 des 11 voix et jamais ce qui a été réellement
+    exécuté. Colonnes ajoutées EN FIN de ligne (les lecteurs par nom restent valides) : voix
+    grebenkov / hmm_model / oil_bench / council, score de consensus, désaccord et issue T212.
+    Un journal existant à l'ancien en-tête est migré (anciennes lignes complétées par des champs vides).
+    """
+    journal_file = Path("trading_journal.csv")
 
-        if not file_exists:
-            writer.writerow(header)
+    from t212_executor import get_t212_ticker
+    t212_key = get_t212_ticker(ticker) if is_t212 else ticker
+    t212_state = load_t212_state(t212_key, sync=False)
+    # GO-gate 7 (audit 2026-08-19): the old T212_Capital column mixed the
+    # position value (when open) with cash (when flat), producing a fake
+    # -71.6% drawdown. The equity (budget + realized + unrealized) is the
+    # real per-ticker performance curve.
+    capital_val = t212_state.get("equity", t212_state.get("current_capital", 1000.0))
 
-        from t212_executor import get_t212_ticker
-        t212_key = get_t212_ticker(ticker) if is_t212 else ticker
-        t212_state = load_t212_state(t212_key, sync=False)
-        # GO-gate 7 (audit 2026-08-19): the old T212_Capital column mixed the
-        # position value (when open) with cash (when flat), producing a fake
-        # -71.6% drawdown. The equity (budget + realized + unrealized) is the
-        # real per-ticker performance curve.
-        capital_val = t212_state.get("equity", t212_state.get("current_capital", 1000.0))
+    dec_map = {d.model_name: f"{d.signal}({d.confidence:.2f})" for d in decision.individual_decisions}
+    values = {
+        "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "Ticker": ticker,
+        "FINAL_SIGNAL": decision.final_signal,
+        "Confidence": f"{confidence:.2%}",
+        "Risk_Level": risk_level,
+        "Risk_Adjusted": signal,
+        "T212_Equity": f"{capital_val:.2f} €",
+        "Consensus_Score": _fmt4(getattr(decision, "consensus_score", None)),
+        "Disagreement": _fmt4(getattr(decision, "disagreement_factor", None)),
+        "T212_Action": (results or {}).get("t212_action", ""),
+    }
+    for m in JOURNAL_MODELS:
+        values[f"Model_{m}"] = dec_map.get(m, "N/A")
 
-        row = [
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            ticker,
-            decision.final_signal,
-            f"{confidence:.2%}",
-            risk_level,
-            signal,
-            f"{capital_val:.2f} €",
-        ]
-
-        dec_map = {d.model_name: f"{d.signal}({d.confidence:.2f})" for d in decision.individual_decisions}
-        for m in model_names:
-            row.append(dec_map.get(m, "N/A"))
-
-        writer.writerow(row)
+    with _journal_file_lock:
+        header = JOURNAL_HEADER
+        is_new = not journal_file.exists() or journal_file.stat().st_size == 0
+        if not is_new:
+            header = _ensure_journal_header(journal_file, header)
+        with open(journal_file, mode="a", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            if is_new:
+                writer.writerow(header)
+            writer.writerow([values.get(c, "") for c in header])
 
 
 def _render_summary_panel(
@@ -402,6 +460,7 @@ def run_trading_analysis(
             risk_level=risk_level,
             signal=signal,
             is_t212=is_t212,
+            results=results,
         )
 
         # Affichage du panneau de résumé
