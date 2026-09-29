@@ -341,3 +341,14 @@ class TestNextcloudTalk:
         self._setenv(monkeypatch)
         with patch("src.notifier.requests.post", return_value=MagicMock(ok=False, status_code=401)):
             assert notifier.notify("t", "m") == []
+
+
+def test_nextcloud_refuses_plain_http(monkeypatch):
+    for k, v in TestNextcloudTalk.ENV.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setenv("NEXTCLOUD_URL", "http://cloud.example.org")
+    for var in ("NTFY_TOPIC", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"):
+        monkeypatch.delenv(var, raising=False)
+    with patch("src.notifier.requests.post") as post:
+        assert notifier.notify("t", "m") == []
+    post.assert_not_called()

@@ -87,6 +87,10 @@ def notify(title: str, message: str, level: str = "WARNING") -> list[str]:
 
     if all(os.getenv(v) for v in _NEXTCLOUD_VARS):
         base = os.environ["NEXTCLOUD_URL"].rstrip("/")
+        if not base.lower().startswith("https://"):
+            # Basic auth : le mot de passe ne doit jamais partir en clair.
+            logger.warning("nextcloud: NEXTCLOUD_URL doit commencer par https:// — envoi ignoré")
+            return delivered
         try:
             resp = requests.post(
                 f"{base}/ocs/v2.php/apps/spreed/api/v1/chat/{os.environ['NEXTCLOUD_TALK_TOKEN']}",
