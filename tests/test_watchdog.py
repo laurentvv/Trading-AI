@@ -295,3 +295,60 @@ class TestNotifier:
                 delivered = notifier.notify("t", "m")
         assert delivered == []
         assert "SECRET-TOKEN" not in caplog.text
+
+
+class TestNextcloudTalk:
+    ENV = {
+        "NEXTCLOUD_URL": "https://cloud.example.org/",
+        "NEXTCLOUD_USER": "bot",
+        "NEXTCLOUD_PASSWORD": "S3CRET-PASS",
+        "NEXTCLOUD_TALK_TOKEN": "abc123",
+    }
+
+    def _setenv(self, monkeypatch, **overrides):
+        for var in ("NTFY_TOPIC", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"):
+            monkeypatch.delenv(var, raising=False)
+        for k, v in {**self.ENV, **overrides}.items():
+            if v is None:
+                monkeypatch.delenv(k, raising=False)
+            else:
+                monkeypatch.setenv(k, v)
+
+    def test_channel_needs_all_four_variables(self, monkeypatch):
+        self._setenv(monkeypatch)
+        assert notifier.configured_channels() == ["nextcloud"]
+        self._setenv(monkeypatch, NEXTCLOUD_TALK_TOKEN=None)
+        assert notifier.configured_channels() == []
+
+    def test_message_is_posted_to_the_talk_chat_endpoint(self, monkeypatch):
+        self._setenv(monkeypatch)
+        with patch("src.notifier.requests.post", return_value=MagicMock(ok=True)) as post:
+            delivered = notifier.notify("Trading-AI : scheduler-dead", "arrêt", "CRITICAL")
+        assert delivered == ["nextcloud"]
+        assert post.call_args.args[0] == "https://cloud.example.org/ocs/v2.php/apps/spreed/api/v1/chat/abc123"
+        kw = post.call_args.kwargs
+        assert kw["auth"] == ("bot", "S3CRET-PASS") and kw["headers"]["OCS-APIRequest"] == "true"
+        assert "scheduler-dead" in kw["json"]["message"] and "arrêt" in kw["json"]["message"]
+
+    def test_failure_never_leaks_credentials(self, monkeypatch, caplog):
+        self._setenv(monkeypatch)
+        boom = requests.ConnectionError("https://bot:S3CRET-PASS@cloud.example.org")
+        with patch("src.notifier.requests.post", side_effect=boom), caplog.at_level("WARNING"):
+            assert notifier.notify("t", "m") == []
+        assert "S3CRET-PASS" not in caplog.text
+
+    def test_http_error_is_not_delivery(self, monkeypatch):
+        self._setenv(monkeypatch)
+        with patch("src.notifier.requests.post", return_value=MagicMock(ok=False, status_code=401)):
+            assert notifier.notify("t", "m") == []
+
+
+def test_nextcloud_refuses_plain_http(monkeypatch):
+    for k, v in TestNextcloudTalk.ENV.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.setenv("NEXTCLOUD_URL", "http://cloud.example.org")
+    for var in ("NTFY_TOPIC", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"):
+        monkeypatch.delenv(var, raising=False)
+    with patch("src.notifier.requests.post") as post:
+        assert notifier.notify("t", "m") == []
+    post.assert_not_called()

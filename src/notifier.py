@@ -2,7 +2,9 @@
 
 Canaux (tous optionnels, configurés par variables d'environnement, jamais versionnés) :
   - ntfy.sh (ou serveur ntfy perso) : ``NTFY_TOPIC`` (+ ``NTFY_SERVER``, défaut https://ntfy.sh) ;
-  - Telegram : ``TELEGRAM_BOT_TOKEN`` + ``TELEGRAM_CHAT_ID``.
+  - Telegram : ``TELEGRAM_BOT_TOKEN`` + ``TELEGRAM_CHAT_ID`` ;
+  - Nextcloud Talk : ``NEXTCLOUD_URL`` + ``NEXTCLOUD_USER`` + ``NEXTCLOUD_PASSWORD`` (mot de passe d'application
+    recommandé) + ``NEXTCLOUD_TALK_TOKEN`` (jeton de la conversation, visible dans son URL ``/call/<jeton>``).
 
 Sans aucun canal configuré, l'alerte est seulement journalisée : le watchdog reste utilisable et l'absence
 de canal est signalée dans son résumé. Une erreur d'envoi ne lève jamais (une alerte ratée ne doit pas
@@ -21,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 SEND_TIMEOUT = 10  # secondes
 
+_NEXTCLOUD_VARS = ("NEXTCLOUD_URL", "NEXTCLOUD_USER", "NEXTCLOUD_PASSWORD", "NEXTCLOUD_TALK_TOKEN")
 _NTFY_PRIORITY = {"INFO": "default", "WARNING": "high", "CRITICAL": "urgent"}
 
 
@@ -31,6 +34,8 @@ def configured_channels() -> list[str]:
         channels.append("ntfy")
     if os.getenv("TELEGRAM_BOT_TOKEN") and os.getenv("TELEGRAM_CHAT_ID"):
         channels.append("telegram")
+    if all(os.getenv(v) for v in _NEXTCLOUD_VARS):
+        channels.append("nextcloud")
     return channels
 
 
@@ -79,5 +84,27 @@ def notify(title: str, message: str, level: str = "WARNING") -> list[str]:
         except Exception as e:  # noqa: BLE001 - une alerte ratée ne doit jamais interrompre le watchdog
             # Ne jamais logger l'exception brute : l'URL contient le jeton du bot.
             logger.warning(f"telegram: envoi impossible ({type(e).__name__})")
+
+    if all(os.getenv(v) for v in _NEXTCLOUD_VARS):
+        base = os.environ["NEXTCLOUD_URL"].rstrip("/")
+        if not base.lower().startswith("https://"):
+            # Basic auth : le mot de passe ne doit jamais partir en clair.
+            logger.warning("nextcloud: NEXTCLOUD_URL doit commencer par https:// — envoi ignoré")
+            return delivered
+        try:
+            resp = requests.post(
+                f"{base}/ocs/v2.php/apps/spreed/api/v1/chat/{os.environ['NEXTCLOUD_TALK_TOKEN']}",
+                auth=(os.environ["NEXTCLOUD_USER"], os.environ["NEXTCLOUD_PASSWORD"]),
+                headers={"OCS-APIRequest": "true", "Accept": "application/json"},
+                json={"message": f"[{level}] {title}\n{message}"},
+                timeout=SEND_TIMEOUT,
+            )
+            if resp.ok:
+                delivered.append("nextcloud")
+            else:
+                logger.warning(f"nextcloud: HTTP {resp.status_code}")
+        except Exception as e:  # noqa: BLE001 - une alerte ratée ne doit jamais interrompre le watchdog
+            # Ne jamais logger l'exception brute : elle peut contenir l'URL et l'identifiant.
+            logger.warning(f"nextcloud: envoi impossible ({type(e).__name__})")
 
     return delivered
