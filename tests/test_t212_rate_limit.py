@@ -234,7 +234,7 @@ class TestSellConfirmationStaysShort:
 
 
 class TestUnconfirmedSellReprotects:
-    """Vente acceptée (2xx) mais fill non confirmé : le stop libéré est reposé si la position existe encore."""
+    """Vente acceptée (2xx) mais fill non confirmé : le stop libéré est reposé sans se fier à l'instantané de position."""
 
     def _run(self, place_result=(77, 1300.0)):
         from unittest.mock import MagicMock

@@ -1665,8 +1665,9 @@ def _replace_released_stop(
         # Fill non confirmé : la vente a probablement été exécutée (le courtier refuse alors un stop sur des
         # actions qu'on ne possède plus) ; la synchro du cycle suivant tranchera. Pas d'alerte CRITICAL à tort.
         logger.warning(
-            f"⚠️ {t212_ticker} : fill de vente non confirmé et stop non reposé (refus courtier probable si la "
-            f"vente est exécutée) — la synchro du prochain cycle réconciliera."
+            f"⚠️ {t212_ticker} : fill de vente non confirmé et stop non reposé (refus courtier si la vente est "
+            f"exécutée, MAIS aussi possible échec de requête : position peut-être SANS stop) — la synchro et le "
+            f"self-heal du prochain cycle trancheront."
         )
 
 
