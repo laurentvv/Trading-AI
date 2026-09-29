@@ -138,7 +138,7 @@ C'est **le livrable qui conditionne tout le reste.** Sans lui, chaque réglage e
 - **timesfm** : entrée = série tradée, horizon de 20 jours, décision fondée sur les **quantiles** (P(rendement > 0), rapport q90/q10) plutôt que sur la médiane contre 0,5 %. Mesurer d'abord son **biais moyen** (rendement prévu moins réalisé) sur 5 ans, et le corriger ou l'écarter.
 - **grebenkov et un momentum simple** : candidats naturels pour le **filtre de régime** (à confirmer par l'ablation).
 - **tensortrade** : poids à 0 tant qu'il n'y a pas un modèle par ticker entraîné sérieusement (au moins 10⁵ timesteps, walk-forward) et validé. Sinon, le retirer.
-- **hmm** : uniquement comme détecteur de régime de volatilité, s'il est validé. Sinon, poids 0.
+- **hmm** : aujourd'hui il discrétise des rendements et renvoie BUY/SELL (`src/hmm_model.py`). À re-spécifier comme détecteur de régime de volatilité et valider par l'ablation ; sinon, poids 0.
 - **sentiment et vincent_ganne** : retirés (ou réparés puis revalidés).
 - **council** : **consultatif uniquement** (rapport humain), plus de vote tant qu'il est alimenté par des métriques de micro-échantillons.
 - **Poids adaptatifs** : gelés sur les poids issus du walk-forward. Pas de repondération en live en dessous de 60 observations par modèle et par ticker.
@@ -257,9 +257,9 @@ tranchera, et il n'est pas exclu qu'une règle simple (au-dessus ou en dessous d
 
 | # | Pilier | Composants existants | Rôle | Pourquoi |
 |---|---|---|---|---|
-| 1 | **Filtre de tendance et de régime** | Grebenkov, HMM (uniquement comme détecteur de régime de volatilité) + règles simples (MA200, momentum 3-12 mois, drawdown en cours) | Décide le **niveau d'exposition** (0 / 25 / 50 / 75 / 100 %), pas chaque achat ou vente | Seul composant qui avait raison sur la période (Grebenkov : achat 25 jours sur 27 sur un marché haussier). Déterministe, backtestable sur 5 ans, et référence naturelle que tout autre pilier doit battre. |
+| 1 | **Filtre de tendance et de régime** | Grebenkov, HMM (candidat à re-spécifier : il discrétise aujourd'hui des rendements et renvoie BUY/SELL, il n'est pas un détecteur de volatilité ; à valider comme tel ou à écarter) + règles simples (MA200, momentum 3-12 mois, drawdown en cours) | Décide le **niveau d'exposition** (0 / 25 / 50 / 75 / 100 %), pas chaque achat ou vente | Seul composant qui avait raison sur la période (Grebenkov : achat 25 jours sur 27 sur un marché haussier). Déterministe, backtestable sur 5 ans, et référence naturelle que tout autre pilier doit battre. |
 | 2 | **Couche de risque et d'exécution** | GO-gates 1 à 7 : idempotence des ordres, fill confirmé, stop GTC à cliquet chez le broker, volatilité quotidienne, garde de fraîcheur des données, verrou du scheduler, equity FIFO ; puis watchdog et régulateur d'appels | Protège le capital **même quand les modèles se trompent** | C'est le vrai acquis du projet. Il a déjà résisté à des incidents réels (vente bloquée par un stop réservé, FIFO antéchronologique, état broker inconnu). Sur 30 k€, la survie passe avant la performance. |
-| 3 | **Prévision quantitative de moyen terme** (candidat) | TimesFM 3.0 (via ses quantiles) et le modèle classique (cible à 20-60 jours) | Confirmation et **dimensionnement** (probabilité de hausse, dispersion), pas un signe directionnel brut | Pas un pilier en l'état : TimesFM vend dans 84 à 93 % des cycles sur une autre série que celle tradée, le classique vise le lendemain. À garder seulement s'ils battent la règle simple hors échantillon. |
+| 3 | **Prévision quantitative de moyen terme** (candidat) | TimesFM 3.0 (via ses quantiles) et le modèle classique (cible à 1 jour aujourd'hui, `src/features.py:203` ; à refaire à 20-60 jours en phase 2.2) | Confirmation et **dimensionnement** (probabilité de hausse, dispersion), pas un signe directionnel brut | Pas un pilier en l'état : TimesFM vend dans 84 à 93 % des cycles sur une autre série que celle tradée, le classique vise le lendemain. À garder seulement s'ils battent la règle simple hors échantillon. |
 | 4 | **Couche qualitative** (consultative) | LLM texte et vision, oil_bench, council, FinAcumen, morning brief | Contexte pour l'humain, et au plus un **droit de veto qui réduit l'exposition, jamais qui l'augmente** | Non backtestable honnêtement (fuite d'information), sorties instables, dépendance à des fournisseurs gratuits (94 échecs `gemini_free` sur le run). |
 | 5 | **Banc de mesure** | Backtest walk-forward, journal d'audit (PR #97), votes « fantômes » loggés sans peser | Rend chaque réglage vérifiable | C'est ce qui manquait : sans lui, les poids ont été calés sur 4 semaines de marché baissier (ADR-002). |
 
@@ -281,3 +281,12 @@ Dans `_execute_sell_order`, le stop broker est annulé **avant** l'envoi de la v
 mais ne s'exécute pas (par exemple un cycle à 08:30 ou 18:00, hors de la séance 09:00-17:30 de Xetra et d'Euronext Paris, à vérifier), la confirmation échoue et le code
 sort **sans reposer le stop** : la position reste sans protection jusqu'au cycle suivant (~30 min). À traiter en phase 2 : ne pas émettre d'ordre hors séance, ou
 reposer le stop dès qu'une vente n'est pas confirmée.
+
+## 8. Avancement de la phase 1, tranche A : les références (mis à jour le 2026-09-29)
+
+Moteur de backtest, métriques, bootstrap et rapport livrés dans la PR `feat/backtest-baselines` (`src/backtest/`, `docs/BACKTEST_BASELINES_2026-09-29.md`). Premiers résultats, à lire avec leurs limites (4 ans, un seul cycle) :
+
+- **CRUDP.PA n'est pas backtestable** : flux Yahoo gelé à 82 % (vivant depuis le 2026-01-08, 184 séances). Il faut une autre source de prix pour l'instrument pétrole, ou un autre instrument. Le contrat CL=F n'est qu'un proxy non ajusté du roll.
+- **SXRV.DE, 2022-07 → 2026-09** : aucune règle simple ne bat le buy & hold sur le Sharpe (1,12). La MA200 avec hystérésis 2 % offre un drawdown de −15 % contre −26,7 % pour 6 points de CAGR en moins.
+- **Les règles de sortie actuelles** (TP +8 %, trailing −3 %, time-stop 15 j), avec une entrée toujours haussière, tombent à 8,6 % de CAGR contre 21,8 % : à 0 pb de coût elles font 20,0 %, l'essentiel de la perte vient du **churn** (83 trades, rotation ×40 par an) et non de la seule troncature des gains.
+- **À faire ensuite (tranche B)** : rejeu des modèles de l'ensemble en walk-forward, ablation par modèle, décision écrite sur les modèles conservés. Prérequis : trancher la source de prix du pétrole et mesurer le spread réel (par côté ou aller-retour) sur le compte.
