@@ -469,3 +469,7 @@ Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-
 - **Incident** : la sonde Alpha Vantage a affiché la clé API (réponse `Information` de l'API) dans la sortie de la session ; clé gratuite, régénération conseillée.
 - Restent à la main du propriétaire : canal d'alerte + installation de la tâche watchdog, exécution du runbook PROD/DEV, accord pour la sonde `check_t212_stops.py`, revue et fusion des PR.
 
+
+## [2026-09-29] gen | Plan de passage en réel : phase 2 réécrite (cœur Nasdaq-100 + poche active 10 % + satellite pétrole)
+- Décisions de l'utilisateur intégrées : aucun stop broker sur le cœur, poche active 10 % pilotée par l'ensemble (LLM et TimesFM au centre du projet, test équitable, journal à terme, modèle LLM épinglé), satellite pétrole tactique, cadence hebdomadaire, entrée en une fois, alerte portefeuille −35 %, alertes Nextcloud Talk.
+- Nouveau §2, phase 2 (2.1 à 2.7, PR 2-a à 2-g), phases 3 et 4 adaptées, §4, §5, §7 réécrits, §9 liste les points à confirmer. `AGENTS.md` (GO-gate 2) sera mis à jour dans la PR qui livre la couche de risque du mode cœur + poche, pas avant. Aucun code modifié.
