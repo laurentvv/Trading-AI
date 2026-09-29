@@ -55,16 +55,16 @@ La barre à battre est connue. Sur 5 ans (09/2021 → 09/2026), le buy & hold fa
 
 **Bilan** : les modèles les plus lourds (sentiment 0,16, timesfm 0,15, classic 0,13, council 0,10) sont morts ou biaisés à la baisse. Ceux qui étaient alignés sur la tendance (grebenkov, llm_visual sur le pétrole) pèsent peu. Le consensus ne peut pas produire de BUY sur CRUDP.
 
-### 1.3 Règles de sortie : elles coupent les gagnants et gardent les perdants
+### 1.3 Règles de sortie : elles plafonnent les gagnants et retardent la sortie des perdants
 
 `src/t212_executor.py` empile six mécanismes, tous calibrés court terme :
 
 | Règle | Paramètre | Effet pour du moyen/long terme |
 |---|---|---|
-| Take-profit | +8 % (`TAKE_PROFIT_TARGET`) | Plafonne chaque gain à 8 %. Le TP attaché chez le broker est **rejeté (400) à chaque achat** (3/3) : c'est du code mort qui provoque un double POST. |
+| Take-profit | +8 % (`TAKE_PROFIT_TARGET`) | Plafonne chaque gain à 8 %. Le TP attaché chez le broker est **rejeté (400) à chaque achat** (3/3 sur la démo) et provoquait un double POST via le repli sur un ordre nu (retiré par la PR #95) ; à confirmer qu'un compte réel ne l'accepte pas davantage. |
 | Trailing stop logiciel | −3 % depuis le pic, dès +0,5 % de gain | CRUDP a une volatilité quotidienne de 1,9 à 3,5 % : **moins d'un écart-type d'une séance**, donc déclenchement quasi certain. SXRV (1,1 %) : environ 3 σ, déclenché en quelques semaines. |
 | Time-stop | 15 jours calendaires (`MAX_HOLDING_DAYS`) | **Force la vente même si la position est en gain.** Incompatible avec un horizon de plusieurs mois. |
-| Garde anti-perte | bloque tout SELL de modèle en dessous de −0,2 % | **18 ventes bloquées.** Les perdants sont conservés jusqu'au hard-stop −10 %. Asymétrie inverse du principe « couper les pertes, laisser courir les gains ». La tolérance de 0,2 % est aussi plus étroite que le spread réel (le 24/09 : valeur affichée 1 005,82 €, fill à 1 002,51 €, soit 0,33 %). |
+| Garde anti-perte | bloque tout SELL de modèle en dessous de −0,2 % | **18 ventes bloquées.** Elle ne bloque que les ventes **décidées par les modèles** : le hard-stop (−10 %) et le time-stop (jour 15, perte ≤ 5 %) la contournent, donc une position perdante n'est jamais gardée indéfiniment, mais les modèles ne peuvent pas la sortir. Asymétrie inverse du principe « couper les pertes, laisser courir les gains ». La tolérance de 0,2 % est aussi plus étroite que le spread réel (le 24/09 : valeur affichée 1 005,82 €, fill à 1 002,51 €, soit 0,33 %). |
 | Hard-stop | −10 % | Cohérent comme stop catastrophe. |
 | Stop broker à cliquet | pic × 0,90 | Bonne protection, même si la machine tombe. Ce stop doit **rester le socle**. |
 
@@ -146,7 +146,7 @@ C'est **le livrable qui conditionne tout le reste.** Sans lui, chaque réglage e
 **2.3 Règles de sortie cohérentes avec le moyen terme**
 - **Supprimer le take-profit fixe à +8 %.**
 - **Supprimer le time-stop de 15 jours**, ou le remplacer par une sortie « tendance cassée ET aucun progrès depuis N semaines ».
-- **Supprimer la garde anti-perte** sur les sorties de régime : une sortie est décidée par une règle, pas par le P&L latent.
+- **Neutraliser la garde anti-perte pour les sorties de régime uniquement** : une sortie est décidée par une règle, pas par le P&L latent. **La conserver comme contrôle de cohérence du prix d'entrée** (elle protège contre une référence d'entrée fantôme ou corrompue, incident de juin 2026 avec dérive à −17 %, cf. `_validate_and_recalibrate_entry_price`).
 - **Trailing** : remplacer le −3 % par un stop fondé sur l'ATR (par exemple 3 × ATR(20)) ou par une sortie « clôture sous MA100/MA200 ». Paramètres choisis par le backtest, pas à la main.
 - **Stop catastrophe chez le broker** : conservé (cliquet), avec un niveau calé sur la volatilité de chaque actif (CRUDP est environ 3 fois plus volatil que SXRV).
 - **Hystérésis** : seuils d'entrée et de sortie distincts, et **détention minimale de 5 à 10 séances** hors stop catastrophe, pour supprimer le churn.
@@ -246,3 +246,38 @@ puis revalidé. En attendant, il vote HOLD 0,50 sans effet sur le score (les HOL
   stop réel de faible montant** avant toute montée en charge.
 - API toujours en bêta, comptes Invest et Stocks ISA uniquement, clés API démo et réelles distinctes.
 - Limites de débit par compte et par endpoint : voir `TRADING212_API_GUIDE.md` §5. `GET /equity/orders` : **1 requête / 5 s**, cause des 429 observés.
+
+---
+
+## 7. Les piliers du système de décision (hypothèse de travail, à valider en phase 1)
+
+Un pilier est ce qui doit rester même si tout le reste est retiré. Trois critères : **testable hors échantillon**,
+**explicable**, **utile au capital de 30 k€ même sans edge de prévision**. Cette liste est une hypothèse : le banc de la phase 1
+tranchera, et il n'est pas exclu qu'une règle simple (au-dessus ou en dessous de la MA200) batte tout l'ensemble.
+
+| # | Pilier | Composants existants | Rôle | Pourquoi |
+|---|---|---|---|---|
+| 1 | **Filtre de tendance et de régime** | Grebenkov, HMM (uniquement comme détecteur de régime de volatilité) + règles simples (MA200, momentum 3-12 mois, drawdown en cours) | Décide le **niveau d'exposition** (0 / 25 / 50 / 75 / 100 %), pas chaque achat ou vente | Seul composant qui avait raison sur la période (Grebenkov : achat 25 jours sur 27 sur un marché haussier). Déterministe, backtestable sur 5 ans, et référence naturelle que tout autre pilier doit battre. |
+| 2 | **Couche de risque et d'exécution** | GO-gates 1 à 7 : idempotence des ordres, fill confirmé, stop GTC à cliquet chez le broker, volatilité quotidienne, garde de fraîcheur des données, verrou du scheduler, equity FIFO ; puis watchdog et régulateur d'appels | Protège le capital **même quand les modèles se trompent** | C'est le vrai acquis du projet. Il a déjà résisté à des incidents réels (vente bloquée par un stop réservé, FIFO antéchronologique, état broker inconnu). Sur 30 k€, la survie passe avant la performance. |
+| 3 | **Prévision quantitative de moyen terme** (candidat) | TimesFM 3.0 (via ses quantiles) et le modèle classique (cible à 20-60 jours) | Confirmation et **dimensionnement** (probabilité de hausse, dispersion), pas un signe directionnel brut | Pas un pilier en l'état : TimesFM vend dans 84 à 93 % des cycles sur une autre série que celle tradée, le classique vise le lendemain. À garder seulement s'ils battent la règle simple hors échantillon. |
+| 4 | **Couche qualitative** (consultative) | LLM texte et vision, oil_bench, council, FinAcumen, morning brief | Contexte pour l'humain, et au plus un **droit de veto qui réduit l'exposition, jamais qui l'augmente** | Non backtestable honnêtement (fuite d'information), sorties instables, dépendance à des fournisseurs gratuits (94 échecs `gemini_free` sur le run). |
+| 5 | **Banc de mesure** | Backtest walk-forward, journal d'audit (PR #97), votes « fantômes » loggés sans peser | Rend chaque réglage vérifiable | C'est ce qui manquait : sans lui, les poids ont été calés sur 4 semaines de marché baissier (ADR-002). |
+
+**À retirer ou à geler en attendant** : sentiment (mort, voir §6), Vincent Ganne (désactivé), TensorTrade (2 000 pas d'entraînement, un seul modèle
+pour deux tickers), votes du council.
+
+**Ordre de grandeur du problème actuel** : 0,54 des 0,95 de poids nominal (57 %) est porté par sentiment (0,16), TimesFM (0,15), classique (0,13) et
+council (0,10), c'est-à-dire par des composants morts ou biaisés à la baisse. Les deux composants alignés sur la tendance (Grebenkov 0,05, llm_visual sur le
+pétrole) pèsent presque rien.
+
+**Conséquence sur l'univers** : pour CRUDP.PA (ETC pétrole : roll, contango, volatilité environ 3 fois celle de SXRV.DE), le pilier 1 doit d'abord prouver
+qu'il apporte quelque chose net du coût de roll ; sinon l'actif ne mérite pas sa place dans un portefeuille moyen terme.
+
+Ce document est une analyse d'ingénierie, pas un conseil en investissement personnalisé.
+
+### Constat complémentaire : fenêtre sans stop lors d'une vente non exécutée
+
+Dans `_execute_sell_order`, le stop broker est annulé **avant** l'envoi de la vente (les actions réservées ne sont pas vendables). Si l'ordre au marché est accepté
+mais ne s'exécute pas (par exemple un cycle à 08:30 ou 18:00, hors de la séance 09:00-17:30 de Xetra et d'Euronext Paris, à vérifier), la confirmation échoue et le code
+sort **sans reposer le stop** : la position reste sans protection jusqu'au cycle suivant (~30 min). À traiter en phase 2 : ne pas émettre d'ordre hors séance, ou
+reposer le stop dès qu'une vente n'est pas confirmée.
