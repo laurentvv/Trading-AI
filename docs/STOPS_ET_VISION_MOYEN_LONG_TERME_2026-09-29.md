@@ -12,7 +12,7 @@ Statut : **rien de ce qui suit n'est implémenté.** Les invariants actuels (sto
 
 1. **Un stop n'est pas neutre.** En marché sans tendance (marche aléatoire), un stop 0/1 *réduit* le rendement espéré ; il n'aide que s'il y a de la persistance (momentum). Le cadre théorique est celui de Kaminski & Lo. Un stop serré sur un actif qu'on veut garder des années est donc, par construction, un pari contre ta propre vision.
 2. **Ce qui a de la preuve sur le long terme n'est pas un stop de prix mais une règle de tendance lente** (moyenne mobile 10 mois ≈ MA200, momentum 12 mois) : Faber, Moskowitz-Ooi-Pedersen, Hurst-Ooi-Pedersen (67 marchés, 1880-2016). Elle réduit surtout le **drawdown**, moins le rendement. Mais Zakamulin montre que les performances de ces règles sont souvent gonflées par un biais de anticipation et peu robustes hors échantillon.
-3. **Notre banc confirme le profil.** Sur SXRV.DE (2022-07 → 2026-09) : buy & hold 21,8 %/an, drawdown −26,7 % ; MA200 avec hystérésis 15,9 %/an, drawdown −15,0 %. Aucun écart de Sharpe n'est statistiquement significatif. **Les stops fixes larges (−10 à −30 % depuis l'entrée) ne se déclenchent presque jamais** (le drawdown de −26,7 % est mesuré depuis le sommet, pas depuis l'entrée). Les stops suiveurs donnent des résultats **non monotones** (−15 % : 26,1 %/an ; −10 % : 19,1 % ; −20 % : 19,6 % ; −25 % : 17,6 %) : c'est du bruit de paramétrage, pas un effet.
+3. **Notre banc confirme le profil.** Sur SXRV.DE (2022-07 → 2026-09) : buy & hold 21,8 %/an, drawdown −26,7 % ; MA200 avec hystérésis 15,9 %/an, drawdown −15,0 %. Aucun écart de Sharpe n'est statistiquement significatif. **Les stops fixes (−10 à −30 % depuis l'entrée) ne se déclenchent presque jamais** (une fois à −10 %, jamais au-delà) (le drawdown de −26,7 % est mesuré depuis le sommet, pas depuis l'entrée). Les stops suiveurs donnent des résultats **non monotones** (coûts 25 pb par côté ; −15 % : 25,9 %/an ; −10 % : 19,1 % ; −20 % : 19,4 % ; −25 % : 17,5 %) : c'est du bruit de paramétrage, pas un effet.
 4. **Le vrai ennemi n'est pas la vente, c'est la rotation.** Les règles actuelles (TP +8 %, trailing −3 %, time-stop 15 j) font 8,6 %/an contre 21,8 % pour un actif qu'on ne vend jamais ; à 0 pb de coût elles feraient 20,0 %. Tout l'écart vient de 83 trades et d'une rotation de ×40/an.
 5. **Le pétrole (CRUDP.PA) est un cas à part** : flux de prix inutilisable (82 % gelé) et, structurellement, un ETC sur contrats à terme subit le coût du roll en contango (jusqu'à 82 % du temps entre 2006 et 2017 selon la littérature). Sur un horizon long, ce n'est pas un actif « à garder » comme un indice actions.
 6. **Recommandation de travail (à valider par toi)** : une architecture à deux niveaux, *cœur* investi durablement sans stop de prix + *surcouche de régime* lente et optionnelle, plus un *filet de sécurité opérationnel* (pas un stop de trading). Détail au §5. Toutes les variantes doivent passer le banc avant d'être retenues.
@@ -60,7 +60,7 @@ Source : `docs/BACKTEST_BASELINES_2026-09-29.md` (PR #99) et `scripts/stop_study
 | MA200 avec hystérésis 2 % | 15,9 % | 1,06 | −15,0 % | 4 |
 | Momentum 12 mois | 17,4 % | 1,06 | −33,0 % | 3 |
 | Règles de sortie actuelles (entrée toujours haussière) | 8,6 % | 0,54 | −31,5 % | 83 |
-| B&H + stop fixe −20 % depuis l'entrée | 19,2 % | 1,02 | −26,7 % | 1 |
+| B&H + stop fixe −10 % depuis l'entrée | 21,2 % | 1,10 | −26,7 % | 1 |
 | B&H + trailing −15 % depuis le sommet | 25,9 % | 1,36 | −24,3 % | 2 |
 | B&H + trailing −25 % depuis le sommet | 17,5 % | 0,97 | −25,7 % | 1 |
 
@@ -68,7 +68,7 @@ Ce qu'on peut affirmer, et ce qu'on ne peut pas :
 
 - **On peut affirmer** que la rotation des règles actuelles détruit de la valeur (ΔSharpe −0,58, IC 95 % [−0,89 ; −0,28]) et que, sur cette période, aucune règle simple ne bat le buy & hold sur le Sharpe.
 - **On ne peut pas affirmer** que tel niveau de stop est « bon ». Le trailing −15 % paraît excellent (Sharpe 1,36) mais ses voisins −10 %, −20 %, −25 % ne le sont pas : avec seulement 1 à 5 événements par variante, c'est de la chance de paramètre. **Choisir ce niveau reviendrait à sur-ajuster.**
-- **Sur le pétrole (proxy CL=F, non ajusté du roll)**, chaque variante de stop fait pire que le buy & hold ou à peu près pareil, et les stops suiveurs serrés multiplient les allers-retours (jusqu'à 22 trades) et aggravent le drawdown (jusqu'à −64 %). Le proxy est peu fiable, mais le signe est cohérent avec le risque de « fouet ».
+- **Sur le pétrole (proxy CL=F, non ajusté du roll)**, chaque variante de stop fait pire que le buy & hold ou à peu près pareil, et les stops suiveurs serrés multiplient les allers-retours (jusqu'à 22 trades) et aggravent le drawdown (jusqu'à −65 %). Le proxy est peu fiable, mais le signe est cohérent avec le risque de « fouet ».
 - **Limite du banc** : les stops y sont évalués sur les clôtures quotidiennes et exécutés à l'ouverture suivante, alors qu'un stop broker se déclenche en séance. Les événements de gap ne sont donc pas modélisés finement. Période : 4 ans, un seul cycle (baisse 2022, puis marché très haussier).
 
 ---
@@ -154,15 +154,15 @@ Stop évalué sur clôture quotidienne, exécution à l'ouverture suivante, ré-
 |---|---|---|---|---|---|
 | Buy & hold (sans stop) | 21,8 % | 1,12 | −26,7 % | 0 | 100 % |
 | MA200 hystérésis (sans stop) | 15,9 % | 1,06 | −15,0 % | 4 | 81 % |
-| B&H + stop fixe −10 % / −15 % / −25 % / −30 % depuis l'entrée | 21,8 % | 1,12 | −26,7 % | 0 | 100 % |
-| B&H + stop fixe −20 % depuis l'entrée | 19,2 % | 1,02 | −26,7 % | 1 | 98 % |
-| B&H + trailing −10 % depuis le sommet | 18,6 % | 1,04 | −20,7 % | 5 | 90 % |
+| B&H + stop fixe −15 % / −20 % / −25 % / −30 % depuis l'entrée | 21,8 % | 1,12 | −26,7 % | 0 | 100 % |
+| B&H + stop fixe −10 % depuis l'entrée | 21,2 % | 1,10 | −26,7 % | 1 | 98 % |
+| B&H + trailing −10 % depuis le sommet | 19,1 % | 1,06 | −20,7 % | 5 | 90 % |
 | B&H + trailing −15 % depuis le sommet | 25,9 % | 1,36 | −24,3 % | 2 | 96 % |
 | B&H + trailing −20 % depuis le sommet | 19,4 % | 1,07 | −23,0 % | 2 | 96 % |
 | B&H + trailing −25 % depuis le sommet | 17,5 % | 0,97 | −25,7 % | 1 | 98 % |
 | MA200 hystérésis + stop fixe −20 % | 13,4 % | 0,92 | −15,0 % | 4 | 79 % |
 
-Le stop fixe −20 % se déclenche une fois et coûte 2,6 points de CAGR : la position reste hors marché 21 séances avant la ré-entrée. Les stops fixes « inactifs » (0 trade) n'ont jamais été touchés : le drawdown de −26,7 % vient d'un sommet, pas du prix d'entrée du début de fenêtre.
+Le stop fixe −10 % se déclenche une fois et coûte 0,6 point de CAGR (21 séances hors marché avant la ré-entrée) ; au-delà, aucun déclenchement. L'état des stops démarre à l'ouverture de la fenêtre testée : les résultats ne dépendent pas de l'historique antérieur. Les stops fixes « inactifs » (0 trade) n'ont jamais été touchés : le drawdown de −26,7 % vient d'un sommet, pas du prix d'entrée du début de fenêtre.
 
 ### CL=F, proxy pétrole non ajusté du roll (2022-07-18 → 2026-09-29)
 
@@ -170,11 +170,11 @@ Le stop fixe −20 % se déclenche une fois et coûte 2,6 points de CAGR : la po
 |---|---|---|---|---|
 | Buy & hold (sans stop) | −2,1 % | 0,15 | −47,0 % | 0 |
 | MA200 hystérésis (sans stop) | −8,7 % | −0,18 | −51,8 % | 9 |
-| B&H + stop fixe −10 % depuis l'entrée | −5,5 % | 0,05 | −54,4 % | 3 |
-| B&H + stop fixe −20 % depuis l'entrée | −2,9 % | 0,12 | −48,9 % | 1 |
-| B&H + trailing −10 % depuis le sommet | −8,2 % | −0,15 | −56,0 % | 22 |
-| B&H + trailing −15 % depuis le sommet | −11,3 % | −0,18 | −64,7 % | 13 |
-| B&H + trailing −25 % depuis le sommet | −10,9 % | −0,13 | −54,4 % | 7 |
+| B&H + stop fixe −10 % depuis l'entrée | −7,2 % | −0,01 | −57,6 % | 6 |
+| B&H + stop fixe −20 % depuis l'entrée | −11,6 % | −0,13 | −65,5 % | 4 |
+| B&H + trailing −10 % depuis le sommet | −7,9 % | −0,14 | −56,1 % | 22 |
+| B&H + trailing −15 % depuis le sommet | −11,7 % | −0,19 | −63,8 % | 13 |
+| B&H + trailing −25 % depuis le sommet | −14,1 % | −0,24 | −61,0 % | 7 |
 
 À lire avec la réserve du §3 : proxy non tradable, roll non ajusté.
 
