@@ -30,7 +30,7 @@ Fenêtre commune : 2022-07-12 → 2026-09-29 (1074 séances).
 
 ### Performance brute (coûts inclus, avant impôt)
 
-| Stratégie | CAGR | Sharpe | Sortino | Drawdown max | Calmar | Temps investi | Turnover/an | Trades | Gain moy. | Perte moy. |
+| Stratégie | CAGR | Sharpe | Sortino | Drawdown max | Calmar | Temps investi | Turnover/an | Ventes | Gain moy. | Perte moy. |
 |---|---|---|---|---|---|---|---|---|---|---|
 | Buy & hold | 21.8 % | 1.12 | 1.64 | -26.7 % | 0.82 | 100 % | 0.2× | 0 | — | — |
 | 50 % fixe (rééquilibré / 21 séances) | 10.9 % | 1.12 | 1.64 | -14.1 % | 0.77 | 100 % | 0.2× | 33 | 51.9 % | -3.4 % |
@@ -96,7 +96,7 @@ Fenêtre commune : 2022-07-18 → 2026-09-29 (1057 séances). Contrat à terme c
 
 ### Performance brute (coûts inclus, avant impôt)
 
-| Stratégie | CAGR | Sharpe | Sortino | Drawdown max | Calmar | Temps investi | Turnover/an | Trades | Gain moy. | Perte moy. |
+| Stratégie | CAGR | Sharpe | Sortino | Drawdown max | Calmar | Temps investi | Turnover/an | Ventes | Gain moy. | Perte moy. |
 |---|---|---|---|---|---|---|---|---|---|---|
 | Buy & hold | -2.1 % | 0.15 | 0.20 | -47.0 % | -0.04 | 100 % | 0.3× | 0 | — | — |
 | 50 % fixe (rééquilibré / 21 séances) | 0.8 % | 0.14 | 0.19 | -24.4 % | 0.03 | 100 % | 0.4× | 22 | 14.4 % | -18.2 % |

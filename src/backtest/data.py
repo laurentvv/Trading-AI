@@ -31,6 +31,8 @@ def load_prices(ticker: str, data_dir: str | Path = "data_cache") -> pd.DataFram
 
 def frozen_mask(df: pd.DataFrame) -> pd.Series:
     """Ligne gelée : aucun volume ET clôture identique à la veille (placeholder, pas une vraie séance)."""
+    if "Volume" not in df.columns:  # sans volume on ne peut pas prouver qu'une ligne est factice
+        return pd.Series(False, index=df.index)
     return (df["Volume"] == 0) & (df["Close"] == df["Close"].shift(1))
 
 

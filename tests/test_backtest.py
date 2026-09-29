@@ -214,3 +214,8 @@ class TestFrozenSeries:
     def test_clean_series_is_returned_untouched(self):
         df = self._df([10 + i for i in range(40)], [100] * 40)
         assert bt_data.live_segment(df).equals(df)
+
+
+def test_frozen_mask_tolerates_a_missing_volume_column():
+    df = pd.DataFrame({"Open": [1.0, 1.0], "Close": [1.0, 1.0]}, index=pd.bdate_range("2024-01-01", periods=2))
+    assert not bt_data.frozen_mask(df).any() and len(bt_data.live_segment(df)) == 2
