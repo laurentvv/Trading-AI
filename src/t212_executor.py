@@ -160,6 +160,10 @@ PRICE_DECIMALS = 2              # T212 price fields: 2 decimals (safe on EUR ins
 # "executed" — the broker position must be observed before any state/DB write.
 FILL_CONFIRM_ATTEMPTS = 6
 FILL_CONFIRM_DELAY = 2.0
+# SELL confirmation polls /equity/history/orders (limite officielle : 6 req / min, espacement 10,5 s
+# imposé par src/t212_rate_limit.py). 6 essais y coûteraient ~63 s ; 3 essais ≈ 21 s, et le stop broker a
+# déjà été libéré avant la vente : on garde cette fenêtre courte (revue Kilo PR #96).
+SELL_CONFIRM_ATTEMPTS = 3
 
 
 def _get_avg_price(current_pos: dict) -> float:
@@ -846,7 +850,8 @@ def _confirm_fill(t212_ticker: str, headers: dict, side: str, expected_qty: floa
     """
     url_pos = f"{_get_t212_base_url()}/equity/positions"
     url_hist = f"{_get_t212_base_url()}/equity/history/orders?limit=10&ticker={t212_ticker}"
-    for attempt in range(FILL_CONFIRM_ATTEMPTS):
+    attempts = FILL_CONFIRM_ATTEMPTS if side == "BUY" else SELL_CONFIRM_ATTEMPTS
+    for attempt in range(attempts):
         try:
             if side == "BUY":
                 resp = _t212_session.get(url_pos, headers=headers, timeout=DEFAULT_REQUEST_TIMEOUT)
@@ -880,7 +885,8 @@ def _confirm_fill(t212_ticker: str, headers: dict, side: str, expected_qty: floa
                         return fallback
         except (requests.exceptions.RequestException, ValueError, TypeError) as e:
             logger.debug(f"Fill confirmation poll error: {e}")
-        if attempt < FILL_CONFIRM_ATTEMPTS - 1:
+        if attempt < attempts - 1 and side == "BUY":
+            # (SELL : l'espacement de 10,5 s entre lectures d'historique est déjà assuré par le régulateur.)
             time.sleep(FILL_CONFIRM_DELAY)
     return None
 

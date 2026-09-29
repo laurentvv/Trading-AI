@@ -56,8 +56,16 @@ class TestBucketFor:
             "GET /equity/positions",
             "GET /equity/history/orders",
             "POST /equity/orders/stop",
+            "POST /equity/orders/limit",
+            "POST /equity/orders/stop_limit",
         ):
             assert T212_INTERVALS[bucket] > 0
+
+    def test_every_order_placement_endpoint_is_gated(self):
+        """limit / stop_limit sont disponibles en réel : ils ne doivent pas échapper au régulateur."""
+        base = "https://live.trading212.com/api/v0/equity/orders"
+        for kind in ("market", "limit", "stop", "stop_limit"):
+            assert T212_INTERVALS[bucket_for("POST", f"{base}/{kind}")] > 0, kind
 
 
 class TestRateGate:
@@ -174,3 +182,28 @@ class TestStopFetchRetriesOnce429:
             status, found = t212._get_active_stop_order("SXRVd_EQ", headers={})
         assert (status, found) == ("ERROR", None)
         assert session.get.call_count == 2
+
+
+class TestSellConfirmationStaysShort:
+    """Revue Kilo PR #96 : l'espacement de 10,5 s de l'historique ne doit pas rallonger la fenêtre de confirmation."""
+
+    def test_sell_polls_history_only_a_few_times_and_never_sleeps_on_top_of_the_gate(self):
+        import src.t212_executor as t212
+
+        empty = SimpleNamespace(status_code=200, headers={}, text="", json=lambda: {"items": []})
+        with patch.object(t212, "_t212_session") as session, patch.object(t212.time, "sleep") as sleep:
+            session.get.return_value = empty
+            assert t212._confirm_fill("SXRVd_EQ", {}, side="SELL", expected_qty=1.0) is None
+        assert t212.SELL_CONFIRM_ATTEMPTS <= 3
+        assert session.get.call_count == t212.SELL_CONFIRM_ATTEMPTS
+        sleep.assert_not_called()
+
+    def test_buy_keeps_its_fast_positions_polling(self):
+        import src.t212_executor as t212
+
+        empty = SimpleNamespace(status_code=200, headers={}, text="", json=lambda: [])
+        with patch.object(t212, "_t212_session") as session, patch.object(t212.time, "sleep") as sleep:
+            session.get.return_value = empty
+            assert t212._confirm_fill("SXRVd_EQ", {}, side="BUY") is None
+        assert session.get.call_count == t212.FILL_CONFIRM_ATTEMPTS
+        assert sleep.call_count == t212.FILL_CONFIRM_ATTEMPTS - 1

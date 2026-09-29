@@ -41,6 +41,8 @@ T212_INTERVALS: dict[str, float] = {
     "GET /equity/account/cash": 2.2,  # 1 req / 2 s
     "GET /equity/history/orders": 10.5,  # 6 req / 1 min
     "POST /equity/orders/stop": 2.2,  # 1 req / 2 s
+    "POST /equity/orders/limit": 2.2,  # 1 req / 2 s
+    "POST /equity/orders/stop_limit": 2.2,  # 1 req / 2 s
     "POST /equity/orders/market": 1.3,  # 50 req / 1 min
     "DELETE /equity/orders/{id}": 1.3,  # 50 req / 1 min
 }
