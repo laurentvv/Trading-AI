@@ -88,7 +88,6 @@ PowerShell note: `uv run pytest ...` may fail with "Failed to canonicalize scrip
 | Mocked unit tests | `.venv\Scripts\python.exe -m pytest tests/test_llm_client.py tests/test_llm_prompts.py tests/test_oil_bench_model.py tests/test_weekend_council.py tests/test_morning_brief_init.py -v` |
 | Full mocked suite (GO-gates included) | `.venv\Scripts\python.exe -m pytest tests/ -q --basetemp=data_cache/test_tmp` (ignores live harnesses: `test_crawl4ai`, `check_*`, `bench_*`, `run_short_backtest`) |
 | Order-safety / stops / equity unit tests | `.venv\Scripts\python.exe -m pytest tests/test_t212_orders.py tests/test_scheduler_lock.py tests/test_equity_tracking.py tests/test_data_safety.py -v` |
-| Live broker-stop probe (DEMO only, consent required) | `uv run python tests/check_t212_stops.py` |
 | Live weekend council (NexusAI Cloud multi-provider) | `uv run python -m src.council.weekend_council --days 7` |
 | Live LLM JSON harness (NexusAI Cloud) | `uv run python tests/check_llm_json.py` |
 | TimesFM 3.0 smoke (downloads ~1.3 GB once, then times CPU inference) | `uv run python tests/smoke_timesfm3.py` |
