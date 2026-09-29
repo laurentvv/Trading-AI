@@ -144,16 +144,27 @@ def check_ollama_health(timeout: int = 5) -> bool:
 
 
 def get_morning_brief_context() -> str:
-    """Reads the morning brief report if it was generated within the last 24 hours."""
-    brief_path = Path("morning_brief/output/morning_market_brief.md")
-    if brief_path.exists():
-        if time.time() - brief_path.stat().st_mtime < 86400:
-            try:
-                with open(brief_path, "r", encoding="utf-8") as f:
-                    content = f.read()
-                    return f"\n**Overnight AI Morning Brief (Extremely Important Context):**\n{content}\n"
-            except Exception as e:
-                logger.warning(f"Failed to read morning brief: {e}")
+    """Reads the morning brief report if it was generated within the last 24 hours.
+
+    When the day's brief failed, ``schedule.run_morning_brief`` writes the FinAcumen analysis to
+    ``finacumen_daily.md`` instead of touching the brief file (a stub would fake the catch-up guard):
+    that file is the fallback context, under the same 24 h freshness rule.
+    """
+    candidates = []
+    for name in ("morning_market_brief.md", "finacumen_daily.md"):
+        path = Path("morning_brief/output") / name
+        if path.exists():
+            candidates.append((path.stat().st_mtime, path))
+    for mtime, path in sorted(candidates, reverse=True):  # le plus récent d'abord
+        if time.time() - mtime >= 86400:
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                content = f.read()
+        except Exception as e:
+            logger.warning(f"Failed to read morning brief: {e}")
+            continue
+        return "\n**Overnight AI Morning Brief (Extremely Important Context):**\n" + content + "\n"
     return ""
 
 

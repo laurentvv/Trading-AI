@@ -176,10 +176,17 @@ def run_trading_cycle():
 
 
 def run_morning_brief():
-    """Lance l'exécution du Morning Brief la nuit/au petit matin"""
+    """Lance l'exécution du Morning Brief la nuit/au petit matin, puis l'analyse FinAcumen.
+
+    FinAcumen s'exécute TOUJOURS après le brief, même si celui-ci échoue ou expire : il ajoute sa
+    section au brief du jour, ou, si ce brief est absent, l'écrit dans ``finacumen_daily.md`` (lu en
+    secours par ``get_morning_brief_context``) sans jamais créer de stub. Régression corrigée (2026-09-29) : le
+    commit 752ecb8 avait fait glisser le bloc FinAcumen dans le ``except TimeoutExpired`` du brief, si
+    bien qu'il ne tournait plus qu'en cas de timeout (plus aucune analyse FinAcumen depuis le 25/09).
+    """
     logger.info("🌅 Lancement du Morning Brief")
+    output_dir = Path("morning_brief/output")
     try:
-        output_dir = Path("morning_brief/output")
         output_dir.mkdir(parents=True, exist_ok=True)
         (output_dir / "tools").mkdir(parents=True, exist_ok=True)
 
@@ -196,7 +203,15 @@ def run_morning_brief():
 
     except subprocess.TimeoutExpired:
         logger.critical("⏱ TIMEOUT DÉPASSÉ (1800s / 30 min) pour la génération du Morning Brief.")
+    except Exception as e:
+        logger.error(f"💥 Erreur critique lors du Morning Brief : {e}")
 
+    _run_finacumen_daily(output_dir)
+
+
+def _run_finacumen_daily(output_dir: Path) -> None:
+    """Analyse profonde FinAcumen (quotidienne) : ajoute une section au Morning Brief."""
+    try:
         # --- FinAcumen Daily Run ---
         logger.info("Lancement de l'analyse profonde FinAcumen (Daily)")
         import json
@@ -234,16 +249,25 @@ def run_morning_brief():
             else:
                 finacumen_section += f"\n### {ticker}\n- **Erreur:** Résultat non généré.\n"
 
-        if not output_file.exists():
+        output_dir.mkdir(parents=True, exist_ok=True)
+        if _morning_brief_done_today(output_file):
+            target = output_file
+        else:
+            # Brief du jour absent (échec/timeout) : ne JAMAIS toucher au fichier du brief. Y ajouter
+            # la section (ou y créer un stub) remettrait son mtime à aujourd'hui, ce qui (1) fait croire
+            # à la garde de rattrapage que le brief du jour existe et (2) ferait servir le brief de la
+            # veille comme contexte « frais » aux LLM. La section va dans un fichier à part.
+            target = output_dir / "finacumen_daily.md"  # réécrit à chaque exécution : titre daté, un jeu complet par jour
+            logger.warning("Morning Brief du jour absent : résultats FinAcumen écrits dans %s", target)
             today = datetime.now().strftime("%Y-%m-%d")
-            output_file.write_text(f"# Morning Market Brief — {today}\n\n_Note: Morning Brief de base non généré._\n", encoding="utf-8")
+            finacumen_section = f"# FinAcumen — {today}{finacumen_section}"
 
-        with open(output_file, "a", encoding="utf-8") as f:
+        with open(target, "w" if target != output_file else "a", encoding="utf-8") as f:
             f.write(finacumen_section)
-        logger.info("✅ Résultats FinAcumen ajoutés au Morning Brief.")
+        logger.info("✅ Résultats FinAcumen écrits : %s", target)
 
     except Exception as e:
-        logger.error(f"💥 Erreur critique lors du Morning Brief : {e}")
+        logger.error(f"💥 Erreur critique lors de FinAcumen : {e}")
 
 
 def run_weekend_council():
