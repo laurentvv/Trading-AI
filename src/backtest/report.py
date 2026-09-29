@@ -80,7 +80,7 @@ def render_asset(title: str, note: str, ev: dict, *, cost_bps: float, tax_rate: 
 
     lines += ["### Performance brute (coûts inclus, avant impôt)", ""]
     headers = ["Stratégie", "CAGR", "Sharpe", "Sortino", "Drawdown max", "Calmar", "Temps investi", "Turnover/an",
-               "Trades", "Gain moy.", "Perte moy."]
+               "Ventes", "Gain moy.", "Perte moy."]
     body = []
     for name, r in rows.items():
         m = r["metrics"]
@@ -107,7 +107,7 @@ def render_asset(title: str, note: str, ev: dict, *, cost_bps: float, tax_rate: 
         for y in years:
             seg = eq[eq.index.year == y]
             prev = eq[eq.index.year < y]
-            base = prev.iloc[-1] if len(prev) else seg.iloc[0]
+            base = prev.iloc[-1] if len(prev) else eq.iloc[0]  # 1re année : depuis le capital initial
             cells.append(_pct(seg.iloc[-1] / base - 1.0))
         body.append([name] + cells)
     lines += [_table(["Stratégie"] + [str(y) for y in years], body), ""]
