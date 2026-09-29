@@ -1642,6 +1642,27 @@ def _process_confirmed_sell(
     _update_feedback_loop(entry_time_str, db_date, proceeds, buy_cost, ticker=ticker)
 
 
+def _replace_released_stop(
+    t212_ticker: str, total_qty: float, prev_stop_price: float, headers: dict, state: dict
+) -> None:
+    """Re-place the GTC stop released before a sale that did not (visibly) execute."""
+    re_stop_id, re_stop_price = _place_stop_order(t212_ticker, total_qty, prev_stop_price, headers)
+    pos_state = state.get("active_position") or {}
+    if re_stop_id is not None:
+        pos_state["stop_order_id"] = re_stop_id
+        pos_state["stop_price"] = re_stop_price or prev_stop_price
+        save_portfolio_state(state, t212_ticker)
+        logger.info(
+            f"🔐 Stop de secours re-placé #{re_stop_id} @ {pos_state['stop_price']:.2f} "
+            f"après échec de la vente {t212_ticker}."
+        )
+    else:
+        logger.critical(
+            f"🚨 {t212_ticker} : vente échouée ET re-placement du stop impossible — position "
+            f"SANS protection ; le self-heal du prochain cycle replacera un stop à entry×0.90."
+        )
+
+
 def _handle_failed_sell(
     sell_resp,
     reconciled: bool,
@@ -1688,21 +1709,7 @@ def _handle_failed_sell(
     # and the sale failed, re-protect the position at the previous level
     # immediately — never knowingly leave an open position unprotected.
     if stop_released and prev_stop_price:
-        re_stop_id, re_stop_price = _place_stop_order(t212_ticker, total_qty, prev_stop_price, headers)
-        pos_state = state.get("active_position") or {}
-        if re_stop_id is not None:
-            pos_state["stop_order_id"] = re_stop_id
-            pos_state["stop_price"] = re_stop_price or prev_stop_price
-            save_portfolio_state(state, t212_ticker)
-            logger.info(
-                f"🔐 Stop de secours re-placé #{re_stop_id} @ {pos_state['stop_price']:.2f} "
-                f"après échec de la vente {t212_ticker}."
-            )
-        else:
-            logger.critical(
-                f"🚨 {t212_ticker} : vente échouée ET re-placement du stop impossible — position "
-                f"SANS protection ; le self-heal du prochain cycle replacera un stop à entry×0.90."
-            )
+        _replace_released_stop(t212_ticker, total_qty, prev_stop_price, headers, state)
 
 
 def _execute_sell_order(
@@ -1752,6 +1759,10 @@ def _execute_sell_order(
                 f"❌ Vente {t212_ticker}: fill NON confirmé — aucun write d'état/DB ; "
                 f"la sync du cycle suivant réconcilera."
             )
+            # Le stop a été libéré avant l'ordre : si la position existe encore (ou si on ne sait pas),
+            # on le repose tout de suite plutôt que d'attendre le self-heal du cycle suivant.
+            if stop_released and prev_stop_price and _position_exists(t212_ticker, headers) is not False:
+                _replace_released_stop(t212_ticker, total_qty, prev_stop_price, headers, state)
             return
         _process_confirmed_sell(
             state, current_pos, ticker, t212_ticker, sell_fill, total_qty, current_value_eur,
