@@ -42,8 +42,7 @@ La documentation officielle précise que `POST /equity/orders/market` **n'est pa
 
 ### Protections côté Broker — stop mouvant + take-profit (GO-gate 2, 2026-08-19)
 
-- Chaque ordre market BUY part avec un **`takeProfit` attaché** (+8 %, prix absolu, 2 décimales). Si l'API refuse ce champ non documenté, le fallback « ordre nu + stop dédié » s'active automatiquement.
-  **Confirmé en production le 2026-08-19 (premier cycle du run démo)** : l'API démo rejette le champ avec `400 Invalid payload` → le fallback s'applique systématiquement. Le take-profit reste donc côté logiciel (évaluation +8 % à chaque cycle) ; seule la protection capitaliaire (stop) vit chez le broker.
+- Les ordres market BUY partent **nus** (`{ticker, quantity}`). Un `takeProfit` attaché était rejeté par l'API (`400 Invalid payload`, confirmé le 2026-08-19 puis à chaque achat des 15/09, 22/09 et 29/09) et provoquait un second POST : il n'est plus envoyé (2026-09-29). Le take-profit reste côté logiciel (évaluation +8 % à chaque cycle) ; seule la protection capitalistique (stop) vit chez le broker.
 - Après fill confirmé, un **ordre stop dédié** est placé : `POST /equity/orders/stop` avec `{ticker, quantity: -qty, stopPrice, timeValidity: "GOOD_TILL_CANCEL"}` à −10 % du prix de fill réel.
 - **Ratchet (stop mouvant)** : à chaque cycle (~30 min), si le plus-haut de la position (`highest_value`) progresse, le stop est **annulé** (`DELETE /equity/orders/{id}`) puis **replacé plus haut** à `peak × 0.90` — strictement croissant, jamais abaissé. Si le replacement échoue après suppression, un stop d'urgence est replacé à l'ancien niveau (jamais de position volontairement sans stop).
 - La conséquence : une position réelle reste protégée chez le broker même si la machine/scheduler meurt — les stops logiciels (hard stop −10 %, trailing −3 %, time-stop 15 j) restent actifs en parallèle comme défense interne.

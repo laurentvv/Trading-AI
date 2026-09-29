@@ -148,11 +148,11 @@ MIN_HOLDING_HOURS = 4
 ORDER_POST_TIMEOUT = 15.0       # network budget for an order POST
 DEFAULT_REQUEST_TIMEOUT = 10.0  # every other API call
 # Protection attached/placed at the broker so a position survives a dead
-# scheduler/machine (GO-gate 2). The take-profit is fixed (+8%, mirrors
-# TAKE_PROFIT_TARGET). The stop-loss is MOVING: an initial -10% is placed
-# right after fill, then ratcheted UP each cycle to peak*(1-10%) via
-# cancel-and-replace — never lowered, floor = entry*(1-10%).
-BROKER_TAKE_PROFIT_PCT = 0.08
+# scheduler/machine (GO-gate 2). The stop-loss is MOVING: an initial -10% is
+# placed right after fill, then ratcheted UP each cycle to peak*(1-10%) via
+# cancel-and-replace — never lowered, floor = entry*(1-10%). The take-profit
+# stays software-side (TAKE_PROFIT_TARGET): the API refuses an attached
+# `takeProfit` on market orders (400 Invalid payload).
 BROKER_STOP_LOSS_PCT = 0.10
 BROKER_STOP_RATCHET_PCT = 0.10
 PRICE_DECIMALS = 2              # T212 price fields: 2 decimals (safe on EUR instruments)
@@ -1372,20 +1372,12 @@ def _execute_buy_order(state, current_pos, ticker, t212_ticker, portfolio, base_
         logger.error("❌ Quantité nulle ou négative, abandon.")
         return
 
-    # 3. Passage de l'ordre (GO-gate 1: timeout + réconciliation ; GO-gate 2: TP attaché)
+    # 3. Passage de l'ordre (GO-gate 1: timeout + réconciliation). Ordre NU : la protection
+    # broker est le stop dédié posé après le fill. Un `takeProfit` attaché était rejeté par l'API
+    # (400 Invalid payload, constaté à chaque achat) puis re-posté : on ne l'envoie plus.
     logger.info(f"🚀 Envoi de l'ordre d'achat de {quantity} {t212_ticker}...")
-    order_data = {
-        "ticker": t212_ticker,
-        "quantity": quantity,
-        "takeProfit": round(current_price * (1 + BROKER_TAKE_PROFIT_PCT), PRICE_DECIMALS),
-    }
+    order_data = {"ticker": t212_ticker, "quantity": quantity}
     resp, reconciled = post_order_market(order_data, headers, t212_ticker)
-    if resp is not None and resp.status_code == 400 and "TooManyRequests" not in resp.text:
-        # The attached takeProfit is not officially documented on market
-        # orders — if the API refuses it, retry once with a bare payload
-        # (a plain 400 means the order was NOT created, so the retry is safe).
-        logger.warning(f"⚠️ Ordre avec takeProfit rejeté (400) — re-POST sans attache: {resp.text[:300]}")
-        resp, reconciled = post_order_market({"ticker": t212_ticker, "quantity": quantity}, headers, t212_ticker)
 
     if (resp is not None and resp.status_code in [200, 201, 202]) or reconciled:
         # GO-gate 3: a 2xx means "accepted" — confirm the fill at the broker
