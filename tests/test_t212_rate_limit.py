@@ -236,7 +236,7 @@ class TestSellConfirmationStaysShort:
 class TestUnconfirmedSellReprotects:
     """Vente acceptée (2xx) mais fill non confirmé : le stop libéré est reposé si la position existe encore."""
 
-    def _run(self, position_exists):
+    def _run(self, place_result=(77, 1300.0)):
         from unittest.mock import MagicMock
 
         import src.t212_executor as t212
@@ -247,26 +247,26 @@ class TestUnconfirmedSellReprotects:
             patch.object(t212, "_check_sell_loss_guard", return_value="ok"),
             patch.object(t212, "post_order_market", return_value=(SimpleNamespace(status_code=200), False)),
             patch.object(t212, "_confirm_fill", return_value=None),
-            patch.object(t212, "_position_exists", return_value=position_exists),
-            patch.object(t212, "_place_stop_order", return_value=(77, 1300.0)) as place,
+            patch.object(t212, "_position_exists", side_effect=AssertionError("lecture périmée : ne pas s'y fier")),
+            patch.object(t212, "_place_stop_order", return_value=place_result) as place,
             patch.object(t212, "save_portfolio_state", MagicMock()),
+            patch.object(t212.logger, "critical") as critical,
         ):
             state = {"active_position": {"stop_order_id": 55}}
             t212._execute_sell_order(state, pos, "SXRV.DE", "SXRVd_EQ", "http://x", {}, "2026-09-29", "T", force_stop_loss=True)
-        return place, state
+        return place, state, critical
 
-    def test_position_still_there_stop_is_replaced(self):
-        place, state = self._run(True)
+    def test_stop_is_replaced_without_trusting_the_position_snapshot(self):
+        place, state, critical = self._run()
         place.assert_called_once()
         assert state["active_position"]["stop_order_id"] == 77
+        critical.assert_not_called()
 
-    def test_broker_state_unknown_stop_is_replaced(self):
-        place, _ = self._run(None)
+    def test_refused_stop_after_probable_fill_is_not_a_false_critical(self):
+        """Vente réellement passée : le courtier refuse le stop, on n'alerte pas CRITICAL à tort."""
+        place, _, critical = self._run(place_result=(None, None))
         place.assert_called_once()
-
-    def test_position_gone_no_stop(self):
-        place, _ = self._run(False)
-        place.assert_not_called()
+        critical.assert_not_called()
 
 
 def test_sell_history_url_with_query_maps_to_the_gated_bucket():

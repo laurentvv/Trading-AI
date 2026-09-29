@@ -1643,7 +1643,7 @@ def _process_confirmed_sell(
 
 
 def _replace_released_stop(
-    t212_ticker: str, total_qty: float, prev_stop_price: float, headers: dict, state: dict
+    t212_ticker: str, total_qty: float, prev_stop_price: float, headers: dict, state: dict, sale_failed: bool = True
 ) -> None:
     """Re-place the GTC stop released before a sale that did not (visibly) execute."""
     re_stop_id, re_stop_price = _place_stop_order(t212_ticker, total_qty, prev_stop_price, headers)
@@ -1654,12 +1654,19 @@ def _replace_released_stop(
         save_portfolio_state(state, t212_ticker)
         logger.info(
             f"🔐 Stop de secours re-placé #{re_stop_id} @ {pos_state['stop_price']:.2f} "
-            f"après échec de la vente {t212_ticker}."
+            f"après {'échec' if sale_failed else 'absence de confirmation'} de la vente {t212_ticker}."
         )
-    else:
+    elif sale_failed:
         logger.critical(
             f"🚨 {t212_ticker} : vente échouée ET re-placement du stop impossible — position "
             f"SANS protection ; le self-heal du prochain cycle replacera un stop à entry×0.90."
+        )
+    else:
+        # Fill non confirmé : la vente a probablement été exécutée (le courtier refuse alors un stop sur des
+        # actions qu'on ne possède plus) ; la synchro du cycle suivant tranchera. Pas d'alerte CRITICAL à tort.
+        logger.warning(
+            f"⚠️ {t212_ticker} : fill de vente non confirmé et stop non reposé (refus courtier probable si la "
+            f"vente est exécutée) — la synchro du prochain cycle réconciliera."
         )
 
 
@@ -1761,8 +1768,10 @@ def _execute_sell_order(
             )
             # Le stop a été libéré avant l'ordre : si la position existe encore (ou si on ne sait pas),
             # on le repose tout de suite plutôt que d'attendre le self-heal du cycle suivant.
-            if stop_released and prev_stop_price and _position_exists(t212_ticker, headers) is not False:
-                _replace_released_stop(t212_ticker, total_qty, prev_stop_price, headers, state)
+            # Pas de garde _position_exists : cette lecture peut servir un instantané périmé (~30 min sur le
+            # démo). Si la vente est passée, le courtier refuse simplement le stop.
+            if stop_released and prev_stop_price:
+                _replace_released_stop(t212_ticker, total_qty, prev_stop_price, headers, state, sale_failed=False)
             return
         _process_confirmed_sell(
             state, current_pos, ticker, t212_ticker, sell_fill, total_qty, current_value_eur,
