@@ -16,6 +16,9 @@ PRICE_FILES = {
     "CRUDP.PA": "CRUDP_PA_max_with_vix.parquet",
     "^NDX": "^NDX_max_with_vix.parquet",
     "CL=F": "CL=F_max_with_vix.parquet",
+    "CRUD.L": "CRUD_L_max_with_vix.parquet",
+    "QDVR.DE": "QDVR_DE_max_with_vix.parquet",
+    "XDW0.DE": "XDW0_DE_max_with_vix.parquet",
 }
 OHLC = ["Open", "High", "Low", "Close"]
 

@@ -12,7 +12,7 @@ from rich.table import Table
 from src.bootstrap import setup_environment
 
 # Configuration
-TICKERS = ["SXRV.DE", "CRUDP.PA"]
+TICKERS = ["SXRV.DE", "QDVF.DE"]
 INTERVAL_MINUTES = 30
 START_HOUR = 8
 START_MINUTE = 30

@@ -94,8 +94,8 @@ class TestTensorTradeIntegration(unittest.TestCase):
     def test_tensortrade_weight_in_base_weights(self):
         engine = EnhancedDecisionEngine()
         self.assertIn("tensortrade", engine.base_weights)
-        # ADR-002: repondéré 0.05 -> 0.04 (confiance non calibrée, edge négatif).
-        self.assertEqual(engine.base_weights["tensortrade"], 0.04)
+        # Quarantined in October 2026 complexity reduction: base weight set to 0.0
+        self.assertEqual(engine.base_weights["tensortrade"], 0.0)
 
     @patch("tensortrade_model.PPO")
     def test_consensus_score_includes_tensortrade(self, mock_ppo_cls):

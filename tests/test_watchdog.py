@@ -250,7 +250,7 @@ class TestRestart:
 
 class TestNotifier:
     def test_no_channel_never_raises(self, monkeypatch):
-        for var in ("NTFY_TOPIC", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"):
+        for var in ("NTFY_TOPIC", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "NEXTCLOUD_TALK_URL", "NEXTCLOUD_TALK_TOKEN"):
             monkeypatch.delenv(var, raising=False)
         assert notifier.configured_channels() == []
         assert notifier.notify("t", "m", "CRITICAL") == []
@@ -258,6 +258,8 @@ class TestNotifier:
     def test_ntfy_delivery(self, monkeypatch):
         monkeypatch.setenv("NTFY_TOPIC", "mon-topic")
         monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+        monkeypatch.delenv("NEXTCLOUD_TALK_URL", raising=False)
+        monkeypatch.delenv("NEXTCLOUD_TALK_TOKEN", raising=False)
         with patch("src.notifier.requests.post", return_value=MagicMock(ok=True)) as post:
             delivered = notifier.notify("Titre é", "corps", "CRITICAL")
         assert delivered == ["ntfy"]
@@ -270,6 +272,8 @@ class TestNotifier:
 
         monkeypatch.setenv("NTFY_TOPIC", "t")
         monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+        monkeypatch.delenv("NEXTCLOUD_TALK_URL", raising=False)
+        monkeypatch.delenv("NEXTCLOUD_TALK_TOKEN", raising=False)
         with patch("src.notifier.requests.post", return_value=MagicMock(ok=True)) as post:
             notifier.notify("Trading-AI : résolu ✅", "m", "INFO")
         title = post.call_args.kwargs["headers"]["Title"]
@@ -283,6 +287,8 @@ class TestNotifier:
         monkeypatch.setenv("NTFY_TOPIC", "t")
         monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "1:X")
         monkeypatch.setenv("TELEGRAM_CHAT_ID", "42")
+        monkeypatch.delenv("NEXTCLOUD_TALK_URL", raising=False)
+        monkeypatch.delenv("NEXTCLOUD_TALK_TOKEN", raising=False)
         with patch("src.notifier.requests.post", side_effect=UnicodeEncodeError("latin-1", "é", 0, 1, "boom")):
             assert notifier.notify("t", "m") == []
 

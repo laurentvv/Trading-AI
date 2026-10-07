@@ -102,18 +102,23 @@
 - [ ] M7 : UNIQUE (date, modèle) + seuil en jours dans les poids adaptatifs ; drawdown série inversée.
 - [ ] Optimisation des poids par grid search (`backtest_prod.py`).
 
+### Sprint Réduction de Complexité & Pivot Énergie (2026-10-03, Validé & Terminé)
+- [x] **Audit Quantitatif Complet** : Rapport complet [`audit_complet_systeme_trading_ia.md`](file:///C:/Users/laurent/.gemini/antigravity-cli/brain/1e16a782-8972-429c-9b4f-12c9b3792bd6/audit_complet_systeme_trading_ia.md) démontrant que la complexité excessive détruisait la valeur (Run 2 démo -0.1% vs +6.1% Buy & Hold).
+- [x] **Quarantaine des Modèles Zombies (F-38)** : Poids ramenés à 0.0 (`config_weights.py`), bypass de soumission des threads d'arrière-plan dans `enhanced_trading_example.py` pour `tensortrade` (PPO RL), `hmm_model`, `vincent_ganne`, et `sentiment`.
+- [x] **Banc de Benchmark Énergie & Walk-Forward (F-39)** : Téléchargement et backtesting de 11 ans d'historique (2 732 barres, 97.6% saines) démontrant la supériorité des actions physiques énergie sur les ETCs à terme sujets au contango roll decay (-10.8% CAGR sous MA200, -68.7% MaxDD).
+- [x] **Intégration QDVF.DE (F-40)** : Remplacement de `CRUDP.PA` par `QDVF.DE` (iShares S&P 500 Energy Sector UCITS ETF EUR, T212: `QDVFd_EQ`) dans `t212_executor.py` (mappings, budgets, précision à 4 décimales), `eia_client.py` (`is_oil_ticker`), `enhanced_trading_example.py` (`ANALYSIS_MAPPING`), `main.py` et `schedule.py`.
+- [x] **Refonte Complète de la Documentation (F-41)** : Réécriture complète de `README.md`, `i18n/README_fr.md`, `GEMINI.md`, et `AGENTS.md` axée sur le pipeline à 6 modèles haute conviction et les 7 GO-Gates.
+- [x] **Validation Intégrale de la Suite de Tests & Remédiation Weight Manager (2026-10-07)** : **432 passed, 3 skipped, 0 échec** sur l'ensemble du projet (`pytest tests/ -q`). Modèles zombies hermétiquement bridés à 0.0 dans `AdaptiveWeightManager`.
+
 ## Prochaine Action Immédiate
-- **[2026-09-29 soir] Phase 0 livrée en 6 PR (#93 à #98)** : voir `log.md` et `docs/PLAN_AMELIORATION_PASSAGE_REEL_2026-09-29.md` §6. Démo arrêté (position SXRV.DE protégée par son stop GTC). À faire par le propriétaire : revue/fusion des PR, canal d'alerte, tâche watchdog, runbook PROD/DEV, accord pour la sonde broker. Puis phase 1 (banc walk-forward).
-- **[2026-09-29] Plan de passage en réel** : `docs/PLAN_AMELIORATION_PASSAGE_REEL_2026-09-29.md` (verdict NO-GO réel en l'état). Ordre : Phase 0 hygiène/mesure → Phase 1 banc walk-forward 5 ans → Phase 2 refonte moyen terme → Phase 3 démo de conformité → Phase 4 réel progressif. En attente de validation utilisateur avant tout code.
-- **Exécuter le runbook migration PROD** (`docs/PLAN_MIGRATION_TIMESFM3_PROD.md`) : le run 1 est
-  clos (3 ordres/13 j, critère ≥20 round-trips inatteignable, scheduler arrêté depuis le 01/09).
-  Après reset (compte démo T212 + local `--include-logs-prod`), **run 2 de 30 jours avec TimesFM 3.0**.
-- Supervision post-lancement selon `docs/PLAN_RUN_DEMO_30J.md` §4 ; GO/NO-GO = lancement + 30 j.
-- À guetter au 1er cycle : `TimesFM 3.0 prediction: ...` dans trading.log, journal régénéré,
-  T212_Equity repartant à 1000 €/ticker (pas d'héritage FIFO de la run 1).
+- **[2026-10-07] Relance du scheduler pour prise en compte de QDVF.DE et du Weight Manager** :
+  - Le scheduler actuel (PID 7660) tourne depuis le 01/10 et utilise encore l'ancien ticker `CRUDP.PA`.
+  - Redémarrer le scheduler (`.\start_scheduler.bat`) pour charger les modifications du 03/10 (`QDVF.DE`) et le correctif du 07/10 avant le brief de 01:00.
 
 ## Statut des Invariants Critiques (contrôle rapide)
 - [x] Architecture NexusAI Cloud active (auto_fallback & auto_fallback_vision) avec validation JSON stricte.
 - [x] Budget 1000 €/ticker (`INITIAL_BUDGETS`), pas le fallback 5000 €.
 - [x] Cache staleness 1 jour, cycle timeout 40 min, orphan-thread lock par ticker.
 - [x] `write_db = not is_t212` — seul l'exécuteur broker écrit en DB (à préserver pendant tout le sprint).
+- [x] Modèles zombies isolés à 0.0 sans threads résiduels, sans résurrection adaptative, instrument énergie = `QDVF.DE`.
+

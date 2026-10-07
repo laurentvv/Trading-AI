@@ -251,6 +251,7 @@ def test_ticker_isolation_and_multi_day_horizon(tmp_path):
     mgr = AdaptiveWeightManager(
         db_path=str(tmp_path / "perf_ticker.db"),
         min_observations=2,
+        lookback_days=365,
     )
 
     # Record 2 predictions for SXRV.DE and 2 for CRUDP.PA
@@ -290,7 +291,35 @@ def test_ticker_isolation_and_multi_day_horizon(tmp_path):
     assert perf_classic.win_rate == 0.0
 
 
+def test_quarantined_models_stay_zero_weight(tmp_path):
+    """Ensure models with base weight <= 0.0 remain strictly at 0.0 after adaptation."""
+    base_weights = {
+        "active1": 0.5,
+        "active2": 0.5,
+        "zombie1": 0.0,
+        "zombie2": 0.0,
+    }
+    mgr = AdaptiveWeightManager(
+        db_path=str(tmp_path / "perf_quarantine.db"),
+        base_weights=base_weights,
+        min_observations=1,
+    )
+    # Insert some predictions for all models
+    for model in ["active1", "active2", "zombie1", "zombie2"]:
+        mgr.record_model_prediction("2026-09-01", model, "BUY", 0.8)
+
+    adj = mgr.calculate_adaptive_weights(force_update=True)
+    weights = adj.model_weights
+
+    assert weights["zombie1"] == 0.0, f"zombie1 should be 0.0, got {weights['zombie1']}"
+    assert weights["zombie2"] == 0.0, f"zombie2 should be 0.0, got {weights['zombie2']}"
+    assert weights["active1"] > 0.0
+    assert weights["active2"] > 0.0
+    assert sum(weights.values()) == pytest.approx(1.0)
+
+
 if __name__ == "__main__":
     import unittest
 
     unittest.main()
+

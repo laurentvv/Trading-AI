@@ -79,7 +79,7 @@ class EIAClient:
     def is_oil_ticker(ticker: str) -> bool:
         if not ticker:
             return False
-        return any(p in ticker for p in ("CL=F", "CRUDP", "BZ=F", "CL="))
+        return any(p in ticker for p in ("CL=F", "CRUDP", "BZ=F", "CL=", "QDVF", "CRUD"))
 
     def get_fundamental_context(self) -> dict:
         if not self.api_key:

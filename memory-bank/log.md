@@ -473,3 +473,36 @@ Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-
 ## [2026-09-29] gen | Plan de passage en réel : phase 2 réécrite (cœur Nasdaq-100 + poche active 10 % + satellite pétrole)
 - Décisions de l'utilisateur intégrées : aucun stop broker sur le cœur, poche active 10 % pilotée par l'ensemble (LLM et TimesFM au centre du projet, test équitable, journal à terme, modèle LLM épinglé), satellite pétrole tactique, cadence hebdomadaire, entrée en une fois, alerte portefeuille −35 %, alertes Nextcloud Talk.
 - Nouveau §2, phase 2 (2.1 à 2.7, PR 2-a à 2-g), phases 3 et 4 adaptées, §4, §5, §7 réécrits, §9 liste les points à confirmer. `AGENTS.md` (GO-gate 2) sera mis à jour dans la PR qui livre la couche de risque du mode cœur + poche, pas avant. Aucun code modifié.
+
+## [2026-10-03] init | Lancement de la simplification radicale : quarantaine modèles zombies (PPO, HMM, Vincent Ganne), benchmark T212 instruments énergie et extension du banc de test
+- Décision utilisateur : suppression/quarantaine des modèles zombies (PPO 2000 pas, HMM discrétisé, Vincent Ganne N/A), recherche d'un meilleur instrument énergie T212, et exécution de benchmarks rigoureux.
+
+## [2026-10-03] fix | Quarantaine des modèles zombies, pivot énergie QDVF.DE, validation 431 tests et refonte documentation
+- **Audit & Simplification** : Rapport complet `audit_complet_systeme_trading_ia.md` identifiant les sources d'érosion de performance du run 2 (-0.1% vs +6.1% Buy & Hold).
+- **Quarantaine Modèles Zombies** : `tensortrade` (PPO), `hmm_model`, `vincent_ganne`, et `sentiment` configurés à 0.0 dans `config_weights.py`. Bypass de soumission de threads dans `enhanced_trading_example.py` (gain CPU et élimination de latence).
+- **Pivot Énergie** : Remplacement de `CRUDP.PA` (WisdomTree WTI synthétique miné par le contango roll decay à -10.8% CAGR et 81.9% de barres gelées) par `QDVF.DE` (iShares S&P 500 Energy Sector UCITS ETF EUR, T212: `QDVFd_EQ`, +15.4% B&H CAGR, 0% roll decay, 97.6% données saines).
+- **Mise à jour Intégrale** : `t212_executor.py` (`TICKER_MAPPING_T212`, `INITIAL_BUDGETS`, `TICKER_QUANTITY_PRECISION`), `eia_client.py` (`is_oil_ticker`), `enhanced_trading_example.py` (`ANALYSIS_MAPPING`), `main.py` et `schedule.py`.
+- **Validation** : 431/434 tests unitaires et d'intégration validés sans aucun échec (**431 passed, 3 skipped, 0 failed**).
+- **Refonte Documentation** : Réécriture complète de `README.md`, `i18n/README_fr.md`, `GEMINI.md`, et `AGENTS.md` axée sur l'ensemble à 6 modèles haute conviction et les 7 GO-Gates.
+## [2026-10-07] eval & fix | Vérification globale du système et remédiation du Weight Manager
+- **Audit statique & tests** :
+  - Linter Ruff : 0 erreur, syntaxe 100% conforme (`uvx ruff check .`).
+  - Suite pytest complète : **432 passed, 3 skipped, 0 failed** en 66.9s.
+- **Anomalie critique identifiée et résolue** :
+  - **Problème** : `AdaptiveWeightManager` ressuscitait les modèles zombies en quarantaine (`tensortrade`, `hmm_model`, `vincent_ganne`, `sentiment`, et `oil_bench` hors pétrole) en leur allouant un score par défaut (0.5) puis un poids adaptatif non nul (~37% de l'ensemble au total !), diluant massivement les modèles haute conviction et provoquant un `RuntimeWarning: divide by zero` dans `_build_adjustment_reasoning`.
+  - **Correctif** : Filtrage strict des modèles en quarantaine (`base_weight <= 0.0`) dans `src/adaptive_weight_manager.py` (isolation des scores, maintien strict à 0.0, exclusion des division par zéro).
+  - **Nouveau test unitaire** : `test_quarantined_models_stay_zero_weight` dans `tests/test_adaptive_weight_manager.py`.
+- **État du Scheduler en production (PID 7660)** :
+  - Le processus scheduler actuel tourne en continu depuis le **1er octobre 2026 à 18:01**.
+  - Par conséquent, il exécute toujours en mémoire l'ancienne version avec `CRUDP.PA` au lieu de `QDVF.DE` (introduit le 3 octobre).
+  - Marché fermé pour la nuit (23:30) ; redémarrage propre préconisé avant le Morning Brief de 01:00.
+- **Portefeuille T212 (Démo)** :
+  - Position active `SXRVd_EQ` saine et en gain (+39.13 € / +4.1%) avec Stop Suiveur broker rachetifié à 1440.89 €.
+  - Total Equity portefeuille : 2 036.57 € (+1.83% net).
+  - NexusAI Cloud : fallback opérationnel (Groq/Nvidia 200 OK lors des indisponibilités ponctuelles).
+
+## [2026-10-07] fix | Arrêt propre du scheduler par l'utilisateur
+- Arrêt confirmé de `start_scheduler.bat` et de l'ancien processus Python (PID 7660).
+- Verrou `scheduler.lock` libéré proprement.
+- Le dépôt est 100% prêt avec `QDVF.DE`, la quarantaine hermétique des zombies et la suite de tests à 432/432 PASS.
+

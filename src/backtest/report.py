@@ -23,6 +23,18 @@ from . import strategies as st
 # ticker -> (libellé, note)
 ASSETS = {
     "SXRV.DE": ("SXRV.DE — ETF Nasdaq-100 en EUR (instrument tradé)", ""),
+    "QDVR.DE": (
+        "QDVR.DE — iShares S&P 500 Energy Sector UCITS ETF en EUR (candidat actions énergie T212)",
+        "Actions des producteurs d'énergie US (Exxon, Chevron, ConocoPhillips). Zéro coût de roll, dividende réinvesti, 0.2 % de lignes gelées.",
+    ),
+    "XDW0.DE": (
+        "XDW0.DE — Xtrackers MSCI World Energy UCITS ETF en EUR (candidat actions énergie mondial T212)",
+        "Majors énergétiques mondiales (Shell, TotalEnergies, BP, Exxon, Chevron). Zéro coût de roll, 0.2 % de lignes gelées.",
+    ),
+    "CRUD.L": (
+        "CRUD.L — WisdomTree WTI Crude Oil ETC en USD (candidat matières premières T212)",
+        "ETC pur sur contrats à terme WTI coté sur LSE. 0.0 % de lignes gelées. Subit le coût du roll en contango.",
+    ),
     "CL=F": (
         "CL=F — contrat WTI continu (PROXY du pétrole, non tradable tel quel)",
         "Contrat à terme continu non ajusté du roll : les sauts de roll faussent les rendements. À lire comme "

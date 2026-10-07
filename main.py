@@ -492,8 +492,8 @@ if __name__ == "__main__":
         "--ticker",
         type=str,
         nargs="+",
-        default=["CRUDP.PA", "SXRV.DE"],
-        help="Ticker(s) to analyze (default: CRUDP.PA and SXRV.DE)",
+        default=["QDVF.DE", "SXRV.DE"],
+        help="Ticker(s) to analyze (default: QDVF.DE and SXRV.DE)",
     )
     parser.add_argument(
         "--simul",

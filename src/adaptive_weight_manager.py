@@ -693,8 +693,12 @@ class AdaptiveWeightManager:
         model_performances = {}
         performance_scores = {}
 
+        # Models with base_weight <= 0.0 are deactivated/quarantined (e.g. October 2026 complexity reduction)
+        # They must never receive non-zero adaptive weights.
+        quarantined_models = {m for m, w in self.base_weights.items() if w <= 0.0}
+
         # Fetch all performances in a single query to fix N+1 issue
-        models = list(self.base_weights.keys())
+        models = [m for m in self.base_weights.keys() if m not in quarantined_models]
         all_performances = self.calculate_all_models_performance(models, ticker=ticker)
 
         for model_name in models:
@@ -727,13 +731,21 @@ class AdaptiveWeightManager:
         if total_performance == 0:
             performance_weights = self.base_weights.copy()
         else:
-            performance_weights = {model: score / total_performance for model, score in performance_scores.items()}
+            performance_weights = {
+                model: (score / total_performance if model not in quarantined_models else 0.0)
+                for model, score in performance_scores.items()
+            }
+        for qm in quarantined_models:
+            performance_weights[qm] = 0.0
 
         # Apply market regime adjustments
         regime_adjusted_weights = {}
         if market_regime in self.regime_adjustments:
             regime_factors = self.regime_adjustments[market_regime]
             for model in self.base_weights.keys():
+                if model in quarantined_models:
+                    regime_adjusted_weights[model] = 0.0
+                    continue
                 base_weight = performance_weights.get(model, self.base_weights[model])
                 regime_factor = regime_factors.get(model, 1.0)
                 regime_adjusted_weights[model] = base_weight * regime_factor
@@ -743,7 +755,10 @@ class AdaptiveWeightManager:
         # Normalize weights to sum to 1.0
         total_weight = sum(regime_adjusted_weights.values())
         if total_weight > 0:
-            final_weights = {model: weight / total_weight for model, weight in regime_adjusted_weights.items()}
+            final_weights = {
+                model: (weight / total_weight if model not in quarantined_models else 0.0)
+                for model, weight in regime_adjusted_weights.items()
+            }
         else:
             final_weights = self.base_weights.copy()
 
@@ -758,6 +773,9 @@ class AdaptiveWeightManager:
         fixed_weight_models = {"council"}
         smoothed_weights = {}
         for model in self.base_weights.keys():
+            if model in quarantined_models:
+                smoothed_weights[model] = 0.0
+                continue
             if model in fixed_weight_models:
                 # Keep the configured base weight (no performance blend).
                 smoothed_weights[model] = self.base_weights[model]
@@ -773,7 +791,8 @@ class AdaptiveWeightManager:
         reasoning = self._build_adjustment_reasoning(market_regime, performance_scores, smoothed_weights)
 
         # Calculate confidence based on data quality and consistency
-        confidence = min(0.9, 0.3 + (models_with_data / len(self.base_weights)) * 0.6)
+        active_count = len(self.base_weights) - len(quarantined_models)
+        confidence = min(0.9, 0.3 + (models_with_data / max(1, active_count)) * 0.6)
 
         return WeightAdjustment(
             model_weights=smoothed_weights,
@@ -791,6 +810,9 @@ class AdaptiveWeightManager:
         """Apply soft continuous win-rate penalty for models below threshold."""
         adjusted = weights.copy()
         for model in self.base_weights.keys():
+            if self.base_weights[model] <= 0.0:
+                adjusted[model] = 0.0
+                continue
             perf = all_performances.get(model)
             if perf is not None and perf.win_rate >= 0:
                 # Minimum-sample guard (2026-08-20 incident): a win rate over
@@ -826,7 +848,10 @@ class AdaptiveWeightManager:
 
         total_adjusted = sum(adjusted.values())
         if total_adjusted > 0:
-            return {k: v / total_adjusted for k, v in adjusted.items()}
+            return {
+                k: (v / total_adjusted if self.base_weights.get(k, 0.0) > 0.0 else 0.0)
+                for k, v in adjusted.items()
+            }
         return adjusted
 
     def _build_adjustment_reasoning(
@@ -845,6 +870,8 @@ class AdaptiveWeightManager:
         significant_changes = []
         for model, new_weight in smoothed_weights.items():
             base_weight = self.base_weights[model]
+            if base_weight <= 0:
+                continue
             change = (new_weight - base_weight) / base_weight
             if abs(change) > 0.1:  # 10% change threshold
                 direction = "increased" if change > 0 else "decreased"

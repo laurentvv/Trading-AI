@@ -2,21 +2,28 @@
 
 ## Project Overview
 
-Ce projet est un système expert d'aide à la décision pour le trading d'ETFs NASDAQ et Pétrole (WTI). Il utilise une approche **IA multi-modale** et une stratégie **Dual-Ticker** unique :
+Ce projet est un système expert d'aide à la décision pour le trading d'ETFs NASDAQ et Énergie (S&P 500 Energy). Il utilise une approche **IA multi-modale** et une stratégie **Dual-Ticker** unique :
 - **Analyse sur Indices** : Le système télécharge et analyse les indices de référence (`^NDX`, `CL=F`) pour obtenir des signaux d'IA plus propres et robustes.
-- **Trading sur ETFs** : Les décisions sont appliquées aux ETFs correspondants sur Trading 212 (`SXRV.DE`, `CRUDP.PA`).
+- **Trading sur ETFs** : Les décisions sont appliquées aux ETFs correspondants sur Trading 212 (`SXRV.DE`, `QDVF.DE`).
 
-Le moteur fusionne un modèle quantitatif classique, un LLM textuel, un LLM visuel (analyse de graphiques), le modèle de fondation **TimesFM 3.0** (Google Research), et le **Modèle Vincent Ganne** (Géopolitique & Cross-Asset).
+Le moteur fusionne un ensemble de modèles à haute conviction guidé par la règle quant : *« En trading, la complexité ne paie pas »* :
+1. Google TimesFM 3.0 (25%)
+2. Ensemble quantitatif classique (20%)
+3. Modèle Grebenkov de suivi de tendance (20%)
+4. LLM textuel unifié via NexusAI-Client (15%)
+5. LLM vision multimodal via NexusAI-Client (10%)
+6. Weekend Council (10%)
+7. Modèle Oil-Bench (fondamentaux EIA, activé sur les instruments énergie)
+
+*(Modèles zombies PPO tensortrade, HMM, Vincent Ganne et sentiment isolés à poids 0.0).*
 
 ### Nouveautés majeures :
+- **Pivot Énergie QDVF.DE :** Remplacement de l'ETC synthétique `CRUDP.PA` (sujet au roll decay du contango et aux gels Yahoo) par l'ETF d'actions physiques `QDVF.DE` (iShares S&P 500 Energy Sector UCITS ETF EUR, T212: `QDVFd_EQ`).
 - **Architecture LLM Unifiée via NexusAI-Client :** Remplacement complet d'Ollama et de toutes les IA locales par **[`NexusAI-Client`](https://github.com/laurentvv/NexusAI-Client)** avec fallback automatique multi-fournisseurs (Gemini Free/Pro, Groq, Cerebras, Mistral, Cohere, Nvidia NIM, OpenRouter, OrcaRouter, DeepSeek).
 - **Sécurité Anti-Perte & Trailing Stop :** Blocage automatique des ventes à perte et déclenchement de prises de profits (Stop Suiveur 3%) pour sécuriser le cash.
-- **Inversion du Risque Pétrole :** Le système reconnaît désormais que la haute volatilité est un signal haussier pour le pétrole et booste les scores d'achat en conséquence.
 - **Mémoire de Performance :** Enregistrement de chaque décision individuelle dans `model_performance.db` pour l'ajustement automatique des poids via le Weight Manager.
 - **Intégration EIA (Energy Information Administration) :** Analyse automatisée des données fondamentales américaines (Stocks de brut, Importations, Taux d'utilisation des raffineries) et des prévisions STEO.
-- **Modèle Oil-Bench (NexusAI) :** Modèle spécialisé dans le pétrole, fusionnant les données EIA et le sentiment de marché pour une analyse fondamentale profonde.
-- **Modèle Vincent Ganne :** Détection de points bas boursiers via l'analyse du Pétrole (WTI/Brent), du Gaz Naturel (TTF), de l'Urée, du Dollar (DXY) et des moyennes mobiles à 200 jours.
-- **Intégration Hyperliquid :** Capture du sentiment spéculatif sur le Pétrole via les données blockchain (*Funding Rate*, *Open Interest*).
+- **Modèle Oil-Bench (NexusAI) :** Modèle spécialisé dans l'énergie, fusionnant les données EIA et le sentiment de marché pour une analyse fondamentale profonde.
 - **Gestion des Risques "Trend-Aware" :** Le système adapte ses seuils de confiance selon la tendance du marché (plus agressif en Bull Market).
 - **Exposition Maximale en Dur (100% Max Disponible) :** Décision intégrale en dur sans fractionnement ni sizing partiel. Chaque achat alloue 100% du budget disponible du ticker, et chaque vente liquide 100% de la position active.
 - **Weekend Council (11ème Voix) :** Délibération rétrospective asynchrone le week-end réunissant 6 personas sur des providers cloud distincts (Groq, Cerebras, Mistral, Cohere, OpenRouter/Nvidia, Gemini Flash & Pro).
@@ -49,11 +56,11 @@ Le moteur fusionne un modèle quantitatif classique, un LLM textuel, un LLM visu
 ### Running the System
 
 ```bash
-# Analyse standard (Analyse ^NDX, trading virtuel SXRV.DE)
-uv run main.py
+# Analyse standard (Analyse ^NDX et CL=F, trading virtuel SXRV.DE et QDVF.DE)
+uv run main.py --simul
 
-# Analyse Pétrole (Analyse CL=F, trading virtuel CRUDP.PA)
-uv run main.py --ticker CRUDP.PA
+# Analyse Énergie seule (Analyse CL=F, trading virtuel QDVF.DE)
+uv run main.py --simul --ticker QDVF.DE
 
 # Exécution réelle sur Trading 212 (Mode DEMO ou REEL via .env)
 uv run main.py --t212

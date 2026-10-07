@@ -160,7 +160,6 @@ class TestP0_2_PriceSeriesAndRiskUpstream(unittest.TestCase):
     def test_perform_enhanced_analysis_exposes_price_series(self):
         """perform_enhanced_analysis must expose price_series in market_data."""
         import pandas as pd
-        system = EnhancedTradingSystem(ticker="SXRV.DE", write_db=False)
         dates = pd.date_range("2026-01-01", periods=100)
         prices = [100.0 + i for i in range(100)]
         df = pd.DataFrame({
@@ -170,6 +169,9 @@ class TestP0_2_PriceSeriesAndRiskUpstream(unittest.TestCase):
             "MACD": [0.1] * 100,
             "BB_Position": [0.5] * 100,
         }, index=dates)
+
+        with patch("src.enhanced_trading_example.get_etf_data", return_value=(df, {})):
+            system = EnhancedTradingSystem(ticker="SXRV.DE", write_db=False)
 
         model_preds = {
             "classic": {"prediction": 1, "confidence": 0.8},

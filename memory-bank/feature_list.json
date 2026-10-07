@@ -1,7 +1,7 @@
 {
   "$comment": "Cartographie complète et structurée des fonctionnalités du projet. Source unique de vérité sur l'état des fonctionnalités. Généré le 2026-06-30 lors de la mise en place du système de mémoire déterministe (voir AGENTS.md §1). Mis à jour dès qu'une fonctionnalité change de statut.",
   "schema_version": "1.0",
-  "last_updated": "2026-09-02",
+  "last_updated": "2026-10-03",
   "features": [
     {
       "id": "F-01",
@@ -252,6 +252,39 @@
       "description": "Migration 2.5→3.0 (fin du vendoring : setup_timesfm.py/.gitmodules/[tool.uv.sources] supprimés, PyPI timesfm>=3.0.1) + extension reset_for_fresh_test.py : détection des artefacts runtime dans logs_prod/ (CWD du scheduler PROD, incident 2026-08-24) avec --include-logs-prod/--keep-logs-prod. Runbook : docs/PLAN_MIGRATION_TIMESFM3_PROD.md. Validation DEV : 282/285 tests, smoke PASS (CPU 0.38 s @2048).",
       "status": "completed",
       "dependencies": []
+    },
+    {
+      "id": "F-38",
+      "name": "Quarantaine des modèles zombies (PPO, HMM, Vincent Ganne, Sentiment)",
+      "description": "Suppression / quarantaine des modèles non performants ou défaillants (PPO 2000 pas partagé, HMM discrétisé pile ou face, Vincent Ganne N/A, Sentiment bloqué à 0.00) pour concentrer l'ensemble décisionnel sur les modèles viables avec bypass des threads.",
+      "status": "completed",
+      "dependencies": []
+    },
+    {
+      "id": "F-39",
+      "name": "Banc de benchmark multi-actifs énergie & walk-forward",
+      "description": "Extension du moteur de backtest vectorisé pur (src/backtest/) avec intégration des candidats énergie Trading 212 (CRUD.L, QDVR.DE, XDW0.DE) et génération automatisée du rapport comparatif (docs/BACKTEST_CANDIDATS_ENERGIE_2026-10-03.md).",
+      "status": "completed",
+      "dependencies": []
+    },
+    {
+      "id": "F-40",
+      "name": "Intégration QDVF.DE (iShares S&P 500 Energy Sector UCITS ETF EUR, T212: QDVFd_EQ)",
+      "description": "Remplacement de CRUDP.PA par QDVF.DE à travers t212_executor.py, eia_client.py, enhanced_trading_example.py, main.py et schedule.py, éliminant l'érosion de contango et les gels de cotation.",
+      "status": "completed",
+      "dependencies": [
+        "F-38",
+        "F-39"
+      ]
+    },
+    {
+      "id": "F-41",
+      "name": "Refonte complète de la documentation (README.md, i18n/README_fr.md, GEMINI.md, AGENTS.md)",
+      "description": "Réécriture complète des documentations anglaise et française intégrant le nouvel ensemble à 6 modèles, le pivot QDVF.DE, la validation des 431 tests et les 7 GO-Gates institutionnels.",
+      "status": "completed",
+      "dependencies": [
+        "F-40"
+      ]
     }
   ]
 }

@@ -90,6 +90,8 @@ TICKER_MAPPING_T212 = {
     "SXRV.FRK": "SXRVd_EQ",
     "CRUDP.PA": "OD7Fd_EQ",  # WisdomTree WTI Crude Oil — variante EUR (was CRUDl_EQ/USD)
     "CRUDP": "OD7Fd_EQ",
+    "QDVF.DE": "QDVFd_EQ",  # iShares S&P 500 Energy Sector UCITS ETF (EUR)
+    "QDVF": "QDVFd_EQ",
 }
 # Budget initial par ticker T212 (en EUR)
 INITIAL_BUDGETS = {
@@ -97,6 +99,7 @@ INITIAL_BUDGETS = {
     "SXRV_EQ": 1000.0,
     "OD7Fd_EQ": 1000.0,  # CRUDP.PA (EUR) — nouveau mapping
     "CRUDl_EQ": 1000.0,  # gardé pour compat : ancienne position USD encore ouverte
+    "QDVFd_EQ": 1000.0,  # iShares S&P 500 Energy Sector EUR
 }
 DEFAULT_INITIAL_BUDGET = 1000.0
 
@@ -111,6 +114,7 @@ TICKER_QUANTITY_PRECISION = {
     "SXRV_EQ": 4,
     "OD7Fd_EQ": 2,   # WisdomTree WTI Crude Oil EUR — 2 decimals max
     "CRUDl_EQ": 2,   # legacy USD variant
+    "QDVFd_EQ": 4,   # iShares S&P 500 Energy Sector EUR — fractional, 4 decimals
 }
 DEFAULT_QUANTITY_PRECISION = 2
 
@@ -1335,7 +1339,7 @@ def _execute_buy_order(state, current_pos, ticker, t212_ticker, portfolio, base_
         current_price = get_real_price_eur(ticker)
         # --- AJOUT : Obtenir aussi le prix de l'INDICE de référence ---
         index_ticker = (
-            "^NDX" if "SXRV" in t212_ticker.upper() else "CL=F" if "CRUD" in t212_ticker.upper() else ticker
+            "^NDX" if "SXRV" in t212_ticker.upper() else "CL=F" if any(k in t212_ticker.upper() for k in ["CRUD", "OD7F", "QDVF"]) else ticker
         )
         try:
             index_price = get_real_price_eur(index_ticker)

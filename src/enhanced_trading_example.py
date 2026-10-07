@@ -112,6 +112,8 @@ class EnhancedTradingSystem:
         "SXRV.DE": "^NDX",  # iShares Nasdaq 100 -> Nasdaq 100 Index
         "SXRV.FRK": "^NDX",
         "CRUDP.PA": "CL=F",  # Lyxor WTI Oil -> Crude Oil Futures
+        "QDVF.DE": "CL=F",   # iShares S&P 500 Energy Sector -> Crude Oil Futures
+        "QDVF": "CL=F",
         "QQQ": "^NDX",
         "SPY": "^GSPC",
     }
@@ -455,14 +457,22 @@ class EnhancedTradingSystem:
                 logger.error(f"HMM Model failed: {e}")
                 return {"signal": "HOLD", "confidence": 0.0, "reasoning": f"HMM error: {e}"}
 
-        logger.info("Lancement des tâches parallèles : news, search_query, visual_llm, 3 cpu_models")
+        logger.info("Lancement des tâches parallèles : news, search_query, visual_llm, cpu_models")
         news_future = executor.submit(_fetch_news_task)
         search_query_future = executor.submit(_search_query_task)
         visual_llm_future = executor.submit(_visual_llm_task)
         timesfm_future = executor.submit(_timesfm_task)
-        tensortrade_future = executor.submit(_tensortrade_task)
+        tensortrade_future = (
+            executor.submit(_tensortrade_task)
+            if self.decision_engine.base_weights.get("tensortrade", 0.0) > 0.0
+            else None
+        )
         grebenkov_future = executor.submit(_grebenkov_task)
-        hmm_future = executor.submit(_hmm_task)
+        hmm_future = (
+            executor.submit(_hmm_task)
+            if self.decision_engine.base_weights.get("hmm_model", 0.0) > 0.0
+            else None
+        )
 
         # ============================================================
         # PHASE B : web_context dès que search_query est prêt
@@ -592,14 +602,17 @@ class EnhancedTradingSystem:
             logger.error(f"TimesFM future failed: {e}")
             timesfm_decision = ModelResult("HOLD", 0.0, f"TimesFM error: {e}")
 
-        try:
-            tensortrade_decision = tensortrade_future.result(timeout=180)
-        except TimeoutError:
-            logger.error("TensorTrade timeout (180s) — HOLD fallback")
-            tensortrade_decision = ModelResult("HOLD", 0.0, "TensorTrade timeout")
-        except Exception as e:
-            logger.error(f"TensorTrade future failed: {e}")
-            tensortrade_decision = ModelResult("HOLD", 0.0, f"TensorTrade error: {e}")
+        if tensortrade_future is not None:
+            try:
+                tensortrade_decision = tensortrade_future.result(timeout=180)
+            except TimeoutError:
+                logger.error("TensorTrade timeout (180s) — HOLD fallback")
+                tensortrade_decision = ModelResult("HOLD", 0.0, "TensorTrade timeout")
+            except Exception as e:
+                logger.error(f"TensorTrade future failed: {e}")
+                tensortrade_decision = ModelResult("HOLD", 0.0, f"TensorTrade error: {e}")
+        else:
+            tensortrade_decision = ModelResult("HOLD", 0.0, "Quarantined (weight 0.0)")
 
         try:
             grebenkov_decision = grebenkov_future.result(timeout=180)
@@ -610,14 +623,17 @@ class EnhancedTradingSystem:
             logger.error(f"Grebenkov future failed: {e}")
             grebenkov_decision = ModelResult("HOLD", 0.0, f"Grebenkov error: {e}")
 
-        try:
-            hmm_decision = hmm_future.result(timeout=180)
-        except TimeoutError:
-            logger.error("HMM Model timeout (180s) — HOLD fallback")
-            hmm_decision = ModelResult("HOLD", 0.0, "HMM timeout")
-        except Exception as e:
-            logger.error(f"HMM future failed: {e}")
-            hmm_decision = ModelResult("HOLD", 0.0, f"HMM error: {e}")
+        if hmm_future is not None:
+            try:
+                hmm_decision = hmm_future.result(timeout=180)
+            except TimeoutError:
+                logger.error("HMM Model timeout (180s) — HOLD fallback")
+                hmm_decision = ModelResult("HOLD", 0.0, "HMM timeout")
+            except Exception as e:
+                logger.error(f"HMM future failed: {e}")
+                hmm_decision = ModelResult("HOLD", 0.0, f"HMM error: {e}")
+        else:
+            hmm_decision = ModelResult("HOLD", 0.0, "Quarantined (weight 0.0)")
 
         executor.shutdown(wait=False)
 
