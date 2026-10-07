@@ -506,3 +506,10 @@ Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-
 - Verrou `scheduler.lock` libéré proprement.
 - Le dépôt est 100% prêt avec `QDVF.DE`, la quarantaine hermétique des zombies et la suite de tests à 432/432 PASS.
 
+## [2026-10-07] gen | Validation complète & Push sur main (commit 9b1d7cc)
+- Accord explicite utilisateur pour le push.
+- Test de fumée TimesFM 3.0 validé (10.7s init, 0.63s CPU @ 2048).
+- Commit `9b1d7cc` poussé sur `origin/main` (22 fichiers synchronisés).
+- Working tree 100% propre, prêt pour redémarrage de `start_scheduler.bat`.
+
+
