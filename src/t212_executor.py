@@ -1,5 +1,6 @@
 import os
 import json
+import math
 import base64
 import logging
 import requests
@@ -114,9 +115,16 @@ TICKER_QUANTITY_PRECISION = {
     "SXRV_EQ": 4,
     "OD7Fd_EQ": 2,   # WisdomTree WTI Crude Oil EUR — 2 decimals max
     "CRUDl_EQ": 2,   # legacy USD variant
-    "QDVFd_EQ": 4,   # iShares S&P 500 Energy Sector EUR — fractional, 4 decimals
+    # 3 decimals max: on 2026-10-08 every 4-decimal buy was refused ("invalid quantity
+    # precision 3") while 2- and 3-decimal quantities passed the precision check.
+    "QDVFd_EQ": 3,   # iShares S&P 500 Energy Sector EUR
 }
 DEFAULT_QUANTITY_PRECISION = 2
+
+# T212 refuses a market BUY worth more than ~95 % of the free cash (the rest absorbs price
+# moves between quote and fill). On 2026-10-08 two QDVF buys sized at 99 % of the cash were
+# rejected "insufficient-free-for-stocks-buy". A buy never uses more than this share of the cash.
+MAX_CASH_FRACTION_PER_BUY = 0.95
 
 # --- Exit-strategy thresholds (June 2026 exit-strategy audit) ---
 # Four complementary exit mechanisms, evaluated unconditionally before the
@@ -1363,23 +1371,21 @@ def _execute_buy_order(state, current_pos, ticker, t212_ticker, portfolio, base_
         )
 
     # Choix utilisateur en dur : 100% MAX DISPONIBLE (aucune prise de décision partielle)
-    # L'achat mobilise 100% du budget alloué (ou le max du cash réel disponible chez le broker).
-    # Une réserve de 1% est appliquée uniquement si le cash broker réel est le facteur limitant
-    # pour éviter tout rejet "Insufficient funds" dû au spread ou micro-glissement au marché.
-    if portfolio["cash"] >= available_cash:
-        target_budget = available_cash * sizing_ratio
-    else:
-        target_budget = portfolio["cash"] * 0.99 * sizing_ratio
+    # L'achat mobilise 100% du budget alloué, plafonné à MAX_CASH_FRACTION_PER_BUY du cash réel :
+    # au-delà, T212 rejette l'ordre "Insufficient funds" (réserve pour le mouvement de prix).
+    target_budget = min(available_cash, portfolio["cash"] * MAX_CASH_FRACTION_PER_BUY) * sizing_ratio
     # Déterminer la précision selon l'instrument T212 (table explicite).
     # L'ancienne heuristique "CRUD" in ticker cassait quand CRUDP.PA a été
     # remappé vers OD7Fd_EQ (ne contient plus "CRUD") -> precision=4 envoyée
     # alors que T212 n'accepte que 2 -> erreur quantity-precision-mismatch.
     precision = TICKER_QUANTITY_PRECISION.get(t212_ticker, DEFAULT_QUANTITY_PRECISION)
-    quantity = round(target_budget / current_price, precision)
+    # Arrondi INFÉRIEUR : un arrondi au plus proche peut dépasser le budget (et le cash).
+    scale = 10**precision
+    quantity = round(math.floor(target_budget / current_price * scale + 1e-9) / scale, precision)
 
     estimated_cost = quantity * current_price
     logger.info("📊 CALCUL QUANTITÉ FRACTIONNÉE :")
-    logger.info(f"   - Budget cible : {available_cash:.2f} €")
+    logger.info(f"   - Budget cible : {available_cash:.2f} € (engagé : {target_budget:.2f} €)")
     logger.info(f"   - Quantité calculée : {quantity} actions (Precision: {precision})")
     logger.info(f"   - Coût estimé : {estimated_cost:.2f} €")
 
