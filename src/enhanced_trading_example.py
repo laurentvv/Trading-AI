@@ -5,7 +5,6 @@ dans le système de trading AI existant.
 """
 
 import logging
-import re
 import pandas as pd
 import sqlite3
 from typing import Dict
@@ -33,6 +32,7 @@ from sentiment_analysis import get_sentiment_decision_from_score
 from web_researcher import generate_search_query, get_web_context_sync, get_fallback_search_query
 
 from chart_generator import generate_chart_image
+from bootstrap import redact_secrets
 
 from database import (
     init_db,
@@ -60,16 +60,9 @@ logger = logging.getLogger(__name__)
 
 # Redacts API keys/tokens echoed by third-party stderr before they reach the
 # logs (2026-08-24: the Alpha Vantage rate-limit notice leaked a real key into
-# logs_prod/trading.log).
-_SECRET_RE = re.compile(
-    r"(?i)\b(key|token|apikey|api_key|secret|password)\b(\s+(?:as|is|:|=))?\s+([A-Za-z0-9_\-]{12,})"
-)
-
-
-def _redact_secrets(text: str) -> str:
-    if not text:
-        return text or ""
-    return _SECRET_RE.sub(lambda m: f"{m.group(1)}{m.group(2) or ''} ***REDACTED***", text)
+# logs_prod/trading.log). Same rules as the log handlers, which also cover the
+# `apikey=` URL form that the old text-only pattern let through.
+_redact_secrets = redact_secrets
 
 # Window (trading days) used for the daily volatility estimate feeding the
 # decision engine and the adaptive weight manager.
