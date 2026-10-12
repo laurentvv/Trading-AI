@@ -297,7 +297,7 @@
       "id": "F-43",
       "name": "Univers U1 : actions US Trading 212 → symboles Yahoo + filtre de liquidité",
       "description": "Construction de l'univers depuis /equity/metadata/instruments (STOCK, _US_EQ), correspondance déterministe vers Yahoo, filtre cours/volume en dollars/historique recalculé chaque jour sans regard vers le futur.",
-      "status": "pending",
+      "status": "completed",
       "dependencies": [
         "F-42"
       ]
@@ -306,7 +306,7 @@
       "id": "F-44",
       "name": "Stockage journalier en masse (OHLCV, Parquet incrémental)",
       "description": "Téléchargement et mise à jour incrémentale des barres journalières de l'univers, refus des séries périmées, aucune donnée synthétique.",
-      "status": "pending",
+      "status": "completed",
       "dependencies": [
         "F-43"
       ]
@@ -315,7 +315,7 @@
       "id": "F-45",
       "name": "Règles pullback en fonctions pures (screener, consolidation, support/AVWAP, déclencheur, risque, sorties)",
       "description": "Traduction mécanique journalière des quatre étapes de la méthode (plan §1), paramètres par défaut et variantes pré-enregistrées.",
-      "status": "pending",
+      "status": "completed",
       "dependencies": [
         "F-44"
       ]
