@@ -570,3 +570,7 @@ Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-
 
 ## [2026-10-12] gen | Phase 2 : règles pullback en fonctions pures (F-45)
 - `src/pullback/rules.py` + `tests/test_pullback_rules.py` (9 tests, contrat 6-13). Fréquence réelle sur 2021-2026 : AAPL 17 setups, NVDA 10, PLTR 1 (sans filtre momentum). Correctif cli (symbole « NAN » lu comme NaN par pandas).
+
+## [2026-10-12] eval | Phase 3 : banc pullback, verdict FAIL (F-46)
+- `src/pullback/{market,portfolio,bench}.py` : pré-filtre vectorisé (identique à `rules.detect_consolidation`, 0 écart sur 12 089 contrôles), moteur événementiel OHLC, 6 variantes pré-enregistrées, contrôles hasard (40 tirages) et momentum seul, walk-forward 2015-2020 / 2021+, verdict calculé.
+- Test 2021-01-04 -> 2026-10-12 : −22,6 %/an, Sharpe −1,93, DD −78,9 %, 680 trades, espérance −0,55 R ; B&H Nasdaq-100 EUR +14,6 %/an. Battu par le hasard (p≈0,95-0,98). Même avec lordre
