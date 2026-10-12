@@ -43,10 +43,10 @@ def apply_current_exit_rules(
     prices: pd.DataFrame,
     base: pd.Series,
     *,
-    take_profit: float = 0.08,
+    take_profit: float | None = 0.08,
     trail: float = 0.03,
     trail_min_profit: float = 0.005,
-    time_stop_days: int = 15,
+    time_stop_days: int | None = 15,
     time_stop_soft_loss: float = 0.05,
     hard_stop: float = 0.10,
     cooldown_days: int = 1,
@@ -58,6 +58,8 @@ def apply_current_exit_rules(
     les évalue à chaque cycle de 30 min : approximation quotidienne). Après une sortie, ré-entrée possible
     après `cooldown_days` séances si `base` est toujours haussier. Sert de test de stress : avec `base` =
     toujours investi, on mesure ce que les règles de sortie coûtent à elles seules en tronquant les gains.
+    `take_profit=None` et `time_stop_days=None` désactivent ces deux sorties (mode « swing » de l'exécuteur :
+    pas de TP, pas de time-stop, trailing −10 %).
     """
     close = prices["Close"].to_numpy(dtype=float)
     opens = prices["Open"].to_numpy(dtype=float)
@@ -84,9 +86,9 @@ def apply_current_exit_rules(
         exit_now = (
             b[t] <= 0
             or pnl <= -hard_stop
-            or pnl >= take_profit
+            or (take_profit is not None and pnl >= take_profit)
             or (drop >= trail and pnl > trail_min_profit)
-            or (age >= time_stop_days and pnl > -time_stop_soft_loss)
+            or (time_stop_days is not None and age >= time_stop_days and pnl > -time_stop_soft_loss)
         )
         if exit_now:
             in_pos = False

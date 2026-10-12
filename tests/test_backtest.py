@@ -151,6 +151,27 @@ class TestCurrentExitRules:
         assert (p.index[first_exit] - p.index[1]).days >= 15
         assert (p.index[first_exit - 1] - p.index[1]).days < 15
 
+    def test_swing_exits_hold_a_trend_and_a_flat_market(self):
+        # mode swing (TP et time-stop désactivés) : ni la tendance à +1 %/jour ni 30 jours de plat ne font sortir
+        swing = {"take_profit": None, "trail": 0.10, "time_stop_days": None}
+        for p in (_prices(100 * 1.01 ** np.arange(60)), _prices([100.0] * 30)):
+            assert (strategies.apply_current_exit_rules(p, strategies.buy_and_hold(p), **swing) == 1.0).all()
+
+    def test_swing_trailing_needs_a_10pct_pullback(self):
+        swing = {"take_profit": None, "trail": 0.10, "time_stop_days": None}
+        # sommet 120 puis repli de 5 % : on reste ; repli de 10,8 % (107, encore +7 % sur l'entrée) : sortie
+        p = _prices([100, 100, 120, 114, 114, 107, 107], opens=[100, 100, 100, 120, 114, 114, 107])
+        t = strategies.apply_current_exit_rules(p, strategies.buy_and_hold(p), **swing)
+        assert (t.iloc[:5] == 1.0).all() and t.iloc[5] == 0.0
+
+
+def test_report_covers_the_traded_energy_etf_not_qdvr():
+    # QDVR.DE était présenté comme l'ETF énergie : c'est l'iShares MSCI USA SRI (corrélé à 0,87 au Nasdaq-100).
+    from src.backtest import report
+
+    assert "QDVF.DE" in report.ASSETS and "QDVF.DE" in bt_data.PRICE_FILES
+    assert "QDVR.DE" not in report.ASSETS
+
 
 class TestMetrics:
     def test_max_drawdown_and_cagr(self):

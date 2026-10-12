@@ -1,5 +1,9 @@
 # Références de performance — généré le 2026-10-03
 
+> **Erratum (2026-10-12).** La section « QDVR.DE — iShares S&P 500 Energy Sector » ne mesure pas un ETF énergie :
+> QDVR.DE est l'**iShares MSCI USA SRI** (corrélation des rendements quotidiens 0,87 avec SXRV.DE, −0,09 avec CL=F).
+> L'instrument énergie réellement tradé, **QDVF.DE**, est mesuré dans `docs/BACKTEST_BASELINES_2026-10-12.md`.
+
 Sortie de `python -m src.backtest.report` (données : `data_cache/`). Chiffres bruts sans interprétation.
 
 ## Qualité des séries

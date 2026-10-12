@@ -88,7 +88,7 @@ Historically, oil exposure was attempted via commodity futures ETCs (`CRUDP.PA` 
 
 **The Solution — `QDVF.DE` (iShares S&P 500 Energy Sector UCITS ETF EUR)**:
 - **Physical Equity Basket**: Backed by top US energy producers (ExxonMobil, Chevron, ConocoPhillips, EOG).
-- **Zero Roll Decay**: Generates **+15.4% Buy & Hold CAGR** over 11 years (2,732 bars, 97.6% clean data).
+- **Zero Roll Decay**: Buy & Hold CAGR **+10.1 %/yr over 11 years** (Yahoo, 2015-12 → 2026-10, 2,738 bars) with a **−65.8 % max drawdown** (2020); +15.1 %/yr, Sharpe 0.69, max drawdown −27.1 % on the 2022-07 → 2026-10 bench window (`docs/BACKTEST_BASELINES_2026-10-12.md`).
 - **Positive Real Dividends**: Physical cash generation (~3.5% distribution yield reinvested).
 - **Direct Correlation**: Strong beta to crude oil price shocks while capturing equity value.
 

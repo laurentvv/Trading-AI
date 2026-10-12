@@ -88,7 +88,7 @@ Historiquement, l'exposition énergie était confiée à des ETCs synthétiques 
 
 **La Solution Retenue — `QDVF.DE` (iShares S&P 500 Energy Sector UCITS ETF EUR)** :
 - **Panier d'Actions Physiques** : Investi dans les géants de l'énergie américaine (ExxonMobil, Chevron, ConocoPhillips, EOG).
-- **Zéro Érosion Contango** : Performance robuste de **+15.4% CAGR Buy & Hold** sur 11 ans (2 732 séances, 97.6% de données saines).
+- **Zéro Érosion Contango** : Buy & Hold **+10,1 %/an sur 11 ans** (Yahoo, 2015-12 → 2026-10, 2 738 séances) avec un **drawdown maximal de −65,8 %** (2020) ; +15,1 %/an, Sharpe 0,69, drawdown −27,1 % sur la fenêtre du banc 2022-07 → 2026-10 (`docs/BACKTEST_BASELINES_2026-10-12.md`).
 - **Rendement Réel et Dividendes** : Génération de trésorerie (~3.5% réinvesti).
 - **Bêta Direct** : Forte sensibilité aux chocs pétroliers tout en capturant la rentabilité opérationnelle des producteurs.
 

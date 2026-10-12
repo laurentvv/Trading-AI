@@ -23,9 +23,11 @@ from . import strategies as st
 # ticker -> (libellé, note)
 ASSETS = {
     "SXRV.DE": ("SXRV.DE — ETF Nasdaq-100 en EUR (instrument tradé)", ""),
-    "QDVR.DE": (
-        "QDVR.DE — iShares S&P 500 Energy Sector UCITS ETF en EUR (candidat actions énergie T212)",
-        "Actions des producteurs d'énergie US (Exxon, Chevron, ConocoPhillips). Zéro coût de roll, dividende réinvesti, 0.2 % de lignes gelées.",
+    # QDVR.DE (rapports du 2026-10-03 et du 2026-10-10) n'est PAS un ETF énergie : c'est l'iShares MSCI USA SRI
+    # (corrélation des rendements quotidiens 0,87 avec SXRV.DE, −0,09 avec CL=F). Remplacé par l'instrument tradé.
+    "QDVF.DE": (
+        "QDVF.DE — iShares S&P 500 Energy Sector UCITS ETF en EUR (instrument énergie tradé, T212 QDVFd_EQ)",
+        "Actions des producteurs d'énergie US (Exxon, Chevron, ConocoPhillips). Zéro coût de roll, dividende réinvesti.",
     ),
     "XDW0.DE": (
         "XDW0.DE — Xtrackers MSCI World Energy UCITS ETF en EUR (candidat actions énergie mondial T212)",
@@ -47,15 +49,20 @@ def build_strategies(prices: pd.DataFrame) -> dict[str, tuple[pd.Series, dict]]:
     """nom -> (exposition cible calculée sur toute la série, options du moteur)."""
     always = st.buy_and_hold(prices)
     ma200 = st.ma_trend(prices, 200)
+    ma200_band = st.ma_trend(prices, 200, band=0.02)
+    # Mode « swing » de l'exécuteur (STRATEGY_MODE=swing) : ni take-profit ni time-stop, trailing −10 %.
+    swing = {"take_profit": None, "trail": 0.10, "time_stop_days": None}
     return {
         "Buy & hold": (always, {}),
         "50 % fixe (rééquilibré / 21 séances)": (st.fixed_exposure(prices, 0.5), {"rebalance_days": 21}),
         "Tendance MA100": (st.ma_trend(prices, 100), {}),
         "Tendance MA200": (ma200, {}),
-        "Tendance MA200 (hystérésis 2 %)": (st.ma_trend(prices, 200, band=0.02), {}),
+        "Tendance MA200 (hystérésis 2 %)": (ma200_band, {}),
         "Momentum 12 mois": (st.time_series_momentum(prices, 252), {}),
         "Sorties actuelles, entrée toujours haussière": (st.apply_current_exit_rules(prices, always), {}),
         "Tendance MA200 + sorties actuelles": (st.apply_current_exit_rules(prices, ma200), {}),
+        "Sorties swing, entrée toujours haussière": (st.apply_current_exit_rules(prices, always, **swing), {}),
+        "Tendance MA200 (hystérésis 2 %) + sorties swing": (st.apply_current_exit_rules(prices, ma200_band, **swing), {}),
     }
 
 
@@ -149,7 +156,12 @@ def render_asset(title: str, note: str, ev: dict, *, cost_bps: float, tax_rate: 
 
 
 COST_LEVELS_BPS = (0.0, 10.0, 25.0, 35.0)
-COST_SENSITIVITY_STRATEGIES = ("Buy & hold", "Tendance MA200 (hystérésis 2 %)", "Sorties actuelles, entrée toujours haussière")
+COST_SENSITIVITY_STRATEGIES = (
+    "Buy & hold",
+    "Tendance MA200 (hystérésis 2 %)",
+    "Sorties actuelles, entrée toujours haussière",
+    "Sorties swing, entrée toujours haussière",
+)
 
 
 def render_cost_sensitivity(prices: pd.DataFrame, *, warmup: int, capital: float) -> str:
@@ -183,7 +195,7 @@ def main(argv: list[str] | None = None) -> int:
 
     parts += ["## Qualité des séries", ""]
     body = []
-    for ticker in ("SXRV.DE", "CRUDP.PA", "^NDX", "CL=F"):
+    for ticker in ("SXRV.DE", "QDVF.DE", "CRUDP.PA", "^NDX", "CL=F"):
         cov = bt_data.coverage(bt_data.load_prices(ticker, args.data_dir))
         body.append([ticker, str(cov["rows"]), f"{cov['start']} → {cov['end']}", _pct(cov["frozen_share"], 0),
                      str(cov["live_rows"]), cov["live_start"] or "—"])
