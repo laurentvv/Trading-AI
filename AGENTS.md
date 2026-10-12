@@ -4,6 +4,8 @@ This file gives future AI agents (Kilo, Codex, Copilot, etc.) the minimum contex
 
 **Project in one paragraph** — Python 3.12 trading-decision pipeline. Multi-model ensemble (Scikit-Learn, TimesFM 3.0, TensorTrade PPO, NexusAI-Client unified cloud LLMs for text + vision + oil fundamentals + web research, sentiment, Vincent Ganne model) orchestrated by `main.py`. Outputs to `trading_journal.csv`, with optional Trading 212 demo/live execution via `--t212`. Virtualenv managed by `uv`. See `README.md` for the full feature list.
 
+> **⚠️ Migration in progress (user decision, 2026-10-12)** — the project is being migrated, in full, to a mechanical daily version of Martin Luk's **pullback-buying method** on US stocks tradable on Trading 212 (momentum screen → tightening consolidation → support/AVWAP → buy-stop over the setup day's high, ≤ 3 % stop, 0.5 % risk per trade, partial exits at 3R/5R, EMA 9 trail). LLMs and TimesFM become rankers/vetoes of the screener's candidates and never create a trade. Plan: `docs/PLAN_MIGRATION_PULLBACK_2026-10-12.md`; contract: `memory-bank/contract.md`. It **supersedes** the 2026-09-29 core/sleeve plan (do not extend PR #106, the ETF ensemble, or the uncommitted "swing" mode). **No execution code before the portfolio backtest gate (plan §2.1) passes**, and the current demo scheduler keeps running the old ETF pipeline until phase 5.
+
 ---
 
 ## 1. Deterministic Memory: The Four-File Discipline

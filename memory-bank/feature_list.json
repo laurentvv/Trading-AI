@@ -1,7 +1,7 @@
 {
   "$comment": "Cartographie complète et structurée des fonctionnalités du projet. Source unique de vérité sur l'état des fonctionnalités. Généré le 2026-06-30 lors de la mise en place du système de mémoire déterministe (voir AGENTS.md §1). Mis à jour dès qu'une fonctionnalité change de statut.",
   "schema_version": "1.0",
-  "last_updated": "2026-10-03",
+  "last_updated": "2026-10-12",
   "features": [
     {
       "id": "F-01",
@@ -284,6 +284,95 @@
       "status": "completed",
       "dependencies": [
         "F-40"
+      ]
+    },
+    {
+      "id": "F-42",
+      "name": "Plan de migration vers la méthode pullback (décision utilisateur 2026-10-12)",
+      "description": "Plan docs/PLAN_MIGRATION_PULLBACK_2026-10-12.md, contrat gelé, portes de passage. Remplace le plan cœur Nasdaq-100 / poche 10 % du 2026-09-29.",
+      "status": "completed",
+      "dependencies": []
+    },
+    {
+      "id": "F-43",
+      "name": "Univers U1 : actions US Trading 212 → symboles Yahoo + filtre de liquidité",
+      "description": "Construction de l'univers depuis /equity/metadata/instruments (STOCK, _US_EQ), correspondance déterministe vers Yahoo, filtre cours/volume en dollars/historique recalculé chaque jour sans regard vers le futur.",
+      "status": "pending",
+      "dependencies": [
+        "F-42"
+      ]
+    },
+    {
+      "id": "F-44",
+      "name": "Stockage journalier en masse (OHLCV, Parquet incrémental)",
+      "description": "Téléchargement et mise à jour incrémentale des barres journalières de l'univers, refus des séries périmées, aucune donnée synthétique.",
+      "status": "pending",
+      "dependencies": [
+        "F-43"
+      ]
+    },
+    {
+      "id": "F-45",
+      "name": "Règles pullback en fonctions pures (screener, consolidation, support/AVWAP, déclencheur, risque, sorties)",
+      "description": "Traduction mécanique journalière des quatre étapes de la méthode (plan §1), paramètres par défaut et variantes pré-enregistrées.",
+      "status": "pending",
+      "dependencies": [
+        "F-44"
+      ]
+    },
+    {
+      "id": "F-46",
+      "name": "Banc portefeuille multi-actions + références, contrôles, univers à la date → porte de passage",
+      "description": "Moteur événementiel journalier (OHLC, gaps payés, pire cas intrajournalier), frais T212 et PFU, comparaison au buy & hold Nasdaq-100/S&P 500 et MA200, contrôles hasard et momentum seul, walk-forward 2015-2020 / 2021+, verdict calculé.",
+      "status": "pending",
+      "dependencies": [
+        "F-45"
+      ]
+    },
+    {
+      "id": "F-47",
+      "name": "Filtres IA : LLM vision (chartiste), thèmes et catalyseurs, TimesFM (classement) + journal A/B",
+      "description": "L'IA classe et met son veto sur les candidats du screener sans jamais créer de trade ; chaque candidat est journalisé règle seule vs règle + IA.",
+      "status": "pending",
+      "dependencies": [
+        "F-46"
+      ]
+    },
+    {
+      "id": "F-48",
+      "name": "Exécuteur T212 multi-positions (achat stop, stop GTC, ventes partielles 3R/5R, suivi EMA 9)",
+      "description": "Portefeuille dimensionné sur l'équité du compte, stop broker sur chaque position, sonde démo des ordres stop d'achat avec feu vert utilisateur.",
+      "status": "pending",
+      "dependencies": [
+        "F-46"
+      ]
+    },
+    {
+      "id": "F-49",
+      "name": "Scheduler séance US (America/New_York), plan nocturne, boucle de suivi 5 min, alertes",
+      "description": "Remplace la boucle 30 min 08:30-18:00 sur ETF ; verrou, watchdog et alertes Nextcloud conservés.",
+      "status": "pending",
+      "dependencies": [
+        "F-48"
+      ]
+    },
+    {
+      "id": "F-50",
+      "name": "Retrait de l'ancien ensemble ETF du dépôt + documentation",
+      "description": "Suppression des modèles et du moteur d'ensemble retirés du chemin d'exécution, réécriture README/AGENTS.md/guide API.",
+      "status": "pending",
+      "dependencies": [
+        "F-49"
+      ]
+    },
+    {
+      "id": "F-51",
+      "name": "Démo de conformité puis passage en réel progressif",
+      "description": "≥ 8 semaines et ≥ 40 trades en démo conformes au banc, puis réel à 0,25 % de risque par trade pendant 4 semaines, puis 0,5 %.",
+      "status": "pending",
+      "dependencies": [
+        "F-47",
+        "F-50"
       ]
     }
   ]
