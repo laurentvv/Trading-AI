@@ -17,7 +17,7 @@
 ### Sprint Migration pullback (2026-10-12, en cours)
 - [x] Phase 0 (F-42) : plan, contrat (29 critères), features F-42 → F-51, univers T212 mesuré (12 168 actions dont 6 898 `_US_EQ`). PR de plan ouverte, en attente de validation utilisateur (le contrat est figé à cette validation).
 - [x] Phase 1 (F-43, F-44) : `src/pullback/{universe,store,cli}.py` + 10 tests (univers U1 : 6 877 symboles Yahoo, filtre de liquidité sans regard vers le futur, Parquet incrémental, séries périmées refusées). Téléchargement en masse lancé, couverture à reporter dans la PR.
-- [ ] Phase 2 (F-45) : règles pullback en fonctions pures.
+- [x] Phase 2 (F-45) : `src/pullback/rules.py` (screener momentum, consolidation, support/AVWAP, setup, taille, sorties) + 9 tests (dont absence de regard vers le futur). Coût ~6 ms par symbole-jour : le banc de la phase 3 devra pré-filtrer par momentum / vectoriser.
 - [ ] Phase 3 (F-46) : banc portefeuille → **porte de passage**.
 - [ ] Phase 4 (F-47) : filtres IA + journal A/B.
 - [ ] Phase 5 (F-48, F-49) : exécuteur T212 multi-positions + scheduler séance US (sonde démo avec feu vert).

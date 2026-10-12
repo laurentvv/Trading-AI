@@ -42,14 +42,14 @@ def cmd_universe() -> int:
 
 
 def cmd_update(limit: int | None) -> int:
-    symbols = list(pd.read_csv(UNIVERSE_CSV)["symbol"])[:limit]
+    symbols = list(pd.read_csv(UNIVERSE_CSV, keep_default_na=False)["symbol"])[:limit]
     status = store.update_symbols(symbols, store.yfinance_downloader)
     print(pd.Series(status).value_counts().to_string())
     return 0
 
 
 def cmd_stats() -> int:
-    symbols = list(pd.read_csv(UNIVERSE_CSV)["symbol"])
+    symbols = list(pd.read_csv(UNIVERSE_CSV, keep_default_na=False)["symbol"])
     asof = pd.Timestamp.today().normalize()
     loaded = liquid = 0
     for s in symbols:
