@@ -220,3 +220,17 @@ Les phases 1 à 3 ne touchent ni au scheduler démo ni à `src/t212_executor.py`
    (téléchargement à valider au moment de la phase 3).
 3. Actions européennes (U2) après la démo ?
 4. Données intraday payantes plus tard, pour un déclencheur plus fin ?
+
+---
+
+## 9. Résultat du banc (phase 3, 2026-10-12) : la porte n'est PAS franchie
+
+Rapport complet, produit par le code : `docs/BACKTEST_PULLBACK_2026-10-12.md` (6 595 symboles, calibrage 2015-2020, test 2021 -> 2026-10-12, net de frais et d'impôt).
+
+- **Test hors échantillon** : Pullback (variante retenue `ema9_apres_3R`) **-22,6 %/an**, Sharpe -1,93, drawdown -78,9 %, 680 trades, réussite 19 %, espérance -0,55 R. Buy & hold Nasdaq-100 EUR : +14,6 %/an, Sharpe 0,74.
+- **Les 6 variantes pré-enregistrées perdent toutes**, au calibrage comme au test.
+- **La stratégie fait moins bien que le hasard** : entrées au hasard dans le même univers momentum, mêmes stops et sorties : médiane -15,0 %/an, espérance -0,45 R ; la stratégie est battue par 95-98 % des tirages. Les étapes consolidation / support / AVWAP n'ajoutent donc rien dans cette traduction journalière.
+- **Ce n'est pas un artefact d'hypothèses** : avec l'ordre intrajournalier le plus favorable (entrée annulée si le stop cède d'abord, cibles avant stop) la stratégie reste négative (-7,8 %/an, espérance -0,16 R) ; sans aucun frais, -14,1 %/an dans l'hypothèse du plan. Le biais du survivant joue en faveur de la stratégie : le vrai résultat ne serait pas meilleur.
+- **Lecture** : un stop de 2 à 3 % (plus bas de la veille) est plus étroit que l'amplitude journalière normale d'un titre momentum ; il se fait toucher dans la majorité des cas (réussite de 19 à 30 %, soit environ le 1/4 d'une marche aléatoire avec cible à 3R), et les frais de 50 pb par aller-retour en prennent environ 0,2 R par trade.
+- **Conséquence selon le plan (§2.1)** : pas de construction d'exécution (phases 4 à 7 suspendues). Les variantes pré-enregistrées sont épuisées. Ce banc ne teste pas l'intraday de la source (bougies de 1 à 15 min) : la méthode d'origine reste non testée, pas réfutée. Décision à prendre par l'utilisateur.
+

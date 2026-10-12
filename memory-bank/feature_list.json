@@ -324,7 +324,7 @@
       "id": "F-46",
       "name": "Banc portefeuille multi-actions + références, contrôles, univers à la date → porte de passage",
       "description": "Moteur événementiel journalier (OHLC, gaps payés, pire cas intrajournalier), frais T212 et PFU, comparaison au buy & hold Nasdaq-100/S&P 500 et MA200, contrôles hasard et momentum seul, walk-forward 2015-2020 / 2021+, verdict calculé.",
-      "status": "pending",
+      "status": "completed",
       "dependencies": [
         "F-45"
       ]
