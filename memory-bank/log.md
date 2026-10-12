@@ -512,4 +512,55 @@ Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-
 - Commit `9b1d7cc` poussé sur `origin/main` (22 fichiers synchronisés).
 - Working tree 100% propre, prêt pour redémarrage de `start_scheduler.bat`.
 
+## [2026-10-10] eval | Analyse globale du système en production (état scheduler, portefeuille T212, Weekend Council et signaux)
+- **Scheduler & Processus** : Nouveau processus `schedule.py` actif (PID 3324, verrou `scheduler.lock` acquis à 22:20). Cycles nominaux exécutés toute la semaine pour `['SXRV.DE', 'QDVF.DE']`.
+- **Morning Brief & Conseil du week-end** : Générés avec succès le 10/10 à 01h00-01h03.
+  - Morning Brief : Marché pétrole neutre/bullish fondamentalement mais sous SMA20 ($91.66 vs $94.40) ; NDX haussier mais surachat RSI ~73.4.
+  - Weekend Council : Verdict HOLD défensif (Juge : HOLD SXRV 0.7, HOLD QDVF 0.7, SELL CRUDP 0.8).
+- **Portefeuille T212 (Démo)** :
+  - `SXRVd_EQ` : Position active saine (+30.36 € / +3.02% latent, P&L réalisé +2.33 €). Stop suiveur broker GTC actif @ 1440.89 €.
+  - `QDVFd_EQ` : 0 position, 1000.00 € en cash (protection active face aux signaux SELL/HOLD du vendredi).
+  - `OD7Fd_EQ` : 0 position, purgé.
+- **Ensemble Décisionnel** : Pivot QDVF.DE actif, modèles zombies hermétiquement neutralisés à 0.0, 0 erreur d'exécution.
 
+## [2026-10-10] fix | Transition vers la gestion Swing 30k€ : levée des verrous destructeurs et validation mathématique
+- **Diagnostic quantitatif par backtest réel** :
+  - Sur `SXRV.DE`, les sorties héritées (TP 8%, trailing 3%, time-stop 15j, garde de perte -0.2%) provoquaient 85 ventes/an et faisaient chuter le CAGR de 21.8% à 7.1% (Sharpe 0.46).
+  - Sur `QDVR.DE` (énergie actions), le CAGR chutait de 12.5% à 4.1% (83 ventes/an).
+- **Implémentation de `STRATEGY_MODE=swing` (`src/t212_executor.py`)** :
+  - `TAKE_PROFIT_TARGET` désactivable/None : on laisse courir les rallyes haussiers sans plafond arbitraire de +8%.
+  - `MAX_HOLDING_DAYS` désactivable/None : fin du time-stop à 15 jours qui coupait les positions gagnantes.
+  - `TRAILING_STOP_PCT` porté de 3% à 10% : aligné sur le ratchet broker peak×0.90, éliminant les sorties sur bruit de 1-2 jours.
+  - `ENABLE_SELL_LOSS_GUARD` désactivable : l'IA peut sortir sur signal de retournement fort sans être bloquée par la garde -0.2%.
+  - `T212_BUDGET_PER_TICKER` : support d'un budget par ticker paramétrable (défaut 15 000 € en mode swing pour 30k€ au total).
+- **Preuve par backtest sur séries réelles** :
+  - `SXRV.DE` (MA200 + Swing 10%) : **CAGR 19.5%** (vs 7.1% legacy), **MaxDD -15.8%** (vs -26.7% B&H), **Sharpe 1.28** (bat le Buy & Hold à 1.12), **4 ventes en 4 ans** au lieu de 85.
+  - `QDVR.DE` (Swing 10%) : **CAGR 13.6%** (bat le Buy & Hold à 12.5% et legacy à 4.1%), **MaxDD -21.3%** (vs -23.9% B&H), **Sharpe 0.95** (bat B&H à 0.87), **2 ventes** seulement.
+- **Validation** :
+  - Nouveau test unitaire `tests/test_swing_mode.py`.
+  - Suite de tests complète : **433 passed, 3 skipped, 0 failed** (100% succès).
+
+
+## [2026-10-12] eval | Audit du démo T212 en cours (Claude) : état, journal, logs, banc
+- Scheduler sain (PID 3324 depuis le 10/10 22:20, cycles OK) ; mode legacy (STRATEGY_MODE absent de .env) : les modifs swing non commitées sont inertes au runtime.
+- **Achats QDVF.DE tous rejetés le 08/10** (13 × BUY:not-filled) : 11 × quantity-precision-mismatch (4 décimales, T212 en accepte 3), 2 × insufficient-free (achat à 99 % du cash, T212 plafonne vers 95 %).
+- **Clés d'API en clair dans trading.log*** : ~1 100 lignes httpx `?key=` (gemini_free, désormais refusée en 401) + 4 `apikey=` Alpha Vantage. Logs gitignorés : rien de publié.
+- **Vote llm_visual = bruit** : gemini_free mort, repli sur nvidia llama-3.2-11b-vision ; le vote bascule BUY/SELL à 44 % des cycles et fait basculer le signal final SXRV à 46 %.
+- **QDVR.DE n'est pas énergie** (iShares MSCI USA SRI) ; QDVF.DE jamais backtesté ; « +15,4 % sur 11 ans » faux (+10,1 %/an, DD −65,8 %). Chiffres « swing » du 10/10 non reproduits (voir progress.md).
+
+## [2026-10-12] fix | PR ouvertes (travail dans un clone temporaire : le scheduler tourne dans ce checkout)
+- #107 fix(t212) : précision QDVFd_EQ = 3, achat plafonné à 95 % du cash, quantité arrondie à l'inférieur (+5 tests).
+- #108 fix(logs) : SecretRedactingFilter sur les handlers de setup_environment, redact_secrets couvre les paramètres d'URL (+6 tests).
+- #109 fix(backtest) : QDVF.DE remplace QDVR.DE, lignes « sorties swing », rapport 2026-10-12, docs corrigées (+3 tests).
+- Suites complètes vertes sur chaque branche (435 à 438 passed, 3 skipped). Rien de modifié dans le checkout PROD hors memory-bank.
+
+
+## [2026-10-12] init | Migration complète vers la méthode d'achat sur pullback (décision utilisateur)
+- Demande utilisateur : « MIGRATION du projet » vers la méthode de Martin Luk (fil @OtherSideBJ du 2026-10-12).
+- Choix utilisateur : migration complète (remplace le plan cœur Nasdaq-100 / poche 10 % du 2026-09-29) ; univers « tout ce qui est facilement dispo sur T212 » ; LLM et TimesFM « au mieux » ; déclencheur journalier.
+- Univers mesuré (`GET /equity/metadata/instruments`, démo, lecture seule) : 18 473 instruments, 12 168 actions, dont 6 898 `_US_EQ` en USD.
+
+## [2026-10-12] gen | Phase 0 : plan, contrat et features (F-42 → F-51)
+- `docs/PLAN_MIGRATION_PULLBACK_2026-10-12.md` : règles mécaniques journalières, banc portefeuille et portes de passage, rôle des LLM et de TimesFM (classement et veto, journal A/B), exécution T212, phases et PR.
+- `memory-bank/contract.md` : 29 critères, remplace le contrat GO-gates du 2026-08-19 ; figé à la validation du plan par l'utilisateur.
+- Travail dans un clone temporaire : le scheduler démo tourne dans le checkout, rien n'y est modifié hors memory-bank.

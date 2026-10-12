@@ -1,5 +1,9 @@
 # Plan d'amélioration : passage en réel (30 k€, horizon moyen/long terme)
 
+> **Remplacé le 2026-10-12** par `docs/PLAN_MIGRATION_PULLBACK_2026-10-12.md` (décision de l'utilisateur : migration
+> complète vers la méthode d'achat sur pullback). Ce document reste comme historique ; ses constats (§1) et le
+> banc de la phase 1 restent valables.
+
 **Date :** 2026-09-29. **Statut :** proposition, aucun code modifié.
 **Base factuelle :** run démo T212 n° 2 (03/09 → 29/09/2026). Sources : `trading_journal.csv` (477 lignes), `trading.log`, `scheduler.log`, `trading_history.db`, `model_performance.db`, `performance_monitor.db`, `t212_portfolio_state.json`, caches parquet et code source.
 **Objectif utilisateur :** gagner réellement de l'argent sur le moyen/long terme avec **30 k€ de capital réel de départ**.
