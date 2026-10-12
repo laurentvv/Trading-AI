@@ -564,3 +564,6 @@ Un correctif anti-biais (ADR-002) peut créer un biais **symétrique** s'il sur-
 - `docs/PLAN_MIGRATION_PULLBACK_2026-10-12.md` : règles mécaniques journalières, banc portefeuille et portes de passage, rôle des LLM et de TimesFM (classement et veto, journal A/B), exécution T212, phases et PR.
 - `memory-bank/contract.md` : 29 critères, remplace le contrat GO-gates du 2026-08-19 ; figé à la validation du plan par l'utilisateur.
 - Travail dans un clone temporaire : le scheduler démo tourne dans le checkout, rien n'y est modifié hors memory-bank.
+
+## [2026-10-12] gen | Phase 1 : univers U1 et stockage journalier (F-43, F-44)
+- `src/pullback/universe.py` (T212 -> Yahoo via shortName, filtre liquidité), `store.py` (Parquet incrémental, séries périmées refusées, aucun comblement), `cli.py`. 10 tests verts. Test réel : 8 symboles téléchargés en 2,3 s.
