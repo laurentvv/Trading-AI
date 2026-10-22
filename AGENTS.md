@@ -194,3 +194,7 @@ PowerShell note: `uv run pytest ...` may fail with "Failed to canonicalize scrip
 - **Cache Invalidation**: `data_cache/` and `logs_prod/` are gitignored.
 - **Never commit secrets** (`.env*`, `*.db`, `data_cache/`, `logs_prod/` are gitignored).
 - **Do not push** without explicit user request.
+
+### CI / GitHub Actions
+
+No GitHub Actions: this repository publishes no GitHub releases, so it carries no workflows — never create `.github/workflows/` files, CI badges or release automation. Validation runs locally.
